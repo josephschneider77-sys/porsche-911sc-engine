@@ -413,7 +413,7 @@ export function muffler() {
   }
   // tailpipe (chrome), exiting rearward on the left
   p.add(tube([[-200, -200, 440], [-205, -205, 470], [-210, -212, 500]], 26, 24, 12), 'chrome');
-  p.add(yToZ(torus(26, 2.5, 6, 32)), 'chrome', [-210, -212, 500]);
+  p.add(yToZ(lathe([[24, 0], [28.5, 0], [28.5, 34], [26, 36], [24, 34]], 32)), 'chrome', [-210, -212, 488]);
   // bracket (#34)
   p.add(boxMM([-40, -122, 360], [40, -110, 420]), 'darkSteel');
   return p.g;

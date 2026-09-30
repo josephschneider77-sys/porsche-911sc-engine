@@ -26,6 +26,7 @@ function homePose(cam: THREE.PerspectiveCamera, zoom = 1) {
   return { pos: HOME_TARGET.clone().add(HOME_DIR.clone().multiplyScalar(dist)), target: HOME_TARGET.clone() };
 }
 const ACCENT = new THREE.Color(0xff4d2e);
+const EXPLODE_SCALE = 0.85;
 
 export class Viewer {
   renderer: THREE.WebGLRenderer;
@@ -58,7 +59,7 @@ export class Viewer {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.09;
     this.controls.minDistance = 250;
-    this.controls.maxDistance = 4200;
+    this.controls.maxDistance = 9000;
     this.controls.addEventListener('change', () => this.kick());
     this.controls.addEventListener('start', () => { this.camGoal = null; this.userMoved = true; });
 
@@ -142,7 +143,7 @@ export class Viewer {
   setStep(n: number) { this.step = n; this.removed = removedAfter(n); this.kick(160); }
   setExplode(f: number) {
     this.explode = f;
-    if (!this.userMoved) { const h = homePose(this.camera, 1 + 0.6 * f); this.camGoal = h; }
+    if (!this.userMoved) { const h = homePose(this.camera, 1 + 0.55 * f); this.camGoal = h; }
     this.kick(120);
   }
   /** Jump all animations to their end state (used for deep links / screenshots). */
@@ -157,7 +158,7 @@ export class Viewer {
     }
     this.kick();
   }
-  resetView() { this.userMoved = false; this.camGoal = homePose(this.camera, 1 + 0.6 * this.explode); this.kick(120); }
+  resetView() { this.userMoved = false; this.camGoal = homePose(this.camera, 1 + 0.55 * this.explode); this.kick(120); }
   focus(id: string) {
     this.userMoved = true;
     const n = this.nodes.get(id); if (!n) return;
@@ -217,7 +218,7 @@ export class Viewer {
       const id = n.def.id;
       const vis = this.visibleFlag(id);
       const iso = this.isolated === id;
-      const target = n.explodeDir.clone().multiplyScalar(iso ? 0 : this.explode);
+      const target = n.explodeDir.clone().multiplyScalar(iso ? 0 : this.explode * EXPLODE_SCALE);
       if (this.removed.has(id) && !iso) {
         const d = n.explodeDir.lengthSq() > 0 ? n.explodeDir.clone().normalize() : new THREE.Vector3(0, 1, 0);
         target.add(d.multiplyScalar(700));
