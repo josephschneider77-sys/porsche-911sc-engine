@@ -1,0 +1,279 @@
+import { SystemKey } from './catalog';
+import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ } from './layout';
+
+export type Vec3 = [number, number, number];
+export interface CatalogRef {
+  ill: string; // Porsche catalogue illustration, e.g. "102-00"
+  pos: string; // item (position) number in that illustration
+  pn: string; // Porsche part number (1978 911 SC application)
+  qty?: number; // quantity per engine in the catalogue
+  note?: string;
+}
+export interface PartDef {
+  id: string;
+  name: string;
+  system: SystemKey;
+  asset: string; // GLB in public/parts/
+  position?: Vec3; // mm, engine frame
+  rotation?: Vec3; // radians, Euler XYZ
+  explode: Vec3; // mm offset at full explode
+  catalog: CatalogRef[];
+  description: string;
+  specs: Record<string, string>;
+}
+
+const R = Math.PI;
+const side = (c: number) => (bankOf(c) === 1 ? 'right' : 'left');
+const bankRot = (c: number): Vec3 => (bankOf(c) === 1 ? [0, 0, 0] : [0, R, 0]);
+const CYLS = [1, 2, 3, 4, 5, 6];
+
+const RUNNER_PN: Record<number, string> = { 1: '911 110 420 06', 2: '911 110 470 06', 3: '911 110 480 06', 4: '911 110 440 06', 5: '911 110 450 06', 6: '911 110 490 06' };
+
+function perCylinder(): PartDef[] {
+  const out: PartDef[] = [];
+  for (const c of CYLS) {
+    const s = bankOf(c), z = CYL_Z[c];
+    const { pinX: px, throwXY, rodAngle } = pinX(c, 0);
+    out.push({
+      id: `conrod-${c}`, name: `Connecting rod, cyl. ${c}`, system: 'crank', asset: 'conrod',
+      position: [throwXY[0], throwXY[1], z], rotation: [0, 0, rodAngle], explode: [s * 70, 0, 0],
+      catalog: [{ ill: '102-00', pos: '16', pn: '930 103 015 5x', qty: 6, note: 'Weight group 1-9 (633-714 g); last digit = group' },
+        { ill: '102-00', pos: '18/19', pn: '914 103 171 00 / 901 103 173 00', qty: 12, note: 'Rod bolt / nut' },
+        { ill: '102-00', pos: '20', pn: '930 103 148 00', qty: 12, note: 'Rod bearing shell, std.' }],
+      description: 'Forged steel H-section rod with a split big end (bolted cap) and pressed-in bronze small-end bush. Rods are matched by weight group across the engine.',
+      specs: { 'Centre distance': '127 mm (est.)', 'Big-end journal': 'Ø53 mm', 'Small-end bush': 'Ø22 mm pin', Material: 'Forged steel' },
+    });
+    out.push({
+      id: `piston-${c}`, name: `Piston, cyl. ${c}`, system: 'pistons', asset: 'piston',
+      position: [px, 0, z], rotation: bankRot(c), explode: [s * 170, 0, 0],
+      catalog: [{ ill: '102-05', pos: '1', pn: '930 103 962 03', qty: 6, note: 'Supplied as cylinder + piston set (Mahle, -80); Schmidt alt. 930 103 966 04' },
+        { ill: '102-05', pos: '2', pn: '930 103 963 00', note: 'Piston ring set' }, { ill: '102-05', pos: '3/4', pn: '930 103 375 00 / N 012 278 1', note: 'Pin / circlip C22' }],
+      description: 'Forged/cast light-alloy domed piston for 8.5:1 compression, three rings (two compression, one oil) and a floating wrist pin retained by circlips. Valve reliefs are machined into the dome.',
+      specs: { Bore: '95.0 mm', Stroke: '70.4 mm', Compression: '8.5 : 1', Rings: '3', Pin: 'Ø22 mm floating' },
+    });
+    out.push({
+      id: `cylinder-${c}`, name: `Cylinder ${c} (Nikasil)`, system: 'pistons', asset: 'cylinder',
+      position: [DECK_X * s, 0, z], rotation: bankRot(c), explode: [s * 290, 0, 0],
+      catalog: [{ ill: '102-05', pos: '1', pn: '930 103 962 03', qty: 6, note: 'Matched to piston (size group)' },
+        { ill: '102-05', pos: '5/6', pn: '930 104 194 02 / 930 104 317 00', note: 'Base gasket 0.25 mm / head sealing ring' }],
+      description: 'Individual finned aluminium barrel with a Nikasil (nickel-silicon carbide) bore coating — new for the 3.0 engines. Each cylinder is clamped between crankcase and head by long head studs; no head gasket, just a sealing ring.',
+      specs: { Bore: '95.0 mm', Material: 'Al alloy, Nikasil bore', Fins: 'Radial, ~15', 'Swept volume': '499 cc' },
+    });
+    out.push({
+      id: `head-${c}`, name: `Cylinder head ${c}`, system: 'heads', asset: 'cylinder-head',
+      position: [CYL_TOP_X * s, 0, z], rotation: bankRot(c), explode: [s * 400, 0, 0],
+      catalog: [{ ill: '103-00', pos: '1', pn: '930 104 029 08', qty: 6, note: 'Without valves' }],
+      description: 'Individual single-cylinder cast aluminium head with a hemispherical chamber, two valves in a V, intake port on top and exhaust port below. The spark plug sits low on the exhaust side.',
+      specs: { Valves: '2 (1 in / 1 ex)', 'Intake valve': 'Ø49 mm', 'Exhaust valve': 'Ø41.5 mm', 'Valve angle': '~28° in / ~32° ex (est.)' },
+    });
+    out.push({
+      id: `valves-${c}`, name: `Valves & springs, cyl. ${c}`, system: 'valvetrain', asset: 'valve-set',
+      position: [CYL_TOP_X * s, 0, z], rotation: bankRot(c), explode: [s * 470, 0, 0],
+      catalog: [{ ill: '103-00', pos: '9', pn: '930 105 409 01', note: 'Intake valve' }, { ill: '103-00', pos: '10', pn: '930 105 419 08', note: 'Exhaust valve (sodium filled)' },
+        { ill: '103-00', pos: '13-15', pn: '901 105 901 50 / 901 105 421 03 / 901 105 417 00', note: 'Spring set / retainer / collets' }],
+      description: 'Intake and exhaust valve with dual valve springs, spring seat, retainer and split collets. Clearance is set at the rocker adjusting screw (0.10 mm cold).',
+      specs: { 'Valve clearance': '0.10 mm cold', Springs: 'Dual', 'Stem Ø': '9 mm' },
+    });
+    const zRot: Vec3 = s === 1 ? [0, 0, -20 * (R / 180)] : [0, R, -20 * (R / 180)];
+    out.push({
+      id: `spark-plug-${c}`, name: `Spark plug, cyl. ${c}`, system: 'ignition', asset: 'spark-plug',
+      position: [(CYL_TOP_X + 16) * s, -44, z + 34 * s], rotation: zRot, explode: [s * 380, -220, 0],
+      catalog: [{ ill: '901-00', pos: '16', pn: '999 170 162 90', qty: 6 }, { ill: '901-00', pos: '21', pn: '911 602 315 00', note: 'Plug connector' }],
+      description: 'Spark plug with shielded connector, fitted from below on the exhaust side of each head.',
+      specs: { Thread: 'M14 x 1.25', Gap: '0.7 mm (typ.)' },
+    });
+    out.push({
+      id: `intake-runner-${c}`, name: `Intake pipe, cyl. ${c}`, system: 'induction', asset: 'intake-runner',
+      position: [INTAKE_PORT.x * s, INTAKE_PORT.y, z], rotation: bankRot(c), explode: [s * 240, 420, 0],
+      catalog: [{ ill: '106-00', pos: String(c), pn: RUNNER_PN[c], note: `Intake pipe, cylinder ${c}` }, { ill: '106-00', pos: '10', pn: '928 110 158 01', note: 'Rubber sleeve' }],
+      description: 'Cast aluminium intake runner from the air-distribution plenum down to the head intake port, carrying the continuous-injection nozzle close to the port.',
+      specs: { Material: 'Cast Al', Sealing: 'Rubber sleeve at plenum' },
+    });
+    const injRot: Vec3 = s === 1 ? [0, 0, -57 * (R / 180)] : [0, R, -57 * (R / 180)];
+    out.push({
+      id: `injector-${c}`, name: `Injection valve, cyl. ${c}`, system: 'induction', asset: 'injector',
+      position: [(INTAKE_PORT.x + INJ.dx) * s, INTAKE_PORT.y + INJ.dy, z], rotation: injRot, explode: [s * 300, 480, 0],
+      catalog: [{ ill: '107-10', pos: '21', pn: '911 110 225 01', qty: 6 }],
+      description: 'Bosch K-Jetronic continuous injection valve: opens at ~3.3 bar and sprays continuously into the intake port; quantity is metered by the fuel distributor, not by the nozzle.',
+      specs: { Type: 'Bosch CIS (mechanical)', 'Opening pressure': '~3.3 bar (typ.)' },
+    });
+  }
+  return out;
+}
+
+const bank = (s: 1 | -1) => (s === 1 ? 'right' : 'left');
+function perBank(): PartDef[] {
+  const out: PartDef[] = [];
+  for (const s of [1, -1] as const) {
+    const b = bank(s), B = s === 1 ? 'R' : 'L', ill = s === 1 ? '103-15' : '103-10';
+    const cyls = s === 1 ? '1-3' : '4-6';
+    out.push({
+      id: `cam-housing-${b}`, name: `Camshaft housing, ${b} (cyl. ${cyls})`, system: 'heads', asset: `cam-housing-${b}`, explode: [s * 520, 0, 0],
+      catalog: [{ ill: '103-05', pos: '13', pn: '930 105 021 00', qty: 2 }],
+      description: 'Cast aluminium cam tower bolted across the three heads of one bank. Carries the camshaft in three plain bearings (in the base metal) and the rocker shafts; closed by upper and lower valve covers.',
+      specs: { Material: 'Cast Al', 'Cam bearings': '3, plain', 'Rocker shafts': '6' },
+    });
+    for (const up of [true, false]) {
+      out.push({
+        id: `valve-cover-${up ? 'upper' : 'lower'}-${b}`, name: `Valve cover, ${up ? 'upper' : 'lower'} ${b}`, system: 'heads',
+        asset: `valve-cover-${up ? 'upper' : 'lower'}-${b}`, explode: [s * 560, up ? 160 : -160, 0],
+        catalog: [up ? { ill: '103-05', pos: '17', pn: '901 105 115 03', qty: 2, note: 'Gasket #18 930 105 194 00' } : { ill: '103-05', pos: '19', pn: '930 105 116 00', qty: 2, note: 'Gasket #20 930 105 195 01' }],
+        description: `${up ? 'Upper (intake-side)' : 'Lower (exhaust-side)'} ribbed valve cover sealing the rocker gallery of the camshaft housing.`,
+        specs: { Material: 'Cast alloy', Fasteners: 'Nuts on studs' },
+      });
+    }
+    out.push({
+      id: `camshaft-${b}`, name: `Camshaft, ${b}`, system: 'camdrive', asset: `camshaft-${b}`, explode: [s * 640, 60, 0],
+      catalog: [{ ill, pos: '42', pn: s === 1 ? '930 105 148 08' : '930 105 147 08', qty: 1, note: 'SC grind, -81' }],
+      description: 'Chilled cast-iron/steel camshaft with one intake and one exhaust lobe per cylinder, driven at half crank speed by duplex chain from the intermediate shaft.',
+      specs: { Speed: '½ crank', Lobes: '6', Bearings: '3 + end' },
+    });
+    out.push({
+      id: `rockers-${b}`, name: `Rocker arms & shafts, ${b}`, system: 'valvetrain', asset: `rockers-${b}`, explode: [s * 600, 30, 60],
+      catalog: [{ ill, pos: '48', pn: '930 105 043 00', qty: 12, note: 'Rocker arm' }, { ill, pos: '44', pn: '901 105 342 04', qty: 12, note: 'Rocker shaft (expanding)' }, { ill, pos: '49/50', pn: '901 105 370 02 / 999 034 005 00', note: 'Adjusting screw / nut' }],
+      description: 'Forged rocker arms on clamp-type expanding shafts; each transfers cam lift to its valve and carries the clearance-adjusting screw.',
+      specs: { Count: '6 per bank', Ratio: '~1.2 (est.)' },
+    });
+    out.push({
+      id: `timing-chain-${b}`, name: `Timing chain, ${b}`, system: 'camdrive', asset: `timing-chain-${b}`, explode: [s * 380, -40, 240],
+      catalog: [{ ill, pos: '1', pn: '901 105 529 00', qty: 1, note: 'Duplex roller chain; can only be removed after splitting the case' }],
+      description: 'Roller chain from the intermediate-shaft sprocket to the cam sprocket, tensioned by a hydraulic tensioner on the slack side.',
+      specs: { Pitch: '9.525 mm (3/8")', Type: 'Duplex (modelled simplex)' },
+    });
+    out.push({
+      id: `cam-sprocket-${b}`, name: `Camshaft sprocket, ${b}`, system: 'camdrive', asset: `cam-sprocket-${b}`, explode: [s * 520, 40, 320],
+      catalog: [{ ill, pos: '38', pn: '901 105 546 02', qty: 1 }, { ill, pos: '36', pn: '901 105 583 01', note: 'Flange (timing adjustment)' }],
+      description: 'Cam sprocket with drilled flange for vernier-style cam timing adjustment (dowel #39 through flange holes).',
+      specs: { Adjustment: 'Dowel-pin vernier' },
+    });
+    out.push({
+      id: `chain-tensioner-${b}`, name: `Chain tensioner & guides, ${b}`, system: 'camdrive', asset: `chain-tensioner-${b}`, explode: [s * 360, -120, 320],
+      catalog: [{ ill, pos: '10', pn: '930 105 049 00', note: 'Chain adjuster (hydraulic, oil-fed on later cars)' }, { ill, pos: '5/6', pn: s === 1 ? '901 105 506 02 / 901 105 055 00' : '901 105 505 02 / 901 105 055 00', note: 'Idler arm / idler sprocket' }, { ill, pos: '2', pn: '911 105 222 06', note: 'Guide rail' }],
+      description: 'Idler arm and sprocket pushed onto the chain by the chain adjuster; plastic guide ramps control chain whip.',
+      specs: { Type: 'Spring/hydraulic tensioner' },
+    });
+    out.push({
+      id: `chain-housing-${b}`, name: `Chain housing, ${b}`, system: 'camdrive', asset: `chain-housing-${b}`, explode: [s * 340, -20, 170],
+      catalog: [{ ill: '103-05', pos: s === 1 ? '2' : '1', pn: s === 1 ? '930 105 062 01' : '930 105 061 02', qty: 1 }],
+      description: 'Cast chain case bolted to the crankcase and cam housing at the pulley end, enclosing the cam drive.',
+      specs: { Material: 'Cast Al', Gasket: '930 105 193 00' },
+    });
+    out.push({
+      id: `chain-housing-lid-${b}`, name: `Chain housing cover, ${b}`, system: 'camdrive', asset: `chain-housing-lid-${b}`, explode: [s * 380, -20, 380],
+      catalog: [{ ill: '103-05', pos: s === 1 ? '7' : '6', pn: s === 1 ? '930 105 064 01' : '930 105 063 01', qty: 1 }],
+      description: 'Chain case cover with the round tensioner access cover (103-10 #31).',
+      specs: { Gasket: s === 1 ? '930 105 192 01' : '930 105 191 03' },
+    });
+    out.push({
+      id: `heat-exchanger-${b}`, name: `Heat exchanger, ${b} (cyl. ${cyls})`, system: 'exhaust', asset: `heat-exchanger-${b}`, explode: [s * 330, -320, 0],
+      catalog: [{ ill: '202-00', pos: '26', pn: '930 211 025 01', qty: 2 }, { ill: '202-00', pos: '31', pn: '930 111 191 13', note: 'Port gasket x6' }],
+      description: 'Combined exhaust manifold and cabin heater: three primary pipes pass through a finned inner box inside a steel shell; fresh air blown through the shell is heated and ducted to the cabin.',
+      specs: { Material: 'Steel, aluminised', Primaries: '3 per side' },
+    });
+  }
+  return out;
+}
+
+const single: PartDef[] = [
+  { id: 'crankcase-right', name: 'Crankcase, right half (cyl. 1-3)', system: 'crankcase', asset: 'crankcase-right', explode: [70, 0, 0],
+    catalog: [{ ill: '101-10', pos: '1', pn: '930 101 915 00', qty: 1, note: 'Case halves supplied as a matched pair with studs' }],
+    description: 'Right half of the vertically split, pressure-cast aluminium crankcase (the 3.0 SC returned to aluminium from the 2.7’s magnesium). Carries main bearings 1-7 in line-bored webs, the intermediate shaft, and cylinders 1-3.',
+    specs: { Material: 'Pressure-cast aluminium', 'Main bearings': '8 (7 + nose)', Fasteners: 'Through-bolts + M8 perimeter', Lubrication: 'Dry sump' } },
+  { id: 'crankcase-left', name: 'Crankcase, left half (cyl. 4-6)', system: 'crankcase', asset: 'crankcase-left', explode: [-180, 0, 0],
+    catalog: [{ ill: '101-05', pos: '1', pn: '930 101 915 00', qty: 1, note: 'Matched pair' }, { ill: '101-05', pos: '3', pn: '930 101 170 00', qty: 12, note: 'Lower head studs (Dilavar)' }],
+    description: 'Left half of the two-piece aluminium crankcase, carrying cylinders 4-6. Joined to the right half with sealant and through-bolts at every main bearing web.',
+    specs: { Material: 'Pressure-cast aluminium', 'Head studs': 'Steel upper / Dilavar lower', 'Case bolt torque': '3.5 mkg (25 ft-lb) M8' } },
+  { id: 'main-bearings', name: 'Main bearing shells (1-8)', system: 'crank', asset: 'main-bearings', explode: [0, -60, 0],
+    catalog: [{ ill: '102-00', pos: '21-24', pn: '930 101 901 00', qty: 1, note: 'Set: shells I, II-VII, bearing sleeve VIII 964 101 138 01' }],
+    description: 'Three-layer split main bearing shells for bearings 1-7 plus the one-piece nose bushing (bearing 8) at the pulley end. Bearing 1 (flywheel end) is the thrust bearing.',
+    specs: { Count: '7 split + 1 bushing', 'Thrust bearing': 'No. 1' } },
+  { id: 'crankshaft', name: 'Crankshaft', system: 'crank', asset: 'crankshaft', explode: [0, -30, 0],
+    catalog: [{ ill: '102-00', pos: '1', pn: '930 102 015 01', qty: 1, note: 'SC -79' }],
+    description: 'Forged, surface-hardened steel crank with six individual throws at 120° and eight main bearings — every rod journal sits between two mains. No counterweights; the flat-six is inherently balanced.',
+    specs: { Stroke: '70.4 mm', 'Main journals': 'Ø60 mm', 'Rod journals': 'Ø53 mm', Throws: '6 @ 120°', 'Firing order': '1-6-2-4-3-5' } },
+  { id: 'crank-gears', name: 'Crank timing gear & distributor drive gear', system: 'crank', asset: 'crank-gears', explode: [0, -30, 90],
+    catalog: [{ ill: '102-00', pos: '8', pn: '901 102 111 00', note: 'Timing gear (drives intermediate shaft)' }, { ill: '102-00', pos: '10', pn: '930 102 115 01', note: 'Drive wheel (distributor)' }],
+    description: 'Gear on the crank nose driving the intermediate shaft, plus the helical gear that drives the distributor shaft.',
+    specs: { Drive: 'Crank → intermediate shaft (gear)', 'Tooth counts': 'Illustrative' } },
+  { id: 'intermediate-shaft', name: 'Intermediate shaft', system: 'camdrive', asset: 'intermediate-shaft', explode: [0, -180, 60],
+    catalog: [{ ill: '103-15', pos: '43', pn: '930 105 013 01', qty: 1, note: 'Size 0 (gear code matched to case)' }],
+    description: 'Lay shaft below the crank, gear-driven from the crankshaft. Its two sprockets drive the left and right cam chains; its end drives the oil pump.',
+    specs: { Bearings: '2 plain', 'Drives': 'Cam chains + oil pump' } },
+  { id: 'oil-pump', name: 'Oil pump (pressure + scavenge)', system: 'lubrication', asset: 'oil-pump', explode: [0, -200, 160],
+    catalog: [{ ill: '104-00', pos: '1', pn: '911 107 008 01', qty: 1 }, { ill: '104-00', pos: '6', pn: '901 107 121 00', note: 'Connecting shaft' }],
+    description: 'Two-stage gear pump in the bottom of the case: the scavenge stage returns oil to the remote tank, the pressure stage feeds the engine (dry-sump system).',
+    specs: { Type: 'Gear, 2-stage', System: 'Dry sump, ~13 L total (typ.)' } },
+  { id: 'sump-plate', name: 'Sump cover plate & oil strainer', system: 'lubrication', asset: 'sump-plate', explode: [0, -300, 0],
+    catalog: [{ ill: '101-05', pos: '38', pn: '930 107 314 00', qty: 1, note: 'Oil strainer' }, { ill: '101-05', pos: '39', pn: '930 101 391 01', qty: 2, note: 'Gaskets' }, { ill: '101-05', pos: '41', pn: '911 107 176 03', note: 'Drain plug' }],
+    description: 'Round cover plate on the bottom of the case with a coarse strainer screen sandwiched between two gaskets; the scavenge pickup draws through it.',
+    specs: { Fasteners: '8-12 nuts', Drain: 'Central plug' } },
+  { id: 'oil-thermostat', name: 'Oil thermostat', system: 'lubrication', asset: 'oil-thermostat', explode: [120, -260, 0],
+    catalog: [{ ill: '101-10', pos: '37', pn: '930 107 765 00', qty: 1 }],
+    description: 'Wax-element thermostat in the right case half that routes hot oil to the front-mounted cooler once up to temperature.',
+    specs: { Location: 'Right case half' } },
+  { id: 'oil-cooler', name: 'Engine oil cooler', system: 'lubrication', asset: 'oil-cooler', explode: [-280, 260, 0],
+    catalog: [{ ill: '104-00', pos: '8', pn: '911 107 041 00', qty: 1 }],
+    description: 'Finned aluminium oil cooler inside the upper air guide, cooled by fan air before it reaches the cylinders.',
+    specs: { Location: 'Left, under shroud', Type: 'Tube-and-fin' } },
+  { id: 'breather-lid', name: 'Crankcase breather cover', system: 'lubrication', asset: 'breather-lid', explode: [0, 260, 60],
+    catalog: [{ ill: '101-05', pos: '37', pn: '901 107 073 02', qty: 1, note: 'Lid, gasket #36 930 107 791 00' }],
+    description: 'Breather / oil filler cover on top of the case, vented to the oil tank.', specs: {} },
+  { id: 'fan-housing', name: 'Fan housing', system: 'cooling', asset: 'fan-housing', explode: [0, 380, 300],
+    catalog: [{ ill: '105-00', pos: '1', pn: '930 106 005 00', qty: 1, note: '-79 up to engine 639 9201' }, { ill: '105-00', pos: '2', pn: '—', note: 'Alternator strap' }],
+    description: 'Cast fan housing surrounding the vertical cooling fan; the alternator is clamped inside it by a strap, so fan and alternator come out as one unit.',
+    specs: { Material: 'Cast light alloy', Mount: 'Strap-clamped alternator' } },
+  { id: 'fan-impeller', name: 'Cooling fan (11 blades)', system: 'cooling', asset: 'fan-impeller', explode: [0, 380, 440],
+    catalog: [{ ill: '105-00', pos: '6', pn: '930 106 011 01', qty: 1, note: '-79' }, { ill: '105-00', pos: '7', pn: '930 106 564 00', note: 'Shims (belt tension)' }],
+    description: 'Eleven-blade axial fan on the alternator shaft (new for the SC). Runs faster than the crank (pulley ratio) and supplies all cooling air for cylinders, heads and oil cooler.',
+    specs: { Blades: '11', 'Ratio': '~1.8 : 1 (est.)', Diameter: '~245 mm' } },
+  { id: 'alternator', name: 'Alternator', system: 'cooling', asset: 'alternator', explode: [0, 380, 200],
+    catalog: [{ ill: '902-05', pos: '1', pn: '911 603 120 02', qty: 1, note: 'Generator -81' }],
+    description: 'Bosch 14 V alternator mounted inside the fan housing; the fan is bolted to its shaft and it is driven by the single V-belt from the crank pulley.',
+    specs: { Output: '14 V, ~70 A (typ.)' } },
+  { id: 'fan-pulley', name: 'Fan / alternator pulley', system: 'cooling', asset: 'fan-pulley', explode: [0, 380, 560],
+    catalog: [{ ill: '105-00', pos: '8', pn: '911 106 208 00', qty: 1 }, { ill: '105-00', pos: '10', pn: '911 106 033 03', note: 'Hub extension' }],
+    description: 'Split pulley; belt tension is set by moving shims between the two halves.', specs: { Adjustment: 'Shims' } },
+  { id: 'fan-belt', name: 'V-belt', system: 'cooling', asset: 'fan-belt', explode: [0, 150, 560],
+    catalog: [{ ill: '105-00', pos: '12', pn: '999 192 097 50', qty: 1, note: '9.5 x 725, -79' }],
+    description: 'Narrow V-belt from crank pulley to the fan/alternator pulley. Losing it means no cooling.', specs: { Size: '9.5 x 725 mm' } },
+  { id: 'crank-pulley', name: 'Crankshaft pulley', system: 'crank', asset: 'crank-pulley', explode: [0, 0, 420],
+    catalog: [{ ill: '102-00', pos: '12', pn: '930 102 028 01', qty: 1, note: '-78; bolt #15 999 093 005 02' }],
+    description: 'Twin-groove pulley (fan belt + air-injection pump belt) with TDC/timing marks.', specs: { Grooves: '2', Marks: 'Z1 (TDC cyl 1)' } },
+  { id: 'upper-air-guide', name: 'Upper air guide (shroud)', system: 'cooling', asset: 'upper-air-guide', explode: [0, 300, 0],
+    catalog: [{ ill: '105-05', pos: '1', pn: '930 106 041 00', qty: 1, note: 'Catalogue lists this -78 part as red; later replacement PCG 106 041 04 is black' }],
+    description: 'Moulded upper shroud that ducts fan air down across cylinders and heads; intake pipes pass through it.', specs: { Material: 'Moulded plastic' } },
+  { id: 'plenum', name: 'Air distributor & air-cleaner housing', system: 'induction', asset: 'plenum', explode: [0, 520, 0],
+    catalog: [{ ill: '106-00', pos: '9', pn: '911 110 106 13', qty: 1, note: 'Housing -80' }],
+    description: 'Intake plenum distributing metered air to the six intake pipes, with the air-cleaner lower housing on top and the idle/throttle housing at the rear.', specs: {} },
+  { id: 'air-filter', name: 'Air filter element', system: 'induction', asset: 'air-filter', explode: [0, 640, 0],
+    catalog: [{ ill: '106-00', pos: '13', pn: '911 110 185 02', qty: 1 }], description: 'Pleated paper element.', specs: {} },
+  { id: 'air-cleaner-lid', name: 'Air cleaner lid', system: 'induction', asset: 'air-cleaner-lid', explode: [0, 760, 0],
+    catalog: [{ ill: '106-00', pos: '14', pn: '930 110 184 00', qty: 1 }, { ill: '106-00', pos: '15', pn: '930 110 365 00', note: 'Restraining strap' }],
+    description: 'Air-cleaner top cover with inlet snout, held by spring straps.', specs: {} },
+  { id: 'mixture-control-unit', name: 'Mixture control unit (air-flow meter + fuel distributor)', system: 'induction', asset: 'mixture-control-unit', explode: [-320, 600, 0],
+    catalog: [{ ill: '107-00', pos: '1', pn: '911 110 967 00', note: 'Fuel distributor (930.03)' }, { ill: '107-00', pos: '2', pn: '911 110 965 00', note: 'Air flow meter' }, { ill: '107-00', pos: '9', pn: '911 110 943 00', note: 'Sensor plate' }],
+    description: 'Heart of Bosch K-Jetronic: the air-flow sensor plate lifts in the venturi and raises the control plunger in the fuel distributor, which meters fuel continuously to all six injectors.',
+    specs: { System: 'Bosch CIS K-Jetronic', 'System pressure': '~4.5-5.2 bar (typ.)' } },
+  { id: 'fuel-lines', name: 'Injection lines & warm-up regulator', system: 'induction', asset: 'fuel-lines', explode: [-160, 560, 0],
+    catalog: [{ ill: '107-10', pos: '23', pn: '911 110 093 11 / 12', note: 'Injection lines cyl 1-3 / 4-6' }, { ill: '107-10', pos: '54', pn: '911 606 105 09', note: 'Warm-up valve (control pressure regulator)' }],
+    description: 'Six steel injection lines from the fuel distributor to the injectors, plus the warm-up regulator that richens the mixture when cold.', specs: {} },
+  { id: 'distributor', name: 'Ignition distributor', system: 'ignition', asset: 'distributor', explode: [-160, 420, 100],
+    catalog: [{ ill: '901-00', pos: '1', pn: '930 602 021 04', qty: 1 }, { ill: '901-00', pos: '8', pn: '930 602 904 00', note: 'Cap' }, { ill: '901-00', pos: '3', pn: '930 602 901 02', note: 'Rotor' }],
+    description: 'Bosch distributor driven off the crankshaft drive wheel; the SC introduced breakerless (contactless) capacitive-discharge ignition.',
+    specs: { 'Firing order': '1-6-2-4-3-5', Ignition: 'CD, breakerless' } },
+  { id: 'muffler', name: 'Exhaust silencer', system: 'exhaust', asset: 'muffler', explode: [0, -260, 520],
+    catalog: [{ ill: '202-00', pos: '1', pn: '930 111 022 00', qty: 1 }, { ill: '202-00', pos: '2', pn: '911 111 191 01', note: 'Gasket' }],
+    description: 'Transverse rear silencer fed by both heat exchangers, single tailpipe on the left.', specs: {} },
+  { id: 'flywheel', name: 'Flywheel with starter ring gear', system: 'clutch', asset: 'flywheel', explode: [0, 0, -320],
+    catalog: [{ ill: '102-00', pos: '2', pn: '930 102 204 00', qty: 1, note: '-79; 9 bolts #6 930 102 206 00' }, { ill: '301-00', pos: '5', pn: '911 116 239 00', note: 'Starter ring gear' }],
+    description: 'Steel flywheel bolted to the crank flange with nine bolts, carrying the shrunk-on starter ring gear and the clutch friction face.', specs: { Bolts: '9' } },
+  { id: 'clutch-disc', name: 'Clutch disc', system: 'clutch', asset: 'clutch-disc', explode: [0, 0, -440],
+    catalog: [{ ill: '301-00', pos: '2', pn: '915 116 011 19', qty: 1 }], description: 'Sprung-hub clutch disc splined to the 915 gearbox input shaft.', specs: { Diameter: '225 mm' } },
+  { id: 'pressure-plate', name: 'Clutch pressure plate', system: 'clutch', asset: 'pressure-plate', explode: [0, 0, -560],
+    catalog: [{ ill: '301-00', pos: '1', pn: '915 116 001 27', qty: 1 }, { ill: '301-00', pos: '3', pn: '900 027 015 02', note: 'Lock rings x9' }],
+    description: 'Diaphragm-spring pressure plate bolted to the flywheel.', specs: { Diameter: '225 mm' } },
+];
+
+export const PARTS: PartDef[] = [...single, ...perBank(), ...perCylinder()];
+export const PART_BY_ID: Record<string, PartDef> = Object.fromEntries(PARTS.map((p) => [p.id, p]));
+export { side };

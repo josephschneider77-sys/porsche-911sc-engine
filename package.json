@@ -1,0 +1,28 @@
+{
+  "name": "porsche-911sc-engine",
+  "version": "1.0.0",
+  "description": "Disassemblable 3D model of the 1978 Porsche 911 SC 3.0 (930/03) engine — Three.js + Vite",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "assets": "tsx scripts/export-glb.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/three": "^0.170.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
+    "vitest": "^2.1.9"
+  },
+  "type": "module",
+  "private": true
+}
