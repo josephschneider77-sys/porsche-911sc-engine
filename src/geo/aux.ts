@@ -233,15 +233,16 @@ export function sumpPlate() {
   return p.g;
 }
 export function oilPump() {
+  // Pressure + scavenge pump inside the crankcase at the FLYWHEEL end (cyl. 6 bay between mains 1 and 2), driven off
+  // the back of the intermediate shaft by a splined connecting shaft (factory side-section; Klassik ATS / Pelican rebuild).
   const p = new Part();
-  const zc = 254, y = -92;
-  const body = extrudeC(roundRect(92, 62, 14), 16, 1.5);
-  p.add(body, 'castAlu', [0, y, zc]);
-  // pressure + scavenge gear pairs shown through the cover split
-  for (const [x, t] of [[-20, 10], [20, 10]] as const) p.add(extrudeC(gearShape(t, 13, 16, 3), 8), 'steel', [x, y, zc + 12]);
-  p.add(extrudeC(roundRect(92, 62, 14), 4), 'castAlu', [0, y, zc + 18]);
-  for (const [x, yy] of [[-38, 22], [38, 22], [-38, -22], [38, -22]]) p.add(yToZ(hexNut(10, 5)), 'zincPlate', [x, y + yy, zc + 22]);
-  p.add(yToZ(cyl(9, 26, 16)), 'steel', [0, INT_SHAFT_Y, zc - 18]); // connecting shaft (#6)
+  const zc = -148, y = -100;
+  p.add(extrudeC(roundRect(70, 40, 10), 14, 1.2), 'castAlu', [0, y, zc + 4]);
+  for (const [x, t] of [[-17, 9], [17, 9]] as const) p.add(extrudeC(gearShape(t, 11, 13.5, 3), 6), 'steel', [x, y, zc - 6]);
+  p.add(extrudeC(roundRect(70, 40, 10), 4), 'castAlu', [0, y, zc - 11]);
+  for (const [x, yy] of [[-28, 13], [28, 13], [-28, -13], [28, -13]]) p.add(yToZ(hexNut(9, 4)), 'zincPlate', [x, y + yy, zc - 15]);
+  p.add(yToZ(cyl(7, 46, 16)), 'steel', [0, INT_SHAFT_Y, zc + 32]); // connecting shaft (#6) to the int. shaft
+  p.add(cylBetween([20, y - 20, zc + 2], [20, -140, zc + 2], 6, 12), 'castAlu'); // pickup to the strainer
   return p.g;
 }
 
@@ -481,8 +482,10 @@ export function heatExchanger(s: 1 | -1) {
   // heater air outlet (to cabin) at the flywheel end, with adapter (#27)
   p.add(tube([[X(shellX), shellY + 10, zA + 10], [X(shellX), shellY + 20, -240], [X(shellX - 20), shellY + 40, -262]], 26, 20, 16), 'aluminized');
   p.add(yToZ(lathe([[25, -6], [29, -6], [29, 6], [25, 6]], 24)).rotateX(-0.7), 'heatSteel', [X(shellX - 18), shellY + 38, -258]);
-  // fresh-air inlet from the blower at the pulley end
-  p.add(tube([[X(shellX), shellY + 26, zB - 22], [X(shellX - 10), shellY + 70, 212]], 16, 12, 10), 'aluminized');
+  // fresh-air inlet stub from the blower hose, pointing forward out of the pulley-end cap, low and outboard so it stays
+  // clear of the chain box (box floor >= y -125 over the heat exchanger)
+  p.add(tube([[X(shellX + 12), shellY + 6, zB - 14], [X(shellX + 16), shellY + 8, zB + 10], [X(shellX + 18), shellY + 8, zB + 34]], 15, 12, 12), 'aluminized');
+  p.add(yToZ(torus(15.5, 2.2, 6, 20)), 'steel', [X(shellX + 18), shellY + 8, zB + 28]);
   return p.g;
 }
 export function muffler() {

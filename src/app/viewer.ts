@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { PARTS, PartDef } from '../data/parts';
-import { removedAfter } from '../data/teardown';
+import { removedAfter, carriedAfter } from '../data/teardown';
 
 interface PartNode {
   def: PartDef;
@@ -45,6 +45,7 @@ export class Viewer {
   selected: string | null = null;
   onPick: (id: string | null) => void = () => {};
   private removed = new Set<string>();
+  private carried = new Map<string, string>();
   private userMoved = false;
   private camGoal: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
   private clock = new THREE.Clock();
@@ -144,7 +145,7 @@ export class Viewer {
 
   kick(frames = 90) { this.needsFrames = Math.max(this.needsFrames, frames); }
 
-  setStep(n: number) { this.step = n; this.removed = removedAfter(n); this.kick(160); }
+  setStep(n: number) { this.step = n; this.removed = removedAfter(n); this.carried = carriedAfter(n); this.kick(160); }
   setExplode(f: number) {
     this.explode = f;
     if (!this.userMoved) this.camGoal = this.explodedHome(f);
@@ -268,10 +269,9 @@ export class Viewer {
       const vis = this.visibleFlag(id);
       const iso = this.isolated === id;
       const target = n.explodeDir.clone().multiplyScalar(iso ? 0 : this.explode * EXPLODE_SCALE);
-      if (this.removed.has(id) && !iso) {
-        const d = n.explodeDir.lengthSq() > 0 ? n.explodeDir.clone().normalize() : new THREE.Vector3(0, 1, 0);
-        target.add(d.multiplyScalar(700));
-      }
+      const away = (dir: THREE.Vector3) => (dir.lengthSq() > 0 ? dir.clone().normalize() : new THREE.Vector3(0, 1, 0)).multiplyScalar(700);
+      if (this.removed.has(id) && !iso) target.add(away(n.explodeDir));
+      else if (this.carried.has(id) && !iso) { const c = this.nodes.get(this.carried.get(id)!); if (c) target.add(away(c.explodeDir)); }
       n.root.position.lerp(target, k);
       if (n.root.position.distanceToSquared(target) > 0.5) moving = true;
       const goal = vis ? 1 : 0;

@@ -33,7 +33,7 @@ Known dimensions are marked **K**. Values estimated from the catalogue illustrat
 - Valves: intake Ø49, exhaust Ø41.5, stem Ø9 *E*; valve angles ~28° / ~32° *E*.
 - Flywheel OD ~268 with 130-tooth ring gear *E*; clutch 225 *E*.
 - Fan ~245 *E*; belt 9.5 × 725 **K** (105-00 #12).
-- Timing chain pitch 3/8" (9.525) *E*. Sprocket and gear tooth counts are illustrative only.
+- Timing chain pitch 3/8" (9.525) *E*. Cam drive (v3, see §8): crank gear 36 T : intermediate gear 48 T (module 2, 84 mm centres), intermediate sprockets 18 T, cam sprockets 27 T (pitch Ø82), idler 15 T — cam at ½ crank *E*.
 
 ## 2. Coordinate frame
 +X is the car's right side (cylinders 1-3). +Y is up. +Z is the pulley/fan end (rear of the car). The crank axis is Z. Units are millimetres. See `src/data/layout.ts`.
@@ -90,7 +90,7 @@ The full registry, with descriptions, specs and explode vectors, is in `src/data
 ## 4. Teardown order (engine on stand)
 Adapted from Pelican Parts / Wayne Dempsey, *101 Projects*, Project 12 "Engine Teardown" [W2], plus Joe Engineer's teardown write-up [W3] and the Pelican rebuild overview [W4]:
 
-1. Clutch pressure plate and disc → 2. Flywheel → 3. Silencer → 4. Heat exchangers → 5. Air-cleaner lid and element → 6. Mixture control unit, injection lines and injectors → 7. Air distributor and intake pipes → 8. V-belt and fan pulley → 9. Fan housing with fan and alternator → 10. Distributor and plugs → 11. Upper air guide and oil cooler → 12. Crank pulley → 13. Valve covers → 14. Chain-housing covers and tensioners → 15. Cam sprockets (lift chains off; they stay until the case is split) → 16. Rocker arms and shafts → 17. Camshafts → 18. Chain housings → 19. Cam housings with heads (12 head-stud nuts per bank) → 20. Valves (bench work, shown in situ) → 21. Heads off the cam housings (bench) → 22. Cylinders → 23. Pistons → 24. Breather, thermostat, sump plate → 25. Split the case → 26. Crank with rods → 27. Intermediate shaft, chains and oil pump → 28. Main bearing shells. The right case half stays on the stand.
+1. Clutch pressure plate and disc → 2. Flywheel → 3. Silencer → 4. Heat exchangers → 5. Air-cleaner lid and element → 6. Mixture control unit, injection lines and injectors → 7. Air distributor and intake pipes → 8. V-belt and fan pulley → 9. Fan housing with fan and alternator → 10. Distributor and plugs → 11. Upper air guide and oil cooler → 12. Crank pulley → 13. Valve covers → 14. Chain-housing covers and tensioners → 15. Cam sprockets and timing chains (on the real engine the chains hang slack round the intermediate shaft until the case is split; the viewer removes them here so they don't hang as rigid loops) → 16. Rocker arms and shafts → 17. Camshafts → 18. Chain housings → 19. Cam housings with heads (12 head-stud nuts per bank; the heads and valves lift off with their cam housing as one unit, via the step's `carries` list) → 20. Valves (bench, on the lifted unit) → 21. Heads off the cam housings (bench) → 22. Cylinders → 23. Pistons → 24. Breather, thermostat, sump plate → 25. Split the case → 26. Crank with rods → 27. Intermediate shaft and oil pump → 28. Main bearing shells. The right case half stays on the stand.
 
 The order is encoded in `src/data/teardown.ts` and checked in `tests/teardown.test.ts`.
 
@@ -134,8 +134,8 @@ Stoddard and Rose Passion catalogue pages cross-check the same part numbers, e.g
 ## 6. Accuracy caveats
 - Overall proportions and the dimensions marked *E* are estimates traced from the catalogue drawings and scaled to the known bore, stroke and component sizes. They are not measured CAD data.
 - Bank offset, cam and valve angles, and gear and sprocket tooth counts are approximate.
-- Cam chains are now duplex 3/8" roller chains on duplex sprockets (v2). They run as straight tangent runs; the slight inward deflection at the idler sprocket is not modelled. The chain-housing outline is traced from end-view photos, but its wall draft and internal webs are simplified.
-- The oil pump is placed at the pulley end below the intermediate shaft. Its exact internal position and shape are simplified.
+- Cam chains are duplex 3/8" roller chains on duplex sprockets. They run as straight tangent runs; the slight deflection over the idler sprocket is not modelled. Chain-box size and shape are scaled from rebuild photos by chain-pitch counting (§8), not measured; wall draft and internal webs are simplified.
+- The oil pump sits inside the case at the flywheel end (cyl. 6 bay), driven off the back of the intermediate shaft by the connecting shaft (factory side-section [W1], Klassik ATS). Its exact position and shape are simplified.
 - The air-injection pump (108-00), engine carrier (109-00), oil lines and tank, heater blower (108-10), plug leads and wiring are not modelled.
 - 1978 air guide: the catalogue lists the -78 part 930 106 041 00 as red. The model shows the later black part, as requested.
 
@@ -171,3 +171,33 @@ The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild 
 - Muffler: aluminised oval drum with a slight banana curve, seam flange and dished end caps.
 - Flywheel: dark body, ground friction face, ring gear, balance drillings.
 - 1978 upper air guide: the catalogue part is red (Joe's reference engine has a red/orange shroud). It is still shown black, as requested.
+
+## 8. Cam drive, chain boxes and interference test (v3)
+Joe's v2 review: the chain cover collided with the exhaust and the chain covers were far too big. The cam drive was re-sized from photos in Wayne Dempsey's *How to Rebuild and Modify Porsche 911 Engines 1965-1989*, using only public previews: the author's sample pages at 101projects.com and his Pelican Parts tech articles [S5] and *911 Carrera chain tensioners*. A public Porsche 1981 911 SC brochure / technical-data sheet on archive.org was used to cross-check the spec. Photos are reference only and are not in the repo.
+
+**Method.** In the open-box photos (right chain housing with chain, both housings end-on, and the bare covers) the duplex-chain pin pitch (9.525 mm) was counted to get a px/mm scale (≈2.7 px/mm in the 1000-px views). Everything else was measured against it. Values are estimates (*E*).
+
+| Item | v2 | v3 (*E*) |
+|---|---|---|
+| Cam sprocket | 36 T (pitch Ø109) | **27 T (pitch Ø82)**; photo chain-wrap Ø ≈ 80-85 |
+| Int.-shaft sprockets | 24 T | **18 T**, inside the case chain well |
+| Crank : int. gear | 36 : 48 | 36 : 48 (int. shaft at ¾ crank, so cam at ½ crank) |
+| Chain box, end view | hull reaching x ≈ −16 … 372, y ≈ −200 … 80 (crossed the centreline, overlapped the other bank and sat on the heat exchanger) | **x 118 … 347, y −145 … 55** (≈229 × 200 mm): straight inner edge at \|x\| = 118, round end around the cam (r 55), floor rising from −145 at the tensioner corner to −58 under the cam |
+| Box depth | 54 + dome | 70 mm from the case face (z 212 → 282), flat cover, low cam boss (5 mm) |
+| Chain planes | z 221 / 239 (the two chains overlapped) | z 235 (left) / 258 (right), clear of the cam-housing end (z 222) and of each other |
+| Tensioner | adjuster hanging vertically below the idler (to y ≈ −200, over the heat exchanger) | 15 T idler under the slack run at x ≈ 213; arm pivots outboard; adjuster lies inclined ~20° in the lower inner corner (x 104 … 183, y ≥ −145). In rebuild-pic10 the adjuster stands at ≈60°; at that angle this model's box floor would have to drop to ≈ −165, onto the heat exchanger, so the angle is a deliberate compromise |
+| Oil pump | pulley end, in the chain path | flywheel end, cyl. 6 bay |
+
+Inboard of x = 118 the chains run in a hollow cast **chain well** on the case face. It has top and bottom walls and a front plate flush with the covers, plus the bearing-8 boss. The well opens sideways into the bolted-on chain box. The heat exchanger's fresh-air inlet is now a forward stub low on the outboard side of its pulley-end cap, instead of a tube rising into the chain box.
+
+**Interference test** (`tests/collisions.test.ts`, helper `tests/collide.ts`, CLI `npx tsx scripts/collisions.ts [tol]`):
+1. Every registry part is built at its assembled pose and eroded 1 mm along its normals, so seated faces don't count.
+2. Every pair with overlapping bounds is checked triangle-vs-triangle with three-mesh-bvh. Coincident coplanar faces are ignored.
+3. The test fails on any intersecting pair not in the `MATING` allowlist. The allowlist has **JOINT** entries (real bolted, seated or meshing hardware; cam-drive joints are same-bank only) and explicitly listed **SIMPLIFIED** pre-v3 shortcuts such as the solid case interior, solid valve covers, shroud cut-outs and piston valve reliefs.
+4. Extra assertions:
+   - No cam-drive part ever touches the exhaust.
+   - The left and right cam drives never touch each other.
+   - Chain box, cover and tensioner each keep ≥ 10 mm of air to the heat exchanger. Current values: box 21.6 / 22.2 mm, cover 25.8 / 26.6 mm, tensioner 43.9 / 33.8 mm (right / left).
+
+Against the v2 geometry all 9 assertions fail.
+
