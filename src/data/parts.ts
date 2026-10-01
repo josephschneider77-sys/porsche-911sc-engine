@@ -85,13 +85,13 @@ function perCylinder(): PartDef[] {
       specs: { Thread: 'M14 x 1.25', Gap: '0.7 mm (typ.)' },
     });
     out.push({
-      id: `intake-runner-${c}`, name: `Intake pipe, cyl. ${c}`, system: 'induction', asset: 'intake-runner',
+      id: `intake-runner-${c}`, name: `Intake pipe, cyl. ${c}`, system: 'induction', asset: `intake-runner-${c}`,
       position: [INTAKE_PORT.x * s, INTAKE_PORT.y, z], rotation: bankRot(c), explode: [s * 240, 420, 0],
       catalog: [{ ill: '106-00', pos: String(c), pn: RUNNER_PN[c], note: `Intake pipe, cylinder ${c}` }, { ill: '106-00', pos: '10', pn: '928 110 158 01', note: 'Rubber sleeve' }],
-      description: 'Cast aluminium intake runner from the air-distribution plenum down to the head intake port, carrying the continuous-injection nozzle close to the port.',
-      specs: { Material: 'Cast Al', Sealing: 'Rubber sleeve at plenum' },
+      description: 'Cast aluminium intake pipe. It rises off the head flange, then turns so the spigot is coaxial with one of the six horizontal plenum stubs. A rubber sleeve and two worm-drive clamps join them. The injector sits in a bored boss near the port.',
+      specs: { Material: 'Cast Al', 'Port end': 'Ø44 mm spigot', Sealing: 'Rubber sleeve, 2 clamps' },
     });
-    const injRot: Vec3 = s === 1 ? [0, 0, -57 * (R / 180)] : [0, R, -57 * (R / 180)];
+    const injRot: Vec3 = [0, 0, (s === 1 ? -57 : 57) * (R / 180)];
     out.push({
       id: `injector-${c}`, name: `Injection valve, cyl. ${c}`, system: 'induction', asset: 'injector',
       position: [(INTAKE_PORT.x + INJ.dx) * s, INTAKE_PORT.y + INJ.dy, z], rotation: injRot, explode: [s * 300, 480, 0],
@@ -258,7 +258,7 @@ const single: PartDef[] = [
     description: '1978 orange-red moulded shell. The fan-end collar wraps the front of the grey fan housing; each wing has three stadium injector windows. The later black PCG 106 041 04 is the replacement, not what this car wears.', specs: { Material: 'GRP, orange-red', Colour: '1978 red (930 106 041 00)' } },
   { id: 'plenum', name: 'Air distributor & air-cleaner housing', system: 'induction', asset: 'plenum', explode: [0, 520, 0],
     catalog: [{ ill: '106-00', pos: '9', pn: '911 110 106 13', qty: 1, note: 'Housing -80' }],
-    description: 'Black moulded air distributor (one ribbed lobe per intake pipe) feeding the six intake pipes, with the lower half of the round air-cleaner drum on top and the cast throttle/idle housing at the rear.', specs: {} },
+    description: '1978 cast air distributor: a compact box with six horizontal 38 mm ports (three per side), the throttle housing at the pulley end and a cold-start boss on the flywheel end. The lower half of the round air-cleaner drum sits on a neck. No cold-start spider (that is the 1980 aluminium airbox).', specs: { 'Port ID': '38 mm', 'Box': '155 × 190 × 78 mm' } },
   { id: 'air-filter', name: 'Air filter element', system: 'induction', asset: 'air-filter', explode: [0, 640, 0],
     catalog: [{ ill: '106-00', pos: '13', pn: '911 110 185 02', qty: 1 }], description: 'Round (cylindrical) pleated-paper element lying across the engine inside the air-cleaner drum.', specs: {} },
   { id: 'air-cleaner-lid', name: 'Air cleaner lid', system: 'induction', asset: 'air-cleaner-lid', explode: [0, 760, 0],
@@ -266,11 +266,11 @@ const single: PartDef[] = [
     description: 'Upper half of the black round air-cleaner drum, with the inlet snout, held by spring straps.', specs: {} },
   { id: 'mixture-control-unit', name: 'Mixture control unit (air-flow meter + fuel distributor)', system: 'induction', asset: 'mixture-control-unit', explode: [-320, 600, 0],
     catalog: [{ ill: '107-00', pos: '1', pn: '911 110 967 00', note: 'Fuel distributor (930.03)' }, { ill: '107-00', pos: '2', pn: '911 110 965 00', note: 'Air flow meter' }, { ill: '107-00', pos: '9', pn: '911 110 943 00', note: 'Sensor plate' }],
-    description: 'Heart of Bosch K-Jetronic: the air-flow sensor plate lifts in the venturi and raises the control plunger in the fuel distributor, which meters fuel continuously to all six injectors.',
+    description: 'Bosch K-Jetronic mixture unit on the 1978 distributor: the air-flow meter sits on the plenum venturi and a rubber elbow runs to the throttle. The fuel distributor carries the feed banjo, the cold-start feed, the M14 return union and six injector outlets.',
     specs: { System: 'Bosch CIS K-Jetronic', 'System pressure': '~4.5-5.2 bar (typ.)' } },
   { id: 'fuel-lines', name: 'Injection lines & warm-up regulator', system: 'induction', asset: 'fuel-lines', explode: [-160, 560, 0],
     catalog: [{ ill: '107-10', pos: '23', pn: '911 110 093 11 / 12', note: 'Injection lines cyl 1-3 / 4-6' }, { ill: '107-10', pos: '54', pn: '911 606 105 09', note: 'Warm-up valve (control pressure regulator)' }],
-    description: 'Six steel injection lines from the fuel distributor to the injectors, plus the warm-up regulator that richens the mixture when cold.', specs: {} },
+    description: 'Steel CIS lines, each end on a fitting: six injector lines, the feed from the engine-bay filter block, the return union, and the cold-start-valve feed. The warm-up regulator is its own part; its two lines live in wur-lines.', specs: { Lines: '6 injector + feed + return + cold-start' } },
   { id: 'distributor-clamp', name: 'Distributor clamp', system: 'ignition', asset: 'distributor-clamp', explode: [-160, 360, 100],
     catalog: [{ ill: '901-00', pos: '-', pn: '—', note: 'Hold-down clamp on the case stud' }], description: 'Hold-down clamp gripping the distributor shank, on a stud in the left case half with a cast spacer boss under it.', specs: { Fastening: '1 nut + washers' } },
   { id: 'ignition-leads', name: 'Ignition lead set', system: 'ignition', asset: 'ignition-leads', explode: [-60, 460, 60],
