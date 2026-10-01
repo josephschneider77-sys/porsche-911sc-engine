@@ -352,7 +352,8 @@ function tune(m: THREE.MeshStandardMaterial, rest?: THREE.Matrix4) {
   switch (m.name) {
     case 'chrome': m.envMapIntensity = 1.4; break;
     case 'satinBlack': case 'blackPlastic': m.envMapIntensity = 0.6; break;
-    case 'castAlu': case 'magnesium': case 'aluminized': m.envMapIntensity = 0.9; break;
+    case 'castAlu': case 'magnesium': case 'magCast': case 'aluminized': m.envMapIntensity = 0.9; break;
+    case 'shroudRed': m.envMapIntensity = 0.55; break;
     case 'sandCast': m.envMapIntensity = 0.48; break;
     case 'polishedSteel': m.envMapIntensity = 1.25; break;
     case 'finBlack': case 'blackPaint': m.envMapIntensity = 0.7; break;

@@ -5,7 +5,8 @@ export type MatKey =
   | 'copper' | 'castAlu' | 'sandCast' | 'machinedAlu' | 'magnesium' | 'nikasil' | 'forgedSteel' | 'steel' | 'darkSteel'
   | 'chrome' | 'blackPlastic' | 'satinBlack' | 'rubber' | 'gasket' | 'ceramic' | 'brass'
   | 'heatSteel' | 'zincPlate' | 'friction' | 'redPaint' | 'bore' | 'filterPaper' | 'bronze'
-  | 'finBlack' | 'forgedDark' | 'yellowZinc' | 'blackPaint' | 'aluminized' | 'polishedSteel';
+  | 'finBlack' | 'forgedDark' | 'yellowZinc' | 'blackPaint' | 'aluminized' | 'polishedSteel'
+  | 'magCast' | 'shroudRed';
 
 const DEF: Record<MatKey, { color: number; metalness: number; roughness: number }> = {
   castAlu: { color: 0x96989a, metalness: 0.6, roughness: 0.66 },
@@ -34,7 +35,9 @@ const DEF: Record<MatKey, { color: number; metalness: number; roughness: number 
   finBlack: { color: 0x2b2c2e, metalness: 0.25, roughness: 0.6 }, // satin-black painted cylinder fins (Mahle)
   forgedDark: { color: 0x4a4b4d, metalness: 0.75, roughness: 0.55 }, // as-forged crank webs / rods
   yellowZinc: { color: 0xc4ad5e, metalness: 0.85, roughness: 0.38 }, // yellow-passivated pulleys
-  blackPaint: { color: 0x131416, metalness: 0.15, roughness: 0.5 }, // painted sheet metal / fan housing
+  blackPaint: { color: 0x131416, metalness: 0.15, roughness: 0.5 }, // painted sheet metal
+  magCast: { color: 0x7a7e7a, metalness: 0.12, roughness: 0.75 }, // unpainted fan-housing magnesium
+  shroudRed: { color: 0xc04a30, metalness: 0.04, roughness: 0.62 }, // 1978 upper air guide, orange-red GRP
   aluminized: { color: 0x8e8b84, metalness: 0.7, roughness: 0.6 }, // aluminised steel heat exchangers
   polishedSteel: { color: 0xc9ccd0, metalness: 1.0, roughness: 0.18 }, // ground journals
 };

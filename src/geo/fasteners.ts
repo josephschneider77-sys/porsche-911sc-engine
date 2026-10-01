@@ -136,7 +136,7 @@ export function fastenerSets(): FSet[] {
   // distributor clamp nut (901-00 #5-#7): washer + spring washer, stud in the left case half
   set('distributor-nut', 'nut', 8, { washer: DIM[8].wr, spring: true, grip: DIST.clampTop - DIST.caseY, embed: 12 }, [{ p: V(DIST.stud[0], DIST.clampTop, DIST.stud[1]), n: V(0, 1, 0), seat: 'distributor-clamp', into: 'crankcase-left', stud: true }]);
   // fan impeller to hub-extension nuts (105-00 #4/#5)
-  set('fan-nuts', 'nut', 6, { spring: true, grip: 3, embed: 8 }, ring(6, 34, Math.PI / 6).map(([x, y]) => ({ p: V(x, FAN.y + y, FAN.zFan + 8), n: V(0, 0, 1), seat: 'fan-impeller', into: 'fan-hub', stud: true })));
+  set('fan-nuts', 'nut', 6, { spring: true, grip: 4, embed: 8 }, ring(6, 52, Math.PI / 6).map(([x, y]) => ({ p: V(x, FAN.y + y, 270), n: V(0, 0, 1), seat: 'fan-hub', into: 'fan-impeller', stud: true })));
   // air-guide (shroud) screws (105-05 #10-#12, #17)
   for (const g of shroudScrews()) set(g.id, g.kind, g.M, { washer: g.washer, len: g.len, mat: 'zincPlate' }, g.items);
   // air-cleaner strut nuts (106-00 #23/#24)
