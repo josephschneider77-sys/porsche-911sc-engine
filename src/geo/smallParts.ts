@@ -104,7 +104,7 @@ for (const s of BANKS) {
       const e = VC_EXT(s);
       const sh = roundRect(w, L + e, 7);
       sh.holes.push(new THREE.Path(roundRect(52, L - 14 + e, 4).getPoints(6)));
-      let g = extrudeC(sh, 0.8);
+      let g: THREE.BufferGeometry = extrudeC(sh, 0.8);
       g.translate(0, -e / 2, -0.4);
       // Left bank only: cylinder 6's rocker shafts sit so close to the flywheel end that the
       // screw shank and the intake nut land on the end rail. Open the middle of that rail
