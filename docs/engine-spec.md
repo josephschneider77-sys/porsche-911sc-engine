@@ -33,7 +33,7 @@ Known dimensions are marked **K**. Values estimated from the catalogue illustrat
 - Valves: intake Ø49, exhaust Ø41.5, stem Ø9 *E*; valve angles ~28° / ~32° *E*.
 - Flywheel OD ~268 with 130-tooth ring gear *E*; clutch 225 *E*.
 - Fan Ø226 **K** for 1978–79 (Pelican forum 428673; catalogue 930 106 011 01 is the -79 impeller and does not state 245 mm). Later cars are ~245 *E*. Belt 9.5 × 725 **K** (105-00 #12).
-- Timing chain pitch 3/8" (9.525) *E*. Cam drive (see §15): crank gear 28 T : intermediate gear 48 T (module 168/76, 84 mm centres), intermediate sprockets 24 T, cam sprockets 28 T (pitch Ø85), idler 19 T — cam at exactly ½ crank.
+- Timing chain pitch 3/8" (9.525) *E*. Cam drive (see §15): crank gear 35 T : intermediate gear 60 T (module 168/95, 84 mm centres), intermediate sprockets 24 T, cam sprockets 28 T (pitch Ø85), idler 19 T — cam at exactly ½ crank. Bottom End signed off; tooth counts unverified against Dempsey, chosen for exact 2:1 with 24T/28T.
 
 ## 2. Coordinate frame
 +X is the car's right side (cylinders 1-3). +Y is up. +Z is the pulley/fan end (rear of the car). The crank axis is Z. Units are millimetres. See `src/data/layout.ts`.
@@ -390,8 +390,8 @@ Photo pass on the crank, rods, crank gears, intermediate shaft, crank pulley and
 
 - **Crankshaft.** Twelve thick forged cheeks, not one repeated thin racetrack. Cheeks beside the mains are nearer round (some with a flat chord); the others are pear-shaped with a counterweight lobe opposite the crankpin. Mains 1–7 stay Ø60 **K** on the existing stations, with a short polished land and a fillet into the cheek. Rod journals stay Ø53. Main 8 (nose) stays Ø54 *E* (r 27) inside the existing nose sleeve, then the pulley spigot. The flywheel flange keeps the 9-bolt pattern, pilot bore and adds a dowel. Counterweight lobes that point downward are kept above the sump floor (y −56).
 - **Conrods.** Forged I-beam: recessed web, raised flanges, big-end shoulders with two bolt bosses, a slightly narrower cap, and nuts proud of the cap. Centre distance stays 127 mm *E* (127.8 mm is the figure many rebuilders quote; changing it would move the pistons).
-- **Crank gears.** 28 T steel helical timing gear (keyed hub) and a smaller-OD brass helical distributor gear. The module is 168/76 so the 28:48 pair still meshes on the 84 mm centres. The intermediate gear is the opposite hand. The distributor gear is unchanged.
-- **Intermediate shaft.** Sprocket centres stay at z 235 and z 258, now 24 T, and the 48 T gear stays on the crank-gear plane (z 192–206). The photo order (sprocket, then gear, then sprocket) cannot be met without moving a chain or the mesh, so the gear remains inboard of both sprockets. The gear is helical, bolted to a flange with a lock-plate, and the flywheel-end extension is drawn as a separate dark connecting-shaft tube in the same asset. One tooth sector is shaved so the tip circle clears a case-perimeter nut. Journals stay where `ishaft-bearings`, thrust washers, circlips and the stopper seat.
+- **Crank gears.** 35 T steel helical timing gear (keyed hub) and a smaller-OD brass helical distributor gear. The module is 168/95 so the 35:60 pair still meshes on the 84 mm centres. The intermediate gear is the opposite hand. The distributor gear is unchanged. Bottom End signed off; tooth counts unverified against Dempsey, chosen for exact 2:1 with 24T/28T.
+- **Intermediate shaft.** Sprocket centres stay at z 235 and z 258, now 24 T, and the 60 T gear stays on the crank-gear plane (hub z 192–206; tooth tips stop at z 204.7 so they clear the pulley-end bore wall). The photo order (sprocket, then gear, then sprocket) cannot be met without moving a chain or the mesh, so the gear remains inboard of both sprockets. The gear is helical, bolted to a flange with a lock-plate, and the flywheel-end extension is drawn as a separate dark connecting-shaft tube in the same asset. One tooth sector is shaved so the tip circle clears a case-perimeter nut. Journals stay where `ishaft-bearings`, thrust washers, circlips and the stopper seat.
 - **Crank pulley.** Single groove, pressed-steel dish, yellow zinc, Z1 notch, bolt recessed in the hub. Batch 3 sets the lip to Ø134 and moves the belt pitch onto that groove (`FAN.rCrankPulley` 65, pitch radius 60, `FAN.zBelt` 303).
 - **Pulley bolt.** M12×1.5×22, zinc, washer radius 12.5 mm (was a 24 mm-radius disc) and 3.4 mm thick.
 
@@ -429,7 +429,7 @@ The fan group moved down with the new centre distance. `FAN.y` was 255; it is no
 
 ## 16. Top end batch 2 — timing chain
 
-Photo pass on the cam sprockets and flanges, the intermediate-shaft sprockets, both duplex chains, the tensioners (idler arm, idler sprocket, hydraulic body, mounting ear), the guide rails, the chain housings and lids, and the chain-side cam covers (`930 105 196 00`). Existing parts were reshaped. Cam axes, chain planes, the fan housing and the upper air guide were not moved. The crank and intermediate gears stay on the 84 mm centres; their module changed so a 28 T cam and a 24 T intermediate sprocket still give exactly half crank speed.
+Photo pass on the cam sprockets and flanges, the intermediate-shaft sprockets, both duplex chains, the tensioners (idler arm, idler sprocket, hydraulic body, mounting ear), the guide rails, the chain housings and lids, and the chain-side cam covers (`930 105 196 00`). Existing parts were reshaped. Cam axes, chain planes, the fan housing and the upper air guide were not moved. The crank and intermediate gears stay on the 84 mm centres; their module changed so a 28 T cam and a 24 T intermediate sprocket still give exactly half crank speed. Bottom End signed off; tooth counts unverified against Dempsey, chosen for exact 2:1 with 24T/28T.
 
 ### Tensioner: sealed, not pressure-fed
 
@@ -453,8 +453,8 @@ The sprocket (**901 105 546 02**, photo of 901 105 546 04) has **17** equally sp
 |---|---|---|---|
 | Chain | duplex 3/8 in, pitch 9.525 mm. Figure-8 outer plates and rounded inner plates, each with two pin holes. Roller Ø6.4, pin Ø3.4. Part stays **901 105 529 00** | ISO 606 / BS 06B-2 (roller Ø6.35). Plate silhouette from Heritage 993 105 529 00 and the divided 911 105 529 51 | pitch already used in §8; plate height not re-measured in the book |
 | Cam sprocket | 28 T, pitch Ø 85.0 mm | Face count of FVD 901 105 546 04 (twice). At 3/8 in that pitch diameter sits in the old chain-wrap Ø 80–85 scale | tooth count not a page citation |
-| Intermediate sprockets | 24 T, solid duplex, planes z 235 / 258 | Pelican: 24 T sprockets drive the cam sprockets, and a 48 T intermediate gear is driven by the crank gear. An oblique photo looked near 28 T; that count is not used | not a page citation |
-| Crank gear | 28 T, module 168/76, 84 mm centres with the 48 T gear | (28/48)×(24/28) = 1/2. Pelican counts both the crank gear and the cam sprocket as 27 T; the face photo is 28, so the crank gear matches the cam | 36 T in §12 was an estimate |
+| Intermediate sprockets | 24 T, solid duplex, planes z 235 / 258 | Pelican: 24 T sprockets drive the cam sprockets. An oblique photo looked near 28 T; that count is not used | not a page citation |
+| Crank gear | 35 T, module 168/95, 84 mm centres with the 60 T gear | (35/60)×(24/28) = 1/2. Bottom End signed off; tooth counts unverified against Dempsey, chosen for exact 2:1 with 24T/28T. A 964 parts legend prints 34 T, which is not an exact 2:1 with 24/28 | 36 T in §12 was an estimate |
 | Idler | 19 T, 8 lightening holes, bronze bush, round bore | Face count of FVD 901 105 055 00. Outside wrap, `IDLER_PUSH` 38 | 19 T not in the book |
 | Flange | Tall keyed hub, scalloped rim Ø48 mm × 16 on the sprocket face, bright machined | FVD 901 105 583 02. Rauch & Spiegel 16 / 17 vernier | unverified against the book |
 | Sprocket holes | 17 × Ø6.7 on the Ø48 circle, one boss on the dowel hole | Same | unverified against the book |
@@ -466,7 +466,7 @@ The sprocket (**901 105 546 02**, photo of 901 105 546 04) has **17** equally sp
 | Cam-bore end | chain end of the cam bore stays open. **930 105 161 00** remains the flywheel-end lid | Valvetrain test | unchanged |
 
 - Pelican, intermediate sprocket tooth count (“two 24 tooth sprockets driving two 27 tooth sprockets”): https://forums.pelicanparts.com/porsche-911-technical-forum/200267-new-chains-without-new-sprockets-read.html
-- Pelican, crank 27 T / intermediate gear 48 T / intermediate sprocket 24 T / cam 27 T: https://forums.pelicanparts.com/911-engine-rebuilding-forum/328011-cam-timing-different-1-3-4-6-a.html — this model uses 28 T for the cam (FVD face count) and the same count on the crank gear so the ratio stays exactly 2:1
+- Pelican, crank 27 T / intermediate gear 48 T / intermediate sprocket 24 T / cam 27 T: https://forums.pelicanparts.com/911-engine-rebuilding-forum/328011-cam-timing-different-1-3-4-6-a.html — the cam here is 28 T from the FVD face count. The crank and intermediate gears are 35:60 (module 168/95). Bottom End signed off; tooth counts unverified against Dempsey, chosen for exact 2:1 with 24T/28T.
 - Heritage, intermediate sprocket: https://www.heritagepartscentre.com/eu/90110512504-intermediate-shaft-chain-sprocket.html
 - Heritage, black guide rail: https://www.heritagepartscentre.com/eu/91110522206-timing-chain-guide-rail-black.html
 - Heritage, brown guide rail: https://www.heritagepartscentre.com/eu/91110522205-timing-chain-guide-rail-brown.html
