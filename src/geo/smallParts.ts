@@ -315,14 +315,18 @@ def('vacuum-fittings', () => {
   const p = new Part();
   // Identity pose so the named vacuum hoses survive export (instancing drops mesh names).
   const [ox, oy, oz] = VAC_T.origin;
-  p.add(cylBetween([ox - 14, oy, oz], [ox + 14, oy, oz], 3.6, 10), 'blackPlastic');
-  p.add(cylBetween([ox, oy, oz], [ox, oy, oz + 16], 3.6, 10), 'blackPlastic');
-  p.add(cylBetween([ox, oy, oz + 16], [ox, oy, oz + 28], 2.8, 10), 'brass');
+  // The T body is one fitting. Its primitives cross on purpose; they are not separate parts.
+  const t = new THREE.Group();
+  t.name = 'fitting:vac-t';
+  t.add(mesh(cylBetween([ox - 14, oy, oz], [ox + 14, oy, oz], 3.6, 10), 'blackPlastic'));
+  t.add(mesh(cylBetween([ox, oy, oz], [ox, oy, oz + 16], 3.6, 10), 'blackPlastic'));
+  t.add(mesh(cylBetween([ox, oy, oz + 16], [ox, oy, oz + 28], 2.8, 10), 'brass'));
   // Rings around the barbs, inboard of each tip so the hose ray meets the barb face.
   const xRing = torus(4.2, 0.7, 6, 14).rotateY(Math.PI / 2);
-  p.add(xRing, 'zincPlate', [ox - 4, oy, oz]);
-  p.add(xRing.clone(), 'zincPlate', [ox + 10, oy, oz]);
-  p.add(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, oy, oz + 20]);
+  t.add(mesh(xRing, 'zincPlate', [ox - 4, oy, oz]));
+  t.add(mesh(xRing.clone(), 'zincPlate', [ox + 10, oy, oz]));
+  t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, oy, oz + 20]));
+  p.g.add(t);
   p.g.add(vacuumHosesPart().g);
   return p;
 }, () => [new THREE.Matrix4()]);

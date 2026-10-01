@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { findCollisions, isMating, clearance, geometriesClash } from './collide';
+import { findCollisions, findIntraPartHits, erodedSolidsClash, isMating, clearance, geometriesClash } from './collide';
 import { rayHit } from './hw';
 import { OIL_COOLER } from '../src/geo/aux';
 
@@ -28,6 +28,26 @@ describe('seated face contact', () => {
     const upper = tri([0, 0, 0, 20, 0, 0, 10, 8, 3]);
     const lower = tri([0, 0, 0, 20, 0, 0, 10, -8, 3]);
     expect(geometriesClash(upper, lower)).toBe(false);
+  });
+});
+
+describe('intra-part fuel and induction solids', () => {
+  const eye = (z: number) => {
+    const g = new THREE.CylinderGeometry(7.3, 7.3, 8, 24);
+    g.translate(0, 0, z);
+    return g;
+  };
+  it('catches neighbouring Ø14.6 eyes 12 mm apart, and lets a touching pair pass', () => {
+    // The old distributor pitch. 2.6 mm of overlap remains 0.6 mm after 1 mm of erosion each side.
+    expect(erodedSolidsClash(eye(0), eye(12), 1)).toBe(true);
+    expect(erodedSolidsClash(eye(0), eye(14.6), 1)).toBe(false);
+  });
+  it('lines, banjos, hoses and clamps do not interpenetrate themselves', () => {
+    const hits = findIntraPartHits([
+      'fuel-lines', 'wur-lines', 'injection-banjos', 'aux-air-plumbing', 'vacuum-fittings',
+      'intake-boot-clamps', 'airbox-clamps', 'injection-line-rings', 'injection-line-bracket',
+    ], 1);
+    expect(hits.map((h) => `${h.part}: ${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
   });
 });
 

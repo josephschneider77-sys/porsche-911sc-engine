@@ -195,15 +195,19 @@ export function runnerTunnelCutters(s: 1 | -1): THREE.BufferGeometry[] {
 
 // ---------------------------------------------------------------- fuel-distributor ports (world mm)
 // The body sits above the strut feet (y 258) and below the air-cleaner drum (bottom ~323 at this z).
-const FD = { x0: -100, x1: -60, y0: 274, y1: 314, z0: -120, z1: -40 };
+// Outlet pitch is 17 mm. The eyes are Ø14.6; the old 12 mm pitch overlapped neighbours by 2.6 mm.
+const FD = { x0: -100, x1: -60, y0: 274, y1: 314, z0: -128, z1: -20 };
 const FDX = -80;
-const FDZ = [-110, -98, -86, -74, -62, -50];
+const FDZ = [-116, -99, -82, -65, -48, -31];
 /** Port i feeds this cylinder. */
 const PORT_CYL = [6, 5, 3, 4, 2, 1];
 
 function injBanjo(i: number) {
   const face: V3 = [FDX, FD.y1, FDZ[i]];
-  return banjoFrame(face, [0, 1, 0], [-1, 0, 0]);
+  // Stubs leave outboard (−X) and fan a few degrees so the lines gather without crossing.
+  // Round eyes only clear each other by the 17 mm pitch; the yaw is the line direction.
+  const a = (i - 2.5) * 6 * Math.PI / 180;
+  return banjoFrame(face, [0, 1, 0], [-Math.cos(a), 0, Math.sin(a)]);
 }
 const INJ_BANJOS = FDZ.map((_, i) => injBanjo(i));
 
@@ -211,11 +215,11 @@ const INJ_BANJOS = FDZ.map((_, i) => injBanjo(i));
 const FEED_BANJO = banjoFrame([-114, 292, -80], [-1, 0, 0], [0, 0, -1]);
 const CSV_FD_BANJO = banjoFrame([-46, 292, -80], [1, 0, 0], [0, 0, -1]);
 const WUR_FD = [
-  banjoFrame([-80, 286, -134], [0, 0, -1], [-1, 0, 0]),
-  banjoFrame([-80, 304, -134], [0, 0, -1], [-1, 0, 0]),
+  banjoFrame([-80, 286, -132], [0, 0, -1], [-1, 0, 0]),
+  banjoFrame([-80, 304, -132], [0, 0, -1], [-1, 0, 0]),
 ];
-/** WUR port faces, outboard (−X) of the regulator body. Stubs point toward the flywheel, under the shroud roof. */
-export const WUR_FACES: V3[] = [[-84, 128, -174], [-84, 128, -156]];
+/** WUR port faces, outboard (−X) of the regulator body. 14 mm apart in Y so the +Z stubs clear the neighbouring eye. */
+export const WUR_FACES: V3[] = [[-84, 124, -174], [-84, 138, -156]];
 const WUR_BANJO = WUR_FACES.map((face) => banjoFrame(face, [-1, 0, 0], [0, 0, 1]));
 
 /** Cold-start valve: origin centred on the plenum boss (stubY), +Y of the prototype points out (−Z). */
@@ -236,7 +240,8 @@ const CSV_BANJO = (() => {
   return banjoFrame(face, axis, stub);
 })();
 
-const RETURN_FACE: V3 = [-80, 292, -26];
+/** Pulley end of the distributor. The hex sits against that face; the sealing ring is on the outer face. */
+const RETURN_FACE: V3 = [-80, 292, -10];
 const RETURN_AXIS: V3 = [0, 0, 1];
 /**
  * Filter-side union (930 110 513). The filter is off the engine; this fitting is the end of the
@@ -399,18 +404,22 @@ function addLine(
   addNamed(p, id, tube(pts, r, 7, Math.max(24, pts.length * 3)));
 }
 
-function placeBanjo(p: Part, frame: ReturnType<typeof banjoFrame>) {
+function placeBanjo(p: Part, frame: ReturnType<typeof banjoFrame>, id: string) {
   const g = banjoProto().g;
   g.updateMatrixWorld(true);
+  // One fitting: the eye, stub, washers and nut share a group so they are one sub-solid.
+  const group = new THREE.Group();
+  group.name = `banjo:${id}`;
   g.traverse((o) => {
     const me = o as THREE.Mesh;
     if (!me.isMesh) return;
     const geo = me.geometry.clone().applyMatrix4(frame.matrix.clone().multiply(me.matrixWorld));
-    p.add(geo, (me.material as THREE.MeshStandardMaterial).name as 'copper');
+    group.add(new THREE.Mesh(geo, me.material));
   });
+  p.g.add(group);
 }
 
-function unionFace(p: Part, face: V3, axis: V3, r = 7, af = 19) {
+function unionFace(p: Part, face: V3, axis: V3, r = 7, af = 19, id?: string) {
   const Y = v(...axis).normalize();
   const ref = Math.abs(Y.y) < 0.9 ? v(0, 1, 0) : v(1, 0, 0);
   const Xx = new THREE.Vector3().crossVectors(Y, ref).normalize();
@@ -418,10 +427,14 @@ function unionFace(p: Part, face: V3, axis: V3, r = 7, af = 19) {
   const m = new THREE.Matrix4().makeBasis(Xx, Y, Z).setPosition(v(...face));
   const hex = hexNut(af, 8);
   hex.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -6, 0).premultiply(m));
-  p.add(hex, 'zincPlate');
   const nose = cyl(r, 6, 16);
   nose.applyMatrix4(new THREE.Matrix4().makeTranslation(0, -3, 0).premultiply(m));
-  p.add(nose, 'machinedAlu');
+  // Hex and nose are one union. A named group keeps them a single sub-solid.
+  const group = new THREE.Group();
+  if (id) group.name = `fitting:${id}`;
+  group.add(mesh(hex, 'zincPlate'));
+  group.add(mesh(nose, 'machinedAlu'));
+  p.g.add(group);
 }
 
 /** Cast air distributor: compact box, six horizontal stubs, throttle at the rear, CSV boss on the flywheel end. */
@@ -505,23 +518,23 @@ export function injector() {
   ], 20), 'steel');
   p.add(hexNut(13, 5).translate(0, 38.5, 0), 'brass');
   // Tube nut bears on the copper ring (ring ends 1.2 mm along the nipple) and stops at 8 mm.
-  // Bore Ø5.2 leaves 0.45 mm radial air on the Ø4.3 line, so the steel can turn as it leaves the face.
+  // Bore r 2.2 on the r 2.15 line (0.05 mm radial air). The cutter stays inside the AF 14 flats (7 mm).
   const nutH = 6.8;
   const nutY = INJ_FACE + 1.2 + nutH / 2;
-  const nut = csgSub(hexNut(14, nutH).translate(0, nutY, 0), cyl(2.6, nutH + 1.6, 12).translate(0, nutY, 0));
+  const nut = csgSub(hexNut(14, nutH).translate(0, nutY, 0), cyl(2.2, nutH + 1.6, 12).translate(0, nutY, 0));
   p.add(nut, 'zincPlate');
   return p.g;
 }
 
-function blockAt(p: Part, face: V3, axis: V3) {
-  unionFace(p, face, axis, 6.5, 18);
+function blockAt(p: Part, face: V3, axis: V3, id: string) {
+  unionFace(p, face, axis, 6.5, 18, id);
 }
 
 export function fuelLines() {
   const p = new Part();
   // supply and return junctions (the body-side ends of 930 110 513 / 514). The filter and tank are off the engine.
-  blockAt(p, FEED_BLOCK, FEED_BLOCK_AXIS);
-  blockAt(p, RETURN_BLOCK, RETURN_BLOCK_AXIS);
+  blockAt(p, FEED_BLOCK, FEED_BLOCK_AXIS, 'feed-block');
+  blockAt(p, RETURN_BLOCK, RETURN_BLOCK_AXIS, 'return-block');
   for (const line of FUEL_LINES.filter((l) => l.part === 'fuel-lines')) {
     const mids = routeMids(line.id);
     const fit = line.id.startsWith('inj-') ? { leadB: 8, aheadB: 8, fillet: 6 } : undefined;
@@ -533,7 +546,7 @@ export function fuelLines() {
 /**
  * Injector lines leave the distributor as one vertical ribbon just outboard of the body,
  * each on its own height (8 mm) so the Ø4.3 tubes never share a point. They follow the
- * runner (clear of the Ø44 spigot), then a 10 mm bend into an 8 mm tube nut.
+ * runner (clear of the Ø44 spigot), then a 6 mm bend into an 8 mm tube nut.
  */
 function bundle(i: number, z: number): V3 {
   return [-134, 274 + i * 8, z];
@@ -591,8 +604,9 @@ function injectorOut(c: number): THREE.Vector3 {
 }
 
 /**
- * Centreline of the bend that enters the tube nut. Radius 10 mm, beginning at the nut face
+ * Centreline of the bend that enters the tube nut. Radius 6 mm, beginning at the nut face
  * (8 mm past the nipple) and turning inboard. Ordered from the loom toward the nut.
+ * The arc stays at or beyond the nut face (R > line radius), so it does not re-enter the hex.
  * addLine places the last, on-axis point.
  */
 function injectorBend(c: number): V3[] {
@@ -600,7 +614,7 @@ function injectorBend(c: number): V3[] {
   const ax = v(...injectorAxis(c));
   const u = injectorOut(c);
   const B = face.clone().addScaledVector(ax, 8);
-  const R = 10;
+  const R = 6;
   const pts: V3[] = [];
   for (let deg = 150; deg >= 8; deg -= 8) {
     const phi = (deg * Math.PI) / 180;
@@ -657,20 +671,24 @@ export function wurLinesPart() {
   const p = new Part();
   // two lines, banjo + two washers at each end (1978 distributor with the push valve)
   for (const i of [0, 1] as const) {
-    placeBanjo(p, WUR_FD[i]);
-    placeBanjo(p, WUR_BANJO[i]);
+    placeBanjo(p, WUR_FD[i], `wur-fd-${i}`);
+    placeBanjo(p, WUR_BANJO[i], `wur-${i}`);
     const line = FUEL_LINES.find((l) => l.id === `wur-${i}`)!;
     // Cyl-6 window is open for x ≤ −174, y 64–188, z −220…−75. The wing rib is at z −185
-    // and the hot-air socket screws sit on the end plate (z ≈ −205), so the drop is at
-    // z −162/−174, x −208/−218. The return runs under the wing sheet (y ≈ 140 there).
-    const x = -208 - i * 10;
-    const z = -162 - i * 12;
+    // and the hot-air socket screws sit on the end plate (z ≈ −205). Each line keeps its own
+    // lane (the upper port stays above and toward the pulley) and arrives along its +Z stub.
+    const stub = line.b.axis;
+    const tip = line.b.point;
+    const approach: V3 = [tip[0] + stub[0] * 24, tip[1] + stub[1] * 24, tip[2] + stub[2] * 24];
+    const x = -208 - i * 14;
+    const zLane = -166 + i * 18;
+    const yTop = 300 + i * 14;
     addLine(p, line.id, line.a.point, line.a.axis, line.b.point, line.b.axis, [
-      [-156, 300 - i * 8, -168],
-      [x, 220, z],
-      [x, 124, z],
-      [-124, 124, -156 - i * 10],
-    ]);
+      [-158, yTop, zLane],
+      [x, 214, zLane],
+      [x, approach[1], zLane],
+      approach,
+    ], LINE_R, { leadB: 12, aheadB: 24, fillet: 10 });
   }
   // Catalogue leftovers, parked above the drop and clear of both lines.
   p.add(lathe([[4, 0], [7, 0], [7, 8], [4, 8]], 14).translate(-168, 268, -96), 'brass');
@@ -684,7 +702,7 @@ export function wurLinesPart() {
 export function csvPortLocalGeometry(p: Part) {
   const face: V3 = [0, CSV_PORT_LOCAL.y, CSV_PORT_LOCAL.faceZ];
   const frame = banjoFrame(face, [0, 0, 1], [1, 0, 0]);
-  placeBanjo(p, frame);
+  placeBanjo(p, frame, 'csv');
   // short brass boss under the banjo so the port is part of the valve
   p.add(cylBetween([0, CSV_PORT_LOCAL.y, 6], face, 5, 12), 'brass');
 }
@@ -706,14 +724,14 @@ export function mixtureControlUnit() {
   flat.deleteAttribute('normal');
   flat.computeVertexNormals();
   p.add(flat, 'zincPlate');
-  placeBanjo(p, FEED_BANJO);
-  placeBanjo(p, CSV_FD_BANJO);
+  placeBanjo(p, FEED_BANJO, 'feed');
+  placeBanjo(p, CSV_FD_BANJO, 'csv-fd');
   // Boss ends on the banjo face. The copper washer is on the far side of that face.
   p.add(cylBetween([FD.x0, FEED_BANJO.face[1], FEED_BANJO.face[2]], FEED_BANJO.face, 6.2, 14), 'zincPlate');
   p.add(cylBetween([FD.x1, CSV_FD_BANJO.face[1], CSV_FD_BANJO.face[2]], CSV_FD_BANJO.face, 6.2, 14), 'zincPlate');
   for (const b of WUR_FD) p.add(cylBetween([b.face[0], b.face[1], FD.z0], b.face, 6.2, 14), 'zincPlate');
   // M14×1.5 return union (Bosch K-Jet test-point / return note). Copper ring sits on this face.
-  unionFace(p, RETURN_FACE, RETURN_AXIS, 7, 21);
+  unionFace(p, RETURN_FACE, RETURN_AXIS, 7, 21, 'return');
   // Metered-air barb for the auxiliary air valve. The hose itself is aux-air-plumbing.
   p.add(cylBetween([11, AFM_AUX.tip[1], AFM_AUX.tip[2]], AFM_AUX.tip, 5.2, 12), 'brass');
   return p.g;
@@ -741,6 +759,14 @@ export function aavPorts() {
  * Rubber / vacuum hose. `ahead` is the collinear run past the straight lead; keep it short
  * where a long lead would enter the shroud (the auxiliary-air valve's lower barb).
  */
+function hoseCentre(a: FuelEnd, b: FuelEnd, mids: V3[], ahead = 10): V3[] {
+  const A = norm(a.axis), B = norm(b.axis);
+  const lead = 8;
+  const a1 = add(a.point, A, lead);
+  const b1 = add(b.point, B, lead);
+  return filleted([a1, add(a.point, A, lead + ahead), ...mids, add(b.point, B, lead + ahead), b1], 10);
+}
+
 function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5, ahead = 10) {
   const A = norm(a.axis), B = norm(b.axis);
   const lead = 8;
@@ -750,8 +776,26 @@ function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5,
   const b1 = add(b.point, B, lead);
   addNamed(p, id, cylBetween(start, a1, r, 8), 'rubber');
   addNamed(p, id, cylBetween(end, b1, r, 8), 'rubber');
-  const pts = filleted([a1, add(a.point, A, lead + ahead), ...mids, add(b.point, B, lead + ahead), b1], 10);
+  const pts = hoseCentre(a, b, mids, ahead);
   addNamed(p, id, tube(pts, r, 7, Math.max(16, pts.length * 3)), 'rubber');
+  return pts;
+}
+
+/** Band around a hose. Major radius leaves 0.2 mm of air on the tube, so the wire does not cut it. */
+function hoseClampAt(p: Part, pts: V3[], u: number, hoseR: number) {
+  const n = pts.length - 1;
+  const f = Math.min(0.98, Math.max(0.02, u)) * n;
+  const i = Math.min(n - 1, Math.floor(f));
+  const t = f - i;
+  const p0 = v(...pts[i]), p1 = v(...pts[Math.min(n, i + 1)]);
+  const c = p0.clone().lerp(p1, t);
+  const tan = p1.clone().sub(p0);
+  if (tan.lengthSq() < 1e-8) return;
+  tan.normalize();
+  const g = torus(hoseR + 0.9, 0.7, 6, 16);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), tan));
+  g.translate(c.x, c.y, c.z);
+  p.add(g, 'zincPlate');
 }
 
 function vacTPorts() {
@@ -785,13 +829,12 @@ export function auxAirPlumbingPart() {
   const p = new Part();
   const lines = serviceHoses().filter((h) => h.part === 'aux-air-plumbing');
   const meter = lines[0], mani = lines[1];
-  addHose(p, meter.id, meter.a, meter.b, [[50, 274, -86]]);
+  const meterPts = addHose(p, meter.id, meter.a, meter.b, [[50, 274, -86]]);
   // Lower barb points down at the shroud roof (y 153.5). Stay under the valve body (r 20
   // about y 200) and above the roof, then come up onto the plenum pipe past the body.
-  addHose(p, mani.id, mani.a, mani.b, [[48, 164, -128], [32, 168, -148]], 5, 2);
-  for (const q of [[36, 280, -64], [52, 232, -111.6], [52, 166, -111.6], [32, 180, -142]] as V3[]) {
-    p.add(torus(6.2, 0.7, 6, 16).translate(q[0], q[1], q[2]), 'zincPlate');
-  }
+  const maniPts = addHose(p, mani.id, mani.a, mani.b, [[48, 164, -128], [32, 168, -148]], 5, 2);
+  for (const u of [0.25, 0.62]) hoseClampAt(p, meterPts, u, 5);
+  for (const u of [0.3, 0.7]) hoseClampAt(p, maniPts, u, 5);
   return p;
 }
 

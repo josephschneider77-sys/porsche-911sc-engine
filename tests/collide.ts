@@ -146,6 +146,123 @@ export function geometriesClash(a: THREE.BufferGeometry, b: THREE.BufferGeometry
   return hit;
 }
 
+/**
+ * Erode a world-space mesh by `tol` mm along its vertex normals. Same thin-sheet cap as the assembled check.
+ * Normals are left as authored; they are computed only when the geometry has none.
+ */
+function erodePositions(g: THREE.BufferGeometry, tol: number): number[] {
+  const geo = g.index ? g.toNonIndexed() : g;
+  if (!geo.attributes.normal) geo.computeVertexNormals();
+  geo.computeBoundingBox();
+  const size = geo.boundingBox!.getSize(new THREE.Vector3());
+  const thin = Math.min(size.x, size.y, size.z);
+  const eff = thin < 0.55 ? Math.min(tol, thin * 0.4) : tol;
+  const P = geo.attributes.position, N = geo.attributes.normal;
+  const v = new THREE.Vector3(), n = new THREE.Vector3();
+  const out: number[] = [];
+  for (let i = 0; i < P.count; i++) {
+    v.fromBufferAttribute(P, i); n.fromBufferAttribute(N, i).normalize();
+    v.addScaledVector(n, -eff); out.push(v.x, v.y, v.z);
+  }
+  return out;
+}
+
+function worldMesh(geometry: THREE.BufferGeometry, world: THREE.Matrix4): THREE.BufferGeometry {
+  const g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+  g.applyMatrix4(world);
+  if (!g.attributes.normal) g.computeVertexNormals();
+  return g;
+}
+
+/** One logical piece: a fuel line, one banjo, one clamp, or one instanced copy. */
+function subSolidKey(me: THREE.Object3D): string | null {
+  if (typeof me.name === 'string' && me.name.startsWith('line:')) return `line:${me.name.slice(5).replace(/:cap$/, '')}`;
+  let p: THREE.Object3D | null = me.parent;
+  while (p) {
+    if (typeof p.name === 'string' && (p.name.startsWith('banjo:') || p.name.startsWith('fitting:'))) return p.name;
+    p = p.parent;
+  }
+  return null;
+}
+
+export interface IntraHit { part: string; a: string; b: string; tris: number }
+
+/**
+ * Distinct sub-solids inside one part. Instanced copies are separate even when they share a mesh.
+ * Meshes of one fuel line, and children of a `banjo:` or `fitting:` group, are one piece.
+ * Same erosion and the same seated-contact rule as findCollisions.
+ */
+export function findIntraPartHits(ids: string[], tol = 1): IntraHit[] {
+  const hits: IntraHit[] = [];
+  const poseOf = (id: string) => {
+    const p = PARTS.find((d) => d.id === id)!;
+    return new THREE.Matrix4().compose(
+      new THREE.Vector3(...((p.position ?? [0, 0, 0]) as [number, number, number])),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(...((p.rotation ?? [0, 0, 0]) as [number, number, number]))),
+      new THREE.Vector3(1, 1, 1),
+    );
+  };
+  for (const id of ids) {
+    if (!cache.has(id)) cache.set(id, ASSET_BUILDERS[id]());
+    const root = cache.get(id)!;
+    root.updateMatrixWorld(true);
+    const pose = poseOf(id);
+    const groups = new Map<string, number[]>();
+    const add = (key: string, pts: number[]) => {
+      const cur = groups.get(key);
+      if (cur) cur.push(...pts); else groups.set(key, pts);
+    };
+    let loose = 0;
+    root.traverse((o: any) => {
+      if (!o.isMesh) return;
+      const inst: THREE.Matrix4[] = o.isInstancedMesh
+        ? Array.from({ length: o.count }, (_, i) => { const im = new THREE.Matrix4(); o.getMatrixAt(i, im); return im; })
+        : [new THREE.Matrix4()];
+      inst.forEach((im, i) => {
+        const world = pose.clone().multiply(o.matrixWorld).multiply(im);
+        const baked = worldMesh(o.geometry, world);
+        const key = o.isInstancedMesh ? `inst:${o.uuid}:${i}` : (subSolidKey(o) ?? `mesh:${loose++}`);
+        add(key, erodePositions(baked, tol));
+      });
+    });
+    const solids: { key: string; bvh: MeshBVH; box: THREE.Box3 }[] = [];
+    for (const [key, pts] of groups) {
+      if (pts.length < 9) continue;
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      const bvh = new MeshBVH(geom); geom.boundsTree = bvh as any; geom.computeBoundingBox();
+      solids.push({ key, bvh, box: geom.boundingBox!.clone() });
+    }
+    const I = new THREE.Matrix4();
+    for (let i = 0; i < solids.length; i++) for (let j = i + 1; j < solids.length; j++) {
+      const A = solids[i], B = solids[j];
+      if (!A.box.intersectsBox(B.box)) continue;
+      let tris = 0;
+      const seg = new THREE.Line3(), n1 = new THREE.Vector3(), n2 = new THREE.Vector3(), v0 = new THREE.Vector3();
+      A.bvh.bvhcast(B.bvh, I, {
+        intersectsTriangles(t1: any, t2: any) {
+          if (!trianglesClash(t1, t2, n1, n2, v0, seg)) return false;
+          tris++; return tris >= 40;
+        },
+      } as any);
+      if (tris) hits.push({ part: id, a: A.key, b: B.key, tris });
+    }
+  }
+  return hits;
+}
+
+/**
+ * Two eroded solids, same rule as the assembled check. Used to prove a 12 mm / r 7.3 eye pair
+ * still fails at tol 1, and a touching pair does not.
+ */
+export function erodedSolidsClash(a: THREE.BufferGeometry, b: THREE.BufferGeometry, tol = 1): boolean {
+  const ga = new THREE.BufferGeometry();
+  ga.setAttribute('position', new THREE.Float32BufferAttribute(erodePositions(a, tol), 3));
+  const gb = new THREE.BufferGeometry();
+  gb.setAttribute('position', new THREE.Float32BufferAttribute(erodePositions(b, tol), 3));
+  return geometriesClash(ga, gb);
+}
+
 /** Minimum surface-to-surface distance between two parts (mm, uneroded), via BVH closest-point queries. */
 export function clearance(a: string, b: string): number {
   const def = (id: string) => PARTS.find((p) => p.id === id)!;
