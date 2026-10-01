@@ -11,6 +11,7 @@ interface PartNode {
   meshes: THREE.Mesh[];
   mats: THREE.MeshStandardMaterial[];
   base: THREE.Vector3;
+  box: THREE.Box3; // world bounds at zero explode offset
   explodeDir: THREE.Vector3;
   opacity: number;
   center: THREE.Vector3;
@@ -19,11 +20,12 @@ interface PartNode {
 const HOME_DIR = new THREE.Vector3(0.62, 0.42, 0.66).normalize();
 const HOME_TARGET = new THREE.Vector3(0, 40, 40);
 const ENGINE_RADIUS = 560;
-function homePose(cam: THREE.PerspectiveCamera, zoom = 1) {
+function homePose(cam: THREE.PerspectiveCamera, zoom = 1, shift?: THREE.Vector3) {
   const vfov = (cam.fov * Math.PI) / 180;
   const hfov = 2 * Math.atan(Math.tan(vfov / 2) * cam.aspect);
   const dist = (zoom * ENGINE_RADIUS) / Math.sin(Math.min(vfov, hfov) / 2);
-  return { pos: HOME_TARGET.clone().add(HOME_DIR.clone().multiplyScalar(dist)), target: HOME_TARGET.clone() };
+  const target = HOME_TARGET.clone(); if (shift) target.add(shift);
+  return { pos: target.clone().add(HOME_DIR.clone().multiplyScalar(dist)), target };
 }
 const ACCENT = new THREE.Color(0xff4d2e);
 const EXPLODE_SCALE = 0.85;
@@ -120,7 +122,7 @@ export class Viewer {
       root.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(root);
       const center = box.getCenter(new THREE.Vector3());
-      this.nodes.set(def.id, { def, root, meshes, mats, base: new THREE.Vector3(), explodeDir: new THREE.Vector3(...def.explode), opacity: 1, center });
+      this.nodes.set(def.id, { def, root, meshes, mats, base: new THREE.Vector3(), box, explodeDir: new THREE.Vector3(...def.explode), opacity: 1, center });
     }
     this.kick();
   }
@@ -143,7 +145,7 @@ export class Viewer {
   setStep(n: number) { this.step = n; this.removed = removedAfter(n); this.kick(160); }
   setExplode(f: number) {
     this.explode = f;
-    if (!this.userMoved) { const h = homePose(this.camera, 1 + 0.55 * f); this.camGoal = h; }
+    if (!this.userMoved) this.camGoal = this.explodedHome(f);
     this.kick(120);
   }
   /** Jump all animations to their end state (used for deep links / screenshots). */
@@ -158,7 +160,33 @@ export class Viewer {
     }
     this.kick();
   }
-  resetView() { this.userMoved = false; this.camGoal = homePose(this.camera, 1 + 0.55 * this.explode); this.kick(120); }
+  resetView() { this.userMoved = false; this.camGoal = this.explodedHome(this.explode); this.kick(120); }
+  /** Home pose for explode fraction f: re-centre on the exploded layout and, if parts that move far
+   *  (air cleaner lid up, silencer down) would still leave the frame, back the camera off until they fit.
+   *  f = 0 gives the original home pose. */
+  private explodedHome(f: number) {
+    const pose = homePose(this.camera, 1 + 0.55 * f);
+    if (f <= 0 || !this.nodes.size) return pose;
+    const b0 = new THREE.Box3(), b1 = new THREE.Box3(), boxes: THREE.Box3[] = [];
+    for (const n of this.nodes.values()) {
+      const b = n.box.clone().translate(n.explodeDir.clone().multiplyScalar(f * EXPLODE_SCALE));
+      b0.union(n.box); b1.union(b); boxes.push(b);
+    }
+    const shift = b1.getCenter(new THREE.Vector3()).sub(b0.getCenter(new THREE.Vector3()));
+    pose.target.add(shift); pose.pos.add(shift);
+    const cam = this.camera.clone(), v = new THREE.Vector3();
+    for (let i = 0; i < 2; i++) {
+      cam.position.copy(pose.pos); cam.lookAt(pose.target); cam.updateMatrixWorld(true);
+      let m = 0;
+      for (const b of boxes) for (let k = 0; k < 8; k++) {
+        v.set(k & 1 ? b.max.x : b.min.x, k & 2 ? b.max.y : b.min.y, k & 4 ? b.max.z : b.min.z).project(cam);
+        m = Math.max(m, Math.abs(v.x), Math.abs(v.y));
+      }
+      if (m <= 0.95) break;
+      pose.pos.sub(pose.target).multiplyScalar(m / 0.95).add(pose.target);
+    }
+    return pose;
+  }
   focus(id: string) {
     this.userMoved = true;
     const n = this.nodes.get(id); if (!n) return;
