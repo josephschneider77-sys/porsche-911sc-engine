@@ -213,7 +213,11 @@ export function oilCooler() {
   // four mounting feet on the case top (nuts: fasteners.ts oil-cooler-nuts)
   // v5: the end tank corner is relieved round the distributor base instead of overlapping it (feet added after the cut)
   cutGroup(p.g, distRelief(70, 100));
-  for (const [x, z] of OIL_COOLER.studs) p.add(extrudeC(polyShape(hull([...circlePts(x, z, 8, 12), ...circlePts(x1 + 2, z, 8, 12)])), OIL_COOLER.foot).rotateX(Math.PI / 2), 'castAlu', [0, OIL_COOLER.footTop - OIL_COOLER.foot / 2, 0]);
+  for (const [x, z] of OIL_COOLER.studs) {
+    const sh = polyShape(hull([...circlePts(x, z, 8, 12), ...circlePts(x1 + 2, z, 8, 12)]));
+    sh.holes.push(circlePath(4.5, x, z) as THREE.Path); // stud (r 3.84) passes through; the foot stays clear of the case stud
+    p.add(extrudeC(sh, OIL_COOLER.foot).rotateX(Math.PI / 2), 'castAlu', [0, OIL_COOLER.footTop - OIL_COOLER.foot / 2, 0]);
+  }
   return p.g;
 }
 /** Oil-cooler feet: 4 studs in the left case top (case surface y 95 at x -90). */

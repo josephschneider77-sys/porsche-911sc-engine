@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import * as THREE from 'three';
 import { findCollisions, isMating, clearance } from './collide';
+import { rayHit } from './hw';
+import { OIL_COOLER } from '../src/geo/aux';
 
 const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|timing-chain|cam-sprocket)-(left|right)$/;
 const EXHAUST = /^(heat-exchanger-(left|right)|muffler)$/;
@@ -23,4 +26,18 @@ describe('assembled-pose interference', () => {
       it(`${part}-${sd} keeps >= 10 mm air gap to heat-exchanger-${sd}`, () => {
         expect(clearance(`${part}-${sd}`, `heat-exchanger-${sd}`)).toBeGreaterThanOrEqual(10);
       });
+
+  const coolerPair = (id: string) => hits.some((h) => (h.a === 'oil-cooler' && h.b === id) || (h.b === 'oil-cooler' && h.a === id));
+  it('oil-cooler mounting feet meet the left-case bosses flush and do not interpenetrate', () => {
+    expect(coolerPair('crankcase-left')).toBe(false);
+    expect(coolerPair('crankcase-right')).toBe(false);
+    const seatY = OIL_COOLER.footTop - OIL_COOLER.foot;
+    for (const [x, z] of OIL_COOLER.studs) {
+      const hit = rayHit('crankcase-left', new THREE.Vector3(x, seatY + 2, z), new THREE.Vector3(0, -1, 0), 8);
+      expect(hit, `cooler stud (${x}, ${z})`).toBeTruthy();
+      expect(hit!.distance, `seat under (${x}, ${z})`).toBeCloseTo(2, 1);
+      expect(hit!.normal.y, `seat normal (${x}, ${z})`).toBeGreaterThan(0.99);
+    }
+    expect(clearance('oil-cooler', 'crankcase-left')).toBeLessThan(0.6);
+  });
 });

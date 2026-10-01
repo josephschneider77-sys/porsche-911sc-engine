@@ -2,13 +2,14 @@ import * as THREE from 'three';
 
 /** PBR material library. Material `name` survives GLB export and is used by the app to re-tune. */
 export type MatKey =
-  | 'copper' | 'castAlu' | 'machinedAlu' | 'magnesium' | 'nikasil' | 'forgedSteel' | 'steel' | 'darkSteel'
+  | 'copper' | 'castAlu' | 'sandCast' | 'machinedAlu' | 'magnesium' | 'nikasil' | 'forgedSteel' | 'steel' | 'darkSteel'
   | 'chrome' | 'blackPlastic' | 'satinBlack' | 'rubber' | 'gasket' | 'ceramic' | 'brass'
   | 'heatSteel' | 'zincPlate' | 'friction' | 'redPaint' | 'bore' | 'filterPaper' | 'bronze'
   | 'finBlack' | 'forgedDark' | 'yellowZinc' | 'blackPaint' | 'aluminized' | 'polishedSteel';
 
 const DEF: Record<MatKey, { color: number; metalness: number; roughness: number }> = {
   castAlu: { color: 0x96989a, metalness: 0.6, roughness: 0.66 },
+  sandCast: { color: 0x7a7d80, metalness: 0.4, roughness: 0.86 }, // crankcase sand-cast skin: darker and rougher than the machined faces
   machinedAlu: { color: 0xc4c7ca, metalness: 0.9, roughness: 0.3 },
   magnesium: { color: 0x7e7f77, metalness: 0.5, roughness: 0.66 },
   nikasil: { color: 0x6f7275, metalness: 0.7, roughness: 0.5 },

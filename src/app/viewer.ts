@@ -294,7 +294,7 @@ export class Viewer {
 }
 
 /** Cast / painted surfaces get a subtle procedural sand-cast speckle (roughness + albedo noise) in rest-pose part space. */
-const CAST_NOISE: Record<string, number> = { castAlu: 0.34, magnesium: 0.34, finBlack: 0.22, forgedDark: 0.26, aluminized: 0.3, heatSteel: 0.3, blackPaint: 0.12, satinBlack: 0.12 };
+const CAST_NOISE: Record<string, number> = { castAlu: 0.34, sandCast: 0.78, magnesium: 0.34, finBlack: 0.22, forgedDark: 0.26, aluminized: 0.3, heatSteel: 0.3, blackPaint: 0.12, satinBlack: 0.12 };
 const NOISE_GLSL = `
 uniform float uCastAmt; varying vec3 vRestPos;
 float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -321,6 +321,7 @@ function tune(m: THREE.MeshStandardMaterial, rest?: THREE.Matrix4) {
     case 'chrome': m.envMapIntensity = 1.4; break;
     case 'satinBlack': case 'blackPlastic': m.envMapIntensity = 0.6; break;
     case 'castAlu': case 'magnesium': case 'aluminized': m.envMapIntensity = 0.9; break;
+    case 'sandCast': m.envMapIntensity = 0.48; break;
     case 'polishedSteel': m.envMapIntensity = 1.25; break;
     case 'finBlack': case 'blackPaint': m.envMapIntensity = 0.7; break;
     default: m.envMapIntensity = 1;
