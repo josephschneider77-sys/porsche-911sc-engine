@@ -349,26 +349,23 @@ export function sumpPlate() {
     [46, -1.4], [24, -2.4], [12, 2.4], [0.1, 2.4],
   ], 80);
   p.add(dish, 'zincPlate', [0, yNut, zc]);
-  // Deep horseshoe. Opening toward +Z so the drain plug sits at the top of the U.
-  const shoe: THREE.Vector3[] = [];
-  for (let i = 0; i <= 36; i++) {
-    const a = -2.45 + (i / 36) * 4.9;
-    const curl = 1 - 0.42 * Math.pow(Math.abs(a) / 2.45, 1.6);
-    const rad = 30 * (0.62 + 0.38 * curl);
-    shoe.push(new THREE.Vector3(rad * Math.sin(a), 0, -rad * Math.cos(a)));
-  }
-  const kidney = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(shoe), 72, 7.2, 12, false);
-  kidney.translate(0, yNut - 13.5, zc - 2);
+  // Solid horseshoe emboss, ~10 mm deep. The arc is open toward +Z (top of the
+  // bottom-view frame) so the drain plug sits in that opening.
+  const Ro = 40, Ri = 18;
+  const a0 = Math.PI + 0.38, a1 = Math.PI * 2 - 0.38;
+  const shoe = new THREE.Shape();
+  const N = 64;
+  // Negate shape Y so the opening lands at the top of the bottom-view frame (+Z).
+  const polar = (rad: number, a: number): [number, number] => [rad * Math.cos(a), -rad * Math.sin(a)];
+  const o0 = polar(Ro, a0);
+  shoe.moveTo(o0[0], o0[1]);
+  for (let i = 1; i <= N; i++) { const q = polar(Ro, a0 + (a1 - a0) * (i / N)); shoe.lineTo(q[0], q[1]); }
+  for (let i = N; i >= 0; i--) { const q = polar(Ri, a0 + (a1 - a0) * (i / N)); shoe.lineTo(q[0], q[1]); }
+  shoe.closePath();
+  const kidney = extrude(shoe, 10, 0.6);
+  kidney.rotateX(Math.PI / 2);
+  kidney.translate(0, yNut - 5.5, zc - 6);
   p.add(kidney, 'zincPlate');
-  // Inner lobe, curling over the plug.
-  const lobe: THREE.Vector3[] = [];
-  for (let i = 0; i <= 18; i++) {
-    const a = -1.25 + (i / 18) * 2.5;
-    lobe.push(new THREE.Vector3(15.5 * Math.sin(a), 0, 13.5 * Math.cos(a) + 3));
-  }
-  const inner = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(lobe), 28, 4.6, 10, false);
-  inner.translate(0, yNut - 12.2, zc);
-  p.add(inner, 'zincPlate');
   // central drain boss + hex plug (911 107 176 03). Sealing ring sits at yNut − 9.
   p.add(cyl(11, 4, 24), 'zincPlate', [0, yNut - 5, zc]);
   p.add(hexNut(17, 7), 'darkSteel', [0, yNut - 9 - 3.5, zc]);
