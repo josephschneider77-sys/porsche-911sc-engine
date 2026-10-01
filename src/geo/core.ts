@@ -528,7 +528,7 @@ export function camHousing(s: 1 | -1) {
   };
   const L = CH_Z1 - CH_Z0, zc = (CH_Z0 + CH_Z1) / 2;
   // base plate against heads with machined skirt
-  bx(HEAD_OUT_X, HEAD_OUT_X + 10, -70, 72, CH_Z0 - 5, CH_Z1); // extended at the flywheel end under the cyl. 6 nuts
+  bx(HEAD_OUT_X, HEAD_OUT_X + 10, -70, 72, CH_Z0 - (s < 0 ? 17 : 5), CH_Z1); // extended at the flywheel end under the cyl. 6 nuts (v5 stud spread z +-28)
   bx(HEAD_OUT_X, HEAD_OUT_X + 2, -73, 75, CH_Z0 + 2, CH_Z1 - 2, 'machinedAlu');
   // cam tunnel: thick sector shell around the cam axis on the outer side (open toward the rockers)
   const tun = new THREE.Shape();

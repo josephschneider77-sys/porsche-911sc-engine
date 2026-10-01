@@ -141,7 +141,6 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('valve-cover-gasket-upper|valve-cover-gasket-lower', 'rockers|valves', 'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)'),
   pair('ignition-leads', '.*', 'SIMPLIFIED flexible ignition leads drawn on an approximate path (they drape over other parts)'),
   pair('rockers', 'valve-cover-nuts-upper|valve-cover-nuts-lower', 'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear'),
-  pair('valves', 'cam-housing-nuts', 'SIMPLIFIED modelled valve springs/retainers sit too high (long tilted valves) and pass the cam-housing nut stations, as they pass the base plate'),
  
 ];
 /**

@@ -4,7 +4,7 @@ import { MAIN_Z } from '../data/layout';
 /** Head-local stud / nut patterns. */
 export const HEAD_HW = {
   barrel: { x: 45, r: 57 }, // barrel-nut seat (top of the head core bosses), stud circle radius at 45 deg
-  camStud: { y: 54, z: 16 }, // cam-housing studs (+-y, +-z)
+  camStud: { y: 54, z: 28 }, // cam-housing studs (+-y, +-z)
   intake: { x: 26, z: 28 }, exhaust: { x: 34, z: 30 },
 };
 /** Through-bolt bosses: seat faces at |x|, bolt rows y, main-web z. */
