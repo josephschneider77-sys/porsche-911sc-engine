@@ -4,8 +4,19 @@ import { CAM_X, INT_SHAFT_Y } from '../src/data/layout';
 import {
   basePath, chainPath, chainPins, tensionerLayout, ADJ, CAM_NOSE, CAM_SPROCKET_R, INT_SPROCKET_R,
   SPROCKET_HOLES, FLANGE_NOTCHES, VERNIER, CHAIN_Z, guideRails, railInner,
+  CRANK_GEAR_T, INT_GEAR, INT_T, CAM_T, IDLER_T,
 } from '../src/geo/core';
 import { rayHit } from './hw';
+
+describe('cam drive ratio', () => {
+  it('is exactly 2:1 from crank to cam, on the existing 84 mm gear centres', () => {
+    expect((CRANK_GEAR_T / INT_GEAR.teeth) * (INT_T / CAM_T)).toBeCloseTo(0.5, 8);
+    expect(((CRANK_GEAR_T + INT_GEAR.teeth) * INT_GEAR.module) / 2).toBeCloseTo(84, 6);
+    expect(CAM_T).toBe(28);
+    expect(INT_T).toBe(24);
+    expect(IDLER_T).toBe(19);
+  });
+});
 
 describe.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('chain tensioner, %s bank', (s, b) => {
   const B = basePath(s), P = chainPath(s), T = tensionerLayout(s), { pins } = chainPins(s);

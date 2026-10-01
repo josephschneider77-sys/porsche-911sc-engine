@@ -17,7 +17,7 @@ import { HEAD_HW, CASE_TB, CASE_LUG } from './hwLayout';
 /** Chain plane (centre of the duplex chain) per bank: in front of the cam-housing end (z 222), rows clear of each other. */
 export const CHAIN_Z: Record<1 | -1, number> = { 1: 258, [-1]: 235 } as any;
 
-export const CRANK_GEAR_T = 36;
+export const CRANK_GEAR_T = 28;
 
 export const bankZ = (s: 1 | -1) => (s === 1 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]]);
 
@@ -293,12 +293,12 @@ export function crankcaseHalf(s: 1 | -1) {
   plate.holes.push(circlePath(29, 0, 0) as THREE.Path);
   p.add(extrude(plate, 6, 0, 8), CAST, [0, 0, W.z1 - 6]);
   const noseZ = 236;
-  p.add(yToZ(lathe([[29, 0], [42, 0], [42, W.z1 - 6 - 220], [29, W.z1 - 6 - 220]], 32, s > 0 ? 0 : Math.PI, Math.PI)), CAST, [0, 0, 220]);
+  // Outer radius stays inside the 24 T chain (closest chain point is r ≈ 40). Was 42, which the chain entered.
+  p.add(yToZ(lathe([[29, 0], [36, 0], [36, W.z1 - 6 - 220], [29, W.z1 - 6 - 220]], 32, s > 0 ? 0 : Math.PI, Math.PI)), CAST, [0, 0, 220]);
   p.add(yToZ(lathe([[26.2, -8], [32, -8], [32, 8], [26.2, 8]], 32, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)), 'machinedAlu', [0, 0, noseZ]);
-  for (const y of [40, -40]) {
-    p.add(boxMM([s > 0 ? 0 : -4, y - 6, noseZ - 7], [s > 0 ? 4 : 0, y + 6, noseZ + 7]), 'machinedAlu');
-    p.add(yToX(cyl(3.6, 3.2, 12)), 'bore', [X(1.6), y, noseZ]);
-  }
+  // The lower pad used to sit at y −40, which is now the 24 T chain crown. Keep only the upper one.
+  p.add(boxMM([s > 0 ? 0 : -4, 34, noseZ - 7], [s > 0 ? 4 : 0, 46, noseZ + 7]), 'machinedAlu');
+  p.add(yToX(cyl(3.6, 3.2, 12)), 'bore', [X(1.6), 40, noseZ]);
   for (const q of chainHousingStuds(s)) p.add(yToX(cyl(7.5, CHAIN_BOX_INNER_X - 104, 14)), CAST, [X((CHAIN_BOX_INNER_X + 104) / 2), q.y, q.z]);
   // Bosses below keep the v5 seat faces (sender tops y=123, spot faces y=125, number pad y=113.5,
   // thermostat flange y=-128, breather lid y=122, M10 nut face y=-131). Stalks run the other way,
@@ -485,18 +485,19 @@ function addHelix(p: Part, teeth: number, rRoot: number, rTip: number, holeR: nu
     p.add(extrude(s, dz + 0.04, 0, 1).rotateZ(ang), mat, [at[0], at[1], at[2] + z0 + i * dz]);
   }
 }
-/** Crank timing gear (102-00 #8, 36 T helical) + distributor drive wheel (102-00 #10, smaller brass helical). */
+/** Crank timing gear (102-00 #8, 28 T helical) + distributor drive wheel (102-00 #10, smaller brass helical). */
 export function crankGears() {
   const p = new Part();
   const N = CRANK_NOSE, kb = N.key.b / 2 + 0.05;
   const keyedBore = () => { const h = new THREE.Path(); const a = Math.asin(kb / (N.seatR + 0.05)); h.absarc(0, 0, N.seatR + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false); h.lineTo(kb, N.seatR + N.key.proud + 0.4); h.lineTo(-kb, N.seatR + N.key.proud + 0.4); h.closePath(); return h; };
   const z0 = N.gear[0], z1 = N.gear[1];
-  // solid keyed hub; teeth are a helix around it (opposite hand to the intermediate gear)
-  const hub = circleShape(33.4); hub.holes.push(keyedBore());
+  // 28 T on the 84 mm centres (module shared with the 48 T intermediate gear). Teeth sit just outside the Ø56 nose.
+  const pr = (CRANK_GEAR_T * INT_GEAR.module) / 2;
+  const hub = circleShape(pr - 1.6); hub.holes.push(keyedBore());
   p.add(extrude(hub, z1 - z0), 'steel', [0, 0, z0]);
   // ψ ≈ 30°: twist = tan(ψ) * width / pitch radius
-  const twist = Math.tan(30 * DEG) * (z1 - z0) / 36;
-  addHelix(p, CRANK_GEAR_T, 34.2, 38.6, 32.6, z0, z1, twist, 'steel', [0, 0, 0], 11);
+  const twist = Math.tan(30 * DEG) * (z1 - z0) / pr;
+  addHelix(p, CRANK_GEAR_T, pr - 1.7, pr + 2.5, N.seatR + 0.25, z0, z1, twist, 'steel', [0, 0, 0], 11);
   // smaller-OD brass distributor gear, same hand, narrow face
   const d0 = N.drive[0], d1 = N.drive[1];
   const dTwist = Math.tan(28 * DEG) * (d1 - d0) / 31;
@@ -869,29 +870,36 @@ function vernierRim(s: 1 | -1, R: number, notchR: number, nNotch: number, a0: nu
   }
   return pts;
 }
-/** Sprocket flange (#36): keyed hub, 16 half-hole scallops on the pin circle. The dowel sits in one scallop. */
+/** Sprocket flange (#36): tall bright keyed hub, 16 scallops only on the short sprocket-face rim. The dowel sits in one scallop. */
 export function camFlange(s: 1 | -1) {
   const p = new Part();
   const X = CAM_X * s, zc = CHAIN_Z[s], N = CAM_NOSE;
-  const sh = polyShape(vernierRim(s, N.flangeR, VERNIER.notchR, FLANGE_NOTCHES, N.pin.a));
-  const bore = new THREE.Path(); // bore with the key slot at +Y
-  const kb = N.key.b / 2 + 0.05, a = Math.asin(kb / (N.r + 0.05));
-  bore.absarc(0, 0, N.r + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false);
-  bore.lineTo(kb, N.r + N.key.proud + 0.4); bore.lineTo(-kb, N.r + N.key.proud + 0.4); bore.closePath();
-  sh.holes.push(bore);
-  p.add(extrude(sh, N.flange[1] - N.flange[0], 0, 4), 'darkSteel', [X, 0, zc + N.flange[0]]);
+  const keyed = () => {
+    const bore = new THREE.Path();
+    const kb = N.key.b / 2 + 0.05, a = Math.asin(kb / (N.r + 0.05));
+    bore.absarc(0, 0, N.r + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false);
+    bore.lineTo(kb, N.r + N.key.proud + 0.4); bore.lineTo(-kb, N.r + N.key.proud + 0.4); bore.closePath();
+    return bore;
+  };
+  const z0 = N.flange[0], z1 = N.flange[1], rimH = 3.2;
+  // hub stands the full stack; the scalloped rim is the short skirt on the sprocket face (about half the hub height)
+  const hub = circleShape(17.5); hub.holes.push(keyed());
+  p.add(extrude(hub, z1 - z0, 0, 4), 'polishedSteel', [X, 0, zc + z0]);
+  const rim = polyShape(vernierRim(s, N.flangeR, VERNIER.notchR, FLANGE_NOTCHES, N.pin.a));
+  rim.holes.push(keyed());
+  p.add(extrude(rim, rimH, 0, 4), 'polishedSteel', [X, 0, zc + z1 - rimH]);
   return p.g;
 }
 
 // ---------------------------------------------------------------- cam chain drive (103-10/-15), duplex 3/8" roller chain
-// Sizes from Dempsey's rebuild photos (photo-ref/book: rebuild-pic10, tensioner-pic3/4/9/10, sample_page1) scaled by
-// the 9.525 mm chain pitch: cam sprocket 27 T (pitch Ø 82 mm; photo chain-wrap Ø ≈ 80-85 mm), intermediate sprockets
-// 18 T so the cam turns at ½ crank with the 36:48 crank/intermediate gear pair (int. shaft at ¾ crank).
+// Duplex 3/8 in. Cam sprocket 28 T (face count of 901 105 546 04). Intermediate sprocket 24 T
+// (published; Pelican). Idler 19 T (face count of 901 105 055 00). With the 28:48 crank/intermediate
+// gears the cam turns at exactly ½ crank: (28/48)*(24/28) = 1/2.
 export const PITCH = 9.525; // ISO 606 / BS 06B-2 duplex, 3/8 in
-export const INT_T = 18, CAM_T = 27, IDLER_T = 15;
-export const INT_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / INT_T)); // 27.4
-export const CAM_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / CAM_T)); // 41.0
-export const IDLER_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / IDLER_T)); // 22.9
+export const INT_T = 24, CAM_T = 28, IDLER_T = 19;
+export const INT_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / INT_T)); // 36.5
+export const CAM_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / CAM_T)); // 42.5
+export const IDLER_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / IDLER_T)); // 28.9
 const ROW = 5.1; // duplex row offset from chain centre (transverse pitch ≈ 10.2)
 /** Chain-housing box (both banks): bolts to the crankcase pulley face, cover face 70 mm proud of it. */
 export const HOUSING_Z0 = CASE_Z.pulley, HOUSING_Z1 = CASE_Z.pulley + 70;
@@ -977,7 +985,7 @@ const runY = (a: THREE.Vector2, b: THREE.Vector2, x: number) => a.y + ((b.y - a.
 /** Hydraulic adjuster: body length, plunger + dome, arm-tail pad radius, and the plunger axis z offset from the chain plane. */
 export const ADJ = { body: 50, dome: 4.5, pad: 6.5, zOff: { 1: -13, [-1]: -5 } as Record<number, number> };
 /**
- * Tensioner geometry (photo rebuild-pic10 / tensioner-pic3/4): 15 T idler OUTSIDE the loop under the slack run, about
+ * Tensioner geometry (photo rebuild-pic10 / tensioner-pic3/4): 19 T idler OUTSIDE the loop under the slack run, about
  * 2/3 of the way to the cam, pushed IDLER_PUSH mm up into the run so the chain wraps it. The idler arm pivots outboard
  * of it; its tail pad (inboard) rests on the plunger of the hydraulic adjuster, which stands inclined (~36 deg) in the
  * lower inner corner of the box with its base where the v3 floor already was, so nothing drops toward the heat exchanger.
@@ -1040,7 +1048,7 @@ export function timingChain(s: 1 | -1) {
   const z = CHAIN_Z[s];
   const inner = chainPlate(false);
   const outer = chainPlate(true);
-  // Roller and pin keep the previous envelope. A full 06B-2 roller (Ø6.35) reaches the chain box.
+  // Roller Ø6.4 and pin Ø3.4, full duplex size (a 06B-2 roller is Ø6.35).
   const roller = yToZ(cyl(3.2, 5.6, 10));
   const pin = yToZ(cyl(1.7, 22.4, 6));
   for (let i = 0; i < n; i++) {
@@ -1080,7 +1088,7 @@ export function camSprocket(s: 1 | -1) {
   return p.g;
 }
 /**
- * Chain tensioner (103-10/-15): idler sprocket (#6, 15 T) on its arm (#5) pressed up into the slack run so the chain
+ * Chain tensioner (103-10/-15): idler sprocket (#6, 19 T) on its arm (#5) pressed up into the slack run so the chain
  * wraps it (~36 deg), arm pivoting on its shaft (#3) in the housing boss, tail pad loaded by the hydraulic chain
  * adjuster (#10) whose plunger dome bears on the pad; adjuster held by its mounting ear on a housing stud + M8 nut
  * (103-10 #27/#28); plastic guide rails (#2) on the tight run and under the slack run.
@@ -1091,7 +1099,7 @@ export function guideRails(s: 1 | -1) {
   const sa = P.slackA.pa, sb = P.slackA.pb; const dd = sb.clone().sub(sa).normalize();
   let nn = new THREE.Vector2(dd.y, -dd.x); if (nn.y > 0) nn = nn.negate(); // outside of the loop = below the slack run
   const out = [{ a: up1, b: up2, n: nUp, f0: 0.53, f1: 0.82 }, { a: sa, b: sb, n: nn, f0: s > 0 ? 0.55 : 0.2, f1: s > 0 ? 0.8 : 0.45 }];
-  if (s < 0) out.push({ a: up1, b: up2, n: nUp, f0: 0.14, f1: 0.36 });
+  if (s < 0) out.push({ a: up1, b: up2, n: nUp, f0: 0.28, f1: 0.5 });
   return out;
 }
 /** Rail mounting tabs: bosses outboard of the rail (clear of the chain plates) that take the rail bolts. */
@@ -1112,6 +1120,26 @@ function armLinkShape(L: number, rA: number, rB: number) {
   for (let i = 1; i < 8; i++) { const a = -Math.PI / 2 - (Math.PI * i) / 8; pts.push([rA * Math.cos(a), rA * Math.sin(a)]); }
   return polyShape(pts);
 }
+/** 19 T idler: duplex rings, eight lightening holes, bronze bush, round bore. */
+function idlerSprocket(p: Part, s: 1 | -1, T: ReturnType<typeof tensionerLayout>, z: number) {
+  const r = T.idlerR;
+  const phase = toothPhase(s, T.idler.x, T.idler.y, r, IDLER_T);
+  const rr = r - 3.6, rt = r + 3.4;
+  const at: V3 = [T.idler.x, T.idler.y, z];
+  for (const dz of [-ROW, ROW]) {
+    p.add(extrudeC(sprocketRingShape(IDLER_T, rr, rt, rr - 4.4), 4.8, 0, 2).rotateZ(phase), 'steel', [at[0], at[1], at[2] + dz]);
+  }
+  const web = circleShape(rr - 4);
+  const holeC = 14.2, holeR = 4;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    web.holes.push(circlePath(holeR, holeC * Math.cos(a), holeC * Math.sin(a)) as THREE.Path);
+  }
+  web.holes.push(circlePath(8.6) as THREE.Path);
+  for (const zc of [-4.2, 4.2]) p.add(extrudeC(web, 5.2, 0.15, 20), 'steel', [at[0], at[1], at[2] + zc]);
+  p.add(yToZ(lathe([[6.1, -6.5], [8.5, -6.5], [8.5, 6.5], [6.1, 6.5]], 24)), 'bronze', at);
+  p.add(yToZ(cyl(5.9, 16, 14)), 'polishedSteel', [at[0], at[1], at[2] - 1]);
+}
 /** Rail bolts (#3, 4 per bank): one through each end of the first two rails, head on the rail front face. */
 export function railBolts(s: 1 | -1) {
   const z = CHAIN_Z[s];
@@ -1121,37 +1149,49 @@ export function chainTensioner(s: 1 | -1) {
   const p = new Part();
   const z = CHAIN_Z[s];
   const T = tensionerLayout(s);
-  // idler sprocket (duplex, 15 T), tooth gaps phased onto the chain rollers, on its stub bolt (103-10 #7)
-  duplexSprocket(p, IDLER_T, T.idlerR, [T.idler.x, T.idler.y, z], 6, 'steel', toothPhase(s, T.idler.x, T.idler.y, T.idlerR, IDLER_T));
-  p.add(yToZ(cyl(6, 24, 12)), 'polishedSteel', [T.idler.x, T.idler.y, z]);
-  p.add(yToZ(hexNut(13, 6)), 'darkSteel', [T.idler.x, T.idler.y, z + 15]);
-  // forged idler arm (1978 single-bush 901 105 505/506): pivot eye, waisted leg, idler eye, waisted leg, tail
+  // idler sprocket: 19 T duplex, 8 lightening holes, bronze bush, round bore (no hex)
+  idlerSprocket(p, s, T, z);
+  // heavy forged support: wide bushed boss under the sprocket, smaller pivot eye, tapered tail
+  const armZ = z - 13;
   const armLeg = (a: THREE.Vector2, b: THREE.Vector2, rA: number, rB: number) => {
     const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
-    const g = extrudeC(armLinkShape(L, rA, rB), 5.5, 0.35, 2);
-    g.rotateZ(Math.atan2(dy, dx)); g.translate(a.x, a.y, z - 15); p.add(g, 'forgedDark');
+    const g = extrudeC(armLinkShape(L, rA, rB), 9, 0.4, 2);
+    g.rotateZ(Math.atan2(dy, dx)); g.translate(a.x, a.y, armZ); p.add(g, 'forgedDark');
   };
-  armLeg(T.pivot, T.idler, 8.2, 10);
-  armLeg(T.idler, T.tail, 10, 7);
-  p.add(yToZ(cyl(10, 18, 20)), 'forgedDark', [T.pivot.x, T.pivot.y, z - 9]);
-  p.add(yToZ(cyl(7, 28, 16)), 'polishedSteel', [T.pivot.x, T.pivot.y, z - 6]); // idler arm shaft (#3)
+  armLeg(T.pivot, T.idler, 12, 16);
+  armLeg(T.idler, T.tail, 15, 7);
+  p.add(yToZ(cyl(16, 14, 24)), 'forgedDark', [T.idler.x, T.idler.y, armZ]);
+  p.add(yToZ(lathe([[8.2, -7], [10.4, -7], [10.4, 7], [8.2, 7]], 20)), 'bronze', [T.idler.x, T.idler.y, armZ]);
+  p.add(yToZ(cyl(11, 12, 20)), 'forgedDark', [T.pivot.x, T.pivot.y, armZ]);
+  p.add(yToZ(lathe([[5.4, -6], [7.2, -6], [7.2, 6], [5.4, 6]], 16)), 'bronze', [T.pivot.x, T.pivot.y, armZ]);
+  p.add(yToZ(cyl(6.2, 12, 14)), 'polishedSteel', [T.pivot.x, T.pivot.y, armZ]); // idler arm shaft (#3)
   // tail pad (hardened, Z-axis) that the plunger dome bears on
   const padZ0 = z - 18, padZ1 = Math.max(T.adjZ + 8, z - 12);
   p.add(yToZ(cyl(ADJ.pad, padZ1 - padZ0, 20)), 'polishedSteel', [T.tail.x, T.tail.y, (padZ0 + padZ1) / 2]);
-  // sealed hydraulic adjuster (930 105 049 00): cylindrical body, collar, bleeder, steel plunger, domed tip
+  // sealed hydraulic adjuster (930 105 049 00): cast body, mounting lug, tapered nose, dark gland, bleeder
   const adj = new Part();
   const L = ADJ.body, reach = T.reach;
-  adj.add(lathe([[0.1, 0], [13.2, 0], [13.2, 3], [11.4, 4.5], [11.4, L - 10], [13, L - 8.5], [13, L - 5], [8.4, L - 3.5], [8.4, L], [0.1, L]], 32), 'castAlu');
-  adj.add(cyl(12.6, 1.2, 28), 'castAlu', [0, 16, 0]);
-  adj.add(cyl(2.1, 5, 10).rotateZ(Math.PI / 2).translate(9.2, 18, 0), 'darkSteel');
-  adj.add(hexNut(6.5, 3.2).rotateZ(Math.PI / 2).translate(12.6, 18, 0), 'zincPlate');
+  adj.add(lathe([
+    [0.1, 0], [11.6, 0], [11.6, 3.2], [14.2, 5.4], [14.2, 8.5], [12.4, 11],
+    [12.4, L * 0.36], [9.4, L * 0.56], [8.4, L * 0.7],
+    [11.6, L * 0.76], [11.6, L * 0.86], [7.2, L * 0.92], [7.2, L], [0.1, L],
+  ], 28), 'castAlu');
+  adj.add(cyl(8.5, 7, 20), 'darkSteel', [0, L - 3.2, 0]);
+  adj.add(cyl(2.2, 6, 10).rotateZ(Math.PI / 2).translate(11.4, L * 0.42, 0), 'darkSteel');
+  adj.add(hexNut(7, 3.4).rotateZ(Math.PI / 2).translate(15.2, L * 0.42, 0), 'zincPlate');
   adj.add(cyl(5, reach - ADJ.dome - (L - 2), 14), 'polishedSteel', [0, (L - 2 + reach - ADJ.dome) / 2, 0]);
   adj.add(lathe([[0.1, 0], [6.5, 0], [6.5, 1.5], [3, ADJ.dome], [0.1, ADJ.dome]], 18), 'steel', [0, reach - ADJ.dome, 0]);
   adj.g.rotation.z = Math.atan2(T.axis.y, T.axis.x) - Math.PI / 2; adj.g.position.set(T.adjBase.x, T.adjBase.y, T.adjZ);
   p.g.add(adj.g);
-  // mounting ear at the body base with its stud and nut (stud from the housing boss)
-  const earC = T.adjBase.clone().add(T.axis.clone().multiplyScalar(12));
-  p.add(extrudeC(polyShape(hull([...circlePts(earC.x, earC.y, 11, 16), ...circlePts(T.ear.x, T.ear.y, 8, 16)])), 6, 0.6), 'castAlu', [0, 0, T.adjZ]);
+  // thick cast mounting lug: two bosses, the stud through the outer one
+  const earC = T.adjBase.clone().add(T.axis.clone().multiplyScalar(16));
+  const ear2 = T.ear.clone().add(T.axis.clone().multiplyScalar(16));
+  p.add(extrudeC(polyShape(hull([
+    ...circlePts(earC.x, earC.y, 12, 16),
+    ...circlePts(T.ear.x, T.ear.y, 9, 14),
+    ...circlePts(ear2.x, ear2.y, 7, 12),
+  ])), 7.5, 0.45), 'castAlu', [0, 0, T.adjZ]);
+  p.add(yToZ(cyl(3.1, 7.5, 12)), 'darkSteel', [ear2.x, ear2.y, T.adjZ]);
   p.add(yToZ(cyl(4, T.adjZ + 12 - (HOUSING_Z0 + 4) , 10)), 'zincPlate', [T.ear.x, T.ear.y, (T.adjZ + 12 + HOUSING_Z0 + 4) / 2]);
   p.add(yToZ(cyl(8, 1.6, 16)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + 3.6 + 0.8]);
   p.add(yToZ(hexNut(13, 6.5)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + 3.6 + 1.6 + 3.25]);
@@ -1167,12 +1207,21 @@ export function chainTensioner(s: 1 | -1) {
       const p1 = A.clone().lerp(B, u1).add(n.clone().multiplyScalar(off));
       const seg = p1.clone().sub(p0); const sl = seg.length(); const sa = Math.atan2(seg.y, seg.x);
       // Z span stays under the rail-bolt seat (z = RAIL_TAB.z1) so the bolt head still lands on a flat face.
-      const web = extrudeC(roundRect(sl + 0.8, RAIL_SHOE.thick, 1.1), 18, 0, 2); web.rotateZ(sa);
+      const end = i === 0 || i === segs - 1;
+      const depth = end ? 11 : 16;
+      const web = extrudeC(roundRect(sl + 0.8, RAIL_SHOE.thick, 1.1), depth, 0, 2); web.rotateZ(sa);
       p.add(web, 'blackPlastic', [(p0.x + p1.x) / 2, (p0.y + p1.y) / 2, z]);
-      for (const zs of [1, -1] as const) {
-        const lip = extrudeC(roundRect(sl + 0.5, 3.1, 0.5), 2.6, 0, 2); lip.rotateZ(sa);
-        const c = A.clone().lerp(B, um).add(n.clone().multiplyScalar(inner + 1.55));
-        p.add(lip, 'blackPlastic', [c.x, c.y, z + zs * 8.4]);
+      if (!end) {
+        for (const zs of [1, -1] as const) {
+          const lip = extrudeC(roundRect(sl + 0.4, 4.4, 0.4), 3.0, 0, 2); lip.rotateZ(sa);
+          const c = A.clone().lerp(B, um).add(n.clone().multiplyScalar(inner - 0.15));
+          p.add(lip, 'blackPlastic', [c.x, c.y, z + zs * 6.6]);
+        }
+        for (const zs of [3.6, -3.6] as const) {
+          const rib = extrudeC(roundRect(sl + 0.2, 1.5, 0.3), 2.4, 0, 1); rib.rotateZ(sa);
+          const c = A.clone().lerp(B, um).add(n.clone().multiplyScalar(inner + RAIL_SHOE.thick + 0.5));
+          p.add(rib, 'blackPlastic', [c.x, c.y, z + zs]);
+        }
       }
     }
   };
@@ -1183,6 +1232,7 @@ export function chainTensioner(s: 1 | -1) {
     for (const f of [r.f0 + 0.04, r.f1 - 0.04]) {
       const run = r.a.clone().lerp(r.b, f);
       const bolt = run.clone().add(r.n.clone().multiplyScalar(RAIL_TAB.off));
+      p.add(yToZ(cyl(RAIL_TAB.r + 2.6, 5.5, 16)), 'blackPlastic', [bolt.x, bolt.y, z + RAIL_TAB.z0 + 3.2]);
       p.add(yToZ(cyl(RAIL_TAB.r, RAIL_TAB.z1 - RAIL_TAB.z0, 20)), 'blackPlastic', [bolt.x, bolt.y, z + (RAIL_TAB.z0 + RAIL_TAB.z1) / 2]);
       const start = RAIL_SHOE.inner + RAIL_SHOE.thick;
       const len = RAIL_TAB.off - start;
@@ -1192,6 +1242,9 @@ export function chainTensioner(s: 1 | -1) {
       p.add(tab, 'blackPlastic');
     }
   });
+  // Keep the cast body inside the chain box, clear of the case wall and the housing nuts.
+  const xIn = 140 * s;
+  cutGroup(p.g, s > 0 ? boxMM([70, -170, 190], [xIn, -104, 310]) : boxMM([xIn, -170, 190], [-70, -104, 310]));
   return p.g;
 }
 /** Clip a convex polygon to the half-plane x*s >= x0. */
@@ -1256,7 +1309,7 @@ export function chainCoverBolts(s: 1 | -1) {
 export function chainHousingStuds(s: 1 | -1) {
   const { yTop, yBot } = chainWellProfile(s);
   const x = (CHAIN_BOX_INNER_X + 6) * s;
-  return [...[226, 247, 268].map((z) => ({ x, y: yTop - 10, z })), ...(s > 0 ? [224.5, 236, 274] : [252, 263, 274]).map((z) => ({ x, y: yBot + 13.5, z }))];
+  return [...[226, 247, 268].map((z) => ({ x, y: yTop - 10, z })), ...(s > 0 ? [224.5, 236, 274] : [252, 263, 274]).map((z) => ({ x, y: yBot + 28, z }))];
 }
 /** Chain-housing cover plate: bottom face just above the housing lip (bevel 0.8), nut seat = flat top face. */
 export const CHAIN_LID = { z0: HOUSING_Z1 + 1.1, t: 4.5, top: HOUSING_Z1 + 1.1 + 4.5 + 0.8 };
@@ -1299,13 +1352,42 @@ export function chainHousing(s: 1 | -1) {
   // side walls: full depth inboard of the cam-housing end, from the cam-end ring outboard of it
   wallStrip(p, wall, 5, CAM_HOUSING_END_Z + 1, HOUSING_Z1 - 5);
   for (const seg of splitRuns(wall, (q) => q[0] * s <= CAM_END_X - 4)) wallStrip(p, seg, 5, HOUSING_Z0, CAM_HOUSING_END_Z + 1.5);
+  // curved outer skin: the casting bows away from the chain on the cam end, with draft ribs back to the straight wall
+  const camPt = new THREE.Vector2(CAM_X * s, 0);
+  const curved: [number, number][] = wall.map((q, i) => {
+    const prev = wall[Math.max(0, i - 1)], next = wall[Math.min(wall.length - 1, i + 1)];
+    const tx = next[0] - prev[0], ty = next[1] - prev[1], l = Math.hypot(tx, ty) || 1;
+    let ox = ty / l, oy = -tx / l;
+    if (ox * (q[0] - camPt.x) + oy * (q[1] - camPt.y) < 0) { ox *= -1; oy *= -1; }
+    const u = wall.length < 2 ? 0 : i / (wall.length - 1);
+    const high = q[1] > -30 && q[0] * s > CAM_X - 20;
+    const bow = high ? Math.sin(Math.PI * u) * 6.5 : 0;
+    return [q[0] + ox * bow, q[1] + oy * bow];
+  });
+  const bowedRuns: [number, number][][] = [];
+  let run: [number, number][] = [];
+  curved.forEach((q, i) => {
+    const moved = Math.hypot(q[0] - wall[i][0], q[1] - wall[i][1]) > 0.8;
+    if (moved) run.push(q);
+    else { if (run.length > 1) bowedRuns.push(run); run = []; }
+  });
+  if (run.length > 1) bowedRuns.push(run);
+  for (const seg of bowedRuns) wallStrip(p, seg, 4.5, HOUSING_Z0 + 8, HOUSING_Z1 - 10);
+  for (let i = 2; i < curved.length - 2; i += 4) {
+    const a = wall[i], b = curved[i];
+    const d = Math.hypot(b[0] - a[0], b[1] - a[1]); if (d < 1.5) continue;
+    const g = boxMM([-1.3, 0, HOUSING_Z0 + 10], [1.3, d, HOUSING_Z1 - 14]);
+    g.rotateZ(Math.atan2(b[1] - a[1], b[0] - a[0]) - Math.PI / 2);
+    g.translate(a[0], a[1], 0); p.add(g, 'castAlu');
+  }
   // lid-face flange lip (closed ring incl. the inner edge, which bolts to the case well flange)
   p.add(extrude(shapeFrom(chainOutline(s, 3), [chainOutline(s, -4)]), 5, 0, 6), 'castAlu', [0, 0, HOUSING_Z1 - 5]);
   // inner-edge flange to the crankcase well (gasket face)
   const yTop = Math.max(...o.filter((q) => Math.abs(q[0] * s - CHAIN_BOX_INNER_X) < 0.5).map((q) => q[1]));
   const yBot = Math.min(...o.filter((q) => Math.abs(q[0] * s - CHAIN_BOX_INNER_X) < 0.5).map((q) => q[1]));
-  // 18 mm flange strips (nuts for the case studs seat on their inner face, see chainHousingStuds)
-  p.add(boxMM([CHAIN_BOX_INNER_X * s - (s > 0 ? 0 : 6), yBot, HOUSING_Z0], [CHAIN_BOX_INNER_X * s + (s > 0 ? 6 : 0), yBot + 22, HOUSING_Z1]), 'castAlu');
+  // flange strips (nuts for the case studs seat on their outer face). The lower strip is tall
+  // enough that the nuts sit above the bulging floor wall.
+  p.add(boxMM([CHAIN_BOX_INNER_X * s - (s > 0 ? 0 : 6), yBot, HOUSING_Z0], [CHAIN_BOX_INNER_X * s + (s > 0 ? 6 : 0), yBot + 36, HOUSING_Z1]), 'castAlu');
   p.add(boxMM([CHAIN_BOX_INNER_X * s - (s > 0 ? 0 : 6), yTop - 18, HOUSING_Z0], [CHAIN_BOX_INNER_X * s + (s > 0 ? 6 : 0), yTop, HOUSING_Z1]), 'castAlu');
   // cast bosses for the cover studs (studs added with the hardware)
   for (const b of chainCoverBolts(s)) {
@@ -1385,12 +1467,13 @@ export function chainWellProfile(s: 1 | -1) {
 }
 
 /**
- * Intermediate shaft (103-15 #43): 48 T helical gear + two 18 T duplex sprockets.
+ * Intermediate shaft (103-15 #43): 48 T helical gear + two 24 T duplex sprockets.
  * Sprocket planes stay at CHAIN_Z and the gear stays on the crank-gear plane (z 192–206): the photo's
  * sprocket|gear|sprocket stack would move a chain or the mesh, so the gear remains inboard of both sprockets.
  * The long flywheel-end run is the oil-pump connecting shaft, drawn as its own dark tube in this asset.
  */
-export const INT_GEAR = { teeth: 48, module: 2 };
+/** 48 T intermediate gear. Module keeps the 28 T crank gear meshed on the existing 84 mm centres. */
+export const INT_GEAR = { teeth: 48, module: 168 / (CRANK_GEAR_T + 48) };
 export function intermediateShaft() {
   const p = new Part();
   const y = INT_SHAFT_Y;
@@ -1424,7 +1507,7 @@ export function intermediateShaft() {
   seg(11, 165.2, 188, 'steel');
   // bolted flange + 48 T helical gear, centred on the crank gear (z 192–206), opposite hand
   seg(16, 188, 192, 'steel');
-  const pr = (INT_GEAR.teeth * INT_GEAR.module) / 2; // 48
+  const pr = (INT_GEAR.teeth * INT_GEAR.module) / 2;
   const g0 = 192, g1 = 206;
   const hub = circleShape(36);
   hub.holes.push(circlePath(10) as THREE.Path);
@@ -1434,7 +1517,8 @@ export function intermediateShaft() {
   }
   p.add(extrude(hub, g1 - g0 + 2), 'steel', [0, y, g0 - 1]);
   const twist = -Math.tan(30 * DEG) * (g1 - g0) / pr; // opposite hand to the crank gear
-  addHelix(p, INT_GEAR.teeth, pr - 3.2, pr + 1.6, 34, g0, g1, twist, 'steel', [0, y, 0], 12);
+  const k = INT_GEAR.module / 2;
+  addHelix(p, INT_GEAR.teeth, pr - 3.2 * k, pr + 1.6 * k, 34, g0, g1, twist, 'steel', [0, y, 0], 12);
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + 0.18;
     const x = 28 * Math.cos(a), yy = y + 28 * Math.sin(a);
@@ -1455,7 +1539,7 @@ export function intermediateShaft() {
   seg(12, 250.2, 257.6, 'steel'); // land between the almost-touching sprocket rows
   seg(11, 266, 276, 'polishedSteel');
   p.add(yToZ(hexNut(16, 6)), 'darkSteel', [0, y, 280]);
-  // The 48 T tip circle passes through a case perimeter nut at (-18, -136, 190). Shave only that corner.
-  cutGroup(p.g, boxMM([-32, -134, 188], [-4, -126, 210]));
+  // The larger 48 T tip circle meets the case perimeter nut at (-18, -136, 190). Shave that corner.
+  cutGroup(p.g, boxMM([-42, -150, 186], [4, -122, 214]));
   return p.g;
 }

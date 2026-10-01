@@ -33,7 +33,7 @@ Known dimensions are marked **K**. Values estimated from the catalogue illustrat
 - Valves: intake Ø49, exhaust Ø41.5, stem Ø9 *E*; valve angles ~28° / ~32° *E*.
 - Flywheel OD ~268 with 130-tooth ring gear *E*; clutch 225 *E*.
 - Fan Ø226 **K** for 1978–79 (Pelican forum 428673; catalogue 930 106 011 01 is the -79 impeller and does not state 245 mm). Later cars are ~245 *E*. Belt 9.5 × 725 **K** (105-00 #12).
-- Timing chain pitch 3/8" (9.525) *E*. Cam drive (v3, see §8): crank gear 36 T : intermediate gear 48 T (module 2, 84 mm centres), intermediate sprockets 18 T, cam sprockets 27 T (pitch Ø82), idler 15 T — cam at ½ crank *E*.
+- Timing chain pitch 3/8" (9.525) *E*. Cam drive (see §15): crank gear 28 T : intermediate gear 48 T (module 168/76, 84 mm centres), intermediate sprockets 24 T, cam sprockets 28 T (pitch Ø85), idler 19 T — cam at exactly ½ crank.
 
 ## 2. Coordinate frame
 +X is the car's right side (cylinders 1-3). +Y is up. +Z is the pulley/fan end (rear of the car). The crank axis is Z. Units are millimetres. See `src/data/layout.ts`.
@@ -156,8 +156,8 @@ The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild 
 
 **Top end and cam drive (PR 2):**
 - Duplex timing chains: two roller rows, inner and outer plates with a shared centre plate, pins.
-- Duplex cam sprockets (36 T) with a lightening-hole web, flange, dowel and big nut. The intermediate shaft carries two duplex 18 T sprockets (the v2 note of 24 T was wrong; the chain geometry is 18 T).
-- Chain tensioner rebuilt as a layout: forged idler arm on a shaft, duplex 15 T idler sprocket on the slack run, a hydraulic adjuster below with a bolted flange and plunger, and plastic guide ramps on aluminium carriers.
+- Duplex cam sprockets (28 T) with a 17-hole vernier web, flange, dowel and big nut. The intermediate shaft carries two duplex 24 T sprockets.
+- Chain tensioner rebuilt as a layout: forged idler arm on a shaft, duplex 19 T idler sprocket on the slack run, a hydraulic adjuster below with a bolted flange and plunger, and plastic guide ramps on aluminium carriers.
 - Chain housing and lid: outline traced from end-view photos (int-shaft lobe, cam boss, tensioner pocket). Perimeter bolt bosses with studs, washers and nuts; outer flange lip; external ribs; raised cam-sprocket dome with a machined plug; lid ribs; idler-shaft cap.
 - Cam housings: continuous cam tunnel, rocker-shaft towers with machined faces, cover-seat rails with stud bosses, end bores, tunnel cover, oil-feed bosses.
 - Valve covers: chamfered pan on a seat flange with bolt ears (3 per edge on the upper cover, 5 on the lower). The upper cover has two machined round bosses and raised cast PORSCHE lettering.
@@ -179,8 +179,8 @@ Joe's v2 review: the chain cover collided with the exhaust and the chain covers 
 
 | Item | v2 | v3 (*E*) |
 |---|---|---|
-| Cam sprocket | 36 T (pitch Ø109) | **27 T (pitch Ø82)**; photo chain-wrap Ø ≈ 80-85 |
-| Int.-shaft sprockets | 24 T | **18 T**, inside the case chain well |
+| Cam sprocket | 36 T (pitch Ø109) | **28 T (pitch Ø85)**; FVD face count, chain-wrap Ø ≈ 80-85 |
+| Int.-shaft sprockets | 18 T (ratio patch) | **24 T**, the published count; see §15 |
 | Crank : int. gear | 36 : 48 | 36 : 48 (int. shaft at ¾ crank, so cam at ½ crank) |
 | Chain box, end view | hull reaching x ≈ −16 … 372, y ≈ −200 … 80 (crossed the centreline, overlapped the other bank and sat on the heat exchanger) | **x 118 … 347, y −145 … 55** (≈229 × 200 mm): straight inner edge at \|x\| = 118, round end around the cam (r 55), floor rising from −145 at the tensioner corner to −58 under the cam |
 | Box depth | 54 + dome | 70 mm from the case face (z 212 → 282), flat cover, low cam boss (5 mm) |
@@ -205,7 +205,7 @@ Against the v2 geometry all 9 assertions fail.
 Joe's v3 review: the idler floated beside the chain without tensioning it, many bolts pointed the wrong way, and most of the engine's fasteners were missing.
 
 ### Tensioner
-- The chain path (`chainPath()` in `src/geo/core.ts`) is a three-circle loop: crank-side intermediate sprocket, cam sprocket, and the 15 T idler wrapped **from the outside** on the return (slack) run. The idler centre is pushed 38 mm into the loop from the straight two-sprocket run (`IDLER_PUSH`). The chain pitch line wraps it by 36°, and 2 rollers of the 88-link chain sit in idler tooth gaps. Tooth phase on the idler, cam and intermediate sprockets is set so the gaps line up with the rollers.
+- The chain path (`chainPath()` in `src/geo/core.ts`) is a three-circle loop: crank-side intermediate sprocket, cam sprocket, and the 19 T idler wrapped **from the outside** on the return (slack) run. The idler centre is pushed 38 mm into the loop from the straight two-sprocket run (`IDLER_PUSH`). Tooth phase on the idler, cam and intermediate sprockets is set so the gaps line up with the rollers. Link count and wrap are whatever `chainPins` / `chainPath` compute for those radii.
 - The links are placed by `chainPins()` along that path, so the rendered chain bends round the idler instead of running straight past it.
 - The idler arm pivots on its shaft. Its tail carries a round pad, and the hydraulic adjuster's plunger dome touches that pad (contact gap 0.000 mm, plunger out 8.6 mm). The adjuster is held by a stud, washer and M8 nut on a mounting ear on the housing. Guide rails sit on the tight run (upper) and outside the slack run (lower).
 - Both banks are mirrored. Heat-exchanger clearances are in §8 (tensioner ≥ 51 mm, box ≥ 25 mm).
@@ -390,8 +390,8 @@ Photo pass on the crank, rods, crank gears, intermediate shaft, crank pulley and
 
 - **Crankshaft.** Twelve thick forged cheeks, not one repeated thin racetrack. Cheeks beside the mains are nearer round (some with a flat chord); the others are pear-shaped with a counterweight lobe opposite the crankpin. Mains 1–7 stay Ø60 **K** on the existing stations, with a short polished land and a fillet into the cheek. Rod journals stay Ø53. Main 8 (nose) stays Ø54 *E* (r 27) inside the existing nose sleeve, then the pulley spigot. The flywheel flange keeps the 9-bolt pattern, pilot bore and adds a dowel. Counterweight lobes that point downward are kept above the sump floor (y −56).
 - **Conrods.** Forged I-beam: recessed web, raised flanges, big-end shoulders with two bolt bosses, a slightly narrower cap, and nuts proud of the cap. Centre distance stays 127 mm *E* (127.8 mm is the figure many rebuilders quote; changing it would move the pistons).
-- **Crank gears.** 36 T steel helical timing gear (wide face, keyed hub) and a smaller-OD brass helical distributor gear. Module 2 and the 84 mm centres are unchanged, so the 36:48 ratio is unchanged. The intermediate gear is the opposite hand.
-- **Intermediate shaft.** Sprocket centres stay at z 235 and z 258, 18 T, same pitch diameter, and the 48 T gear stays on the crank-gear plane (z 192–206). The photo order (sprocket, then gear, then sprocket) cannot be met without moving a chain or the mesh, so the gear remains inboard of both sprockets. The gear is helical, bolted to a flange with a lock-plate, and the flywheel-end extension is drawn as a separate dark connecting-shaft tube in the same asset. One tooth sector is shaved so the tip circle clears a case-perimeter nut. Journals stay where `ishaft-bearings`, thrust washers, circlips and the stopper seat. Gear tip radius is about 1.6× the sprocket tip (pitch geometry is fixed; the photos are closer to 1.9×).
+- **Crank gears.** 28 T steel helical timing gear (keyed hub) and a smaller-OD brass helical distributor gear. The module is 168/76 so the 28:48 pair still meshes on the 84 mm centres. The intermediate gear is the opposite hand. The distributor gear is unchanged.
+- **Intermediate shaft.** Sprocket centres stay at z 235 and z 258, now 24 T, and the 48 T gear stays on the crank-gear plane (z 192–206). The photo order (sprocket, then gear, then sprocket) cannot be met without moving a chain or the mesh, so the gear remains inboard of both sprockets. The gear is helical, bolted to a flange with a lock-plate, and the flywheel-end extension is drawn as a separate dark connecting-shaft tube in the same asset. One tooth sector is shaved so the tip circle clears a case-perimeter nut. Journals stay where `ishaft-bearings`, thrust washers, circlips and the stopper seat.
 - **Crank pulley.** Single groove, pressed-steel dish, yellow zinc, Z1 notch, bolt recessed in the hub. Batch 3 sets the lip to Ø134 and moves the belt pitch onto that groove (`FAN.rCrankPulley` 65, pitch radius 60, `FAN.zBelt` 303).
 - **Pulley bolt.** M12×1.5×22, zinc, washer radius 12.5 mm (was a 24 mm-radius disc) and 3.4 mm thick.
 
@@ -429,18 +429,18 @@ The fan group moved down with the new centre distance. `FAN.y` was 255; it is no
 
 ## 16. Top end batch 2 — timing chain
 
-Photo pass on the cam sprockets and flanges, the intermediate-shaft sprockets, both duplex chains, the tensioners (idler arm, idler sprocket, hydraulic body, mounting ear), the guide rails, the chain housings and lids, and the chain-side cam covers (`930 105 196 00`). Existing parts were reshaped. Cam axes, chain planes, the intermediate-shaft gear, the fan housing and the upper air guide were not moved.
+Photo pass on the cam sprockets and flanges, the intermediate-shaft sprockets, both duplex chains, the tensioners (idler arm, idler sprocket, hydraulic body, mounting ear), the guide rails, the chain housings and lids, and the chain-side cam covers (`930 105 196 00`). Existing parts were reshaped. Cam axes, chain planes, the fan housing and the upper air guide were not moved. The crank and intermediate gears stay on the 84 mm centres; their module changed so a 28 T cam and a 24 T intermediate sprocket still give exactly half crank speed.
 
 ### Tensioner: sealed, not pressure-fed
 
-The 1978 930/03 chain tensioner is the sealed hydraulic unit **930 105 049 00** (checklist 103-10/15 #10). **930 105 053 00** is the alternate of the same family; **930 105 053 04** is the later supersession of that sealed unit (Stoddard: “Latest Supersession of Hydraulic Tensioner”, supersedes 049) and is excluded from engine 63D onward. The pressure-fed Carrera tensioner is a 1984-on part. The bolt-on update is **930 105 911 00** (left) and **930 105 912 00 / 01** (right), listed N/A in the checklist as an alternative. Wayne Dempsey’s Pelican Project 16 says pressure-fed tensioners were introduced in 1984 and sold as a kit for 1969–1983 engines; an SC through 1983 did not come with them. This model keeps the sealed body: a cylinder, a collar, a bleeder screw (the PET bleeder 930 105 573 00 is an internal feature, not a separate fed line) and a steel plunger. There is no oil-feed banjo.
+The 1978 930/03 chain tensioner is the sealed hydraulic unit **930 105 049 00** (checklist 103-10/15 #10). **930 105 053 00** is the alternate of the same family; **930 105 053 04** is the later supersession of that sealed unit (Stoddard: “Latest Supersession of Hydraulic Tensioner”, supersedes 049) and is excluded from engine 63D onward. The pressure-fed Carrera tensioner is a 1984-on part. The bolt-on update is **930 105 911 00** (left) and **930 105 912 00 / 01** (right), listed N/A in the checklist as an alternative. Wayne Dempsey’s Pelican Project 16 says pressure-fed tensioners were introduced in 1984 and sold as a kit for 1969–1983 engines; an SC through 1983 did not come with them. This model keeps the sealed body: a cast body with a thick mounting lug, a tapered nose and a dark gland, a bleeder screw (the PET bleeder 930 105 573 00 is an internal feature, not a separate fed line) and a steel plunger. There is no oil-feed banjo. The body shape follows the 930 105 053 04 supersession photo (FVD), which is the same sealed family.
 
 - Dempsey, “Chain Tensioners — Carrera Style”: https://www.pelicanparts.com/techarticles/101_Projects_Porsche_911/16-Carrera_Chain_Tensioner_Install/16-Carrera_Chain_Tensioner_Install.htm
 - Stoddard, 930 105 053 04: https://www.stoddard.com/en/diagrams-porsche-911-1983-eu-3-0sc-coupe-manual-gearbox-5-speed/engine-and-fuel-feed-36/timing-chain-timing-sprocket-rocker-gear-chain-tensioner-4241/93010505304-chain-tensioner-911-from-1965-1983-7013
 
 ### Vernier sprocket and flange
 
-The sprocket (**901 105 546 02**, photo of 901 105 546 04) has **17** equally spaced holes. The flange (**901 105 583 01**, photo of 901 105 583 02) has **16** semicircular scallops on the same circle (Ø48 mm). The dowel **900 243 001 00** (Ø6 × 14) passes through the one pair that lines up. Rauch & Spiegel, who make the flange, state that count; Dempsey’s cam-timing article says the pin meets only one flange hole. The old mesh had six lightening holes and three drilled flange holes, which read as a hex. Those are gone. The flange stays keyed; the sprocket is not (a keyway on the sprocket would lock the vernier).
+The sprocket (**901 105 546 02**, photo of 901 105 546 04) has **17** equally spaced holes and **28** teeth (face count of the FVD photo, twice). The flange (**901 105 583 01**, photo of 901 105 583 02) is a tall bright keyed hub with **16** semicircular scallops on a short rim (Ø48 mm) at the sprocket face, about half the hub height. The dowel **900 243 001 00** (Ø6 × 14) passes through the one pair that lines up. Rauch & Spiegel, who make the flange, state the 17/16 count; Dempsey’s cam-timing article says the pin meets only one flange hole. The flange stays keyed; the sprocket is not (a keyway on the sprocket would lock the vernier).
 
 - Heritage, camshaft chain sprocket: https://www.heritagepartscentre.com/eu/90110554604-camshaft-chain-sprocket.html
 - Heritage, camshaft sprocket flange: https://www.heritagepartscentre.com/eu/90110558302-camshaft-sprocket-flange.html
@@ -451,19 +451,22 @@ The sprocket (**901 105 546 02**, photo of 901 105 546 04) has **17** equally sp
 
 | Item | Value used | Source | vs Dempsey |
 |---|---|---|---|
-| Chain | duplex 3/8 in, pitch 9.525 mm. Figure-8 outer plates and rounded inner plates, each with two pin holes. Roller Ø and pin Ø stay 6.4 / 3.4 (the previous mesh). A full 06B-2 roller (Ø6.35) reaches the chain box. Part stays **901 105 529 00** | ISO 606 / BS 06B-2 for the pitch. Plate silhouette from Heritage 993 105 529 00 and the divided 911 105 529 51, drawn inside the previous plate outline | pitch already used in §8; plate height not re-measured in the book |
-| Cam sprocket | 27 T, pitch Ø 82 mm | §8 photo scale (chain-wrap Ø ≈ 80–85). A 36 T sprocket (pitch Ø ≈ 109) does not fit the box or the existing centres | tooth count not a page citation |
-| Intermediate sprockets | 18 T, solid duplex, centre groove, bore only, planes z 235 / 258 | Ratio with the 36:48 crank pair puts the cam at half crank speed. Photo of 901 105 125 04 shows a solid duplex with no hole ring | tooth count not a page citation |
-| Idler | 15 T, outside wrap on the slack run | Unchanged layout (`IDLER_PUSH` 38). Centres not moved | 15 T not re-measured in the book |
-| Flange | OD 48 mm, 16 rim scallops, keyed bore | Rauch & Spiegel 16 / 17 vernier | unverified against the book |
+| Chain | duplex 3/8 in, pitch 9.525 mm. Figure-8 outer plates and rounded inner plates, each with two pin holes. Roller Ø6.4, pin Ø3.4. Part stays **901 105 529 00** | ISO 606 / BS 06B-2 (roller Ø6.35). Plate silhouette from Heritage 993 105 529 00 and the divided 911 105 529 51 | pitch already used in §8; plate height not re-measured in the book |
+| Cam sprocket | 28 T, pitch Ø 85.0 mm | Face count of FVD 901 105 546 04 (twice). At 3/8 in that pitch diameter sits in the old chain-wrap Ø 80–85 scale | tooth count not a page citation |
+| Intermediate sprockets | 24 T, solid duplex, planes z 235 / 258 | Pelican: 24 T sprockets drive the cam sprockets, and a 48 T intermediate gear is driven by the crank gear. An oblique photo looked near 28 T; that count is not used | not a page citation |
+| Crank gear | 28 T, module 168/76, 84 mm centres with the 48 T gear | (28/48)×(24/28) = 1/2. Pelican counts both the crank gear and the cam sprocket as 27 T; the face photo is 28, so the crank gear matches the cam | 36 T in §12 was an estimate |
+| Idler | 19 T, 8 lightening holes, bronze bush, round bore | Face count of FVD 901 105 055 00. Outside wrap, `IDLER_PUSH` 38 | 19 T not in the book |
+| Flange | Tall keyed hub, scalloped rim Ø48 mm × 16 on the sprocket face, bright machined | FVD 901 105 583 02. Rauch & Spiegel 16 / 17 vernier | unverified against the book |
 | Sprocket holes | 17 × Ø6.7 on the Ø48 circle, one boss on the dowel hole | Same | unverified against the book |
-| Idler arm | single pivot bush, waisted forging. Left **901 105 505 02**, right **901 105 506 02** | 1978 PET. The wider two-bush arms 930 105 509/510 are 1980+ and were used only as a shape reference | curve not traced from the book |
-| Guide rails | left 3 × 911 105 222 06, right 2 × 911 105 222 06. Bowed U-channel, inner face 4.9 mm off the pitch line, 0.55 mm bow | Heritage photos of the black and brown rails. Brown 911 105 222 05 stays the alternate row, not an extra part. Dempsey notes one brown rail on the lower right; the PET primary line is the black count kept here | rail curve not measured from the book |
-| Chain box | outline unchanged (§8) | Already photo-scaled. Bolt stations still 10 right / 9 left | unchanged |
+| Idler arm | Heavy forging, wide bronze-bushed boss, smaller pivot, tapered tail. Left **901 105 505 02**, right **901 105 506 02** | 1978 PET numbers. Shape from the later 930 105 510 00 photo (FVD) | curve not traced from the book |
+| Guide rails | left 3 × 911 105 222 06, right 2 × 911 105 222 06. Moulded U-channel, side walls, ribbed back, two saddles, tapered ends. Inner face 4.9 mm off the pitch line | FVD 911 105 222 06 and Heritage. Brown 911 105 222 05 stays the alternate row, not an extra part | rail curve not measured from the book |
+| Chain box | Deep cast box, curved outer wall and ribs. Outline still the photo-scaled hull; bolt stations still 10 right / 9 left | Joe Engineer chain-housing photos. Gasket outline FVD 930 105 193 06 | wall draft *E* |
 | Lid | flat plate, low cam pad r 32 instead of the cone | Same covers | pad height *E* |
 | Chain-side cover | **930 105 196 00**, flat annulus, centre hole r 11, top face at the existing screw seat | Heritage “Camshaft Flange Cover” | unverified against the book |
 | Cam-bore end | chain end of the cam bore stays open. **930 105 161 00** remains the flywheel-end lid | Valvetrain test | unchanged |
 
+- Pelican, intermediate sprocket tooth count (“two 24 tooth sprockets driving two 27 tooth sprockets”): https://forums.pelicanparts.com/porsche-911-technical-forum/200267-new-chains-without-new-sprockets-read.html
+- Pelican, crank 27 T / intermediate gear 48 T / intermediate sprocket 24 T / cam 27 T: https://forums.pelicanparts.com/911-engine-rebuilding-forum/328011-cam-timing-different-1-3-4-6-a.html — this model uses 28 T for the cam (FVD face count) and the same count on the crank gear so the ratio stays exactly 2:1
 - Heritage, intermediate sprocket: https://www.heritagepartscentre.com/eu/90110512504-intermediate-shaft-chain-sprocket.html
 - Heritage, black guide rail: https://www.heritagepartscentre.com/eu/91110522206-timing-chain-guide-rail-black.html
 - Heritage, brown guide rail: https://www.heritagepartscentre.com/eu/91110522205-timing-chain-guide-rail-brown.html

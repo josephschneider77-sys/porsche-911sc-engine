@@ -10,7 +10,7 @@ import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
 import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, chainOutline, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INTAKE_PORT, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
-import { LIP_Z } from './stations';
+import { LIP_Z, chainLidStations } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, PLENUM, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD } from './aux';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -88,7 +88,7 @@ for (const s of BANKS) {
   def(`cam-thrust-washer-${b}`, () => washer(N.r + 0.2, 22, 2.5, 'bronze'), () => [M(V(Xc, 0, zc + N.flange[0] - 2.5), Z)]);
   // chain drive extras
   const T = tensionerLayout(s), z = CHAIN_Z[s];
-  def(`idler-circlip-${b}`, () => clip(7, 9.5, 1), () => [M(V(T.pivot.x, T.pivot.y, z - 19.9), Z)]);
+  def(`idler-circlip-${b}`, () => clip(7, 9.5, 1), () => [M(V(T.pivot.x, T.pivot.y, z - 18.5), Z)]);
   def(`idler-sleeve-${b}`, () => pin(1.5, 20, 'darkSteel'), () => [M(V(T.pivot.x, T.pivot.y - 10, z - 13), Y)]);
   // chain housing: case-side gasket (#5), lid gasket (#8 L / #9 R), lid screw plug + ring, expansion plug (#10)
   const out = chainOutline(s, 0) as [number, number][];
@@ -124,12 +124,19 @@ for (const s of BANKS) {
   def(`cam-housing-stoppers-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, -4], [5, -4], [5, 0], [5.5, 0], [5.5, 1.2], [0.1, 1.2]], 18), 'steel'); return p; }, () => [-1, 1].map((k) => onSurf(`cam-housing-${b}`, V(Xc - 24 * s, 24 * k, CH_Z0 - 60), Z)));
   def(`cam-oil-banjo-${b}`, () => { const p = banjo(); p.add(lathe([[5, 21], [8, 21], [8, 22.5], [5, 22.5]], 20), 'brass'); p.add(lathe([[5, 22.5], [8, 22.5], [8, 24], [5, 24]], 20), 'brass'); p.add(lathe([[0.1, 24], [6, 24], [6, 32], [0.1, 32]], 16), 'zincPlate'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc - 14 * s, -36, CH_Z0 - 80), Z, V(s, 0, 0))]);
 }
-/** Adjuster cover centre: first point along the adjuster axis where an r 30 disc lies on the lid, clear of the cover nuts (build time). */
+/** Adjuster cover centre: first point along the adjuster axis where an r 30 disc lies on the lid, clear of the cover nuts, the lid-centre studs and the lid bosses (build time). */
 export function adjusterCover(s: 1 | -1) {
   const T = tensionerLayout(s); const b = bn(s);
+  const blocks = [
+    { x: T.adjBase.x + T.axis.x * 30, y: T.adjBase.y + T.axis.y * 30, r: 14 },
+    { x: T.pivot.x, y: T.pivot.y, r: 14 },
+  ];
   for (let d = 0; d <= 90; d += 2) for (const side of [0, 6, -6, 12, -12]) {
     const c = T.adjBase.clone().add(T.axis.clone().multiplyScalar(d)).add(new THREE.Vector2(-T.axis.y, T.axis.x).multiplyScalar(side));
     if (chainCoverBolts(s).some((q) => Math.hypot(q.x - c.x, q.y - c.y) < 30 + 12)) continue;
+    // M8 lid-centre nuts (across-corners ~7.5) and the studs that the housing carries up to them
+    if (chainLidStations(s).some((q) => Math.hypot(q.x - c.x, q.y - c.y) < 30 + 10)) continue;
+    if (blocks.some((q) => Math.hypot(q.x - c.x, q.y - c.y) < 30 + q.r)) continue;
     let ok = true; for (let i = 0; i < 12 && ok; i++) { const a = (i / 12) * Math.PI * 2; const h = probe(`chain-housing-lid-${b}`, V(c.x + 30 * Math.cos(a), c.y + 30 * Math.sin(a), 400), V(0, 0, -1)); if (!h || Math.abs(h.point.z - CHAIN_LID.top) > 0.3) ok = false; }
     if (ok) return c;
   }

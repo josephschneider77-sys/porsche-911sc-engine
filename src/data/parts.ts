@@ -139,20 +139,20 @@ function perBank(): PartDef[] {
     out.push({
       id: `timing-chain-${b}`, name: `Timing chain, ${b}`, system: 'camdrive', asset: `timing-chain-${b}`, explode: [s * 380, -40, 240],
       catalog: [{ ill, pos: '1', pn: '901 105 529 00', qty: 1, note: 'Duplex roller chain; can only be removed after splitting the case' }],
-      description: 'Duplex roller chain from the 18 T intermediate-shaft sprocket (inside the case chain well) out through the open inner edge of the chain box to the 27 T cam sprocket; the slack lower run passes over the idler sprocket.',
-      specs: { Pitch: '9.525 mm (3/8")', Type: 'Duplex', Links: '86 (model)', Plane: s === 1 ? 'z 258 mm' : 'z 235 mm' },
+      description: 'Duplex roller chain from the 24 T intermediate-shaft sprocket (inside the case chain well) out through the open inner edge of the chain box to the 28 T cam sprocket; the slack lower run passes over the idler sprocket.',
+      specs: { Pitch: '9.525 mm (3/8")', Type: 'Duplex', Links: '92 (model)', Plane: s === 1 ? 'z 258 mm' : 'z 235 mm' },
     });
     out.push({
       id: `cam-sprocket-${b}`, name: `Camshaft sprocket, ${b}`, system: 'camdrive', asset: `cam-sprocket-${b}`, explode: [s * 520, 40, 320],
       catalog: [{ ill, pos: '38', pn: '901 105 546 02', qty: 1 }, { ill, pos: '39', pn: '—', note: 'Driven through the dowel pin from the keyed flange (cam-flange)' }],
-      description: 'Duplex cam sprocket, held on the cam nose by the M22 nut and spring washer; a dowel pin through one of three vernier holes couples it to the keyed flange behind it.',
-      specs: { Adjustment: 'Dowel-pin vernier', Teeth: '27 (est. from photos, Ø82 pitch)', Speed: '½ crank' },
+      description: 'Duplex cam sprocket, held on the cam nose by the M22 nut and spring washer; a dowel pin through one of 17 vernier holes couples it to the keyed flange behind it.',
+      specs: { Adjustment: 'Dowel-pin vernier', Teeth: '28 (pitch Ø85)', Speed: '½ crank' },
     });
     out.push({
       id: `cam-flange-${b}`, name: `Camshaft sprocket flange, ${b}`, system: 'camdrive', asset: `cam-flange-${b}`, explode: [s * 580, 50, 240],
       catalog: [{ ill, pos: '36', pn: '901 105 583 01', qty: 1 }],
-      description: 'Keyed flange on the cam nose: the Woodruff key drives it, and the dowel pin through one of its three holes drives the sprocket. Choosing the hole (and the pin position in the sprocket) gives fine vernier cam timing.',
-      specs: { Location: 'Woodruff key in the cam-nose keyway', Holes: '3 (vernier)' },
+      description: 'Tall bright keyed hub on the cam nose. The Woodruff key drives it, and 16 scallops on the short sprocket-face rim take the dowel that drives the sprocket. Choosing which scallop lines up with which of the sprocket’s 17 holes gives the vernier.',
+      specs: { Location: 'Woodruff key in the cam-nose keyway', Scallops: '16 on the sprocket-face rim' },
     });
     out.push({
       id: `adjuster-cover-${b}`, name: `Chain-adjuster cover, ${b}`, system: 'camdrive', asset: `adjuster-cover-${b}`, explode: [s * 300, -60, 420],
@@ -163,13 +163,13 @@ function perBank(): PartDef[] {
     out.push({
       id: `chain-tensioner-${b}`, name: `Chain tensioner & guides, ${b}`, system: 'camdrive', asset: `chain-tensioner-${b}`, explode: [s * 360, -120, 320],
       catalog: [{ ill, pos: '10', pn: '930 105 049 00', note: 'Chain adjuster (hydraulic, oil-fed on later cars)' }, { ill, pos: '5/6', pn: s === 1 ? '901 105 506 02 / 901 105 055 00' : '901 105 505 02 / 901 105 055 00', note: 'Idler arm / idler sprocket' }, { ill, pos: '2', pn: '911 105 222 06', note: 'Guide rail' }],
-      description: 'Idler arm pivoting outboard of the 15 T idler sprocket. The idler presses 38 mm into the slack (return) run from outside the loop, so the chain wraps it by about 36° with two rollers seated in its teeth. The hydraulic chain adjuster lies inclined in the lower inner corner of the box (stud, washer and nut on a housing ear); its plunger dome bears on the round pad on the arm tail. Plastic guide ramps above the tight run and outside the slack run control chain whip.',
-      specs: { Type: 'Hydraulic adjuster (930/03: sealed, spring-assisted)', Idler: '15 T, 36° wrap', 'Slack-run deflection': '38 mm (model)', Plunger: '≈ 8.6 mm out, in contact with arm' },
+      description: 'Heavy forged idler arm with a wide bushed boss. The 19 T idler presses 38 mm into the slack (return) run from outside the loop, so the chain wraps it and rollers seat in its teeth. The sealed hydraulic adjuster lies inclined in the lower inner corner of the box (stud, washer and nut on the cast mounting lug); its plunger dome bears on the round pad on the arm tail. Moulded guide rails sit on the tight run and outside the slack run.',
+      specs: { Type: 'Hydraulic adjuster (930/03: sealed, spring-assisted)', Idler: '19 T, outside wrap', 'Slack-run deflection': '38 mm (model)', Plunger: 'in contact with the arm pad' },
     });
     out.push({
       id: `chain-housing-${b}`, name: `Chain housing, ${b}`, system: 'camdrive', asset: `chain-housing-${b}`, explode: [s * 340, -20, 170],
       catalog: [{ ill: '103-05', pos: s === 1 ? '2' : '1', pn: s === 1 ? '930 105 062 01' : '930 105 061 02', qty: 1 }],
-      description: 'Cast chain box bolted to the crankcase face at the pulley end, outboard of the case chain well; the cam-housing end is gasketed into its outer end. Straight inner edge, rounded cam end, floor rising from the tensioner corner so it sits well above the heat exchanger.',
+      description: 'Deep cast chain box bolted to the crankcase face at the pulley end, outboard of the case chain well; the cam-housing end is gasketed into its outer end. Curved outer wall with draft ribs, straight inner edge, rounded cam end, floor rising from the tensioner corner so it sits well above the heat exchanger.',
       specs: { Material: 'Cast Al', Gasket: '930 105 193 00', 'End view': '≈229 × 200 mm (est.)', Depth: '70 mm to cover face (est.)' },
     });
     out.push({
@@ -211,8 +211,8 @@ const single: PartDef[] = [
     specs: { Drive: 'Crank → intermediate shaft (gear)', 'Tooth counts': '36 : 48 (est., module 2, 84 mm centres)' } },
   { id: 'intermediate-shaft', name: 'Intermediate shaft', system: 'camdrive', asset: 'intermediate-shaft', explode: [0, -180, 60],
     catalog: [{ ill: '103-15', pos: '43', pn: '930 105 013 01', qty: 1, note: 'Size 0 (gear code matched to case)' }],
-    description: 'Lay shaft below the crank, gear-driven from the crankshaft at ¾ crank speed (48 T helical gear, 36:48). Two 18 T duplex sprockets drive the cam chains. The flywheel end drives the oil pump through a separate splined connecting shaft.',
-    specs: { Bearings: '2 plain', 'Drives': 'Cam chains + oil pump', Sprockets: '2 × 18 T duplex', Gear: '48 T helical, module 2' } },
+    description: 'Lay shaft below the crank, gear-driven from the crankshaft (48 T helical gear, 28:48). Two 24 T duplex sprockets drive the cam chains so the cams turn at half crank speed. The flywheel end drives the oil pump through a separate splined connecting shaft.',
+    specs: { Bearings: '2 plain', 'Drives': 'Cam chains + oil pump', Sprockets: '2 × 24 T duplex', Gear: '48 T helical, module 168/76' } },
   { id: 'oil-pump', name: 'Oil pump (pressure + scavenge)', system: 'lubrication', asset: 'oil-pump', explode: [0, -200, -140],
     catalog: [{ ill: '104-00', pos: '1', pn: '911 107 008 01', qty: 1 }, { ill: '104-00', pos: '6', pn: '901 107 121 00', note: 'Connecting shaft' }],
     description: 'Cast two-section pump in the flywheel-end bay, long axis across the case: larger scavenge section, smaller pressure section, four top ribs, three mounting ears on the cover, and a pickup that leaves the pressure end and rises about 90° in a bend as long as the body. The three M8 nuts sit on those ears. A splined stub on the intermediate-shaft axis drives it through the dark connecting shaft.',
