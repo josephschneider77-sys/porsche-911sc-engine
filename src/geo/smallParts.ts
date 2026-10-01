@@ -91,7 +91,7 @@ export function chainLidGasket(s: 1 | -1) {
   const sh = new THREE.Shape(outer.map(([a, b]) => new THREE.Vector2(a, b)));
   sh.holes.push(new THREE.Path(inner.map(([a, b]) => new THREE.Vector2(a, b))));
   const t = CHAIN_LID.z0 - HOUSING_Z1;
-  let geom = extrudeC(sh, t);
+  let geom: THREE.BufferGeometry = extrudeC(sh, t);
   const cutters = chainCoverBolts(s).map((q) => yToZ(cyl(LID_STUD_HOLE_R, t + 4, 20)).translate(q.x, q.y, 0));
   geom = csgSub(geom, ...cutters);
   geom.rotateX(-Math.PI / 2);

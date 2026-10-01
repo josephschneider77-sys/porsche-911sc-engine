@@ -23,7 +23,7 @@ function bake(root: THREE.Object3D, extra?: THREE.Matrix4): THREE.BufferGeometry
   const out: number[] = [];
   const v = new THREE.Vector3();
   root.traverse((o) => {
-    const mesh = o as THREE.Mesh;
+    const mesh = o as THREE.InstancedMesh;
     if (!mesh.isMesh) return;
     // Indexed meshes share vertices; a BVH needs the expanded triangle soup.
     const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
