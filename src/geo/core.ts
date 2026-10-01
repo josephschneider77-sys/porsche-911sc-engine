@@ -848,10 +848,15 @@ export function cylinderHead() {
   cutGroup(p.g, ...headValvePockets());
   cutGroup(p.g, ...headValveBores());
   // Pilot through the chamber (the nose is only r 1.2), then the M14 thread up to
-  // the washer seat at t = 30, then a tunnel for the hex and the boot.
+  // the washer seat at t = 30. The hex needs r 13 only until it clears the boss.
+  // Past that the insulator is slim, and a wide tunnel would take out the exhaust
+  // studs (the axis passes about 9 mm from them where it crosses the flange).
   cutGroup(p.g, cylBetween(along(-6), along(27.2), 3.2, 16));
   cutGroup(p.g, cylBetween(along(27.4), along(30.15), 7, 20));
-  cutGroup(p.g, cylBetween(along(30.45), along(100), 13, 20));
+  cutGroup(p.g, cylBetween(along(30.45), along(44), 13, 20));
+  cutGroup(p.g, cylBetween(along(44.3), along(52), 6.2, 16));
+  cutGroup(p.g, cylBetween(along(52.3), along(78), 4.0, 16));
+  cutGroup(p.g, cylBetween(along(78.4), along(110), 9, 16));
   // Case head studs (r 4.6 on the Ø114 circle) pass through with clearance. The barrel-nut face stays.
   const studR = HEAD_HW.barrel.r;
   for (const a of [45, 135, 225, 315]) {
@@ -876,7 +881,11 @@ function prunePlugCorridor(root: THREE.Object3D, tip: THREE.Vector3, dir: THREE.
     if (t > -6 && t < 27.3 && radial < 3.5) return true;
     if (t > 27.35 && t < 30.25 && radial < 7.2) return true;
     // Past the washer seat (t = 30). The annulus the washer sits on stays.
-    if (t > 30.5 && t < 110 && radial < 13.4) return true;
+    // The wide hex bore stops before the exhaust flange; the stud bosses stay.
+    if (t > 30.5 && t < 44.2 && radial < 13.4) return true;
+    if (t > 44.4 && t < 52.2 && radial < 6.5) return true;
+    if (t > 52.4 && t < 78.2 && radial < 4.3) return true;
+    if (t > 78.5 && t < 112 && radial < 9.4) return true;
     return false;
   };
   root.traverse((o: any) => {

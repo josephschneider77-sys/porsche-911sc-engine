@@ -1084,17 +1084,19 @@ export function heatExchanger(s: 1 | -1) {
   // clear of the chain box (box floor >= y -125 over the heat exchanger)
   p.add(tube([[X(shellX + 12), shellY + 6, zB - 14], [X(shellX + 16), shellY + 8, zB + 10], [X(shellX + 18), shellY + 8, zB + 34]], 15, 12, 12), 'aluminized');
   p.add(yToZ(torus(15.5, 2.2, 6, 20)), 'steel', [X(shellX + 18), shellY + 8, zB + 28]);
-  // The plug axis passes beside the port flange. Take a tunnel out of the header
-  // so the flange ear and the primary stay off the insulator. r 5.0 leaves the
-  // exhaust-nut seat probes (about 5.7 mm from the axis) on the flange.
+  // The plug axis passes beside the port flange. The insulator is only r 2 where
+  // it crosses the flange, so a r 3.2 tunnel clears it and leaves the exhaust-nut
+  // seat probes (about 4 mm from the axis) on the ear. The boot, further down, is wider.
   const [pdx, pdy, pdz] = sparkDirHead();
   const plugDir = new THREE.Vector3(s * pdx, pdy, s * pdz);
   const plugCuts: THREE.BufferGeometry[] = [];
   for (const zc of zs) {
     const tip = new THREE.Vector3((CYL_TOP_X + SPARK_TIP.x) * s, SPARK_TIP.y, zc + SPARK_Z * s);
     const a = tip.clone().addScaledVector(plugDir, 40);
+    const mid = tip.clone().addScaledVector(plugDir, 78);
     const b = tip.clone().addScaledVector(plugDir, 110);
-    plugCuts.push(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 5.0, 16));
+    plugCuts.push(cylBetween([a.x, a.y, a.z], [mid.x, mid.y, mid.z], 3.2, 16));
+    plugCuts.push(cylBetween([mid.x, mid.y, mid.z], [b.x, b.y, b.z], 8, 16));
   }
   cutGroup(p.g, ...plugCuts);
   return p.g;

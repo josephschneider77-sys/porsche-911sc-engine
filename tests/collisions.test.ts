@@ -158,18 +158,23 @@ describe('valve to piston around overlap TDC', () => {
     const faceP = new THREE.Vector3(s * (CYL_TOP_X + face.x), face.y, CYL_Z[cyl] + s * face.z).applyMatrix4(inv);
     const head = valveHeadEngine(cyl, side, crank);
     const P = head.attributes.position;
+    const idx = head.index;
     const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), m = new THREE.Vector3();
     let min = Infinity;
     const consider = (p: THREE.Vector3) => {
       if (p.distanceTo(faceP) > 30) return;
       const sx = crownSurfaceX(p.y, p.z);
-      if (sx == null) return;
+      if (sx == null || !Number.isFinite(sx) || !Number.isFinite(p.x)) return;
       min = Math.min(min, p.x - sx);
     };
-    for (let i = 0; i < P.count; i += 3) {
-      a.fromBufferAttribute(P, i).applyMatrix4(inv);
-      b.fromBufferAttribute(P, i + 1).applyMatrix4(inv);
-      c.fromBufferAttribute(P, i + 2).applyMatrix4(inv);
+    const nTri = idx ? idx.count : P.count;
+    for (let i = 0; i < nTri; i += 3) {
+      const ia = idx ? idx.getX(i) : i;
+      const ib = idx ? idx.getX(i + 1) : i + 1;
+      const ic = idx ? idx.getX(i + 2) : i + 2;
+      a.fromBufferAttribute(P, ia).applyMatrix4(inv);
+      b.fromBufferAttribute(P, ib).applyMatrix4(inv);
+      c.fromBufferAttribute(P, ic).applyMatrix4(inv);
       consider(a); consider(b); consider(c);
       consider(m.copy(a).add(b).add(c).multiplyScalar(1 / 3));
     }

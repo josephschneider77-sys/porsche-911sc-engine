@@ -328,7 +328,9 @@ export function camSpringCutters(s: 1 | -1): THREE.BufferGeometry[] {
   for (const c of cyls) for (const side of [1, -1] as const) {
     const a = headToEngine(c, stemPointLocal(side, 48));
     const b = headToEngine(c, stemPointLocal(side, 120));
-    cuts.push(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 20, 20));
+    // r 16 clears the Ø20 spring and stops short of the cam-housing nut discs
+    // (the nearest disc centre is 23.6 mm off the stem; the seat probe is at r 6).
+    cuts.push(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 16, 20));
   }
   return cuts;
 }
