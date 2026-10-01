@@ -730,6 +730,8 @@ export function rockers(s: 1 | -1) {
       const pts = hull([...circlePts(pivot[0], pivot[1], 10, 16), ...circlePts(camC[0], camC[1], 6, 12), ...circlePts(tip[0], tip[1], 6, 12)]);
       p.add(extrudeC(polyShape(s > 0 ? pts : pts.map(([x, y]) => [-x, y] as [number, number]).reverse()), 16, 0.8), 'forgedSteel', [0, 0, zc + dz]);
       p.add(yToZ(cyl(8.5, 40, 16)), 'steel', [pivot[0] * s, pivot[1], zc]);
+      // rocker-arm bush (#46), bronze, pressed into the arm eye on the shaft
+      p.add(yToZ(lathe([[8.55, -8.3], [9.9, -8.3], [9.9, 8.3], [8.55, 8.3]], 20)), 'bronze', [pivot[0] * s, pivot[1], zc + dz]);
       // adjusting screw (#49) & nut (#50)
       p.add(cylBetween([tip[0] * s, up * 52, zc + dz], [tip[0] * s, up * 70, zc + dz], 3.8, 10), 'steel');
       p.add(hexNut(11, 5).translate(tip[0] * s, up * 66, zc + dz), 'darkSteel');

@@ -54,7 +54,7 @@ export function fastenerSets(): FSet[] {
     // head barrel nuts on the case head studs
     const r45 = HEAD_HW.barrel.r * Math.SQRT1_2;
     set(`head-nuts-${b}`, 'barrel', 10, { washer: DIM[10].wr, grip: HEAD_HW.barrel.x + CYL_TOP_X - 104, embed: 8, mat: 'darkSteel' }, cyls.flatMap((c) => [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([a, d]) =>
-      ({ p: headW(c, HEAD_HW.barrel.x, a * r45, d * r45), n: headN(c, 1, 0, 0), seat: `head-${c}`, into: `crankcase-${b}` }))));
+      ({ p: headW(c, HEAD_HW.barrel.x, a * r45, d * r45), n: headN(c, 1, 0, 0), seat: `head-${c}`, into: `crankcase-${b}`, stud: true }))));
     // cam housing -> head
     const { y: cy, z: cz } = HEAD_HW.camStud;
     set(`cam-housing-nuts-${b}`, 'nut', 8, { washer: 7, spring: true, grip: 10, embed: 14 }, cyls.flatMap((c) => [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([a, d]) =>

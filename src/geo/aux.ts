@@ -404,8 +404,6 @@ export function mixtureControlUnit() {
     p.add(hexNut(11, 6), 'brass', [fd[0] + 28 * Math.cos(a), fd[1] + 28, fd[2] + 28 * Math.sin(a)]);
   }
   for (const a of [0.5, 3.6]) p.add(yToX(cyl(6, 20, 10)), 'brass', [fd[0] + 34 * Math.cos(a), fd[1] - 5, fd[2] + 34 * Math.sin(a)]);
-  // cold-start valve (#30)
-  p.add(yToZ(cyl(12, 40, 16)), 'darkSteel', [-120, 250, 140]);
   // boot from the meter outlet to the throttle housing / distributor
   p.add(tube([[c[0], c[1] - 40, c[2]], [c[0] + 10, c[1] - 55, c[2]], [-110, 232, c[2]]], 34, 20, 20), 'rubber');
   return p.g;
@@ -431,7 +429,7 @@ export function warmUpRegulator() {
   p.add(boxMM([-70, WUR.flangeTop - 5, -195], [-50, WUR.flangeTop, -145]), 'zincPlate');
   p.add(boxMM([-74, WUR.flangeTop, -182], [-46, 139, -158]), 'zincPlate');
   p.add(cyl(11, 8, 20), 'zincPlate', [-60, 143, -170]);
-  for (const z of [-178, -162]) p.add(yToX(cyl(4, 10, 10)), 'brass', [-79, 131, z]); // fuel connection pieces (#57)
+  for (const z of [-178, -162]) { p.add(yToX(cyl(4, 10, 10)), 'brass', [-79, 131, z]); p.add(yToX(lathe([[4.1, 0], [7, 0], [7, 1.2], [4.1, 1.2]], 16)), 'copper', [-74, 131, z]); } // fuel connection pieces (#57) + sealing rings (#58)
   return p.g;
 }
 /** Air-cleaner struts (106-00 #18/#19) with bonded rubber buffers (#20), on the air distributor top. */
