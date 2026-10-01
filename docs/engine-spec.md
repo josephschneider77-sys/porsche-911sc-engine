@@ -309,7 +309,7 @@ Joe's request: "every detail, every part". For example, the half-moon (Woodruff)
 - **Other hardware:** gaskets and sealing rings; WUR, cold-start, aux-air and vacuum-limiter washers; pre-muffler nuts and clamps; sump-plate gaskets; and coil and primary ignition leads.
 
 ### Hollowed and relieved solids
-- **Valve covers:** CSG pans with a real cavity (`VC_CAV`), 2 mm walls, and solid nut ears (`earCut`). Bosses, lettering and ribs are raised by `VC_RAISE`.
+- **Valve covers:** CSG pans with a real cavity (`VC_CAV`) and solid nut ears (`earCut`). Bosses, lettering and ribs are raised by `VC_RAISE`.
 - **Upper air guide:** cut-outs for the distributor, breather neck, plenum foot and the six injector bores. The skirt is notched at each cylinder.
 - **Breather lid, plenum underside and oil-cooler end tank:** relieved around the distributor. The oil cooler now uses ported spigots with O-ring seals.
 - **Crankcase (PR #8, hollow casting):** kept as merged. v5 adds only proud boss pads for the senders, the right case bolts and the M10 nut.
