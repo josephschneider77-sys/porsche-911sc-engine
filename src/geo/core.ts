@@ -23,150 +23,203 @@ export const bankZ = (s: 1 | -1) => (s === 1 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : 
 
 // ---------------------------------------------------------------- crankcase half (101-05 left / 101-10 right)
 /**
- * Pressure-cast aluminium half (SC: aluminium, not magnesium). Photo-matched features (photo-ref/crankcase-*):
- * vertical split flange with a row of M8 nuts top and bottom, three spigot bores per side on a flat deck, big
- * through-bolt bosses between the bores, triangular gussets from the deck to the top/bottom rails, transverse
- * casting ribs across the top, a ribbed flywheel-end bell around the rear main seal, a flat chain-housing face at
- * the pulley end with the oil-pump nose, a round sump boss underneath and the cast external oil gallery.
+ * Pressure-cast aluminium half (SC: aluminium, not magnesium). Hollow crank cavity between an upper
+ * shoulder and a lower sump wall, closed on the cylinder side by a deck with three spigot bores.
+ * Eight saddles (mains 1-7 in the bay + nose bearing 8 in the chain well): each is a web with a
+ * machined half-bore, two stud pads and an intermediate-shaft bore. Exterior is the sculpted casting
+ * (ribs, gussets, through-bolt bosses, oil-gallery plugs, number pad), not a constant-section slab.
+ * Chain well stays at the pulley end, where the cam drive actually runs.
  */
+const CASE_UPPER: [number, number][] = [
+  [0, 80], [28, 82], [56, 90], [78, 100], [90, 112], [72, 120], [36, 122], [12, 118], [0, 114],
+];
+const CASE_LOWER: [number, number][] = [
+  [0, -56], [0, -120], [14, -128], [40, -126], [70, -118], [90, -104], [84, -90], [60, -74], [32, -62],
+];
+/** Saddle web: bridges the open bay, half-bore on the split, window in the rod bay. */
+const CASE_WEB: [number, number][] = [
+  [0, 100], [22, 104], [50, 92], [76, 74], [88, 52], [88, -48], [74, -68], [50, -90], [26, -110], [8, -118], [0, -114],
+];
 export function crankcaseHalf(s: 1 | -1) {
   const p = new Part();
-  const z0 = CASE_Z.flywheel, z1 = CASE_Z.pulley, len = z1 - z0;
+  const z0 = CASE_Z.flywheel, z1 = CASE_Z.pulley;
   const X = (x: number) => x * s;
-  const outer: [number, number][] = [[0, -124], [52, -124], [78, -114], [96, -96], [102, -74], [102, 72], [96, 92], [74, 108], [40, 113], [0, 113]];
-  const inner: [number, number][] = outer.map(([x, y]) => [Math.max(0, x - 8), y > 0 ? y - 8 : y + 8] as [number, number]);
-  const mir = (pts: [number, number][]) => pts.map(([x, y]) => [x * s, y] as [number, number]);
-  const sh = polyShape(s === 1 ? mir(outer) : mir(outer).reverse());
-  const hole = new THREE.Path(); const ip = s === 1 ? mir(inner).reverse() : mir(inner);
-  hole.moveTo(ip[0][0], ip[0][1]); ip.slice(1).forEach(([x, y]) => hole.lineTo(x, y)); hole.closePath();
-  sh.holes.push(hole);
-  const shell = extrude(sh, len); shell.translate(0, 0, z0);
-  p.add(shell, 'castAlu');
-  // end walls with crank / intermediate-shaft bores
-  const endWall = (z: number, t: number, crankR: number) => {
-    const ws = polyShape(s === 1 ? mir(outer) : mir(outer).reverse());
-    ws.holes.push(circlePath(crankR, 0, 0) as THREE.Path);
-    ws.holes.push(circlePath(20, 0, INT_SHAFT_Y) as THREE.Path);
-    const g = extrude(ws, t); g.translate(0, 0, z);
-    p.add(g, 'castAlu');
+  const cwHole = s > 0;
+  const disk = (r: number, x: number, y: number) => {
+    const h = new THREE.Path(); h.absarc(x * s, y, r, 0, Math.PI * 2, cwHole); return h;
   };
-  endWall(z0, 8, 48); endWall(z1 - 8, 8, 34);
-  // main bearing webs (saddles)
+  const notch = (x0: number, y0: number, x1: number, y1: number) => {
+    const h = new THREE.Path();
+    const a: [number, number][] = [[x0 * s, y0], [x0 * s, y1], [x1 * s, y1], [x1 * s, y0]];
+    const q = cwHole ? a : a.slice().reverse();
+    h.moveTo(q[0][0], q[0][1]); q.slice(1).forEach(([x, y]) => h.lineTo(x, y)); h.closePath(); return h;
+  };
+  const addProfile = (pts: [number, number][], zA: number, zB: number, mat: MatKey, holes: THREE.Path[] = []) => {
+    if (zB - zA < 0.4) return;
+    const m = pts.map(([x, y]) => [x * s, y] as [number, number]);
+    const sh = polyShape(s > 0 ? m : m.slice().reverse());
+    for (const h of holes) sh.holes.push(h);
+    const g = extrude(sh, zB - zA, 0, 8); g.translate(0, 0, zA); p.add(g, mat);
+  };
+  // upper shoulder + lower sump wall: the bay between them (roughly |y| < 70) is the open crank cavity
+  const intHole = disk(16, 0, INT_SHAFT_Y);
+  addProfile(CASE_UPPER, z0, z1, 'castAlu');
+  addProfile(CASE_LOWER, z0, z1, 'castAlu', [intHole]);
+  // bright machined split-flange lips (perimeter only — the cavity stays open)
+  addProfile([[0, 104], [16, 112], [16, 122], [0, 116]], z0, z1, 'machinedAlu');
+  addProfile([[0, -118], [16, -128], [16, -108], [0, -100]], z0, z1, 'machinedAlu');
+  // metal between the spigots, inboard of the deck, clear of each piston skirt
+  const cyls = bankZ(s).slice().sort((a, b) => a - b);
+  const bridges: [number, number][] = [[z0 + 4, cyls[0] - 52], [cyls[0] + 52, cyls[1] - 52], [cyls[1] + 52, cyls[2] - 52], [cyls[2] + 52, z1 - 4]];
+  for (const [za, zb] of bridges) addProfile(
+    [[46, -70], [90, -70], [90, 74], [46, 74]], za, zb, 'castAlu',
+  );
+  // mains 1-7: saddle web, machined half-bore, locating notch, two stud pads
+  const SADDLE_R = 33.2;
   for (const z of MAIN_Z) {
-    const ws = polyShape(s === 1 ? mir(inner) : mir(inner).reverse());
-    ws.holes.push(circlePath(33, 0, 0) as THREE.Path);
-    ws.holes.push(circlePath(18, 0, INT_SHAFT_Y) as THREE.Path);
-    ws.holes.push(circlePath(16, 50 * s, -60) as THREE.Path);
-    ws.holes.push(circlePath(13, 52 * s, 62) as THREE.Path);
-    const g = extrudeC(ws, 12); g.translate(0, 0, z);
+    addProfile(CASE_WEB, z - 8, z + 8, 'castAlu', [
+      disk(SADDLE_R, 0, 0), disk(16, 0, INT_SHAFT_Y), disk(15, 60, 16),
+      notch(0, 30.5, 7, 40),
+    ]);
+    const seat = yToZ(lathe([[SADDLE_R - 0.4, -7.2], [SADDLE_R + 2.4, -7.2], [SADDLE_R + 2.4, 7.2], [SADDLE_R - 0.4, 7.2]], 36, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI));
+    p.add(seat, 'machinedAlu', [0, 0, z]);
+    const iSeat = yToZ(lathe([[13.6, -8], [17.2, -8], [17.2, 8], [13.6, 8]], 28, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI));
+    p.add(iSeat, 'machinedAlu', [0, INT_SHAFT_Y, z]);
+    for (const y of [46, -46]) {
+      p.add(boxMM([s > 0 ? 0 : -4, y - 7.5, z - 8], [s > 0 ? 4 : 0, y + 7.5, z + 8]), 'machinedAlu');
+      p.add(yToX(cyl(4.2, 3.4, 14)), 'bore', [X(1.8), y, z]);
+    }
+  }
+  // flywheel-end bulkhead (rear main + int-shaft bore) and pulley-end bulkhead (nose passes through)
+  const endOutline: [number, number][] = [
+    [0, 114], [14, 120], [40, 122], [74, 116], [90, 100], [90, -96], [70, -116], [36, -126], [12, -128], [0, -120],
+  ];
+  addProfile(endOutline, z0, z0 + 9, 'castAlu', [disk(46, 0, 0), disk(20, 0, INT_SHAFT_Y)]);
+  addProfile(endOutline, z1 - 8, z1, 'machinedAlu', [disk(40, 0, 0), disk(22, 0, INT_SHAFT_Y)]);
+  // deck: YZ plate with three through-bores, outer face on the cylinder register
+  {
+    const y0 = -84, y1 = 84, za = z0 + 8, zb = z1 - 6, thick = DECK_X - 88;
+    const corners: [number, number][] = [[-zb, y0], [-za, y0], [-za, y1], [-zb, y1]];
+    const sh = polyShape(corners);
+    for (const zc of cyls) sh.holes.push(circlePath(48, -zc, 0) as THREE.Path);
+    const g = extrude(sh, thick, 0, 16); g.rotateY(Math.PI / 2);
+    g.translate(s > 0 ? 88 : -(88 + thick), 0, 0);
     p.add(g, 'castAlu');
   }
-  // split-line flanges (top & bottom) with bosses + nuts
-  p.add(boxMM([s > 0 ? 0 : -18, 108, z0], [s > 0 ? 18 : 0, 121, z1]), 'castAlu');
-  p.add(boxMM([s > 0 ? 0 : -18, -132, z0], [s > 0 ? 18 : 0, -120, z1]), 'castAlu');
-  // horizontal (X-axis) stud lugs on the split flange: studs in the right half, lock nuts on the left-half lug faces
+  // cylinder spigots (bright machined rings) + 4 raised head-stud bosses + Dilavar studs
+  for (const zc of cyls) {
+    const ring = yToX(lathe([[48.2, 0], [62, 0], [62, 5.5], [56, 7.5], [48.2, 7.5]], 48));
+    if (s < 0) ring.rotateZ(Math.PI);
+    p.add(ring, 'machinedAlu', [(DECK_X - 6) * s, 0, zc]);
+    for (const a of [45, 135, 225, 315]) {
+      const y = 57 * Math.sin(a * DEG), z = 57 * Math.cos(a * DEG);
+      p.add(yToX(cyl(8.2, 7, 16)), 'castAlu', [(DECK_X - 2) * s, y, zc + z]);
+      p.add(yToX(cyl(7.2, 1.2, 16)), 'machinedAlu', [(DECK_X + 1.2) * s, y, zc + z]);
+      p.add(cylBetween([(DECK_X - 2) * s, y, zc + z], [(HEAD_OUT_X - 4) * s, y, zc + z], 4.6, 10), 'zincPlate');
+    }
+  }
+  // through-bolt bosses: wider cast root, machined seat face exactly at |x| = CASE_TB.x
+  for (const z of CASE_TB.z) for (const y of CASE_TB.y) {
+    p.add(yToX(cyl(16, 12, 20)), 'castAlu', [X(94), y, z]);
+    p.add(yToX(cyl(CASE_TB.r, CASE_TB.x - 95, 24)), 'castAlu', [X((CASE_TB.x + 94) / 2 - 0.5), y, z]);
+    p.add(yToX(cyl(CASE_TB.r, 1, 24)), 'machinedAlu', [X(CASE_TB.x - 0.5), y, z]);
+  }
+  // gussets from the deck band up to the flange, and transverse ribs along the shoulders
+  const mids = [cyls[0] - 59, (cyls[0] + cyls[1]) / 2, (cyls[1] + cyls[2]) / 2, cyls[2] + 59];
+  for (const zm of mids) {
+    if (zm < z0 + 8 || zm > z1 - 8) continue;
+    p.add(gusset([X(96), 68], [X(96), 108], [X(28), 116], 6, zm), 'castAlu');
+    p.add(gusset([X(96), -70], [X(96), -112], [X(32), -122], 6, zm), 'castAlu');
+  }
+  for (let z = z0 + 18; z < z1 - 12; z += 36) {
+    p.add(boxMM([s > 0 ? 70 : -92, 108, z - 2.2], [s > 0 ? 92 : -70, 116, z + 2.2]), 'castAlu');
+    p.add(boxMM([s > 0 ? 72 : -94, -116, z - 2.2], [s > 0 ? 94 : -72, -106, z + 2.2]), 'castAlu');
+  }
+  // split-flange lugs: studs in the right half, lock-nut face on the left half at |x| = CASE_LUG.x
   for (const [y, zs, y0] of [[CASE_LUG.yTop, CASE_LUG.top, 115], [CASE_LUG.yBot, CASE_LUG.bottom, -126]] as const) for (const z of zs) {
     p.add(yToX(cyl(CASE_LUG.r, CASE_LUG.x, 16)), 'castAlu', [X(CASE_LUG.x / 2), y, z]);
     p.add(boxMM([s > 0 ? 0 : -CASE_LUG.x, Math.min(y, y0), z - CASE_LUG.r], [s > 0 ? CASE_LUG.x : 0, Math.max(y, y0), z + CASE_LUG.r]), 'castAlu');
   }
-  // transverse casting ribs on the top + bottom surfaces, between the lugs
-  const topMid = CASE_LUG.top.slice(1).map((z, i) => (z + CASE_LUG.top[i]) / 2);
-  for (const z of topMid) p.add(gusset([X(16), 121], [X(16), 108], [X(74), 108], 4, z), 'castAlu');
-  for (let z = z0 + 12; z < z1 - 6; z += 29.5) {
-    if (CASE_LUG.bottom.some((zb) => Math.abs(zb - z) < 12)) continue;
-    p.add(gusset([X(16), -132], [X(16), -120], [X(72), -114], 4, z), 'castAlu');
+  // external oil gallery along the lower flank, with hex plugs in raised bosses
+  p.add(yToZ(cyl(7.5, z1 - z0 - 36, 14)), 'castAlu', [X(90), -100, (z0 + z1) / 2]);
+  for (const z of [-168, -130, 96, 150, 188]) {
+    p.add(yToX(cyl(9, 14, 14)), 'castAlu', [X(84), -100, z]);
+    p.add(yToX(hexNut(13, 6)), 'darkSteel', [X(96), -100, z]);
+    p.add(yToX(cyl(3.2, 2, 10)), 'bore', [X(99.5), -100, z]);
   }
-  // cylinder spigot bores on the deck + lower head studs (Dilavar)
-  for (const zc of bankZ(s)) {
-    const pad = yToX(lathe([[46, 0], [60, 0], [60, 5], [57, 7], [47.5, 7], [47.5, 0]], 48));
-    if (s < 0) pad.rotateZ(Math.PI);
-    p.add(pad, 'machinedAlu', [(DECK_X - 4) * s, 0, zc]);
-    p.add(yToX(cyl(47.4, 0.5, 40)), 'bore', [(DECK_X - 3) * s, 0, zc]);
-    for (const a of [45, 135, 225, 315]) {
-      const y = 57 * Math.sin(a * DEG), z = 57 * Math.cos(a * DEG);
-      p.add(cylBetween([(DECK_X - 4) * s, y, zc + z], [(HEAD_OUT_X - 4) * s, y, zc + z], 4.6, 10), 'zincPlate');
-      p.add(yToX(cyl(7.5, 6, 14)), 'castAlu', [(DECK_X - 1) * s, y, zc + z]);
-    }
-  }
-  // through-bolt bosses + nuts between and outside the bores, and the gussets above/below them
-  const zs = bankZ(s).slice().sort((a, b) => a - b);
-  const mids = [zs[0] - 59, (zs[0] + zs[1]) / 2, (zs[1] + zs[2]) / 2, zs[2] + 59];
-  for (const zm of mids) {
-    if (zm < z0 + 6 || zm > z1 - 6) continue;
-    p.add(gusset([X(100), 70], [X(100), 108], [X(30), 112], 5, zm), 'castAlu');
-    p.add(gusset([X(100), -72], [X(100), -116], [X(40), -124], 5, zm), 'castAlu');
-  }
-  // through-bolt bosses on the main webs (bolt heads right, cap nuts left; hardware in fasteners.ts)
-  for (const z of CASE_TB.z) for (const y of CASE_TB.y) p.add(yToX(cyl(CASE_TB.r, CASE_TB.x - 94, 24)), 'castAlu', [X((CASE_TB.x + 94) / 2), y, z]);
-  // longitudinal stiffening rails
-  p.add(boxMM([s > 0 ? 88 : -104, 78, z0], [s > 0 ? 104 : -88, 86, z1]), 'castAlu');
-  p.add(boxMM([s > 0 ? 88 : -104, -92, z0], [s > 0 ? 104 : -88, -84, z1]), 'castAlu');
-  // cast external oil gallery along the lower flank
-  p.add(yToZ(cyl(8, len - 20, 16)), 'castAlu', [X(86), -104, (z0 + z1) / 2]);
-  // flywheel-end bell: rear main seal boss with radial ribs
-  const boss = yToZ(new THREE.CylinderGeometry(60, 60, 14, 40, 1, true, s > 0 ? 0 : Math.PI, Math.PI));
-  p.add(boss, 'castAlu', [0, 0, z0 - 7]);
-  p.add(yToZ(lathe([[49, -1], [60, -1], [60, 1], [49, 1]], 40, s > 0 ? 0 : Math.PI, Math.PI)), 'castAlu', [0, 0, z0 - 14]);
-  for (let a = -75; a <= 75; a += 25) {
+  // flywheel-end bell: rear-main seal boss, radial ribs, gearbox studs
+  const bell = yToZ(new THREE.CylinderGeometry(62, 62, 16, 40, 1, true, s > 0 ? 0 : Math.PI, Math.PI));
+  p.add(bell, 'castAlu', [0, 0, z0 - 8]);
+  p.add(yToZ(lathe([[48, -1.2], [62, -1.2], [62, 1.2], [48, 1.2]], 40, s > 0 ? 0 : Math.PI, Math.PI)), 'machinedAlu', [0, 0, z0 - 16]);
+  for (let a = -80; a <= 80; a += 20) {
     const ar = (s > 0 ? a : 180 - a) * DEG;
-    const rib = boxMM([60, -2.5, -10], [96, 2.5, 0]); rib.rotateZ(ar);
+    const rib = boxMM([58, -3, -14], [100, 3, 2]); rib.rotateZ(ar);
     p.add(rib, 'castAlu', [0, 0, z0]);
   }
-  // gearbox mounting studs/bosses around the flywheel end
   for (const [x, y] of [[88, 70], [92, -66], [40, -118], [44, 104]] as const) {
     p.add(yToZ(cyl(9, 12, 16)), 'castAlu', [X(x), y, z0 - 6]);
     p.add(yToZ(cyl(5, 26, 8)), 'zincPlate', [X(x), y, z0 - 13]);
   }
-  // pulley end: machined face rim for the chain housing gasket
-  const rim = polyShape(s === 1 ? mir(outer) : mir(outer).reverse());
-  rim.holes.push(((): THREE.Path => { const h = new THREE.Path(); const q = s === 1 ? mir(inner).reverse() : mir(inner); h.moveTo(q[0][0], q[0][1]); q.slice(1).forEach(([x, y]) => h.lineTo(x, y)); h.closePath(); return h; })());
-  p.add(extrude(rim, 2), 'machinedAlu', [0, 0, z1]);
-  // pulley-end chain well (photo-ref/book rebuild-pic11/12, tensioner-pic4): the int-shaft sprockets and the inboard
-  // chain runs live in a hollow cast well in front of the case face; it opens sideways into the bolted-on chain box at
-  // |x| = 118 and is closed by a front plate flush with the chain-box covers. Bearing 8 boss on the crank axis.
+  // pulley-end chain well: hollow pocket in front of the case face, open sideways into the chain box at |x| = 118.
+  // Bearing 8 saddle (nose) lives in this pocket. Front plate is flush with the chain-box covers.
   const W = chainWellProfile(s);
   const top: [number, number][] = [[X(CHAIN_BOX_INNER_X), W.yTop], [X(60), 44], [X(0.5), 50]];
   const bot: [number, number][] = [[X(0.5), -138], [X(70), -140], [X(CHAIN_BOX_INNER_X), W.yBot]];
-  const strip = (pts: [number, number][], inward: 1 | -1) => {
+  const strip = (pts: [number, number][]) => {
     for (let i = 0; i + 1 < pts.length; i++) {
       const [ax, ay] = pts[i], [bx, by] = pts[i + 1]; const l = Math.hypot(bx - ax, by - ay);
-      const g = boxMM([-l / 2 - 0.5, inward > 0 ? 0 : -5, z1], [l / 2 + 0.5, inward > 0 ? 5 : 0, W.z1 - 6]);
+      const g = boxMM([-l / 2 - 0.5, 0, z1], [l / 2 + 0.5, 5, W.z1 - 6]);
       g.rotateZ(Math.atan2(by - ay, bx - ax)); g.translate((ax + bx) / 2, (ay + by) / 2, 0); p.add(g, 'castAlu');
     }
   };
-  // walls: inward = toward the well interior (top wall below its line, bottom wall above)
-  strip(s > 0 ? top : top.slice().reverse(), 1);
-  strip(s > 0 ? bot : bot.slice().reverse(), 1);
+  strip(s > 0 ? top : top.slice().reverse());
+  strip(s > 0 ? bot : bot.slice().reverse());
   const plate = polyShape(s > 0 ? [...bot, ...top] : [...bot, ...top].reverse());
   plate.holes.push(circlePath(29, 0, 0) as THREE.Path);
   p.add(extrude(plate, 6, 0, 8), 'castAlu', [0, 0, W.z1 - 6]);
-  p.add(yToZ(lathe([[29, 0], [40, 0], [40, W.z1 - 6 - 228], [29, W.z1 - 6 - 228]], 32, s > 0 ? 0 : Math.PI, Math.PI)), 'castAlu', [0, 0, 228]);
-  // stud bosses for the chain-housing flange nuts (studs added with the hardware)
+  // nose saddle (bearing 8): machined half-bore + two stud pads, inside the chain-well pocket
+  const noseZ = 236;
+  p.add(yToZ(lathe([[29, 0], [42, 0], [42, W.z1 - 6 - 220], [29, W.z1 - 6 - 220]], 32, s > 0 ? 0 : Math.PI, Math.PI)), 'castAlu', [0, 0, 220]);
+  p.add(yToZ(lathe([[26.2, -8], [32, -8], [32, 8], [26.2, 8]], 32, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)), 'machinedAlu', [0, 0, noseZ]);
+  for (const y of [40, -40]) {
+    p.add(boxMM([s > 0 ? 0 : -4, y - 6, noseZ - 7], [s > 0 ? 4 : 0, y + 6, noseZ + 7]), 'machinedAlu');
+    p.add(yToX(cyl(3.6, 3.2, 12)), 'bore', [X(1.6), y, noseZ]);
+  }
   for (const q of chainHousingStuds(s)) p.add(yToX(cyl(7.5, CHAIN_BOX_INNER_X - 104, 14)), 'castAlu', [X((CHAIN_BOX_INNER_X + 104) / 2), q.y, q.z]);
   if (s > 0) {
-    // oil pressure sender + engine-number pad on the right half
-    p.add(cyl(11, 22, 16), 'castAlu', [40, 121, 170]);
-    p.add(cyl(15, 30, 24), 'darkSteel', [40, 143, 170]);
-    p.add(boxMM([60, 100, 110], [92, 106, 160]), 'machinedAlu');
-    // oil-thermostat pad under the right half (flange face y -128, 3 studs)
+    // oil-pressure sender, raised part-number pad, thermostat pad
+    p.add(cyl(11, 22, 16), 'castAlu', [40, 124, 170]);
+    p.add(cyl(15, 30, 24), 'darkSteel', [40, 146, 170]);
+    p.add(boxMM([58, 104, 102], [92, 112, 168]), 'castAlu');
+    p.add(boxMM([62, 111, 110], [88, 113.5, 160]), 'machinedAlu');
     p.add(cyl(30, 12, 32), 'castAlu', [58, -122, 118]);
   } else {
-    // breather / oil-filler tower seat on the left half
     p.add(boxMM([-76, 108, 120], [-30, 122, 185]), 'castAlu');
   }
-  // round sump boss underneath (strainer cover seats here)
+  // round sump boss (strainer cover seats here)
   p.add(yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), 'castAlu', [0, -126, -10]);
   return p.g;
 }
 
 // ---------------------------------------------------------------- main bearing shells (102-00 #21-24)
+/** Steel-backed half shells (mains 1-7) with a locating tab, plus the one-piece nose bushing (No. 8). Bearing 1 is thrust. */
 export function mainBearings() {
   const p = new Part();
-  for (const z of MAIN_Z) {
-    const g = yToZ(lathe([[30.1, -8], [32.6, -8], [32.6, 8], [30.1, 8]], 40));
-    p.add(g, 'bronze', [0, 0, z]);
-  }
-  p.add(yToZ(lathe([[25, -11], [28, -11], [28, 11], [25, 11]], 32)), 'bronze', [0, 0, NOSE_BEARING_Z]);
+  const Ri = SPEC.mainJournalD / 2 + 0.25, Ro = Ri + 2.35;
+  const shell = (side: 1 | -1, z: number, thrust: boolean) => {
+    const phi0 = side > 0 ? -Math.PI / 2 + 0.035 : Math.PI / 2 + 0.035;
+    const arc = Math.PI - 0.07;
+    p.add(yToZ(lathe([[Ri, -7.4], [Ri + 0.7, -7.4], [Ro, -6.2], [Ro, 6.2], [Ri + 0.7, 7.4], [Ri, 7.4]], 32, phi0, arc)), 'steel', [0, 0, z]);
+    // locating tab on the upper parting line, staggered so the two halves don't occupy the same notch
+    const tz = z + side * 3.1;
+    p.add(boxMM([side > 0 ? 0.5 : -2.4, Ro - 0.2, tz - 2.3], [side > 0 ? 2.4 : -0.5, Ro + 3.6, tz + 2.3]), 'steel');
+    if (thrust) for (const dz of [-1, 1]) p.add(yToZ(lathe(
+      [[Ri + 0.3, dz * 7.2], [Ro + 3.4, dz * 7.2], [Ro + 3.4, dz * 9.1], [Ri + 0.3, dz * 9.1]], 28, phi0, arc,
+    )), 'steel', [0, 0, z]);
+  };
+  MAIN_Z.forEach((z, i) => { shell(1, z, i === 0); shell(-1, z, i === 0); });
+  p.add(yToZ(lathe([[24.6, -12], [28.4, -12], [28.4, 12], [24.6, 12]], 32)), 'steel', [0, 0, NOSE_BEARING_Z]);
+  p.add(yToZ(lathe([[25.4, -1.1], [27.6, -1.1], [27.6, 1.1], [25.4, 1.1]], 24)), 'darkSteel', [0, 0, NOSE_BEARING_Z]);
   return p.g;
 }
 
