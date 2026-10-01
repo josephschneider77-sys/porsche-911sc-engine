@@ -134,7 +134,7 @@ Stoddard and Rose Passion catalogue pages cross-check the same part numbers, e.g
 ## 6. Accuracy caveats
 - Overall proportions and the dimensions marked *E* are estimates traced from the catalogue drawings and scaled to the known bore, stroke and component sizes. They are not measured CAD data.
 - Bank offset, cam and valve angles, and gear and sprocket tooth counts are approximate.
-- The chain is modelled as a simplex roller chain (the real chain is duplex). The chain-housing outline is simplified.
+- Cam chains are now duplex 3/8" roller chains on duplex sprockets (v2). They run as straight tangent runs; the slight inward deflection at the idler sprocket is not modelled. The chain-housing outline is traced from end-view photos, but its wall draft and internal webs are simplified.
 - The oil pump is placed at the pulley end below the intermediate shaft. Its exact internal position and shape are simplified.
 - The air-injection pump (108-00), engine carrier (109-00), oil lines and tank, heater blower (108-10), plug leads and wiring are not modelled.
 - 1978 air guide: the catalogue lists the -78 part 930 106 041 00 as red. The model shows the later black part, as requested.
@@ -153,3 +153,12 @@ The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild 
 - Pistons: ring belt, recessed skirt, and a domed crown with valve reliefs.
 - Conrods: forged beam, blended big end and bolted cap.
 - Crankshaft: dark forged webs, polished journals and oil holes.
+
+**Top end and cam drive (PR 2):**
+- Duplex timing chains: two roller rows, inner and outer plates with a shared centre plate, pins.
+- Duplex cam sprockets (36 T) with a lightening-hole web, flange, dowel and big nut. The intermediate shaft carries two duplex 24 T sprockets.
+- Chain tensioner rebuilt as a layout: forged idler arm on a shaft, duplex 15 T idler sprocket on the slack run, a hydraulic adjuster below with a bolted flange and plunger, and plastic guide ramps on aluminium carriers.
+- Chain housing and lid: outline traced from end-view photos (int-shaft lobe, cam boss, tensioner pocket). Perimeter bolt bosses with studs, washers and nuts; outer flange lip; external ribs; raised cam-sprocket dome with a machined plug; lid ribs; idler-shaft cap.
+- Cam housings: continuous cam tunnel, rocker-shaft towers with machined faces, cover-seat rails with stud bosses, end bores, tunnel cover, oil-feed bosses.
+- Valve covers: chamfered pan on a seat flange with bolt ears (3 per edge on the upper cover, 5 on the lower). The upper cover has two machined round bosses and raised cast PORSCHE lettering.
+- Camshaft: polished lobes and journals on a dark shaft.
