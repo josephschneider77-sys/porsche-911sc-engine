@@ -253,6 +253,8 @@ export function sumpPlate() {
   p.add(hexNut(19, 8), 'darkSteel', [0, y - 16, -10]);
   // strainer (#38) sits inside, sandwiched by gaskets (#39)
   p.add(lathe([[0.1, 0], [72, 0], [72, 2], [0.1, 2]], 64), 'gasket', [0, y, -10]);
+  p.add(lathe([[60, 2], [70, 2], [70, 2.9], [60, 2.9]], 64), 'gasket', [0, y, -10]); // second strainer gasket (#39)
+  p.add(lathe([[72.3, 0], [80, 0], [80, 0.8], [72.3, 0.8]], 64), 'gasket', [0, y, -10]); // lid gasket to the case (#36)
   const scr = lathe([[0.1, 0], [68, 0], [68, 18], [60, 22], [0.1, 22]], 64);
   p.add(scr, 'zincPlate', [0, y + 3, -10]);
   for (let r = 12; r < 68; r += 8) p.add(torus(r, 0.8, 4, 48).rotateX(Math.PI / 2), 'darkSteel', [0, y + 25.5, -10]);
@@ -487,6 +489,14 @@ export function ignitionLeads() {
     const pts: V3[] = [tw, [tw[0], yTop - 8, tw[2]], [tw[0] * 0.5 + s * 40, yTop, (tw[2] + z) / 2], [s * 300, yTop, z], [xs, yTop - 40, z], [xs, 0, z], [xs, e2.y + 20, z], [e2.x, e2.y, e2.z], [end.x, end.y, end.z]];
     p.add(tube(pts.map((q) => q as V3), 3.6, 8, 120), 'blackPlastic');
   });
+  // coil lead (901-00 #18) from the centre tower toward the body-mounted coil, ending in its cable plug (#19)
+  const cl: V3[] = [[DIST.x, 212, DIST.z], [DIST.x, 290, DIST.z], [DIST.x - 60, 300, DIST.z + 60], [DIST.x - 160, 300, DIST.z + 120]];
+  p.add(tube(cl, 3.6, 8, 60), 'blackPlastic');
+  p.add(cylBetween([DIST.x - 160, 300, DIST.z + 120], [DIST.x - 185, 300, DIST.z + 135], 6, 12), 'blackPlastic');
+  // primary electric line (#9) from the distributor body to the CD unit, with its plug
+  const el: V3[] = [[DIST.x - 20, 150, DIST.z + 18], [DIST.x - 40, 175, DIST.z + 50], [DIST.x - 150, 290, DIST.z + 115]];
+  p.add(tube(el, 1.8, 6, 40), 'blackPlastic');
+  p.add(cylBetween([DIST.x - 150, 290, DIST.z + 115], [DIST.x - 166, 290, DIST.z + 124], 4, 10), 'blackPlastic');
   return p.g;
 }
 export function sparkPlug() {
