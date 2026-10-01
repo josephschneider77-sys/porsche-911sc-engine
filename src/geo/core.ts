@@ -13,7 +13,7 @@ import {
 } from '../data/layout';
 import type { MatKey } from './materials';
 import { HEAD_HW, CASE_TB, CASE_LUG } from './hwLayout';
-import { domeReliefX, headChamberCutter, headValvePockets, headValveBores, pruneHeadSlivers, stemDirLocal, stemPointLocal } from './valveGeom';
+import { crownSurfaceX, headChamberCutter, headValvePockets, headValveBores, pruneHeadSlivers, stemDirLocal, stemPointLocal } from './valveGeom';
 
 /** Chain plane (centre of the duplex chain) per bank: in front of the cam-housing end (z 222), rows clear of each other. */
 export const CHAIN_Z: Record<1 | -1, number> = { 1: 258, [-1]: 235 } as any;
@@ -700,7 +700,7 @@ export function piston() {
     [R - 0.3, 10], [R - 0.2, 14], [R - 3, 14], [R - 3, 16.5], [R - 0.1, 16.5],
     [R - 0.1, 21], [R - 3, 21], [R - 3, 23], [R, 23],
     [R, 27], [R - 3, 27], [R - 3, 29], [R, 29],
-    [R, top - 1], [R - 1, top], [R - 7.5, top + 0.6],
+    [R, top - 1],
   ];
   p.add(yToX(lathe(prof, 72)), 'machinedAlu');
   // skirt: radius drops at the pin axis (+-Z) to expose the bosses, like the real slipper-style skirt
@@ -713,16 +713,13 @@ export function piston() {
   }, 96, 24, true);
   p.add(skirt, 'machinedAlu');
   p.add(yToX(lathe([[R - 5, -44], [R - 0.4, -44]], 64)), 'machinedAlu');
-  // Dome height-field. Valve eyebrows are pockets in this field only — the ring-belt lathe above is untouched.
-  const rd = R - 7.5;
-  const domeH = (r: number) => { const t = r / rd; return top + 0.6 + 11.4 * Math.pow(Math.max(0, 1 - t * t), 0.85); };
+  // Crown height-field, dome plus squish, with an eyebrow under each valve.
+  // The ring-belt lathe stops at the outer wall so this surface is the crown.
   const dome = paramSurface((u, v) => {
-    const a = u * Math.PI * 2, r = v * rd;
+    const a = u * Math.PI * 2, r = v * R;
     const y = r * Math.cos(a), z = r * Math.sin(a);
-    // pent-roof: dome is lower along the pin axis
-    const crown = domeH(r) - 2.2 * Math.pow(Math.abs(z) / rd, 2);
-    return [domeReliefX(y, z, crown, r), y, z];
-  }, 144, 44, true);
+    return [crownSurfaceX(y, z) ?? top - 1, y, z];
+  }, 168, 52, true);
   p.add(dome, 'machinedAlu');
   // underside
   p.add(yToX(lathe([[0.1, top - 6], [R - 6, top - 7], [R - 5, -44]], 48)), 'castAlu');
@@ -776,6 +773,13 @@ export function cylinder() {
   ], 48)), 'finBlack', [finMid, 0, 0]);
   // base gasket (#5)
   p.add(yToX(lathe([[rb + 4, -0.3], [55.5, -0.3], [55.5, 0], [rb + 4, 0]], 48)), 'gasket');
+  // Head-stud bores. The studs (r 4.6) stand on the Ø114 circle and pass the barrel with clearance.
+  // Fin plates already have r 6.5 holes; this opens the flange and any fin root they still clip.
+  const studR = CYL_FIN.studR;
+  for (const a of [45, 135, 225, 315]) {
+    const yy = studR * Math.sin(a * DEG), zz = studR * Math.cos(a * DEG);
+    cutGroup(p.g, yToX(cyl(6.0, H + 20, 16)).translate(H / 2 - 2, yy, zz));
+  }
   return p.g;
 }
 
@@ -824,36 +828,36 @@ export function cylinderHead() {
   p.add(ipg, 'castAlu', [26, 60, 0]);
   p.add(cylBetween([26, 44, 0], [26, 56, 0], 22, 24), 'castAlu');
   p.add(yToZ(cyl(17.4, 1, 32)).rotateX(Math.PI / 2), 'bore', [26, 63, 0]);
-  // Exhaust-port seat: a ring around the Ø31 bore plus a stud ear each side.
-  // A solid 44×78 plate filled the corner the plug boot occupies. The port bore
-  // stays r 15.5 and the studs stay at z = ±30.
-  const ep = circleShape(22);
-  ep.holes.push(circlePath(15.5) as THREE.Path);
-  for (const sh of [ep, circleShape(10, 0, 30), circleShape(10, 0, -30), roundRect(12, 10, 2, 0, 24), roundRect(12, 10, 2, 0, -24)]) {
-    const epg = extrudeC(sh, 11.5); epg.rotateX(Math.PI / 2);
-    p.add(epg, 'castAlu', [34, -57.75, 0]); // flange face y -63.5
-  }
+  // Exhaust port (bottom): full flange plate and studs. The bore stays r 15.5, studs at z = ±30.
+  const ep = roundRect(44, 78, 8); ep.holes.push(circlePath(15.5) as THREE.Path);
+  const epg = extrudeC(ep, 11.5); epg.rotateX(Math.PI / 2);
+  p.add(epg, 'castAlu', [34, -57.75, 0]); // flange face y -63.5
   p.add(cylBetween([34, -44, 0], [34, -54, 0], 20, 24), 'castAlu');
   p.add(yToZ(cyl(15.4, 1, 32)).rotateX(Math.PI / 2), 'bore', [34, -62.6, 0]);
-  // Spark-plug boss on the exhaust side, low beside the exhaust valve. The axis
-  // leans down and outboard. Tip just inside the chamber, washer seat at t = 30.
-  // Intake flange and its studs are not part of this cut.
+  // Spark-plug boss on the exhaust side, beside the gap between the valves.
+  // Washer seat is 30 mm out along the axis, past the open exhaust valve. Intake flange is not part of this cut.
   const [pdx, pdy, pdz] = sparkDirHead();
   const plugDir = new THREE.Vector3(pdx, pdy, pdz);
   const plugTip = new THREE.Vector3(SPARK_TIP.x, SPARK_TIP.y, SPARK_Z);
   const along = (t: number): V3 => [plugTip.x + plugDir.x * t, plugTip.y + plugDir.y * t, plugTip.z + plugDir.z * t];
-  p.add(cylBetween(along(10), along(30), 13, 24), 'castAlu');
+  p.add(cylBetween(along(22), along(30), 12.5, 20), 'castAlu');
   // cam-housing studs (103-00 #7) are added with the hardware (fasteners.ts, HEAD_HW.camStud)
   // Separate passes. One boolean that includes the chamber sphere leaves the guide solid,
   // and a pocket that ends on the guide bore leaves a coplanar cap in the stem.
   cutGroup(p.g, headChamberCutter());
   cutGroup(p.g, ...headValvePockets());
   cutGroup(p.g, ...headValveBores());
-  // M14 hole (r 7) from inside the chamber through the seat, then a clearance
-  // tunnel for the hex, insulator and boot. The axis stays clear of the exhaust
-  // port (r 15.4 at x 34), so the tunnel does not break into that bore.
-  cutGroup(p.g, cylBetween(along(-16), along(31.2), 7, 28));
-  cutGroup(p.g, cylBetween(along(30.15), along(110), 14.2, 24));
+  // Pilot through the chamber (the nose is only r 1.2), then the M14 thread up to
+  // the washer seat at t = 30, then a tunnel for the hex and the boot.
+  cutGroup(p.g, cylBetween(along(-6), along(27.2), 3.2, 16));
+  cutGroup(p.g, cylBetween(along(27.4), along(30.15), 7, 20));
+  cutGroup(p.g, cylBetween(along(30.45), along(100), 13, 20));
+  // Case head studs (r 4.6 on the Ø114 circle) pass through with clearance. The barrel-nut face stays.
+  const studR = HEAD_HW.barrel.r;
+  for (const a of [45, 135, 225, 315]) {
+    const yy = studR * Math.sin(a * DEG), zz = studR * Math.cos(a * DEG);
+    cutGroup(p.g, cylBetween([-2, yy, zz], [HEAD_W + 2, yy, zz], 6.0, 16));
+  }
   pruneHeadSlivers(p.g);
   prunePlugCorridor(p.g, plugTip, plugDir);
   return p.g;
@@ -869,9 +873,10 @@ function prunePlugCorridor(root: THREE.Object3D, tip: THREE.Vector3, dir: THREE.
     const dx = x - tip.x, dy = y - tip.y, dz = z - tip.z;
     const t = dx * dir.x + dy * dir.y + dz * dir.z;
     const radial = Math.hypot(dx - t * dir.x, dy - t * dir.y, dz - t * dir.z);
-    if (t > -16 && t < 31.4 && radial < 7.2) return true;
-    // Past the seat face (t = 30). The annulus the washer sits on stays.
-    if (t > 30.6 && t < 120 && radial < 14.6) return true;
+    if (t > -6 && t < 27.3 && radial < 3.5) return true;
+    if (t > 27.35 && t < 30.25 && radial < 7.2) return true;
+    // Past the washer seat (t = 30). The annulus the washer sits on stays.
+    if (t > 30.5 && t < 110 && radial < 13.4) return true;
     return false;
   };
   root.traverse((o: any) => {
@@ -919,16 +924,8 @@ export const CH_Z0 = -168, CH_Z1 = CASE_Z.pulley;
 const VC_EAR_F = (upper: boolean) => (upper ? [-0.39, -0.13, 0.13, 0.39] : [-0.42, -0.252, -0.084, 0.084, 0.252, 0.42]);
 /** Valve-cover ear stations along engine Z, relative to the housing centre (mm): 4 per edge upper, 6 lower (103-05: 40 nuts). */
 export const VC_EARS = (upper: boolean) => VC_EAR_F(upper).map((f) => f * (CH_Z1 - CH_Z0 - 30));
-/** Head-side ear centre (cover-local x). The cam side moved out with the rockers — see `VC_CAM_EDGE`. */
+/** Ear centre offset across the cover (cover-local x). */
 export const VC_EDGE = 31;
-/** Cam-side ear centre. The rocker boss reaches cover-local |x| ≈ 43, so the rail sits outboard of it. */
-export const VC_CAM_EDGE = 52;
-/** Outer lip, head side and cam side (cover-local |x|). */
-export const VC_HEAD_HALF = 29;
-export const VC_CAM_HALF = 56;
-/** Cavity opening at the seat. Cam side clears the boss; head side is the original rail. */
-export const VC_SEAT_CAM = 47;
-export const VC_SEAT_HEAD = 25;
 
 /** Minimal stroke font for cast lettering (4x6 grid). */
 const STROKES: Record<string, number[][]> = {
@@ -955,76 +952,56 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
  * FVD genuine 901.105.115.11): flat-topped cast pan with chamfered sides on a thin seat flange, rounded bolt ears
  * (3 upper / 5 lower per edge), two machined round bosses on the upper cover, raised lettering band.
  */
-/** How much the v5 hollow pan top rose (z 13.5 -> 22). The cavity width is `VC_SEAT_*`, not a centred half-width. */
+/** Valve-cover cavity: half-width at the seat (w0 + 8 bevel = 26) and how much the v5 hollow pan top rose (z 13.5 -> 22). */
 export const VC_CAV = { w0: 18 }, VC_RAISE = 8.5;
 /**
  * Extra cover length at the flywheel end. Both banks are 0: the cover matches the cam-housing seat rails
  * (`CH_Z0`..`CH_Z1`), the same length and Z position as the right cover. The old left-only +30 mm overhang is gone.
  */
-export const VC_EXT = (_s: 1 | -1) => 0;
 /**
- * Local-x sign of the cam side of a cover. The rocker shafts sit on that side; the head side stays put.
- * Derived from the cover frame so a bank mirror cannot widen the wrong edge.
+ * Left flywheel end only. Cylinder 6's exhaust shaft reaches about 5 mm past the
+ * unextended cavity, so the end wall and the gasket rail move 28 mm and stay past the hub.
  */
-export function coverCamSign(s: 1 | -1, upper: boolean): 1 | -1 {
-  const m = coverMatrix(s, upper);
-  const o = new THREE.Vector3().setFromMatrixPosition(m);
-  const ax = new THREE.Vector3().setFromMatrixColumn(m, 0);
-  return new THREE.Vector3(CAM_X * s, 0, 0).sub(o).dot(ax) >= 0 ? 1 : -1;
-}
-/** Ear centre on one side of the cover. `side` is the local-x sign. */
-export function coverEdgeX(s: 1 | -1, upper: boolean, side: 1 | -1) {
-  return side * (side === coverCamSign(s, upper) ? VC_CAM_EDGE : VC_EDGE);
-}
-/** Rounded band from the head-side lip to the cam-side lip, centred on the cam side when that side is longer. */
-export function coverOutline(s: 1 | -1, upper: boolean, camHalf: number, headHalf: number, len: number, rad: number, cy = 0) {
-  const cam = coverCamSign(s, upper);
-  const w = camHalf + headHalf;
-  const cx = cam * (camHalf - headHalf) / 2;
-  return roundRect(w, len, rad, cx, cy);
-}
+export const VC_EXT = (s: 1 | -1) => (s < 0 ? 28 : 0);
 export function valveCover(s: 1 | -1, upper: boolean) {
   const loc = new Part();
-  const len = CH_Z1 - CH_Z0 - 8;
-  // hollow cast pan (v5): drafted outer shell over a cavity that clears the rocker gear,
+  const len = CH_Z1 - CH_Z0 - 8, w = 58;
+  // hollow cast pan (v5): drafted outer shell 2.5-3 mm thick over a matching cavity that clears the rocker gear,
   // on a seat flange ring; everything below the seat plane is trimmed off. Ears stay on VC_EARS so the nuts land on the housing bosses.
-  // The cam side is wider: the rocker boss reaches cover-local |x| ≈ 43, outside the old 29 mm lip.
   const ext = VC_EXT(s), cy = -ext / 2;
-  // Longer than the pan, so the flywheel-end wall is open. Cylinder 6's rocker boss sits on that wall.
-  const band = (camHalf: number, headHalf: number, rad: number) => coverOutline(s, upper, camHalf, headHalf, len + 16 + ext, rad, cy);
-  // Cavity reaches above the adjuster (cover-local z ≈ 30) so the pan roof, not a solid cap, clears the rockers.
-  const cavity = new THREE.ExtrudeGeometry(band(VC_SEAT_CAM, VC_SEAT_HEAD, 1), { depth: 56, bevelEnabled: true, bevelThickness: 4, bevelSize: 1.2, bevelSegments: 1, curveSegments: 6 });
-  cavity.translate(0, 0, -20);
-  const below = boxMM([-80, -len, -40], [80, len, 0.01]);
+  const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
+  cavity.translate(0, cy, -20);
+  const below = boxMM([-w, -len, -40], [w, len, 0.01]);
   // Stepped seat flange: thin outer lip, then a raised land the pan walls leave from.
-  const lip = extrude(coverOutline(s, upper, VC_CAM_HALF, VC_HEAD_HALF, len + ext, 7, cy), 1.15, 0.25, 6);
-  const step = extrude(coverOutline(s, upper, VC_CAM_HALF - 4, VC_HEAD_HALF - 3, len - 6 + ext, 5, cy), 2.15, 0.4, 6).translate(0, 0, 1.15);
+  const lip = extrude(roundRect(w, len + ext, 7), 1.15, 0.25, 6).translate(0, cy, 0);
+  const step = extrude(roundRect(w - 7, len - 6 + ext, 5), 2.15, 0.4, 6).translate(0, cy, 1.15);
+  // M8 cover studs (r 3.84) are part of the cam-housing asset. The hole is 6.4
+  // so the shank clears the lip by more than 2 mm; the washer still has a face.
+  const studHoles = VC_EARS(upper).flatMap((yy) => [-VC_EDGE, VC_EDGE].map((xx) => yToZ(cyl(6.4, 28, 16)).translate(xx, yy, -2)));
   // Sprocket-end notch (pulley / chain end, local +y). Deep enough to read, clear of the ear pads.
   const notch = boxMM([-15, len / 2 - 16 + cy, -1], [15, len / 2 + 4 + cy, 16]);
-  // Gallery plug on the flywheel end of the upper rail. The cam-side lip just clips it.
-  const cam = coverCamSign(s, upper);
-  const plugNotch = boxMM([Math.min(cam * 52, cam * 98), -160, -24], [Math.max(cam * 52, cam * 98), -105, 16]);
-  const cuts = upper ? [cavity, notch, plugNotch] : [cavity, notch];
-  loc.add(csgSub(lip, ...cuts), 'castAlu');
-  loc.add(csgSub(step, ...cuts), 'castAlu');
-  const pan = new THREE.ExtrudeGeometry(coverOutline(s, upper, VC_CAM_HALF - 6, VC_HEAD_HALF - 8, len - 22 + ext, 6, cy), { depth: 38, bevelEnabled: true, bevelThickness: 3, bevelSize: 3, bevelSegments: 1, curveSegments: 6 });
-  loc.add(csgSub(pan.translate(0, 0, 0), ...cuts, below), 'castAlu');
+  loc.add(csgSub(lip, cavity, notch, ...studHoles), 'castAlu');
+  loc.add(csgSub(step, cavity, notch, ...studHoles), 'castAlu');
+  const pan = new THREE.ExtrudeGeometry(roundRect(w - 17, len - 22 + ext, 6), { depth: 12, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
+  loc.add(csgSub(pan.translate(0, cy, 0), cavity, below, notch), 'castAlu');
   // Stud towers blended into the pan wall. The nut face stays a flat disc at z = 7.
+  // The cavity runs through the ear centres. Keep the nut face (z = 7, out to r 8.8)
+  // so an M8 washer probe at r 6.8 still lands on the disc.
+  const faceKeeps: THREE.BufferGeometry[] = [];
+  for (const yy of VC_EARS(upper)) for (const xx of [-VC_EDGE, VC_EDGE]) {
+    faceKeeps.push(yToZ(cyl(9.2, 1.8, 24)).translate(xx, yy, 6.7));
+  }
+  const earCut = csgSub(
+    new THREE.ExtrudeGeometry(roundRect(31, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 }).translate(0, cy, -20),
+    ...faceKeeps,
+  );
   const earBoss = yToZ(lathe([
     [16.4, 0], [14.8, 1.4], [12.4, 3.0], [10.2, 4.8], [8.8, 6.3], [8.8, 7], [0.4, 7],
   ], 24));
-  // The rocker cavity and the gallery-plug notch run through the ear centres. Keep the
-  // nut face (z = 7, out to r 8.8) so an M8 washer probe at r 6.8 still lands on the disc.
-  const faceKeeps: THREE.BufferGeometry[] = [];
-  for (const yy of VC_EARS(upper)) for (const side of [1, -1] as const) {
-    faceKeeps.push(yToZ(cyl(9.2, 1.8, 24)).translate(coverEdgeX(s, upper, side), yy, 6.7));
-  }
-  const earCut = csgSub(cavity.clone(), ...faceKeeps);
-  const earNotch = upper ? csgSub(plugNotch.clone(), ...faceKeeps) : null;
   for (const yy of VC_EARS(upper)) {
-    for (const side of [1, -1] as const) {
-      const xx = coverEdgeX(s, upper, side);
-      loc.add(csgSub(earBoss.clone().translate(xx, yy, 0), earCut, ...(earNotch ? [earNotch] : [])), 'castAlu');
+    for (const xx of [-VC_EDGE, VC_EDGE]) {
+      const studHole = studHoles[VC_EARS(upper).indexOf(yy) * 2 + (xx < 0 ? 0 : 1)];
+      loc.add(csgSub(earBoss.clone().translate(xx, yy, 0), earCut, studHole), 'castAlu');
       // Wide at the pan wall, narrowing into the tower, and kept below the nut face.
       const sign = xx > 0 ? 1 : -1;
       const wall = xx - sign * 17;
@@ -1032,24 +1009,76 @@ export function valveCover(s: 1 | -1, upper: boolean) {
       const gussetPts: [number, number][] = sign > 0
         ? [[wall, yy - 13], [root, yy - 8], [root, yy + 8], [wall, yy + 13]]
         : [[root, yy - 8], [wall, yy - 13], [wall, yy + 13], [root, yy + 8]];
-      loc.add(csgSub(extrude(polyShape(gussetPts), 5.8, 0.45, 2), earCut, ...(upper ? [plugNotch] : [])), 'castAlu');
+      loc.add(csgSub(extrude(polyShape(gussetPts), 5.8, 0.45, 2), earCut, studHole), 'castAlu');
     }
   }
   if (upper) {
     // two machined round bosses
     for (const yy of [-len * 0.2, len * 0.2]) {
-      loc.add(yToZ(lathe([[0, 0], [12, 0], [12, 2], [15, 3], [18, 5], [18, 0]].reverse().map(([r, z]) => [r, z] as [number, number]), 36)), 'castAlu', [0, yy, 36]);
-      loc.add(yToZ(lathe([[0, 0], [16.5, 0], [16.5, 0.8], [12, 0.8], [11.5, -2], [0, -2]], 36)), 'machinedAlu', [0, yy, 41]);
+      loc.add(yToZ(lathe([[0, 0], [12, 0], [12, 2], [15, 3], [18, 5], [18, 0]].reverse().map(([r, z]) => [r, z] as [number, number]), 36)), 'castAlu', [0, yy, 13.5 + VC_RAISE]);
+      loc.add(yToZ(lathe([[0, 0], [16.5, 0], [16.5, 0.8], [12, 0.8], [11.5, -2], [0, -2]], 36)), 'machinedAlu', [0, yy, 18.6 + VC_RAISE]);
     }
     // raised cast PORSCHE lettering along the flat top
     // reads correctly from each bank's own side (letter-up toward +Y, advance toward the viewer's right)
-    raisedText(loc, 'PORSCHE', s > 0 ? 1 : 13.6, 0, 2.1, 36.2, 1.3, 1.5, s, -s);
+    raisedText(loc, 'PORSCHE', s > 0 ? 1 : 13.6, 0, 2.1, 13.2 + VC_RAISE, 1.3, 1.5, s, -s);
   } else {
-    // lower covers: low longitudinal stiffening ribs on the raised roof
-    for (const dx of [-8, 8]) loc.add(boxMM([dx - 1.2, -len / 2 + 20, 36], [dx + 1.2, len / 2 - 20, 38.5]), 'castAlu');
+    // lower covers: low longitudinal stiffening ribs
+    for (const dx of [-8, 8]) loc.add(boxMM([dx - 1.2, -len / 2 + 20, 13 + VC_RAISE], [dx + 1.2, len / 2 - 20, 15.5 + VC_RAISE]), 'castAlu');
   }
+  // The pan bevel hangs below the seat. Anything under the land would sit inside the housing.
+  trimCoverUnderside(loc.g);
   loc.g.applyMatrix4(coverMatrix(s, upper));
   const out = new Part(); out.addObj(loc.g); return out.g;
+}
+
+/** Drop cover metal below the seat plane. The gasket face at z = 0 stays. */
+function trimCoverUnderside(root: THREE.Object3D) {
+  const FLOOR = -0.15;
+  root.updateMatrixWorld(true);
+  root.traverse((o: any) => {
+    if (!o.isMesh) return;
+    const g: THREE.BufferGeometry = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    const P = g.attributes.position;
+    const M = o.matrixWorld;
+    const inv = M.clone().invert();
+    const kept: number[] = [];
+    const W = (i: number) => new THREE.Vector3().fromBufferAttribute(P, i).applyMatrix4(M);
+    const clip = (poly: THREE.Vector3[]) => {
+      const out: THREE.Vector3[] = [];
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i], b = poly[(i + 1) % poly.length];
+        const ain = a.z >= FLOOR, bin = b.z >= FLOOR;
+        if (ain && bin) out.push(b.clone());
+        else if (ain && !bin) {
+          const t = (FLOOR - a.z) / (b.z - a.z);
+          out.push(a.clone().lerp(b, t));
+        } else if (!ain && bin) {
+          const t = (FLOOR - a.z) / (b.z - a.z);
+          out.push(a.clone().lerp(b, t));
+          out.push(b.clone());
+        }
+      }
+      return out;
+    };
+    for (let i = 0; i < P.count; i += 3) {
+      const poly = clip([W(i), W(i + 1), W(i + 2)]);
+      if (poly.length < 3) continue;
+      const toL = (p: THREE.Vector3) => p.clone().applyMatrix4(inv);
+      const fan = (pts: THREE.Vector3[]) => {
+        const o0 = toL(pts[0]);
+        for (let k = 1; k < pts.length - 1; k++) {
+          const a = o0, b = toL(pts[k]), c = toL(pts[k + 1]);
+          kept.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+        }
+      };
+      fan(poly);
+    }
+    if (kept.length === P.count * 3) return;
+    const ng = new THREE.BufferGeometry();
+    ng.setAttribute('position', new THREE.Float32BufferAttribute(kept, 3));
+    ng.computeVertexNormals();
+    o.geometry = ng;
+  });
 }
 /** Valve-cover frame: local x = along the slope, local y = engine Z, local z = outward normal (seat flange at z 0). */
 export function coverMatrix(s: 1 | -1, upper: boolean) {

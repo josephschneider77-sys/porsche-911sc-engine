@@ -56,22 +56,20 @@ export function pinX(cyl: number, crankDeg = 0): { pinX: number; throwXY: [numbe
 }
 
 /**
- * Spark plug, head-local. One M14 plug per cylinder, exhaust side.
- *
- * The electrode tip is just inside the chamber, low on the exhaust side. A full-diameter
- * face on the line from (5, −10, 24) at +17° cuts the exhaust valve, and the same face
- * further down the bore cuts the piston crown. This axis (14° lean, 10° toward +Z,
- * tip at (2, −34, 18)) keeps the nose off the barrel's top corner and the crown, and
- * the boot off the header. The hex sits out along the same axis, below the fins.
+ * Spark plug, head-local. One M14 plug per cylinder, exhaust side, beside the gap
+ * between the valves. Tip about (5, −8, ±25): 26 mm off the bore axis. The axis
+ * leans 17° outboard from straight down and has no along-row tilt.
+ * x is 9 rather than 5 so the electrode clears the crown by ≥ 1.5 mm. Higher
+ * than that, the axis runs through the exhaust-stud nut. y and z stay.
  */
-export const SPARK_TIP = { x: 2, y: -34 };
-export const SPARK_Z = 18;
+export const SPARK_TIP = { x: 9, y: -8 };
+export const SPARK_Z = 25;
 /** Radians. Lean about +Z from straight down (−Y), outboard as the plug leaves the chamber. */
-export const SPARK_TILT = 14 * Math.PI / 180;
-/** Radians. Swing about +X applied after the tilt. Negative moves the boot toward +Z. */
-export const SPARK_PITCH = -10 * Math.PI / 180;
+export const SPARK_TILT = 17 * Math.PI / 180;
+/** Radians. No along-row tilt. */
+export const SPARK_PITCH = 0;
 /** Radians. Spin about the plug axis so a hex flat faces the barrel fins. */
-export const SPARK_ROLL = 1 * Math.PI / 180;
+export const SPARK_ROLL = 0;
 /** Unit axis in the head frame, from the electrode tip toward the boot. */
 export function sparkDirHead(): [number, number, number] {
   const c = Math.cos(SPARK_TILT);

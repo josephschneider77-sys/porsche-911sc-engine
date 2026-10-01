@@ -5,7 +5,9 @@ import { findCollisions, isMating, clearance } from './collide';
 import { rayHit } from './hw';
 import { OIL_COOLER } from '../src/geo/aux';
 import { cylinder, conrod } from '../src/geo/core';
-import { bankOf, CYL_Z, DECK_X, pinX } from '../src/data/layout';
+import { valveHeadEngine, trainPose, FIRE_CRANK } from '../src/geo/valvetrain';
+import { crownSurfaceX, stemPointLocal, stemDirLocal } from '../src/geo/valveGeom';
+import { bankOf, CYL_Z, CYL_TOP_X, DECK_X, pinX } from '../src/data/layout';
 
 const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|timing-chain|cam-sprocket)-(left|right)$/;
 const EXHAUST = /^(heat-exchanger-(left|right)|muffler)$/;
@@ -138,5 +140,54 @@ describe('conrod swing versus the cylinder skirt', () => {
     // minimum is the neighbouring fin, still clear of a rod notch.
     expect(own).toBeGreaterThanOrEqual(1);
     expect(opp).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('valve to piston around overlap TDC', () => {
+  /** Signed gap from a head vertex to the crown height field. Positive is toward the head. */
+  function gapAt(cyl: number, side: 1 | -1, crank: number) {
+    const s = bankOf(cyl);
+    const { pinX: px } = pinX(cyl, crank);
+    const inv = new THREE.Matrix4().compose(
+      new THREE.Vector3(px, 0, CYL_Z[cyl]),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s === 1 ? 0 : Math.PI, 0)),
+      new THREE.Vector3(1, 1, 1),
+    ).invert();
+    const pose = trainPose(cyl, side, crank);
+    const face = stemPointLocal(side, 0).addScaledVector(stemDirLocal(side), pose.lift);
+    const faceP = new THREE.Vector3(s * (CYL_TOP_X + face.x), face.y, CYL_Z[cyl] + s * face.z).applyMatrix4(inv);
+    const head = valveHeadEngine(cyl, side, crank);
+    const P = head.attributes.position;
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), m = new THREE.Vector3();
+    let min = Infinity;
+    const consider = (p: THREE.Vector3) => {
+      if (p.distanceTo(faceP) > 30) return;
+      const sx = crownSurfaceX(p.y, p.z);
+      if (sx == null) return;
+      min = Math.min(min, p.x - sx);
+    };
+    for (let i = 0; i < P.count; i += 3) {
+      a.fromBufferAttribute(P, i).applyMatrix4(inv);
+      b.fromBufferAttribute(P, i + 1).applyMatrix4(inv);
+      c.fromBufferAttribute(P, i + 2).applyMatrix4(inv);
+      consider(a); consider(b); consider(c);
+      consider(m.copy(a).add(b).add(c).multiplyScalar(1 / 3));
+    }
+    return min;
+  }
+
+  it('keeps at least 1 mm across ±30° of crank around overlap TDC', () => {
+    let min = Infinity;
+    for (const cyl of [1, 2, 3, 4, 5, 6]) {
+      const overlap = FIRE_CRANK[cyl] + 360;
+      for (let crank = overlap - 30; crank <= overlap + 30; crank += 10) {
+        for (const side of [1, -1] as const) {
+          const g = gapAt(cyl, side, crank);
+          expect(g, `cyl ${cyl} side ${side} crank ${crank}`).toBeGreaterThanOrEqual(1);
+          min = Math.min(min, g);
+        }
+      }
+    }
+    expect(min).toBeGreaterThanOrEqual(1);
   });
 });

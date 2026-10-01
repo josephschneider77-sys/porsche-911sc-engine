@@ -98,15 +98,18 @@ describe('top-end batch 1', () => {
     expect(leftEx.z).toBeCloseTo(-rightEx.z, 2);
   });
 
-  it('trims the left valve cover to the cam-housing seat, matching the right cover', () => {
+  it('keeps the right cover on the housing seat and extends only the left flywheel end', () => {
     const box = (id: string) => new THREE.Box3().setFromObject(ASSET_BUILDERS[id]());
     for (const u of ['upper', 'lower'] as const) {
       const L = box(`valve-cover-${u}-left`), R = box(`valve-cover-${u}-right`);
-      expect(L.min.z, `${u} flywheel end`).toBeCloseTo(R.min.z, 0);
+      // Cylinder 6's exhaust hub sits on the flywheel end wall. The left cover
+      // and its gasket end rail move past that hub; the right cover stays put.
+      expect(R.min.z - L.min.z, `${u} left flywheel extension`).toBeGreaterThan(20);
+      expect(R.min.z - L.min.z, `${u} left flywheel extension`).toBeLessThan(36);
       expect(L.max.z, `${u} pulley end`).toBeCloseTo(R.max.z, 0);
-      expect(L.min.z, u).toBeGreaterThan(CH_Z0 - 1);
+      expect(R.min.z, `${u} right flywheel end`).toBeGreaterThan(CH_Z0 - 1);
       expect(L.max.z, u).toBeLessThan(CH_Z1 + 1);
-      expect(L.max.z - L.min.z, `${u} length`).toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
+      expect(R.max.z - R.min.z, `${u} right length`).toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
     }
   });
 

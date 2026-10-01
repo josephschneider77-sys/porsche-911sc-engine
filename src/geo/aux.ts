@@ -8,7 +8,7 @@ import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
   polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
 } from './util';
-import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
+import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ, SPARK_TIP, SPARK_Z, sparkDirHead } from '../data/layout';
 import { buildPlenumBox, AIR_NECK, BOX, WUR_FACES, runnerTunnelCutters } from './induction';
 export { INTAKE_PORT, INJ };
 export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './induction';
@@ -992,16 +992,22 @@ export function ignitionLeads() {
 }
 export function sparkPlug() {
   const p = new Part();
-  // local: tip at origin, terminal along -Y (hangs below the head)
-  // Centre electrode in the chamber. The M14 shell and its hex sit further out,
-  // below the barrel fins: a hex in the usual place crosses the fin tips.
-  p.add(lathe([[0.15, 0], [1.35, 0], [1.35, -8], [4, -14], [7, -18], [7, -30]], 16), 'steel');
+  // local: electrode tip at the origin, terminal along -Y.
+  // The nose stays at r 1.2 until t = 26. An open exhaust valve (about 6 mm lift)
+  // passes 3.7 mm from the axis, so the M14 thread cannot start at the usual 19 mm.
+  // The crush washer is at 30 mm reach, past that valve.
+  p.add(lathe([[0.15, 0], [1.2, 0], [1.2, -26], [7, -28.5], [7, -30]], 16), 'steel');
   // Crush washer. The face at local y = -30 seats on the boss.
-  p.add(lathe([[7.3, -31.1], [11.2, -31.1], [11.2, -30], [7.3, -30]], 24), 'copper');
-  p.add(hexNut(20.8, 10).translate(0, -35, 0), 'steel');
-  p.add(lathe([[0.1, -40], [8, -40], [6, -48], [5.5, -58], [3, -60], [3, -66], [0.1, -66]], 20), 'ceramic');
-  // plug connector (#21)
-  p.add(lathe([[0.1, -52], [11, -52], [11, -80], [6, -92], [0.1, -92]], 16), 'rubber');
+  p.add(lathe([[7.2, -31.2], [11, -31.2], [11, -30], [7.2, -30]], 24), 'copper');
+  p.add(hexNut(20.8, 8).translate(0, -35.2, 0), 'steel');
+  // Local ±Z is engine ±Z. The head stud beside the plug is +Z on the right bank
+  // and −Z on the left, so both faces of the 20.8 mm hex and the washer are shaved to |z| 8.6.
+  cutGroup(p.g, boxMM([-16, -42, 8.6], [16, -27, 16]), boxMM([-16, -42, -16], [16, -27, -8.6]));
+  // Insulator stops above the exhaust-stud nut. Past local y −50 it is only r 2.2,
+  // which is what still clears that stud (the axis passes about 9 mm from it).
+  p.add(lathe([[0.1, -40], [7.5, -40], [5.5, -46], [3.2, -50], [2.2, -54], [2.0, -58], [0.1, -58]], 20), 'ceramic');
+  // Boot starts below the nut and the port flange, beside the bowed primary.
+  p.add(lathe([[0.1, -86], [7, -86], [7, -108], [5, -120], [0.1, -120]], 16), 'rubber');
   return p.g;
 }
 
@@ -1046,8 +1052,19 @@ export function heatExchanger(s: 1 | -1) {
   // primary pipes from each exhaust port with 2-stud port flanges (#31 gaskets)
   for (const zc of zs) {
     const port: V3 = [X(EXH_PORT.x), EXH_PORT.y, zc];
-    const pts: V3[] = [port, [X(EXH_PORT.x), -100, zc], [X(EXH_PORT.x - 4), -130, zc + 6], [X(shellX), shellY + 20, zc + 12]];
-    p.add(tube(pts, 18, 16, 24), 'aluminized');
+    // The plug boot hangs on the +s*Z side of the port, about 27 mm from the port
+    // centre. A Ø36 pipe there meets the boot, so the primary leaves at Ø26 and
+    // bows away from the plug before it opens back up into the shell.
+    const away = -s;
+    const neck: V3[] = [port, [X(EXH_PORT.x), EXH_PORT.y - 22, zc + away * 14]];
+    const pts: V3[] = [
+      neck[1],
+      [X(EXH_PORT.x), -112, zc + away * 22],
+      [X(EXH_PORT.x - 4), -136, zc + away * 4],
+      [X(shellX), shellY + 20, zc + 12],
+    ];
+    p.add(tube(neck, 13, 12, 10), 'aluminized');
+    p.add(tube(pts, 16, 14, 20), 'aluminized');
     // waisted 2-stud flange (ring + stud ears + narrow bridges) so the spark plug beside it stays clear
     const fl = circleShape(18.5); fl.holes.push(circlePath(16) as THREE.Path);
     const parts = [fl, circleShape(8.6, -30, 0), circleShape(8.6, 30, 0), roundRect(14, 9, 2, -22, 0), roundRect(14, 9, 2, 22, 0)];
@@ -1067,6 +1084,19 @@ export function heatExchanger(s: 1 | -1) {
   // clear of the chain box (box floor >= y -125 over the heat exchanger)
   p.add(tube([[X(shellX + 12), shellY + 6, zB - 14], [X(shellX + 16), shellY + 8, zB + 10], [X(shellX + 18), shellY + 8, zB + 34]], 15, 12, 12), 'aluminized');
   p.add(yToZ(torus(15.5, 2.2, 6, 20)), 'steel', [X(shellX + 18), shellY + 8, zB + 28]);
+  // The plug axis passes beside the port flange. Take a tunnel out of the header
+  // so the flange ear and the primary stay off the insulator. r 5.0 leaves the
+  // exhaust-nut seat probes (about 5.7 mm from the axis) on the flange.
+  const [pdx, pdy, pdz] = sparkDirHead();
+  const plugDir = new THREE.Vector3(s * pdx, pdy, s * pdz);
+  const plugCuts: THREE.BufferGeometry[] = [];
+  for (const zc of zs) {
+    const tip = new THREE.Vector3((CYL_TOP_X + SPARK_TIP.x) * s, SPARK_TIP.y, zc + SPARK_Z * s);
+    const a = tip.clone().addScaledVector(plugDir, 40);
+    const b = tip.clone().addScaledVector(plugDir, 110);
+    plugCuts.push(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 5.0, 16));
+  }
+  cutGroup(p.g, ...plugCuts);
   return p.g;
 }
 export function muffler() {

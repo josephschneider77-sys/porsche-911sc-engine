@@ -4,19 +4,15 @@
  * gives one world matrix per piece. Counts/steps/claims live in data/smallSpec.ts; tests/smallParts check both agree.
  */
 import * as THREE from 'three';
-import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, woodruffGeom, spring, yToZ, cylBetween, csgSub, dropDegenerate, type V3 } from './util';
+import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, woodruffGeom, spring, yToZ, cylBetween, csgSub, type V3 } from './util';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
-<<<<<<< HEAD
 import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
-=======
-import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, coverMatrix, coverOutline, coverCamSign, VC_CAM_HALF, VC_HEAD_HALF, VC_SEAT_CAM, VC_SEAT_HEAD, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
-import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INTAKE_PORT, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
->>>>>>> ec109b0 (Clear the top end, seat the spark plugs, and drop the rod-skirt shortcut.)
 import { LIP_Z, chainLidStations } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD } from './aux';
+import { notchCoverGasket } from './valvetrain';
 import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX } from './induction';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -144,29 +140,22 @@ for (const s of BANKS) {
   def(`chain-case-plug-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [7.5, 0], [7.5, 0.6], [6, 1.6], [0.1, 1.6]], 24), 'steel'); return p; }, () => [onSurf(`chain-housing-${b}`, V(s * 230, 120, HOUSING_Z0 + 30), V(0, -1, 0))]);
   // cam housing: valve-cover gaskets (#18 upper, #20 lower), end lid (#16), splash tube, stoppers, banjo feed, temp switch
   for (const up of [true, false]) {
-    const L = CH_Z1 - CH_Z0 - 8;
+    const L = CH_Z1 - CH_Z0 - 8, w = 58;
     def(`valve-cover-gasket-${up ? 'upper' : 'lower'}-${b}`, () => {
       const e = VC_EXT(s);
-      const sh = coverOutline(s, up, VC_CAM_HALF, VC_HEAD_HALF, L + e, 7);
-      sh.holes.push(new THREE.Path(coverOutline(s, up, VC_SEAT_CAM, VC_SEAT_HEAD, L - 14 + e, 4).getPoints(8)));
-      let g: THREE.BufferGeometry = extrudeC(sh, 0.8);
+      const sh = roundRect(w, L + e, 7);
+      sh.holes.push(new THREE.Path(roundRect(52, L - 14 + e, 4).getPoints(6)));
+      const g: THREE.BufferGeometry = extrudeC(sh, 0.8);
       g.translate(0, -e / 2, -0.4);
-      // End rocker bosses (cylinder 6 on the left, and the shaft nuts) sit on the end rails.
-      // Open the middle of each end rail and leave the corner seals.
-      const cam = coverCamSign(s, up);
-      const xLo = Math.min(cam * (VC_SEAT_CAM - 1), -cam * (VC_SEAT_HEAD - 1));
-      const xHi = Math.max(cam * (VC_SEAT_CAM - 1), -cam * (VC_SEAT_HEAD - 1));
-      const yHalf = (L + e) / 2;
-      g = dropDegenerate(csgSub(g,
-        boxMM([xLo, yHalf - 24, -2], [xHi, yHalf + 4, 2]),
-        boxMM([xLo, -yHalf - 4, -2], [xHi, -yHalf + 24, 2]),
-      ));
-      return new Part().add(g, 'gasket');
+      // End rails stay closed. Side rails are notched only where a spring or a hub crosses them.
+      const part = new Part().add(g, 'gasket');
+      notchCoverGasket(part.g, s, up);
+      return part;
     }, () => [coverMatrix(s, up).clone()]);
   }
   def(`cam-end-cover-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [27, 0], [27, 1], [25, 3], [0.1, 3]], 36), 'castAlu'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc, 0, CH_Z0 - 60), Z)]);
   // Clear of the Ø46.7 journals (centre distance 30 mm). The old offset of 24 mm ran through the journals.
-  def(`cam-splash-tube-${b}`, () => new Part().add(cyl(3.5, CH_Z1 - CH_Z0 - 40, 14).translate(0, (CH_Z1 - CH_Z0 - 40) / 2, 0), 'steel'), () => [M(V((CAM_X + 18) * s, 24, CH_Z0 + 20), Z)]);
+  def(`cam-splash-tube-${b}`, () => new Part().add(cyl(3.5, CH_Z1 - CH_Z0 - 40, 14).translate(0, (CH_Z1 - CH_Z0 - 40) / 2, 0), 'steel'), () => [M(V((CAM_X - 22) * s, 26, CH_Z0 + 20), Z)]);
   def(`cam-housing-stoppers-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, -4], [5, -4], [5, 0], [5.5, 0], [5.5, 1.2], [0.1, 1.2]], 18), 'steel'); return p; }, () => [-1, 1].map((k) => onSurf(`cam-housing-${b}`, V(Xc - 24 * s, 24 * k, CH_Z0 - 60), Z)));
   def(`cam-oil-banjo-${b}`, () => { const p = banjo(); p.add(lathe([[5, 21], [8, 21], [8, 22.5], [5, 22.5]], 20), 'brass'); p.add(lathe([[5, 22.5], [8, 22.5], [8, 24], [5, 24]], 20), 'brass'); p.add(lathe([[0.1, 24], [6, 24], [6, 32], [0.1, 32]], 16), 'zincPlate'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc - 14 * s, -36, CH_Z0 - 80), Z, V(s, 0, 0))]);
 }

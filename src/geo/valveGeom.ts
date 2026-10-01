@@ -2,14 +2,17 @@
  * Shared valve-axis geometry for the piston crown, the head and the cam housing.
  * Imported by core.ts and valvetrain.ts — keep this module free of those imports.
  *
- * The seated valve is shifted out along the stem (`SEAT_SHIFT`) so a closed head
- * clears the piston. Crown pockets are eyebrows in the dome height field only:
- * they never rewrite the ring-belt lathe, and the floor stays above the top ring land.
+ * Face centres sit on the bore centreline, intake at y +22 and exhaust at y −23,
+ * with the real head diameters. The tips stagger by `LOBE_DZ` so the two lobes
+ * on one cylinder do not occupy the same cam station. Crown pockets are eyebrows
+ * in the dome height field only: at most 3 mm deep, and the shell under them
+ * stays at least 4 mm thick. The valves are not slid along the stem for clearance.
  */
 import * as THREE from 'three';
 import { SPEC, CYL_TOP_X, CYL_Z } from '../data/layout';
 import { DEG, cylBetween } from './util';
 
+/** Axial stagger of the stem tips. The faces themselves stay at z = 0. */
 export const LOBE_DZ = 7;
 export const VALVE_LEN = 112;
 export const STEM_R = 4.5;
@@ -18,32 +21,39 @@ export const VALVE_DIA = { in: 49, ex: 41.5 } as const;
 export const GUIDE_Y0 = 22;
 export const GUIDE_Y1 = 64;
 /**
- * Slide the whole seated valve out along the stem (away from the piston).
- * Closed intake rim then sits high enough that a ~1.25 mm eyebrow pocket
- * stays above the crown underside and the top ring land.
+ * Head-local face centre. x is far enough into the chamber that the tilted rim
+ * dips only a couple of millimetres into the dome, which a 3 mm eyebrow can clear.
  */
-export const SEAT_SHIFT = 2.6;
+export const VALVE_FACE = { in: { x: 8.7, y: 22, z: 0 }, ex: { x: 8.9, y: -23, z: 0 } } as const;
 /** Piston-local x of the head deck at TDC. Pin |x| = crankRadius + rodLength. */
 export const PISTON_DECK = CYL_TOP_X - (SPEC.crankRadius + SPEC.rodLength);
-/** Axial floor of a crown pocket. The top ring groove ends at x = 29. */
-export const DOME_FLOOR = 30.4;
-/** Clearance from the closed valve face to the eyebrow plane, along the stem. */
-const VALVE_MARGIN = 1.25;
+/** How far the eyebrow plane sits off the valve face, toward the piston (opposite the stem). */
+const POCKET_CLEAR = 1.2;
+/** Crescent depth limit, measured down from the uncut dome. */
+const POCKET_DEPTH = 3;
+/** Minimum crown thickness under a pocket. */
+const CROWN_THICK = 4;
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+
+export function faceCentre(side: 1 | -1): THREE.Vector3 {
+  const f = side > 0 ? VALVE_FACE.in : VALVE_FACE.ex;
+  return V(f.x, f.y, f.z);
+}
 
 /** Stem unit vector in the head frame, from the seat toward the tip. */
 export function stemDirLocal(side: 1 | -1): THREE.Vector3 {
   const a = side > 0 ? VALVE_ANGLE.in : VALVE_ANGLE.ex;
-  return V(Math.cos(a), side * Math.sin(a), 0);
+  const face = faceCentre(side);
+  const tipZ = side > 0 ? -LOBE_DZ : LOBE_DZ;
+  const dz = (tipZ - face.z) / VALVE_LEN;
+  const k = Math.sqrt(Math.max(0, 1 - dz * dz));
+  return V(Math.cos(a) * k, side * Math.sin(a) * k, dz);
 }
 
 /** Head-local point on the seated valve, `y` mm from the face along the stem. */
 export function stemPointLocal(side: 1 | -1, y: number): THREE.Vector3 {
-  const localZ = side > 0 ? -LOBE_DZ : LOBE_DZ;
-  const well = V(56, side * 38, localZ);
-  const atGuide = 58;
-  return stemDirLocal(side).multiplyScalar(y - atGuide + SEAT_SHIFT).add(well);
+  return faceCentre(side).addScaledVector(stemDirLocal(side), y);
 }
 
 export function bankSign(cyl: number): 1 | -1 {
@@ -65,35 +75,72 @@ export function crownUndersideX(r: number): number {
   return (top - 6) + ((top - 7) - (top - 6)) * t;
 }
 
+const BORE_R = SPEC.bore / 2 - 0.1;
+const SQUISH_R = BORE_R - 7.5;
+
+/** Uncut crown height (piston-local x): pent-roof dome, then the squish band out to the bore. */
+export function uncutCrownX(y: number, z: number): number | null {
+  const top = SPEC.compressionHeight;
+  const r = Math.hypot(y, z);
+  if (r > BORE_R + 0.05) return null;
+  if (r >= SQUISH_R) {
+    const knee = BORE_R - 1;
+    if (r <= knee) {
+      const u = (r - SQUISH_R) / (knee - SQUISH_R);
+      return (top + 0.6) * (1 - u) + top * u;
+    }
+    const u = Math.min(1, (r - knee) / 1);
+    return top * (1 - u) + (top - 1) * u;
+  }
+  const t = r / SQUISH_R;
+  const domeH = top + 0.6 + 11.4 * Math.pow(Math.max(0, 1 - t * t), 0.85);
+  return domeH - 2.2 * Math.pow(Math.abs(z) / SQUISH_R, 2);
+}
+
 /**
- * Eyebrow pocket on the dome height field. `crownX` is the uncut dome height at (y, z).
- * Returns a lower x only inside the valve-head footprint. The floor is the higher of
- * the top-ring-land limit and 1.25 mm above the crown underside.
+ * Crown surface the piston mesh uses. Eyebrows run across the dome and the squish
+ * under each valve: no deeper than 3 mm, and at least 4 mm of crown under them.
+ */
+export function crownSurfaceX(y: number, z: number): number | null {
+  const uncut = uncutCrownX(y, z);
+  if (uncut == null) return null;
+  return domeReliefX(y, z, uncut, Math.hypot(y, z));
+}
+
+/**
+ * Eyebrow pocket. `crownX` is the uncut height at (y, z). The plane sits 1.2 mm
+ * piston-side of the valve face. The outer lip of the squish is left full height.
  */
 export function domeReliefX(y: number, z: number, crownX: number, r: number): number {
-  const R = SPEC.bore / 2 - 0.1;
-  const rd = R - 7.5;
-  if (r > rd - 0.15) return crownX;
-  const floor = Math.max(DOME_FLOOR, crownUndersideX(r) + 1.25);
+  const R = BORE_R;
+  if (r > R - 0.5) return crownX;
+  const floor = Math.max(crownUndersideX(r) + CROWN_THICK, crownX - POCKET_DEPTH);
   let x = crownX;
   for (const side of [1, -1] as const) {
     const headR = (side > 0 ? VALVE_DIA.in : VALVE_DIA.ex) / 2;
     const d = stemDirLocal(side);
     const face = stemPointLocal(side, 0);
-    const Fx = face.x + PISTON_DECK - VALVE_MARGIN * d.x;
-    const Fy = face.y - VALVE_MARGIN * d.y;
-    const Fz = face.z - VALVE_MARGIN * d.z;
+    const fx = face.x + PISTON_DECK;
+    const dx = crownX - fx;
+    const dy = y - face.y;
+    const dz = z - face.z;
+    const axial = dx * d.x + dy * d.y + dz * d.z;
+    const perp2 = dx * dx + dy * dy + dz * dz - axial * axial;
+    // Flat under the head, then a short blend outside the rim so the crescent closes.
+    const pocketR = headR + 1.6;
+    // The head is several millimetres thick toward the tip, so the crown under that
+    // thickness is part of the crescent. Past the fillet there is nothing to clear.
+    if (perp2 > pocketR * pocketR || axial > 8) continue;
+    const Fx = fx - POCKET_CLEAR * d.x;
+    const Fy = face.y - POCKET_CLEAR * d.y;
+    const Fz = face.z - POCKET_CLEAR * d.z;
     const planeX = Fx - ((y - Fy) * d.y + (z - Fz) * d.z) / d.x;
-    // Footprint in the crown's yz plane. The head is tilted, so distance-to-axis of the
-    // plane point overstates the rim; the disc's yz projection fits in headR.
-    const rad = Math.hypot(y - face.y, z - face.z);
-    const pocketR = headR + 3.2;
-    const blend = 2.8;
-    if (rad >= pocketR) continue;
-    const inner = pocketR - blend;
+    const perp = Math.sqrt(Math.max(0, perp2));
+    const blend = 1.4;
+    const inner = headR + 0.2;
     let pocket = planeX;
-    if (rad > inner) {
-      const u = (rad - inner) / blend;
+    if (perp > inner) {
+      const u = (perp - inner) / blend;
       const s = u * u * (3 - 2 * u);
       pocket = planeX + (crownX - planeX) * s;
     }
@@ -281,7 +328,7 @@ export function camSpringCutters(s: 1 | -1): THREE.BufferGeometry[] {
   for (const c of cyls) for (const side of [1, -1] as const) {
     const a = headToEngine(c, stemPointLocal(side, 48));
     const b = headToEngine(c, stemPointLocal(side, 120));
-    cuts.push(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 15.2, 24));
+    cuts.push(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 20, 20));
   }
   return cuts;
 }

@@ -9,6 +9,8 @@ import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PARTS } from '../src/data/parts';
 import { fastenerSets } from '../src/geo/fasteners';
 import { SMALL_SPECS } from '../src/data/smallSpec';
+import { rockerStations } from '../src/geo/valvetrain';
+import { coverMatrix } from '../src/geo/core';
 
 export interface Hit { a: string; b: string; tris: number; box: THREE.Box3 }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
@@ -46,6 +48,31 @@ function solid(id: string, asset: string, pos: number[] | undefined, rot: number
   return { id, geom, bvh, box: geom.boundingBox!.clone() };
 }
 
+const ROCKER_BANDS = [1, -1].flatMap((s) => rockerStations(s as 1 | -1).map((st) => ({ ...st, s: s as 1 | -1 })));
+const COVER_INV = new Map<string, THREE.Matrix4>();
+for (const s of [1, -1] as const) for (const up of [true, false]) {
+  COVER_INV.set(`valve-cover-${up ? 'upper' : 'lower'}-${s > 0 ? 'right' : 'left'}`, coverMatrix(s, up).clone().invert());
+}
+const coverLocal = new THREE.Vector3();
+/** Shaft-in-bore and cover-on-flange contacts are the joint. Anything else between these parts is a real clash. */
+function seatedContact(a: string, b: string, p: THREE.Vector3): boolean {
+  const rocker = /^rockers-(left|right)$/.test(a) ? a : /^rockers-(left|right)$/.test(b) ? b : '';
+  const cover = /^valve-cover-(upper|lower)-(left|right)$/.test(a) ? a : /^valve-cover-(upper|lower)-(left|right)$/.test(b) ? b : '';
+  const house = a.startsWith('cam-housing-') || b.startsWith('cam-housing-');
+  if (!house) return false;
+  if (rocker) {
+    const side = rocker.endsWith('left') ? -1 : 1;
+    return ROCKER_BANDS.some((st) => st.s === side && Math.hypot(p.x - st.x, p.y - st.y) < 13 && Math.abs(p.z - st.z) < st.half + 8);
+  }
+  if (cover) {
+    coverLocal.copy(p).applyMatrix4(COVER_INV.get(cover)!);
+    // The land and the lip (about z 0–2). Erosion can push a seated vertex a couple of
+    // millimetres; the pan wall is well above this.
+    return coverLocal.z < 4.5 && coverLocal.z > -3;
+  }
+  return false;
+}
+
 export function findCollisions(tol = 1, only?: (id: string) => boolean): Hit[] {
   const solids = PARTS.filter((p) => !only || only(p.id)).map((p) => solid(p.id, p.asset, p.position, p.rotation, tol));
   const hits: Hit[] = [];
@@ -61,6 +88,14 @@ export function findCollisions(tol = 1, only?: (id: string) => boolean): Hit[] {
           t1.getNormal(n1); t2.getNormal(n2);
           if (Math.abs(n1.dot(n2)) > 0.9995 && Math.abs(n1.dot(v0.subVectors(t2.a, t1.a))) < 0.05) return false;
           if (!t1.intersectsTriangle(t2, seg)) return false;
+          // Nearly coplanar faces can report a segment that does not lie on either triangle.
+          const onTri = (tri: { closestPointToPoint: (p: THREE.Vector3, t: THREE.Vector3) => THREE.Vector3 }, p: THREE.Vector3) => {
+            tri.closestPointToPoint(p, v0);
+            return v0.distanceToSquared(p) < 0.04;
+          };
+          if (!onTri(t1, seg.start) || !onTri(t1, seg.end) || !onTri(t2, seg.start) || !onTri(t2, seg.end)) return false;
+          // Rocker shafts may sit in the tower bores, and a cover may sit on the gasket land.
+          if (seatedContact(A.id, B.id, seg.start) && seatedContact(A.id, B.id, seg.end)) return false;
           tris++; box.expandByPoint(seg.start).expandByPoint(seg.end); return tris >= 400;
         },
       } as any);
@@ -104,15 +139,11 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('flywheel', 'clutch-disc|pressure-plate', 'JOINT clutch stack'), pair('clutch-disc', 'pressure-plate', 'JOINT clutch stack'),
   // ---- JOINT: top end
   pair('cylinder', 'head', 'JOINT cylinder/head sealing joint'),
-<<<<<<< HEAD
-  pair('head', 'valves|spark-plug', 'JOINT guides/seats, plug thread'),
-  pair('cam-housing', 'head|camshaft|rockers|valves|valve-cover-upper|valve-cover-lower', 'JOINT cam housing on heads, bearings, rocker shafts, cover flanges'),
-  pair('camshaft', 'rockers', 'JOINT lobes on rocker pads'), pair('rockers', 'valves', 'JOINT rocker tips on stems'),
-=======
   pair('head', 'intake-runner', 'JOINT intake-port flange'),
   ...sameCyl('head', 'spark-plug', 'JOINT M14 thread in the plug boss and the crush washer seated on the boss face'),
-  pair('cam-housing', 'head|rockers|valve-cover-upper|valve-cover-lower', 'JOINT cam housing on the heads, rocker shafts in the towers, cover flanges'),
->>>>>>> ec109b0 (Clear the top end, seat the spark plugs, and drop the rod-skirt shortcut.)
+  pair('cam-housing', 'head', 'JOINT cam housing seated on the heads'),
+  // Rocker-shaft × tower-bore and cover × gasket-land contacts are dropped in findCollisions
+  // (seatedContact). They are not a blanket pair: an arm or a cover wall still fails.
   // ---- JOINT: cam drive (same bank only)
   ...sameSide('cam-housing', 'chain-housing', 'JOINT cam-housing end face gasketed into the chain box'),
   ...sameSide('camshaft', 'cam-sprocket', 'JOINT sprocket on cam nose'),
@@ -134,7 +165,7 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('warm-up-regulator', 'crankcase-left', 'JOINT regulator flange on the case pad'),
   pair('ignition-leads', 'distributor|spark-plug', 'JOINT leads in the cap towers / plug connectors'),
   // ---- SIMPLIFIED (pre-v3, not cam drive / exhaust)
-  pair('crankcase-right|crankcase-left', 'conrod|piston|head|flywheel|pressure-plate', 'SIMPLIFIED case interior / head studs / rear seal boss not relieved'),
+  pair('crankcase-right|crankcase-left', 'conrod|piston|flywheel|pressure-plate', 'SIMPLIFIED case interior / rear seal boss not relieved'),
   pair('cam-key', 'cam-shim', 'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)'),
   pair('crankcase-left', 'oil-pump-nuts', 'SIMPLIFIED one pump-cover nut corner grazes the hollow-case inner wall (PR #8 casting, 2 triangles)'),
   pair('ignition-leads', '.*', 'SIMPLIFIED flexible ignition leads drawn on an approximate path (they drape over other parts)'),
@@ -148,7 +179,12 @@ export const MATING: [RegExp, RegExp, string][] = [
 const FASTENER_JOINTS = new Set<string>();
 for (const f of fastenerSets()) for (const it of f.items) {
   FASTENER_JOINTS.add(`${f.id}|${it.seat}`); FASTENER_JOINTS.add(`${f.id}|${it.into}`);
-  if (it.stud) FASTENER_JOINTS.add(`${it.into}|${it.seat}`);
+  // A stud may pass through the part it clamps. That does not excuse the cover and the
+  // housing occupying each other: the cover sits on the land, and a wall through the
+  // housing is still a clash. Shaft-in-bore is handled in findCollisions.
+  if (it.stud && !(/^cam-housing-(left|right)$/.test(it.into) && /^valve-cover-(upper|lower)-(left|right)$/.test(it.seat))) {
+    FASTENER_JOINTS.add(`${it.into}|${it.seat}`);
+  }
 }
 // screw + nut pairs (thread engagement)
 for (const sp of SMALL_SPECS) for (const h of sp.hosts) FASTENER_JOINTS.add(`${sp.id}|${h}`);
