@@ -4,7 +4,7 @@
  * gives one world matrix per piece. Counts/steps/claims live in data/smallSpec.ts; tests/smallParts check both agree.
  */
 import * as THREE from 'three';
-import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, woodruffGeom, spring, yToZ, cylBetween, type V3 } from './util';
+import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, woodruffGeom, spring, yToZ, cylBetween, csgSub, type V3 } from './util';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
@@ -100,7 +100,22 @@ for (const s of BANKS) {
   // cam housing: valve-cover gaskets (#18 upper, #20 lower), end lid (#16), splash tube, stoppers, banjo feed, temp switch
   for (const up of [true, false]) {
     const L = CH_Z1 - CH_Z0 - 8, w = 58;
-    def(`valve-cover-gasket-${up ? 'upper' : 'lower'}-${b}`, () => { const e = VC_EXT(s); const sh = roundRect(w, L + e, 7); sh.holes.push(new THREE.Path(roundRect(52, L - 14 + e, 4).getPoints(6))); const g = extrudeC(sh, 0.8); g.translate(0, -e / 2, -0.4); return new Part().add(g, 'gasket'); }, () => [coverMatrix(s, up).clone()]);
+    def(`valve-cover-gasket-${up ? 'upper' : 'lower'}-${b}`, () => {
+      const e = VC_EXT(s);
+      const sh = roundRect(w, L + e, 7);
+      sh.holes.push(new THREE.Path(roundRect(52, L - 14 + e, 4).getPoints(6)));
+      let g = extrudeC(sh, 0.8);
+      g.translate(0, -e / 2, -0.4);
+      // Left bank only: cylinder 6's rocker shafts sit so close to the flywheel end that the
+      // screw shank and the intake nut land on the end rail. Open the middle of that rail
+      // (the hardware is already inside the cavity in x) and leave the two corner seals.
+      if (s < 0) {
+        const yOut = -(L + e) / 2 - 1 - e / 2;
+        const yIn = -(L - 14 + e) / 2 + 2 - e / 2;
+        g = csgSub(g, boxMM([-27, yOut, -2], [27, yIn, 2]));
+      }
+      return new Part().add(g, 'gasket');
+    }, () => [coverMatrix(s, up).clone()]);
   }
   def(`cam-end-cover-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [27, 0], [27, 1], [25, 3], [0.1, 3]], 36), 'castAlu'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc, 0, CH_Z0 - 60), Z)]);
   // Clear of the Ø46.7 journals (centre distance 30 mm). The old offset of 24 mm ran through the journals.
