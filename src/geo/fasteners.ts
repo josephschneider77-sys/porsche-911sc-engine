@@ -33,7 +33,7 @@ export interface FSet {
 /** Nominal hardware dimensions by thread size (mm). */
 export const DIM: Record<number, { af: number; h: number; wr: number; wt: number }> = {
   6: { af: 10, h: 5, wr: 6.25, wt: 1.2 }, 8: { af: 13, h: 6.5, wr: 8, wt: 1.6 }, 10: { af: 17, h: 8, wr: 10, wt: 2 },
-  12: { af: 19, h: 10, wr: 12, wt: 2.5 }, 16: { af: 24, h: 13, wr: 15, wt: 3 }, 5: { af: 8, h: 4, wr: 5, wt: 1 },
+  12: { af: 19, h: 10, wr: 12, wt: 3.4 }, 16: { af: 24, h: 13, wr: 15, wt: 3 }, 5: { af: 8, h: 4, wr: 5, wt: 1 },
   22: { af: 32, h: 10, wr: 16, wt: 2.5 },
 };
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -110,7 +110,7 @@ export function fastenerSets(): FSet[] {
   // flywheel bolts (seat on the hub rear face), clutch bolts (seat on the cover flange)
   set('flywheel-bolts', 'pan', 10, { len: 21, mat: 'darkSteel' }, ring(9, 36).map(([x, y]) => ({ p: V(x, y, FLY_Z - 14), n: V(0, 0, -1), seat: 'flywheel', into: 'crankshaft' })));
   set('clutch-bolts', 'pan', 8, { spring: true, len: 14, mat: 'darkSteel' }, ring(9, 129, 0.2).map(([x, y]) => ({ p: V(x, y, FLY_Z - 34.6), n: V(0, 0, -1), seat: 'pressure-plate', into: 'flywheel' })));
-  set('pulley-bolt', 'bolt', 12, { washer: 24, len: 40, mat: 'darkSteel' }, [{ p: V(0, 0, 324), n: V(0, 0, 1), seat: 'crank-pulley', into: 'crankshaft' }]);
+  set('pulley-bolt', 'bolt', 12, { washer: 12.5, len: 22, mat: 'zincPlate' }, [{ p: V(0, 0, 324), n: V(0, 0, 1), seat: 'crank-pulley', into: 'crankshaft' }]);
   set('fan-pulley-nut', 'nut', 16, { washer: 20, grip: 24, embed: 6, mat: 'darkSteel' }, [{ p: V(0, FAN.y, FAN.zBelt + 10), n: V(0, 0, 1), seat: 'fan-pulley', into: 'alternator', stud: true }]);
   set('oil-pump-nuts', 'nut', 8, { tab: true, grip: 20, embed: 4 }, OIL_PUMP.studs.slice(0, 3).map(([x, y]) => ({ p: V(x, y, OIL_PUMP.coverFace), n: V(0, 0, -1), seat: 'oil-pump', into: 'oil-pump', stud: true })));
   set('sump-nuts', 'nut', 6, { spring: true, grip: SUMP.grip, embed: 12 }, ring(12, SUMP.boltR, Math.PI / 12).map(([x, z]) =>

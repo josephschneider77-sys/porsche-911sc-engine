@@ -112,12 +112,30 @@ export function fanPulley() {
   return p.g;
 }
 export function crankPulley() {
+  // 930/03 RoW, no A/C: one V-groove pressed-steel dish (930 102 028 09). The groove pitch
+  // stays on the fan-belt line (r 73, z FAN.zBelt) — a 134 mm OD would drop the belt off that line.
   const p = new Part();
-  p.add(yToZ(vPulley(FAN.rCrankPulley, 2, 14)), 'yellowZinc', [0, 0, 290]);
-  p.add(yToZ(lathe([[18, 0], [34, 0], [34, 6], [18, 6]], 36)), 'yellowZinc', [0, 0, 318]);
-  // central bolt + washer: fasteners.ts (pulley-bolt)
-  // timing marks (Z1 TDC notch + paint)
-  p.add(boxMM([-1, FAN.rCrankPulley - 6, 316], [1, FAN.rCrankPulley, 318.5]), 'ceramic');
+  const prof: [number, number][] = [
+    [6.6, 293],
+    [74, 293],
+    [81, 296.4],
+    [81, 300.2],
+    [64, 303],
+    [81, 305.8],
+    [81, 311],
+    [66, 317],
+    [50, 324],
+    [36, 330],
+    [24, 334],
+    [17.6, 335],
+    [17.6, 322.2],
+    [6.6, 322.2],
+  ];
+  const body = yToZ(lathe(prof, 72));
+  const notch = boxMM([-1.5, 76, 298], [1.5, 84, 309]);
+  p.add(csgSub(body, notch), 'yellowZinc');
+  // recessed hub: washer face exactly at z 324, normal +Z, bore for the M12 bolt
+  p.add(extrude(ringShape(16.8, 6.6), 1.15), 'yellowZinc', [0, 0, 322.85]);
   return p.g;
 }
 export function fanBelt() {
