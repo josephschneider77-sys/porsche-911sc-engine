@@ -137,31 +137,31 @@ function perBank(): PartDef[] {
     out.push({
       id: `timing-chain-${b}`, name: `Timing chain, ${b}`, system: 'camdrive', asset: `timing-chain-${b}`, explode: [s * 380, -40, 240],
       catalog: [{ ill, pos: '1', pn: '901 105 529 00', qty: 1, note: 'Duplex roller chain; can only be removed after splitting the case' }],
-      description: 'Roller chain from the intermediate-shaft sprocket to the cam sprocket, tensioned by a hydraulic tensioner on the slack side.',
-      specs: { Pitch: '9.525 mm (3/8")', Type: 'Duplex (modelled simplex)' },
+      description: 'Duplex roller chain from the 18 T intermediate-shaft sprocket (inside the case chain well) out through the open inner edge of the chain box to the 27 T cam sprocket; the slack lower run passes over the idler sprocket.',
+      specs: { Pitch: '9.525 mm (3/8")', Type: 'Duplex', Links: '86 (model)', Plane: s === 1 ? 'z 258 mm' : 'z 235 mm' },
     });
     out.push({
       id: `cam-sprocket-${b}`, name: `Camshaft sprocket, ${b}`, system: 'camdrive', asset: `cam-sprocket-${b}`, explode: [s * 520, 40, 320],
       catalog: [{ ill, pos: '38', pn: '901 105 546 02', qty: 1 }, { ill, pos: '36', pn: '901 105 583 01', note: 'Flange (timing adjustment)' }],
       description: 'Cam sprocket with drilled flange for vernier-style cam timing adjustment (dowel #39 through flange holes).',
-      specs: { Adjustment: 'Dowel-pin vernier' },
+      specs: { Adjustment: 'Dowel-pin vernier', Teeth: '27 (est. from photos, Ø82 pitch)', Speed: '½ crank' },
     });
     out.push({
       id: `chain-tensioner-${b}`, name: `Chain tensioner & guides, ${b}`, system: 'camdrive', asset: `chain-tensioner-${b}`, explode: [s * 360, -120, 320],
       catalog: [{ ill, pos: '10', pn: '930 105 049 00', note: 'Chain adjuster (hydraulic, oil-fed on later cars)' }, { ill, pos: '5/6', pn: s === 1 ? '901 105 506 02 / 901 105 055 00' : '901 105 505 02 / 901 105 055 00', note: 'Idler arm / idler sprocket' }, { ill, pos: '2', pn: '911 105 222 06', note: 'Guide rail' }],
-      description: 'Idler arm and sprocket pushed onto the chain by the chain adjuster; plastic guide ramps control chain whip.',
-      specs: { Type: 'Spring/hydraulic tensioner' },
+      description: 'Idler arm pivoting outboard of the 15 T idler sprocket, which sits under the slack run; the hydraulic chain adjuster lies inclined in the lower inner corner of the box and pushes the arm tail up. Plastic guide ramps above the tight run and under the slack run control chain whip.',
+      specs: { Type: 'Hydraulic adjuster (930/03: sealed, spring-assisted)', Idler: '15 T' },
     });
     out.push({
       id: `chain-housing-${b}`, name: `Chain housing, ${b}`, system: 'camdrive', asset: `chain-housing-${b}`, explode: [s * 340, -20, 170],
       catalog: [{ ill: '103-05', pos: s === 1 ? '2' : '1', pn: s === 1 ? '930 105 062 01' : '930 105 061 02', qty: 1 }],
-      description: 'Cast chain case bolted to the crankcase and cam housing at the pulley end, enclosing the cam drive.',
-      specs: { Material: 'Cast Al', Gasket: '930 105 193 00' },
+      description: 'Cast chain box bolted to the crankcase face at the pulley end, outboard of the case chain well; the cam-housing end is gasketed into its outer end. Straight inner edge, rounded cam end, floor rising from the tensioner corner so it sits well above the heat exchanger.',
+      specs: { Material: 'Cast Al', Gasket: '930 105 193 00', 'End view': '≈229 × 200 mm (est.)', Depth: '70 mm to cover face (est.)' },
     });
     out.push({
       id: `chain-housing-lid-${b}`, name: `Chain housing cover, ${b}`, system: 'camdrive', asset: `chain-housing-lid-${b}`, explode: [s * 380, -20, 380],
       catalog: [{ ill: '103-05', pos: s === 1 ? '7' : '6', pn: s === 1 ? '930 105 064 01' : '930 105 063 01', qty: 1 }],
-      description: 'Chain case cover with the round tensioner access cover (103-10 #31).',
+      description: 'Flat cast chain-box cover: straight inner edge, rounded cam end, horizontal and diagonal stiffening ribs, low cam-centre boss and ~13 perimeter nuts.',
       specs: { Gasket: s === 1 ? '930 105 192 01' : '930 105 191 03' },
     });
     out.push({
@@ -194,14 +194,14 @@ const single: PartDef[] = [
   { id: 'crank-gears', name: 'Crank timing gear & distributor drive gear', system: 'crank', asset: 'crank-gears', explode: [0, -30, 90],
     catalog: [{ ill: '102-00', pos: '8', pn: '901 102 111 00', note: 'Timing gear (drives intermediate shaft)' }, { ill: '102-00', pos: '10', pn: '930 102 115 01', note: 'Drive wheel (distributor)' }],
     description: 'Gear on the crank nose driving the intermediate shaft, plus the helical gear that drives the distributor shaft.',
-    specs: { Drive: 'Crank → intermediate shaft (gear)', 'Tooth counts': 'Illustrative' } },
+    specs: { Drive: 'Crank → intermediate shaft (gear)', 'Tooth counts': '36 : 48 (est., module 2, 84 mm centres)' } },
   { id: 'intermediate-shaft', name: 'Intermediate shaft', system: 'camdrive', asset: 'intermediate-shaft', explode: [0, -180, 60],
     catalog: [{ ill: '103-15', pos: '43', pn: '930 105 013 01', qty: 1, note: 'Size 0 (gear code matched to case)' }],
-    description: 'Lay shaft below the crank, gear-driven from the crankshaft. Its two sprockets drive the left and right cam chains; its end drives the oil pump.',
-    specs: { Bearings: '2 plain', 'Drives': 'Cam chains + oil pump' } },
-  { id: 'oil-pump', name: 'Oil pump (pressure + scavenge)', system: 'lubrication', asset: 'oil-pump', explode: [0, -200, 160],
+    description: 'Lay shaft below the crank, gear-driven from the crankshaft at ¾ crank speed. Its two 18 T sprockets at the pulley end drive the left and right cam chains; its flywheel end drives the oil pump through a splined connecting shaft.',
+    specs: { Bearings: '2 plain', 'Drives': 'Cam chains + oil pump', Sprockets: '2 × 18 T duplex (est.)' } },
+  { id: 'oil-pump', name: 'Oil pump (pressure + scavenge)', system: 'lubrication', asset: 'oil-pump', explode: [0, -200, -140],
     catalog: [{ ill: '104-00', pos: '1', pn: '911 107 008 01', qty: 1 }, { ill: '104-00', pos: '6', pn: '901 107 121 00', note: 'Connecting shaft' }],
-    description: 'Two-stage gear pump in the bottom of the case: the scavenge stage returns oil to the remote tank, the pressure stage feeds the engine (dry-sump system).',
+    description: 'Two-stage gear pump in the bottom of the case at the flywheel end, driven off the back of the intermediate shaft: the scavenge stage returns oil to the remote tank, the pressure stage feeds the engine (dry-sump system).',
     specs: { Type: 'Gear, 2-stage', System: 'Dry sump, ~13 L total (typ.)' } },
   { id: 'sump-plate', name: 'Sump cover plate & oil strainer', system: 'lubrication', asset: 'sump-plate', explode: [0, -300, 0],
     catalog: [{ ill: '101-05', pos: '38', pn: '930 107 314 00', qty: 1, note: 'Oil strainer' }, { ill: '101-05', pos: '39', pn: '930 101 391 01', qty: 2, note: 'Gaskets' }, { ill: '101-05', pos: '41', pn: '911 107 176 03', note: 'Drain plug' }],

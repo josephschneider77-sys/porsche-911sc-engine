@@ -115,6 +115,13 @@ viewer.load(import.meta.env.BASE_URL, (f) => { $('load-text').textContent = `Loa
     if (q.has('part')) showInfo(q.get('part'));
     if (q.has('isolate')) { viewer.isolate(q.get('isolate')); viewer.focus(q.get('isolate')!); }
     viewer.snap();
+    // shareable camera: ?cam=x,y,z&target=x,y,z (engine mm)
+    const v3 = (k: string) => (q.get(k) ?? '').split(',').map(Number);
+    if (q.has('cam') && v3('cam').length === 3 && v3('cam').every(Number.isFinite)) {
+      const vv = viewer as any; vv.camera.position.set(...v3('cam'));
+      if (q.has('target') && v3('target').length === 3) vv.controls.target.set(...v3('target'));
+      vv.controls.update(); vv.kick?.();
+    }
     (window as any).__ready = true;
   })
   .catch((e) => { $('load-text').textContent = `Failed to load: ${e}`; console.error(e); });

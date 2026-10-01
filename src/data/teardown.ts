@@ -1,6 +1,10 @@
 import { PARTS } from './parts';
 
-export interface TeardownStep { id: string; title: string; note: string; parts: string[] }
+/**
+ * `carries`: parts that come off attached to one of this step's parts (carrier id -> carried ids) and are only
+ * dismantled from it in a later step — e.g. the heads and valves lifting off with their cam housing.
+ */
+export interface TeardownStep { id: string; title: string; note: string; parts: string[]; carries?: Record<string, string[]> }
 const cyl = (prefix: string, list = [1, 2, 3, 4, 5, 6]) => list.map((c) => `${prefix}-${c}`);
 const both = (prefix: string) => [`${prefix}-right`, `${prefix}-left`];
 
@@ -25,20 +29,21 @@ export const TEARDOWN: TeardownStep[] = [
   { id: 'pulley', title: 'Crankshaft pulley', note: 'Central bolt, hold the crank from the flywheel flange.', parts: ['crank-pulley'] },
   { id: 'valve-covers', title: 'Valve covers', note: 'Upper and lower covers on both cam housings.', parts: ['valve-cover-upper-right', 'valve-cover-lower-right', 'valve-cover-upper-left', 'valve-cover-lower-left'] },
   { id: 'chain-covers', title: 'Chain housing covers & tensioners', note: 'Remove covers, oil lines and both chain tensioners; idler arms off.', parts: [...both('chain-housing-lid'), ...both('chain-tensioner')] },
-  { id: 'cam-sprockets', title: 'Camshaft sprockets', note: 'Hold the sprocket (P202-type tool); lift chains off — they stay in the case until it is split.', parts: both('cam-sprocket') },
+  { id: 'cam-sprockets', title: 'Camshaft sprockets & timing chains', note: 'Hold the sprocket (P202-type tool) and lift the chains off. On the real engine the chains then hang slack round the intermediate shaft until the case is split; the viewer takes them away here.', parts: [...both('cam-sprocket'), ...both('timing-chain')] },
   { id: 'rockers', title: 'Rocker arms & shafts', note: 'Label each rocker with its shaft (e.g. “#3 intake”).', parts: both('rockers') },
   { id: 'camshafts', title: 'Camshafts', note: 'Slide out toward the chain end without scoring the housing.', parts: both('camshaft') },
   { id: 'chain-housings', title: 'Chain housings', note: 'Now the chain cases can be unbolted.', parts: both('chain-housing') },
-  { id: 'cam-housings', title: 'Cam housings (with heads on the bench)', note: 'Remove the 12 head-stud nuts per bank; lift cam housing + 3 heads off as one unit.', parts: both('cam-housing') },
-  // Valves before heads: the viewer keeps the heads in place, so pulling the heads first would leave the valve sets floating.
-  { id: 'valves', title: 'Valves & springs', note: 'Shown in situ (done on the bench): spring compressor; keep valves in order.', parts: cyl('valves') },
-  { id: 'heads', title: 'Cylinder heads', note: 'Separate the heads from the cam housing on the bench.', parts: cyl('head') },
+  { id: 'cam-housings', title: 'Cam housings with heads', note: 'Remove the 12 head-stud nuts per bank; lift cam housing + 3 heads (valves still in them) off the studs as one unit.', parts: both('cam-housing'),
+    carries: { 'cam-housing-right': [...cyl('head', [1, 2, 3]), ...cyl('valves', [1, 2, 3])], 'cam-housing-left': [...cyl('head', [4, 5, 6]), ...cyl('valves', [4, 5, 6])] } },
+  // Valves before heads (bench work on the lifted unit), so the valve sets never float in mid-air.
+  { id: 'valves', title: 'Valves & springs (bench)', note: 'On the bench: spring compressor; keep valves in order.', parts: cyl('valves') },
+  { id: 'heads', title: 'Cylinder heads (bench)', note: 'Separate the heads from the cam housing on the bench.', parts: cyl('head') },
   { id: 'cylinders', title: 'Cylinders', note: 'Rock each off the studs; keep matched to its piston.', parts: cyl('cylinder') },
   { id: 'pistons', title: 'Pistons', note: 'Circlips out, push pins; mark cylinder number and direction.', parts: cyl('piston') },
   { id: 'externals', title: 'Breather, oil thermostat & sump plate', note: 'Last external items before splitting the case.', parts: ['breather-lid', 'oil-thermostat', 'sump-plate'] },
   { id: 'split', title: 'Split the crankcase', note: 'Remove through-bolts and perimeter nuts; lift the left half off.', parts: ['crankcase-left'] },
   { id: 'crank', title: 'Crankshaft with connecting rods', note: 'Lift the crank out; then unbolt the rods (keep caps matched).', parts: ['crankshaft', 'crank-gears', ...cyl('conrod')] },
-  { id: 'int-shaft', title: 'Intermediate shaft, chains & oil pump', note: 'Chains come out with the intermediate shaft.', parts: ['intermediate-shaft', ...both('timing-chain'), 'oil-pump'] },
+  { id: 'int-shaft', title: 'Intermediate shaft & oil pump', note: 'Lift the intermediate shaft out with the oil pump on its connecting shaft (the chains come out with it on the real engine).', parts: ['intermediate-shaft', 'oil-pump'] },
   { id: 'bearings', title: 'Main bearing shells', note: 'Only the right case half remains.', parts: ['main-bearings'] },
 ];
 
@@ -54,6 +59,12 @@ export function removedAfter(n: number): Set<string> {
   TEARDOWN.slice(0, n).forEach((s) => s.parts.forEach((p) => out.add(p)));
   return out;
 }
+/** Parts lifted off the engine with a removed carrier but not yet dismantled from it, after `n` steps: part -> carrier. */
+export function carriedAfter(n: number): Map<string, string> {
+  const removed = removedAfter(n), out = new Map<string, string>();
+  TEARDOWN.slice(0, n).forEach((s) => Object.entries(s.carries ?? {}).forEach(([c, ps]) => ps.forEach((p) => { if (!removed.has(p)) out.set(p, c); })));
+  return out;
+}
 export function validateTeardown(): string[] {
   const errs: string[] = [];
   const ids = new Set(PARTS.map((p) => p.id));
@@ -65,5 +76,9 @@ export function validateTeardown(): string[] {
   }
   for (const id of ids) if (!seen.has(id) && id !== BASE_PART) errs.push(`part ${id} never removed`);
   if (seen.has(BASE_PART)) errs.push('base part must stay on the stand');
+  TEARDOWN.forEach((s, i) => Object.entries(s.carries ?? {}).forEach(([c, ps]) => {
+    if (!s.parts.includes(c)) errs.push(`step ${s.id}: carrier ${c} not removed in this step`);
+    for (const p of ps) if (!(stepIndexOf(p) > i)) errs.push(`step ${s.id}: carried ${p} must be dismantled in a later step`);
+  }));
   return errs;
 }
