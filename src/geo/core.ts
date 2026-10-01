@@ -1104,12 +1104,49 @@ export function chainPath(s: 1 | -1) {
   const idlerToCam = s > 0 ? tans[2] : tans[0];
   return { ...B, pts, arcs, idlerArc, idlerWrap: Math.abs(idlerArc.a1 - idlerArc.a0), slackA: intToIdler, slackB: idlerToCam };
 }
-/** Chain pin centres (one per pitch) along the closed pitch line, shared by the chain mesh and the tests. */
+/**
+ * Chain pin centres. On each sprocket the rollers sit one tooth apart (chord = pitch),
+ * centred on the wrap, so a valley lines up with every roller. Straight runs are split
+ * into equal chords as close to the pitch as the tangent length allows. Even count so
+ * inner and outer plates alternate.
+ */
 export function chainPins(s: 1 | -1) {
-  const { pts } = chainPath(s);
-  const curve = new THREE.CatmullRomCurve3(pts.map((v) => new THREE.Vector3(v.x, v.y, 0)), true, 'centripetal');
-  const len = curve.getLength(); const n = Math.round(len / PITCH / 2) * 2;
-  return { n, len, pins: Array.from({ length: n }, (_, i) => curve.getPointAt(i / n)) };
+  const { arcs } = chainPath(s);
+  const teethOf = (r: number) => {
+    let teeth = CAM_T, bd = Math.abs(r - CAM_SPROCKET_R);
+    for (const [rr, tt] of [[INT_SPROCKET_R, INT_T], [IDLER_SPROCKET_R, IDLER_T]] as [number, number][]) {
+      const d = Math.abs(r - rr);
+      if (d < bd) { bd = d; teeth = tt; }
+    }
+    return teeth;
+  };
+  const arcPts = arcs.map((A) => {
+    const step = (Math.PI * 2) / teethOf(A.circ.r);
+    const sweep = A.a1 - A.a0;
+    const dir = Math.sign(sweep) || 1;
+    const span = Math.abs(sweep);
+    const nInt = Math.max(1, Math.round(span / step));
+    const margin = (span - nInt * step) / 2;
+    const a0 = A.a0 + dir * margin;
+    const pts: THREE.Vector3[] = [];
+    for (let k = 0; k <= nInt; k++) {
+      const a = a0 + dir * step * k;
+      pts.push(new THREE.Vector3(A.circ.c.x + A.circ.r * Math.cos(a), A.circ.c.y + A.circ.r * Math.sin(a), 0));
+    }
+    return pts;
+  });
+  const pins: THREE.Vector3[] = [];
+  for (let i = 0; i < arcs.length; i++) {
+    const here = arcPts[i], next = arcPts[(i + 1) % arcs.length];
+    for (let k = 0; k < here.length - 1; k++) pins.push(here[k]);
+    const p0 = here[here.length - 1], p1 = next[0];
+    const nChord = Math.max(1, Math.round(p0.distanceTo(p1) / PITCH));
+    pins.push(p0);
+    for (let k = 1; k < nChord; k++) pins.push(p0.clone().lerp(p1, k / nChord));
+  }
+  let len = 0;
+  for (let i = 0; i < pins.length; i++) len += pins[i].distanceTo(pins[(i + 1) % pins.length]);
+  return { n: pins.length, len, pins };
 }
 /** y of a run (line a-b) at engine x. */
 const runY = (a: THREE.Vector2, b: THREE.Vector2, x: number) => a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x);
@@ -1144,12 +1181,17 @@ export function tensionerLayout(s: 1 | -1) {
   const z = CHAIN_Z[s], adjZ = z + ADJ.zOff[s];
   return { idler, idlerR, pivot, tail, contact, adj, adjBase, axis, perp, ear, reach, plunger, dir, up, z, adjZ, adjLen: ADJ.body };
 }
-/** Rotation that puts a tooth gap (roller seat, gearShape sprocket mode: gap centre at 0.875 pitch) on the nearest chain roller. */
+/**
+ * Root-gap centre of sprocketRingShape, as a fraction of the tooth pitch.
+ * The valley floor runs from 0.50 to 1.02 (the next tooth's 0.02 root).
+ */
+export const SPROCKET_GAP = 0.76;
+/** Rotation that puts a tooth gap (sprocketRingShape valley centre) on the nearest chain roller. */
 export function toothPhase(s: 1 | -1, cx: number, cy: number, r: number, teeth: number) {
   const { pins } = chainPins(s);
   let best = pins[0], bd = Infinity;
   for (const q of pins) { const d = Math.abs(Math.hypot(q.x - cx, q.y - cy) - r); if (d < bd) { bd = d; best = q; } }
-  return Math.atan2(best.y - cy, best.x - cx) - 0.875 * ((Math.PI * 2) / teeth);
+  return Math.atan2(best.y - cy, best.x - cx) - SPROCKET_GAP * ((Math.PI * 2) / teeth);
 }
 /** Solid duplex sprocket: two toothed rings, a bored web, and a centre groove for the middle plates. No lightening holes. */
 function duplexSprocket(p: Part, teeth: number, r: number, at: V3, hub: number, mat: MatKey = 'steel', phase = 0) {
@@ -1299,8 +1341,8 @@ function idlerSprocket(p: Part, s: 1 | -1, T: ReturnType<typeof tensionerLayout>
   }
   web.holes.push(circlePath(8.6) as THREE.Path);
   for (const zc of [-4.2, 4.2]) p.add(extrudeC(web, 5.2, 0.15, 20), 'steel', [at[0], at[1], at[2] + zc]);
+  // Bronze bush only. The shaft and its bolt head are added with the arm so one pin runs through both.
   p.add(yToZ(lathe([[6.1, -6.5], [8.5, -6.5], [8.5, 6.5], [6.1, 6.5]], 24)), 'bronze', at);
-  p.add(yToZ(cyl(5.9, 16, 14)), 'polishedSteel', [at[0], at[1], at[2] - 1]);
 }
 /** Rail bolts (#3, 4 per bank): one through each end of the first two rails, head on the rail front face. */
 export function railBolts(s: 1 | -1) {
@@ -1326,7 +1368,15 @@ export function chainTensioner(s: 1 | -1) {
   p.add(yToZ(lathe([[8.2, -7], [10.4, -7], [10.4, 7], [8.2, 7]], 20)), 'bronze', [T.idler.x, T.idler.y, armZ]);
   p.add(yToZ(cyl(11, 12, 20)), 'forgedDark', [T.pivot.x, T.pivot.y, armZ]);
   p.add(yToZ(lathe([[5.4, -6], [7.2, -6], [7.2, 6], [5.4, 6]], 16)), 'bronze', [T.pivot.x, T.pivot.y, armZ]);
-  p.add(yToZ(cyl(6.2, 12, 14)), 'polishedSteel', [T.pivot.x, T.pivot.y, armZ]); // idler arm shaft (#3)
+  p.add(yToZ(cyl(6.2, 12, 14)), 'polishedSteel', [T.pivot.x, T.pivot.y, armZ]); // idler arm pivot shaft (#3)
+  // Idler sprocket shaft: through the bronze bush and into the arm boss, bolt head on the cover side.
+  {
+    const bushFront = z + 6.5;
+    const shaftBack = armZ - 4;
+    const shaftR = 5.5;
+    p.add(yToZ(cyl(shaftR, bushFront - shaftBack, 18)), 'polishedSteel', [T.idler.x, T.idler.y, (shaftBack + bushFront) / 2]);
+    p.add(yToZ(hexNut(14, 5)), 'zincPlate', [T.idler.x, T.idler.y, bushFront + 2.5]);
+  }
   // tail pad (hardened, Z-axis) that the plunger dome bears on
   const padZ0 = z - 18, padZ1 = Math.max(T.adjZ + 8, z - 12);
   p.add(yToZ(cyl(ADJ.pad, padZ1 - padZ0, 20)), 'polishedSteel', [T.tail.x, T.tail.y, (padZ0 + padZ1) / 2]);
