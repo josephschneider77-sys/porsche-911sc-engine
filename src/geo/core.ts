@@ -569,20 +569,54 @@ export function crankGears() {
   const z0 = N.gear[0], z1 = N.gear[1];
   // Crank gear key/root interference is a known geometric conflict between the 84 mm gear centres
   // and the Ø56 crank nose with its Woodruff key, pending a real measurement of the crank nose Ø or gear centres.
-  // 35 T stays. The hub slot stops at the rim (r ≈ 29.35). It is not cut into the tooth ring:
-  // extending it to the key top (r 31.0) left a solid tab in the 12-o'clock gaps.
+  // 35 T stays. The hub slot stops at the rim (r ≈ 29.35). Every tooth slice is then notched
+  // straight through on the key, up to r 31.0. The sides sit 1.15 mm outside the key so the
+  // 1 mm collision erosion cannot walk the flanks back into it. That notches the gap root.
+  // The key, the nose and the centres are unchanged.
   const pr = (CRANK_GEAR_T * INT_GEAR.module) / 2;
   const hubR = pr - 1.6;
-  p.add(extrude(keyedHubOutline(hubR, N.seatR + 0.05, kb), z1 - z0, 0, 1), 'steel', [0, 0, z0]);
+  // Key metal is |x| <= 2.5 and y <= 30.6. The notch top is r 31.0 (0.4 mm over the key).
+  // The sides are 1.15 mm outside the key so the 1 mm collision erosion cannot walk a flank
+  // back into the key. The notch still takes the tooth-gap root.
+  const slot = boxMM([-(2.5 + 1.15), 0, z0 - 0.02], [2.5 + 1.15, 31, z1 + 0.02]);
+  const geared = new Part();
+  geared.add(extrude(keyedHubOutline(hubR, N.seatR + 0.05, kb), z1 - z0, 0, 1), 'steel', [0, 0, z0]);
   // Same tan(30°)/pr rate and the same z planes as the intermediate gear over the 12.7 mm mesh.
   const rate = Math.tan(30 * DEG) / pr;
-  addHelix(p, CRANK_GEAR_T, pr - 1.7, pr + 2.5, N.seatR + 0.25, z0, z1, rate, 'steel', [0, 0, 0], 0, true, MESH_DZ);
+  addHelix(geared, CRANK_GEAR_T, pr - 1.7, pr + 2.5, N.seatR + 0.25, z0, z1, rate, 'steel', [0, 0, 0], 0, true, MESH_DZ);
+  // Axial slot aligned with the key (+Y). A twisted slot would miss the key between slices.
+  subtractSolids(geared.g, [slot]);
+  p.g.add(geared.g);
   // smaller-OD brass distributor gear, same hand, narrow face. Spur profile, not the timing taper.
+  // Zero-area seam triangles on the bore read as a hit against the case web.
+  const dist = new Part();
   const d0 = N.drive[0], d1 = N.drive[1];
   const dRate = Math.tan(28 * DEG) / 31;
-  p.add(extrude(ringShape(30.2, N.seatR + 0.05), d1 - d0), 'bronze', [0, 0, d0]);
-  addHelix(p, 22, 29.4, 32.4, 28.6, d0, d1, dRate, 'bronze', [0, 0, 0], 0, false, 0);
+  dist.add(extrude(ringShape(30.2, N.seatR + 0.05), d1 - d0), 'bronze', [0, 0, d0]);
+  addHelix(dist, 22, 29.4, 32.4, 28.6, d0, d1, dRate, 'bronze', [0, 0, 0], 0, false, 0);
+  dropDegenerate(dist.g);
+  p.g.add(dist.g);
   return p.g;
+}
+
+/** Drop zero-area triangles. They survive extrusion at a seam and the collision BVH still counts them. */
+function dropDegenerate(root: THREE.Object3D) {
+  root.traverse((o: any) => {
+    if (!o.isMesh || o.isInstancedMesh) return;
+    const src = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
+    const P = src.getAttribute('position');
+    const clean: number[] = [];
+    const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
+    for (let i = 0; i < P.count; i += 3) {
+      A.fromBufferAttribute(P, i); B.fromBufferAttribute(P, i + 1); C.fromBufferAttribute(P, i + 2);
+      if (B.clone().sub(A).cross(C.clone().sub(A)).lengthSq() < 1e-8) continue;
+      clean.push(A.x, A.y, A.z, B.x, B.y, B.z, C.x, C.y, C.z);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(clean, 3));
+    g.computeVertexNormals();
+    o.geometry = g;
+  });
 }
 
 // ---------------------------------------------------------------- connecting rod (102-00 #16), local: big end at 0, small end +X
@@ -1754,11 +1788,19 @@ export function intermediateShaft() {
   seg(12, 250.2, 257.6, 'steel'); // land between the almost-touching sprocket rows
   seg(11, 266, 276, 'polishedSteel');
   p.add(yToZ(hexNut(16, 6)), 'darkSteel', [0, y, 280]);
-  // Static-pose hack. The case pocket already clears both lug bosses. What remains in the tooth
-  // ring is the left M8 lock nut and the stud through the lug (z 190, y −136). The nut and the
-  // case are not moved; only the tooth metal that enters them is cut, and only by their own envelope.
-  subtractSolids(p.g, perimeterClashSolids());
+  TEMP_shaveForLockNutStud(p.g);
   return p.g;
+}
+
+/**
+ * Temporary static-pose hack for the left M8 lock nut and the stud through the lower lug.
+ * Bottom End's zero-clash PR will move the stud and boss outboard and then delete this.
+ * Removing the call restores all 60 whole teeth.
+ */
+export const TEMP_LOCKNUT_STUD_SHAVE = true;
+export function TEMP_shaveForLockNutStud(root: THREE.Object3D) {
+  if (!TEMP_LOCKNUT_STUD_SHAVE) return;
+  subtractSolids(root, perimeterClashSolids());
 }
 
 /**

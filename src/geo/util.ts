@@ -120,10 +120,10 @@ export function gearShape(teeth: number, rRoot: number, rTip: number, holeR = 0,
   return s;
 }
 /**
- * Timing-pair tooth only (crank and intermediate gears). Tapered flanks, tip arc 0.28 of the
- * angular pitch, tooth centre at 0.35 so the gap stays wide of the mating tip. Round bore, no
- * keyway: the crank key stops at the hub rim. Same hole construction as gearShape so a CSG
- * cutter can carve the case bosses out of the intermediate ring.
+ * Timing-pair tooth only (crank and intermediate gears). Tapered flanks, tip arc 0.20 of the
+ * angular pitch, tooth centre at 0.35 so the gap stays wide of the mating tip. Round bore.
+ * The crank keyway is cut through the slices after extrusion so it stays on the key while the
+ * teeth twist. Same hole construction as gearShape.
  */
 export function timingGearShape(teeth: number, rRoot: number, rTip: number, boreR: number) {
   const s = new THREE.Shape();
