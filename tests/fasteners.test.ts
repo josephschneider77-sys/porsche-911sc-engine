@@ -82,6 +82,7 @@ describe('fastener hardware', () => {
       expect(TEARDOWN[stepIndexOf(spec.id)]?.id, spec.id).toBe(spec.step);
       const k = leaves(spec.id);
       const parts = new Set(f.items.flatMap((it) => [it.seat, it.into]).filter((p) => p !== 'crankcase-right'));
+      if (!parts.size) { expect(spec.step, `${spec.id}: hardware on the stand half comes off last`).toBe(TEARDOWN[TEARDOWN.length - 1].id); continue; }
       const ok = [...parts].some((p) => { const j = leaves(p); return j === k || j === k + 1; });
       expect(ok, `${spec.id} (step ${k}) vs ${[...parts].join(',')}`).toBe(true);
     }

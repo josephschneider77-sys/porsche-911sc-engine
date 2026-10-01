@@ -1,6 +1,7 @@
 import { SystemKey } from './catalog';
 import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ, SPARK_Z } from './layout';
 import { FASTENER_SPECS } from './fastenerSpec';
+import { SMALL_SPECS, smallRef } from './smallSpec';
 
 export type Vec3 = [number, number, number];
 export interface CatalogRef {
@@ -143,9 +144,21 @@ function perBank(): PartDef[] {
     });
     out.push({
       id: `cam-sprocket-${b}`, name: `Camshaft sprocket, ${b}`, system: 'camdrive', asset: `cam-sprocket-${b}`, explode: [s * 520, 40, 320],
-      catalog: [{ ill, pos: '38', pn: '901 105 546 02', qty: 1 }, { ill, pos: '36', pn: '901 105 583 01', note: 'Flange (timing adjustment)' }],
-      description: 'Cam sprocket with drilled flange for vernier-style cam timing adjustment (dowel #39 through flange holes).',
+      catalog: [{ ill, pos: '38', pn: '901 105 546 02', qty: 1 }, { ill, pos: '39', pn: '—', note: 'Driven through the dowel pin from the keyed flange (cam-flange)' }],
+      description: 'Duplex cam sprocket, held on the cam nose by the M22 nut and spring washer; a dowel pin through one of three vernier holes couples it to the keyed flange behind it.',
       specs: { Adjustment: 'Dowel-pin vernier', Teeth: '27 (est. from photos, Ø82 pitch)', Speed: '½ crank' },
+    });
+    out.push({
+      id: `cam-flange-${b}`, name: `Camshaft sprocket flange, ${b}`, system: 'camdrive', asset: `cam-flange-${b}`, explode: [s * 580, 50, 240],
+      catalog: [{ ill, pos: '36', pn: '901 105 583 01', qty: 1 }],
+      description: 'Keyed flange on the cam nose: the Woodruff key drives it, and the dowel pin through one of its three holes drives the sprocket. Choosing the hole (and the pin position in the sprocket) gives fine vernier cam timing.',
+      specs: { Location: 'Woodruff key in the cam-nose keyway', Holes: '3 (vernier)' },
+    });
+    out.push({
+      id: `adjuster-cover-${b}`, name: `Chain-adjuster cover, ${b}`, system: 'camdrive', asset: `adjuster-cover-${b}`, explode: [s * 300, -60, 420],
+      catalog: [{ ill, pos: '31', pn: '—', qty: 1, note: 'With gasket #29 and round seal #30' }],
+      description: 'Round cover over the chain-adjuster opening in the chain-housing lid, sealed by a gasket and an O-ring style round seal and held by three combination screws.',
+      specs: { Screws: '3 (#33) + spring washers (#32)' },
     });
     out.push({
       id: `chain-tensioner-${b}`, name: `Chain tensioner & guides, ${b}`, system: 'camdrive', asset: `chain-tensioner-${b}`, explode: [s * 360, -120, 320],
@@ -258,6 +271,16 @@ const single: PartDef[] = [
   { id: 'fuel-lines', name: 'Injection lines & warm-up regulator', system: 'induction', asset: 'fuel-lines', explode: [-160, 560, 0],
     catalog: [{ ill: '107-10', pos: '23', pn: '911 110 093 11 / 12', note: 'Injection lines cyl 1-3 / 4-6' }, { ill: '107-10', pos: '54', pn: '911 606 105 09', note: 'Warm-up valve (control pressure regulator)' }],
     description: 'Six steel injection lines from the fuel distributor to the injectors, plus the warm-up regulator that richens the mixture when cold.', specs: {} },
+  { id: 'distributor-clamp', name: 'Distributor clamp', system: 'ignition', asset: 'distributor-clamp', explode: [-160, 360, 100],
+    catalog: [{ ill: '901-00', pos: '-', pn: '—', note: 'Hold-down clamp on the case stud' }], description: 'Hold-down clamp gripping the distributor shank, on a stud in the left case half with a cast spacer boss under it.', specs: { Fastening: '1 nut + washers' } },
+  { id: 'ignition-leads', name: 'Ignition lead set', system: 'ignition', asset: 'ignition-leads', explode: [-60, 460, 60],
+    catalog: [{ ill: '901-00', pos: '17', pn: '930 602 021 04', qty: 1 }], description: 'Six leads from the cap towers over the air distributor, down outside the cam housings to the plug connectors (routing E).', specs: { Leads: '6' } },
+  { id: 'fan-hub', name: 'Fan hub extension', system: 'cooling', asset: 'fan-hub', explode: [0, 380, 400],
+    catalog: [{ ill: '105-00', pos: '10', pn: '—', qty: 1 }], description: 'Hub extension on the alternator shaft carrying the fan wheel on six studs.', specs: { Studs: '6' } },
+  { id: 'airbox-struts', name: 'Air-cleaner struts', system: 'induction', asset: 'airbox-struts', explode: [0, 640, 0],
+    catalog: [{ ill: '106-00', pos: '18/19/20', pn: '—', qty: 2 }], description: 'Two struts with bonded rubber buffers supporting the air-cleaner housing on the air distributor.', specs: {} },
+  { id: 'warm-up-regulator', name: 'Warm-up regulator', system: 'induction', asset: 'warm-up-regulator', explode: [-200, 300, -200],
+    catalog: [{ ill: '107-10', pos: '54', pn: '—', qty: 1 }], description: 'Bosch warm-up (control-pressure) regulator bolted to the left case half so it feels engine temperature.', specs: { Fastening: '2 screws' } },
   { id: 'distributor', name: 'Ignition distributor', system: 'ignition', asset: 'distributor', explode: [-160, 420, 100],
     catalog: [{ ill: '901-00', pos: '1', pn: '930 602 021 04', qty: 1 }, { ill: '901-00', pos: '8', pn: '930 602 904 00', note: 'Cap' }, { ill: '901-00', pos: '3', pn: '930 602 901 02', note: 'Rotor' }],
     description: 'Bosch distributor driven off the crankshaft drive wheel; the SC introduced breakerless (contactless) capacitive-discharge ignition.',
@@ -279,7 +302,7 @@ const base: PartDef[] = [...single, ...perBank(), ...perCylinder()];
 /** Fastener sets (data/fastenerSpec.ts) as removable hardware parts; geometry is in world coordinates (no pose). */
 function hardware(): PartDef[] {
   const ex = (id: string) => base.find((p) => p.id === id)!.explode;
-  return FASTENER_SPECS.map((f) => {
+  const hw = FASTENER_SPECS.map((f) => {
     const e = ex(f.follows);
     const len = Math.hypot(...e) || 1;
     return {
@@ -289,6 +312,12 @@ function hardware(): PartDef[] {
       specs: { Quantity: String(f.count), Size: f.size, 'Removed at step': f.step },
     };
   });
+  const small = SMALL_SPECS.map((f) => {
+    const e = ex(f.follows); const len = Math.hypot(...e) || 1;
+    return { id: f.id, name: f.name, system: 'hardware' as SystemKey, asset: f.id, explode: e.map((v) => v * (1 + 40 / len)) as Vec3,
+      catalog: [{ ill: smallRef(f.id)[0], pos: smallRef(f.id)[1], pn: '—', qty: f.count }], description: f.description, specs: { Quantity: String(f.count), Size: f.size, 'Removed at step': f.step } };
+  });
+  return [...hw, ...small];
 }
 export const PARTS: PartDef[] = [...base, ...hardware()];
 export const PART_BY_ID: Record<string, PartDef> = Object.fromEntries(PARTS.map((p) => [p.id, p]));

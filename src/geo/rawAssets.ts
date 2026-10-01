@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as C from './core';
 import * as A from './aux';
+import * as SP from './smallParts';
 
 /** Raw part builders (no fastener hardware); see assets.ts for the exported set. */
 export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
@@ -27,6 +28,15 @@ export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
   'timing-chain-right': () => C.timingChain(1),
   'timing-chain-left': () => C.timingChain(-1),
   'cam-sprocket-right': () => C.camSprocket(1),
+  'cam-flange-right': () => C.camFlange(1),
+  'cam-flange-left': () => C.camFlange(-1),
+  'distributor-clamp': () => A.distributorClamp(),
+  'fan-hub': () => A.fanHub(),
+  'airbox-struts': () => A.airboxStruts(),
+  'warm-up-regulator': () => A.warmUpRegulator(),
+  'ignition-leads': () => A.ignitionLeads(),
+  'adjuster-cover-right': () => SP.adjusterCoverPart(1),
+  'adjuster-cover-left': () => SP.adjusterCoverPart(-1),
   'cam-sprocket-left': () => C.camSprocket(-1),
   'chain-tensioner-right': () => C.chainTensioner(1),
   'chain-tensioner-left': () => C.chainTensioner(-1),
