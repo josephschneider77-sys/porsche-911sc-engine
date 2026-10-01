@@ -213,7 +213,9 @@ def('shroud-stopper', () => { const p = new Part(); p.add(lathe([[0.1, -3], [9, 
 def('alternator-strap', () => {
   const p = new Part();
   // From the bottom slip-ring stud, under the plenum, onto the housing barrel. Identity pose: points are world mm.
-  p.add(tube([[8, 199, 156], [34, 176, 174], [66, 160, 196], [90, 154, 218]], 2.2, 8, 18), 'copper');
+  const y = FAN.y;
+  // Leave the right-hand slip-ring stud, stay above the shroud roof, then drop into the housing wall.
+  p.add(tube([[52, y - 18, 180], [70, y - 16, 200], [76, y - 28, 218], [92, y - 98, 228]], 2.2, 8, 18), 'copper');
   return p;
 }, () => [M(V(0, 0, 0), Y, X)]);
 
