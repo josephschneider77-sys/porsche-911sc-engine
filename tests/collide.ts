@@ -94,7 +94,7 @@ const sameSide = (a: string, b: string, why: string): [RegExp, RegExp, string][]
 export const MATING: [RegExp, RegExp, string][] = [
   // ---- JOINT: bottom end
   pair('crankcase-right', 'crankcase-left', 'JOINT case split flange'),
-  pair('crankcase-right|crankcase-left', 'main-bearings|crankshaft|intermediate-shaft|crank-gears|cylinder|oil-pump|oil-thermostat|sump-plate|breather-lid|distributor|fan-housing|upper-air-guide', 'JOINT seated in / bolted to the case'),
+  pair('crankcase-right|crankcase-left', 'main-bearings|crankshaft|cylinder|oil-pump|oil-thermostat|sump-plate|breather-lid|distributor|fan-housing|upper-air-guide', 'JOINT seated in / bolted to the case'),
   ...sameSide('crankcase', 'chain-housing', 'JOINT chain box bolted to the case face / chain-well flange'),
   pair('crankshaft', 'main-bearings|conrod|crank-gears|crank-pulley|flywheel|pressure-plate', 'JOINT on the crank (journals, nose, flange)'),
   pair('conrod', 'piston', 'JOINT wrist pin'),
@@ -111,8 +111,8 @@ export const MATING: [RegExp, RegExp, string][] = [
   ...sameSide('timing-chain', 'cam-sprocket|chain-tensioner', 'JOINT chain on cam sprocket / idler / guide ramps'),
   ...sameSide('chain-tensioner', 'chain-housing', 'JOINT idler shaft and adjuster seated in housing bosses'),
   ...sameSide('chain-housing', 'chain-housing-lid', 'JOINT cover on housing studs'),
-  pair('intermediate-shaft', 'timing-chain|crank-gears|oil-pump', 'JOINT chains on int. sprockets, gear mesh, pump coupling'),
-  pair('crankshaft', 'intermediate-shaft', 'JOINT gear mesh at the nose'),
+  pair('intermediate-shaft', 'timing-chain', 'JOINT chain seated on the intermediate sprockets'),
+  pair('intermediate-shaft', 'oil-pump', 'JOINT splined pump coupling seated on the shaft'),
   // ---- JOINT: exhaust, induction, fan
   pair('heat-exchanger', 'head', 'JOINT primaries in the exhaust ports'),
   pair('muffler', 'heat-exchanger', 'JOINT muffler inlet stubs over the HE outlets'),
