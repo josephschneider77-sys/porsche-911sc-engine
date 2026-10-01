@@ -219,7 +219,7 @@ const single: PartDef[] = [
     specs: { Type: 'Gear, 2-stage, 4-rib', System: 'Dry sump, ~13 L total (typ.)' } },
   { id: 'sump-plate', name: 'Sump cover plate & oil strainer', system: 'lubrication', asset: 'sump-plate', explode: [0, -300, 0],
     catalog: [{ ill: '101-05', pos: '38', pn: '930 107 314 00', qty: 1, note: 'Oil strainer' }, { ill: '101-05', pos: '39', pn: '930 101 391 01', qty: 2, note: 'Gaskets' }, { ill: '101-05', pos: '41', pn: '911 107 176 03', note: 'Drain plug' }],
-    description: 'Pressed-steel sump cover: flat field, raised outer rim, and a wide rounded horseshoe channel (about 5 mm deep, 16 mm wall) with the hex drain plug in the notch at the top of the U. The coarse strainer and its two gaskets sit inboard of the plate. Twelve M6 nuts (101-05 #35); the teardown photo shows eight.',
+    description: 'Pressed-steel sump cover: flat field, raised outer rim, and a wide horseshoe channel (about 5.5 mm deep, 18 mm wall) with the hex drain plug in the notch at the top of the U. The coarse strainer and its two gaskets sit inboard of the plate. Twelve M6 nuts (101-05 #35); the teardown photo shows eight.',
     specs: { Fasteners: '12 × M6 (catalogue)', Drain: '911 107 176 03' } },
   { id: 'oil-thermostat', name: 'Oil thermostat', system: 'lubrication', asset: 'oil-thermostat', explode: [40, 180, 40],
     catalog: [{ ill: '101-10', pos: '37', pn: '930 107 765 00', qty: 1 }],

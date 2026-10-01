@@ -336,6 +336,44 @@ export function breatherLid() {
   p.add(boxMM([tx - 6, y0 + 5, tz - 12], [tx + 4, y0 + 8, tz - 3]), 'castAlu');
   return p.g;
 }
+/**
+ * Raised trapezoidal bead along a horizontal path. `depth` is proud toward −Y
+ * (the sump camera). Crown half-width `crown`, base half-width `halfW`.
+ */
+function raisedBead(path: V3[], halfW: number, crown: number, depth: number) {
+  const N = path.length;
+  const P = 4;
+  const prof: [number, number][] = [[-halfW, 0], [-crown, depth], [crown, depth], [halfW, 0]];
+  const pos: number[] = [];
+  for (let i = 0; i < N; i++) {
+    const p = new THREE.Vector3(...path[i]);
+    const a = new THREE.Vector3(...path[Math.max(0, i - 1)]);
+    const b = new THREE.Vector3(...path[Math.min(N - 1, i + 1)]);
+    const t = b.sub(a); t.y = 0;
+    if (t.lengthSq() < 1e-8) t.set(1, 0, 0);
+    t.normalize();
+    const side = new THREE.Vector3(-t.z, 0, t.x);
+    for (const [s, u] of prof) pos.push(p.x + side.x * s, p.y - u, p.z + side.z * s);
+  }
+  const idx: number[] = [];
+  for (let i = 0; i < N - 1; i++) {
+    for (let k = 0; k < P - 1; k++) {
+      const q = i * P + k;
+      idx.push(q, q + P, q + 1, q + 1, q + P, q + P + 1);
+    }
+  }
+  const cap = (i: number, flip: boolean) => {
+    const b = i * P;
+    idx.push(...(flip ? [b, b + 2, b + 1, b, b + 3, b + 2] : [b, b + 1, b + 2, b, b + 2, b + 3]));
+  };
+  cap(0, false);
+  cap(N - 1, true);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
 /** Sump (strainer) cover. Nut face y = seatY, 12 M6 nuts at r 74 (101-05 #35 qty 12). */
 export const SUMP = { seatY: -134, zc: -10, boltR: 74, grip: 6 };
 export function sumpPlate() {
@@ -347,16 +385,15 @@ export function sumpPlate() {
     [68, 0], [80, 0], [80, 2.4], [68, 2.4], [62, 0.8], [52, 1.4], [16, 2.0], [0.1, 2.0],
   ], 80);
   p.add(dish, 'zincPlate', [0, yNut, zc]);
-  // Rounded U bead, proud of the flat field. Opening toward +Z (top of the bottom-view
-  // frame) so the drain plug sits in the notch. Crown ~5.4 mm below the field; the
-  // visible chord is ~16 mm wide (wall 15–20 mm, depth 4–6 mm).
-  const Ru = 32, cz = zc - 16, a0 = 0.75, a1 = Math.PI * 2 - 0.75;
-  const shoe: V3[] = [];
-  for (let i = 0; i <= 36; i++) {
-    const a = a0 + (a1 - a0) * (i / 36);
-    shoe.push([Ru * Math.sin(a), yNut + 3.15, cz + Ru * Math.cos(a)]);
+  // Sharp raised U. Feet sink 0.3 mm into the flat field so the walls emerge cleanly.
+  // Crown is 5.5 mm proud, base 18 mm wide; opening toward +Z puts the plug in the notch.
+  const Ru = 34, cz = zc - 12, a0 = 0.8, a1 = Math.PI * 2 - 0.8;
+  const path: V3[] = [];
+  for (let i = 0; i <= 48; i++) {
+    const a = a0 + (a1 - a0) * (i / 48);
+    path.push([Ru * Math.sin(a), yNut - 0.15, cz + Ru * Math.cos(a)]);
   }
-  p.add(tube(shoe, 9, 18, 72), 'zincPlate');
+  p.add(raisedBead(path, 9, 3.2, 5.8), 'zincPlate');
   // central drain boss + hex plug (911 107 176 03). Sealing ring sits at yNut − 9.
   p.add(cyl(11, 4, 24), 'zincPlate', [0, yNut - 5, zc]);
   p.add(hexNut(17, 7), 'darkSteel', [0, yNut - 9 - 3.5, zc]);
@@ -406,8 +443,8 @@ export function oilPump() {
   section(-26, 6, 32, 20, -86, 'castAlu');
   section(8, 44, 28, 18, -84, 'castAlu');
   section(3, 11, 34, 20, -85, 'machinedAlu');
-  for (const dz of [-6.4, -2.1, 2.1, 6.4]) {
-    p.add(boxMM([-20, -70, zc + dz - 1.15], [40, -64.6, zc + dz + 1.15]), 'castAlu');
+  for (const dz of [-7.2, -2.4, 2.4, 7.2]) {
+    p.add(boxMM([-20, -70, zc + dz - 1.15], [40, -62.8, zc + dz + 1.15]), 'castAlu');
   }
   // Cover plate behind the body, plus three ears that stick out of the XY silhouette.
   // Nut face is z = coverFace. No bolts on the pressure-section end.
