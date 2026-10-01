@@ -9,14 +9,79 @@ import {
   polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
 } from './util';
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
-import { buildPlenumBox, AIR_NECK, BOX, WUR_FACES, runnerTunnelCutters } from './induction';
+import { buildPlenumBox, AIR_NECK, BOX, WUR_FACES, runnerTunnelCutters, DIST_VAC } from './induction';
 export { INTAKE_PORT, INJ };
 export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './induction';
 
 /** Fan axis. y 210.33 is the crank-to-fan centre distance that makes the pitch length 725 mm (crank pitch r 60, fan pitch r 36, belt plane z 303). */
 export const FAN = { y: 210.33, zHousing0: 205, zHousing1: 296, zFan: 262, zBelt: 303, rCrankPulley: 65, rFanPulley: 41 };
-/** Round air-cleaner canister lying across the engine (SC), axis along X. */
-export const AIRBOX = { y: 362, z: 40, r: 80, len: 440 };
+/**
+ * 1978 air cleaner (106-00 #13/#14). A low rounded canister across the engine, not the old
+ * Ø160 × 440 trough. The paper element is the rectangular Mahle LX 261 panel (see airFilter).
+ * Housing size is E from JE reassembly-55/57/61; the element is K.
+ */
+export const AIRBOX = {
+  /** Element length along X (K). Heritage 911 110 185 02 / Mahle LX 261. */
+  len: 402,
+  /** Element width along Z (K). Same sources. */
+  wid: 181,
+  /** Element height (K). mhteile Mahle LX 261 listing, 41.4 mm. */
+  h: 41.4,
+  /** Canister centre along Z. The +Z cheek stays clear of the alternator (slip-ring face z ≈ 164). */
+  z: 36,
+  /** Equator where the two oval halves meet. */
+  yMid: 378,
+  /** Inner ellipse, Z half-width and Y half-height. Flat enough to read as a canister, wide enough for the panel. */
+  a: 112,
+  b: 42,
+  wall: 3.6,
+  /** Straight tube, half-length along X. End caps add the wall thickness. */
+  half: 220,
+  /** Horizontal lip the clips grab. The two halves meet on its face. */
+  lip: 9,
+  lipT: 3.2,
+  /** Lowest point of the outer shell (yMid − b − wall). */
+  floorY: 332.4,
+};
+
+export interface AirCleanerLayout {
+  innerX: number; innerZ: number; outerX: number; outerZ: number; lipX: number; lipZ: number;
+  floorTop: number; seam: number; elemBottom: number; elemTop: number; elemY: number; crown: number;
+}
+export function airCleanerLayout(): AirCleanerLayout {
+  const A = AIRBOX;
+  const elemBottom = A.yMid - A.h / 2;
+  const elemTop = A.yMid + A.h / 2;
+  return {
+    innerX: A.half, innerZ: A.a, outerX: A.half + A.wall, outerZ: A.a + A.wall,
+    lipX: A.half + A.wall, lipZ: A.a + A.wall + A.lip,
+    floorTop: A.yMid - A.b, seam: A.yMid, elemBottom, elemTop, elemY: A.yMid,
+    crown: A.yMid + A.b + A.wall,
+  };
+}
+/** Two stations on the intake snout for the hose clamps. Axis points along the snout, out of the lid. */
+export function airboxSnoutSamples(): { p: V3; dir: V3 }[] {
+  const pts = airboxSnoutPoints();
+  return [0.32, 0.7].map((t) => {
+    const f = t * (pts.length - 1);
+    const i = Math.min(pts.length - 2, Math.floor(f));
+    const u = f - i;
+    const a = pts[i], b = pts[i + 1];
+    const p: V3 = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+    const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const L = Math.hypot(d[0], d[1], d[2]) || 1;
+    return { p, dir: [d[0] / L, d[1] / L, d[2] / L] };
+  });
+}
+function airboxSnoutPoints(): V3[] {
+  const A = AIRBOX;
+  // On the lower cap, just below the equator, so the tube stays in this half.
+  const x0 = -(A.half + A.wall);
+  const y = A.yMid - 18;
+  const z = A.z;
+  return [[x0 + 1, y, z], [x0 - 28, y + 2, z - 8], [x0 - 62, y + 2, z - 28]];
+}
+export const SNOUT_R = 14;
 /** Exhaust port centre at the head flange; y puts the 7.2 mm heat-exchanger flange flush under the head flange (y -63.5). */
 export const EXH_PORT = { x: CYL_TOP_X + 34, y: -64.1 };
 
@@ -667,76 +732,190 @@ export function oilPump() {
 }
 
 // ---------------------------------------------------------------- 106-00 / 107 induction & CIS
+/** Per-triangle normals, so a mating face erodes straight along itself and not into its neighbour. */
+function faceNormals(g: THREE.BufferGeometry) {
+  const ng = g.index ? g.toNonIndexed() : g;
+  ng.deleteAttribute('normal');
+  ng.computeVertexNormals();
+  return ng;
+}
+/** Point on an ellipse in the shape XY plane (shape X → world Z, shape Y → world Y). */
+function ell(a: number, b: number, t: number): [number, number] {
+  return [a * Math.cos(t), b * Math.sin(t)];
+}
+/** Half of a thick elliptical ring. Upper is t = 0…π. Equator lies on shape y = 0. */
+function halfRing(aO: number, bO: number, aI: number, bI: number, upper: boolean) {
+  const s = new THREE.Shape();
+  const n = 28;
+  const t0 = upper ? 0 : Math.PI;
+  const t1 = upper ? Math.PI : Math.PI * 2;
+  const p0 = ell(aO, bO, t0);
+  s.moveTo(p0[0], p0[1]);
+  for (let i = 1; i <= n; i++) {
+    const p = ell(aO, bO, t0 + (t1 - t0) * (i / n));
+    s.lineTo(p[0], p[1]);
+  }
+  for (let i = n; i >= 0; i--) {
+    const p = ell(aI, bI, t0 + (t1 - t0) * (i / n));
+    s.lineTo(p[0], p[1]);
+  }
+  s.closePath();
+  return s;
+}
+function halfDisk(a: number, b: number, upper: boolean) {
+  const s = new THREE.Shape();
+  const n = 28;
+  const t0 = upper ? 0 : Math.PI;
+  const t1 = upper ? Math.PI : Math.PI * 2;
+  s.moveTo(0, 0);
+  for (let i = 0; i <= n; i++) {
+    const p = ell(a, b, t0 + (t1 - t0) * (i / n));
+    s.lineTo(p[0], p[1]);
+  }
+  s.closePath();
+  return s;
+}
+/** Extrude a YZ profile along X and centre it on the canister. */
+function alongCan(shape: THREE.Shape, x0: number, length: number) {
+  const g = extrude(shape, length, 0, 2);
+  g.rotateY(Math.PI / 2);
+  g.translate(x0, AIRBOX.yMid, AIRBOX.z);
+  return faceNormals(g);
+}
+/** Elliptical skin. Inner winding points into the cavity. Quads stay short so the collision test does not see a 440 mm triangle. */
+function ovalSkin(upper: boolean, outer: boolean) {
+  const A = AIRBOX;
+  const a = outer ? A.a + A.wall : A.a;
+  const b = outer ? A.b + A.wall : A.b;
+  const lift = upper ? 0.7 : 0;
+  const t0 = upper ? 0 : Math.PI;
+  const nu = 24, nv = 16;
+  const grid: V3[] = [];
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
+    const t = t0 + Math.PI * (outer ? j / nv : 1 - j / nv);
+    const x0 = -A.half + 0.6, x1 = A.half - 0.6;
+    grid.push([x0 + (x1 - x0) * (i / nu), A.yMid + lift + b * Math.sin(t), A.z - a * Math.cos(t)]);
+  }
+  const idx: number[] = [];
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
+    const a0 = j * (nu + 1) + i, b0 = a0 + 1, c0 = a0 + nu + 1, d0 = c0 + 1;
+    const cx = (grid[a0][0] + grid[d0][0]) / 2;
+    const cy = (grid[a0][1] + grid[d0][1]) / 2;
+    const cz = (grid[a0][2] + grid[d0][2]) / 2;
+    // Outlet bore in the lower skin. The neck flange covers the rim.
+    if (!upper && cy < A.yMid - b + 12 && Math.hypot(cx - AIR_NECK.x, cz - AIR_NECK.z) < AIR_NECK.hole) continue;
+    idx.push(a0, c0, b0, b0, c0, d0);
+  }
+  const pos: number[] = [];
+  for (const p of grid) pos.push(p[0], p[1], p[2]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  return faceNormals(g);
+}
+function ovalCap(upper: boolean, xSign: number) {
+  const A = AIRBOX;
+  const a = A.a + A.wall, b = A.b + A.wall;
+  const x0 = xSign > 0 ? A.half : -A.half - A.wall;
+  // Rim only, so the equator is a short edge rather than a fan of large triangles.
+  const rim = alongCan(halfRing(a, b, Math.max(1, a - A.wall), Math.max(1, b - A.wall), upper), x0, A.wall);
+  if (upper) rim.translate(0, 0.7, 0);
+  // Closing plate, pulled off the seam so it cannot meet the other half.
+  const plate = alongCan(halfDisk(a - A.wall - 1, b - A.wall - 1, upper), x0, A.wall);
+  plate.translate(0, upper ? 1.6 : -1.6, 0);
+  return { rim, plate };
+}
+/** Outer-shell bottom at this Z (straight section). */
+function shellBottom(z: number) {
+  const A = AIRBOX;
+  const a = A.a + A.wall, b = A.b + A.wall;
+  const u = Math.min(0.999, ((z - A.z) / a) ** 2);
+  return A.yMid - b * Math.sqrt(1 - u);
+}
 export function plenum() {
-  // 1978 air distributor: compact cast box (reassembly-19) with the lower half of the round air-cleaner drum.
-  // The drum stays in this part (catalogue housing 911 110 106 13). A neck joins the box to a hole in the shell.
+  // Cast distributor plus the lower half of the oval air-cleaner canister.
   const p = new Part();
   p.addObj(buildPlenumBox());
-  airboxHalf(p, -1);
-  const { x, z, r } = AIR_NECK;
-  const dz = z - AIRBOX.z;
-  const shellBottom = AIRBOX.y - Math.sqrt(Math.max(0, AIRBOX.r * AIRBOX.r - dz * dz));
-  // Neck stops short of the shell. No cut: a boolean hole was leaving triangles in the filter.
-  p.add(cylBetween([x, BOX.y1 + 0.4, z], [x, shellBottom - 1.5, z], r, 24), 'blackPlastic');
+  const A = AIRBOX;
+  p.add(ovalSkin(false, true), 'blackPlastic');
+  p.add(ovalSkin(false, false), 'blackPlastic');
+  for (const s of [-1, 1] as const) {
+    const cap = ovalCap(false, s);
+    p.add(cap.rim, 'blackPlastic');
+    p.add(cap.plate, 'blackPlastic');
+  }
+  // Lip whose top face is the seam. Upper lip is inset so the vertical edges do not meet.
+  const aO = A.a + A.wall;
+  for (const side of [-1, 1] as const) {
+    // Clear of the shell (z starts outside the cheek) and 0.15 mm under the lid lip.
+    const z0 = A.z + side * (aO + 1.2), z1 = A.z + side * (aO + A.lip);
+    for (let k = 0; k < 8; k++) {
+      const xa = -A.half + (2 * A.half * k) / 8, xb = -A.half + (2 * A.half * (k + 1)) / 8;
+      p.add(boxMM([xa, A.yMid - A.lipT, Math.min(z0, z1)], [xb, A.yMid - 0.15, Math.max(z0, z1)]), 'blackPlastic');
+    }
+  }
+  // Neck tube up to the shell, flange seated on the outer bottom (same part; the bore clears the tube).
+  const { x, z, r, flange } = AIR_NECK;
+  const yB = shellBottom(z);
+  p.add(cylBetween([x, BOX.y1 - 1, z], [x, yB, z], r, 24), 'blackPlastic');
+  p.add(lathe([[r, 0], [flange, 0], [flange, 3.2], [r, 3.2]], 28).translate(x, yB - 3.2, z), 'blackPlastic');
+  p.add(tube(airboxSnoutPoints(), SNOUT_R, 16, 24), 'blackPlastic');
   return p.g;
 }
-/** Half (sign: +1 upper / -1 lower) of the cylindrical air-cleaner canister: shell, dished end caps, seam lip. */
-function airboxHalf(p: Part, sign: 1 | -1) {
-  const { y, z, r, len } = AIRBOX;
-  const shell = paramSurface((u, v) => {
-    // 0.08 rad off the split: the two shells stay ~13 mm apart at r 80.
-    const a = sign * (0.08 + (Math.PI - 0.16) * v);
-    return [-len / 2 + len * u, y + r * Math.sin(a), z + r * Math.cos(a)];
-  }, 28, 48);
-  p.add(shell, 'blackPlastic');
-  // moulded hoops around the drum, kept off the equator by the tube radius
-  for (const xx of [-len / 2 + 30, -len / 6, len / 6, len / 2 - 30]) {
-    const hoop = new THREE.TorusGeometry(r + 1, 2.2, 4, 32, Math.PI - 0.28); hoop.rotateY(Math.PI / 2);
-    hoop.rotateX(sign < 0 ? Math.PI + 0.14 : 0.14);
-    p.add(hoop, 'blackPlastic', [xx, y, z]);
-  }
-  // end caps (dished half discs). Radius and arc both stop short of the other half.
-  for (const e of [-1, 1]) {
-    const cap = new THREE.CircleGeometry(r - 2, 36, sign > 0 ? 0.14 : Math.PI + 0.14, Math.PI - 0.28);
-    cap.rotateY(Math.PI / 2); // circle normal -> +X; x->-z, y->y
-    p.add(cap, 'blackPlastic', [e * len / 2, y, z]);
-    const dome = lathe([[r - 3, 0], [r - 8, 8], [r * 0.5, 12], [0.1, 13]], 36, (sign > 0) === (e > 0) ? Math.PI + 0.14 : 0.14, Math.PI - 0.28);
-    dome.rotateZ(e > 0 ? -Math.PI / 2 : Math.PI / 2);
-    p.add(dome, 'blackPlastic', [e * len / 2, y, z]);
-  }
-  // Seam lip. Lower half ends 2.2 mm under the equator; upper half starts 2.2 mm over it.
-  const lipY0 = sign < 0 ? y - 5 : y + 2.2;
-  const lipY1 = sign < 0 ? y - 2.2 : y + 5;
-  for (const zz of [z - r - 4, z + r + 4]) p.add(boxMM([-len / 2, lipY0, zz - 3], [len / 2, lipY1, zz + 3]), 'blackPlastic');
-}
 export function airFilter() {
-  // Round pleated paper element (SC), lying inside the canister.
+  // 911 110 185 02 / Mahle LX 261: rectangular panel, orange urethane frame, pleated paper.
   const p = new Part();
-  const { y, z, r, len } = AIRBOX;
-  const L = len - 40;
-  const pleats = 64;
-  const outer = paramSurface((u, v) => {
-    const a = u * Math.PI * 2; const rr = r - 14 + 7 * Math.abs(Math.sin(pleats * a / 2));
-    return [-L / 2 + L * v, y + rr * Math.sin(a), z + rr * Math.cos(a)];
-  }, pleats * 4, 1, true);
-  p.add(outer, 'filterPaper');
-  const inner = paramSurface((u, v) => { const a = u * Math.PI * 2; const rr = r - 36; return [-L / 2 + L * v, y + rr * Math.sin(a), z + rr * Math.cos(a)]; }, 36, 1, true);
-  p.add(inner, 'zincPlate');
-  for (const e of [-1, 1]) p.add(yToX(lathe([[r - 38, -5], [r - 4, -5], [r - 4, 5], [r - 38, 5]], 48)), 'rubber', [e * (L / 2), y, z]);
+  const L = airCleanerLayout();
+  const A = AIRBOX;
+  const x0 = -A.len / 2, x1 = A.len / 2, z0 = A.z - A.wid / 2, z1 = A.z + A.wid / 2;
+  const rail = 11;
+  const y0 = L.elemBottom, y1 = L.elemTop;
+  p.add(boxMM([x0, y0, z0], [x1, y1, z0 + rail]), 'urethane');
+  p.add(boxMM([x0, y0, z1 - rail], [x1, y1, z1]), 'urethane');
+  p.add(boxMM([x0, y0, z0], [x0 + rail, y1, z1]), 'urethane');
+  p.add(boxMM([x1 - rail, y0, z0], [x1, y1, z1]), 'urethane');
+  const pleats = paramSurface((u, v) => {
+    const x = x0 + rail + 2 + (A.len - 2 * rail - 4) * u;
+    const z = z0 + rail + 2 + (A.wid - 2 * rail - 4) * v;
+    const y = L.elemY + 5.5 * Math.sin(u * 36 * Math.PI);
+    return [x, y, z];
+  }, 72, 8);
+  p.add(pleats, 'filterPaper');
   return p.g;
 }
 export function airCleanerLid() {
-  // Upper half of the round canister with spring clips and the intake snout at the left end.
+  // Upper oval half. The shell wall stops 0.2 mm above the equator; the lip faces are the joint.
   const p = new Part();
-  const { y, z, r, len } = AIRBOX;
-  airboxHalf(p, 1);
-  // spring clips / straps (#15)
-  for (const xx of [-len / 3, len / 3]) for (const zz of [z - r - 4, z + r + 4]) {
-    p.add(boxMM([xx - 6, y + 2.6, zz - 2], [xx + 6, y + 16, zz + 2]), 'steel', [0, 0, Math.sign(zz - z) * 2]);
+  const A = AIRBOX;
+  p.add(ovalSkin(true, true), 'blackPlastic');
+  p.add(ovalSkin(true, false), 'blackPlastic');
+  for (const s of [-1, 1] as const) {
+    const cap = ovalCap(true, s);
+    p.add(cap.rim, 'blackPlastic');
+    p.add(cap.plate, 'blackPlastic');
   }
-  // Intake snout stays in the upper half (centre y ≥ 392, r 14 → lowest skin y 378, above the lower shell).
-  const xEnd = -len / 2;
-  p.add(tube([[xEnd - 2, y + 30, z + 8], [xEnd - 36, y + 42, z - 24], [xEnd - 64, y + 52, z - 64]], 14, 12, 18), 'blackPlastic');
+  const aO = A.a + A.wall;
+  for (const side of [-1, 1] as const) {
+    const z0 = A.z + side * (aO + 2.2), z1 = A.z + side * (aO + A.lip - 0.8);
+    for (let k = 0; k < 8; k++) {
+      const span = 2 * A.half - 4;
+      const xa = -A.half + 2 + span * ((k + 0.5) / 8);
+      const xb = -A.half + 2 + span * ((k + 1.5) / 8);
+      if (xb < -A.half + 2 || xa > A.half - 2) continue;
+      const xLo = Math.max(xa, -A.half + 2), xHi = Math.min(xb, A.half - 2);
+      p.add(boxMM([xLo, A.yMid, Math.min(z0, z1)], [xHi, A.yMid + A.lipT, Math.max(z0, z1)]), 'blackPlastic');
+    }
+  }
+  for (const x of [-150, -50, 50, 150]) for (const side of [-1, 1] as const) {
+    const zLip = A.z + side * (A.a + A.wall + A.lip * 0.55);
+    p.add(tube([
+      [x - 7, A.yMid + 2.4, zLip],
+      [x, A.yMid + 13, zLip + side * 5],
+      [x + 7, A.yMid + 2.4, zLip],
+    ], 1.15, 6, 10), 'steel');
+  }
+  const crown = A.yMid + A.b + A.wall;
+  p.add(boxMM([-36, crown - 0.6, A.z - 14], [36, crown + 0.5, A.z + 14]), 'yellowZinc');
   return p.g;
 }
 /** Warm-up regulator (107-10 #54) on the left case top near the flywheel end: flange, body, vacuum can, two screws. */
@@ -754,31 +933,25 @@ export function warmUpRegulator() {
 export const AIRBOX_STRUTS = [[-62, 258, -22], [62, 258, -22], [-62, 258, 72], [62, 258, 72]] as V3[];
 export function airboxStruts() {
   const p = new Part();
-  const drumBottom = (z: number) => {
-    const dz = z - AIRBOX.z;
-    return AIRBOX.y - Math.sqrt(Math.max(0, AIRBOX.r * AIRBOX.r - dz * dz));
-  };
   for (const [x, y, z] of AIRBOX_STRUTS) {
+    // Column sits inboard of the stud so the M8 nut face at (x, y) stays clear.
     const inward = x > 0 ? -1 : 1;
     const ux = x + inward * 12;
-    // Foot bottom is the box top (y 252). Kept inside the flat of the rounded lid so it does not enter the corner.
-    const xLo = Math.max(-68, Math.min(x, ux) - 8), xHi = Math.min(68, Math.max(x, ux) + 8);
-    // 1 mm above the box lid. The stud (on the plenum) passes through the hole; the foot does not enter the casting.
+    const xLo = Math.min(x, ux) - 8, xHi = Math.max(x, ux) + 8;
+    // Foot 1 mm above the box lid. The stud (on the plenum) passes through the hole.
     const foot = boxMM([xLo, 253, z - 8], [xHi, y, z + 8]);
-    // Stud hole (shank r 3.84). Flat normals so the sole does not get dragged into the lid.
     const cut = csgSub(foot, cylBetween([x, 251, z], [x, y + 2, z], 5, 12));
     const sole = cut.index ? cut.toNonIndexed() : cut;
     sole.computeVertexNormals();
     p.add(sole, 'zincPlate');
-    // Buffer along the outward normal, inner end 6 mm clear of the shell.
-    const dy = drumBottom(z) - AIRBOX.y, dz = z - AIRBOX.z;
-    const L = Math.hypot(dy, dz) || 1;
-    const ny = dy / L, nz = dz / L;
-    const sy = AIRBOX.y + ny * AIRBOX.r, sz = AIRBOX.z + nz * AIRBOX.r;
-    const pad0: V3 = [ux, sy + ny * 6.5, sz + nz * 6.5];
-    const pad1: V3 = [ux, sy + ny * 16, sz + nz * 16];
-    p.add(boxMM([ux - 2.2, y, z - 2.2], [ux + 2.2, pad0[1] - 2, z + 2.2]), 'zincPlate');
-    p.add(cylBetween(pad0, pad1, 6, 14), 'rubber');
+    // Pad top stops 0.05 mm short of the curved shell so the rim is not shared.
+    const top = Math.min(shellBottom(z - 6), shellBottom(z), shellBottom(z + 6)) - 0.05;
+    p.add(boxMM([ux - 2.2, y, z - 2.2], [ux + 2.2, top - 16, z + 2.2]), 'zincPlate');
+    p.add(cylBetween([ux, y + 1, z], [ux, top - 8, z], 6, 16), 'rubber');
+    const disk = extrude(circleShape(6), 3.2, 0, 8);
+    disk.rotateX(-Math.PI / 2);
+    disk.translate(ux, top - 3.2, z);
+    p.add(faceNormals(disk), 'rubber');
   }
   return p.g;
 }
@@ -832,8 +1005,9 @@ export function distributor() {
   p.add(lathe([[0.1, 168], [36, 168], [37, 180], [30, 196], [0.1, 198]], 36), 'blackPlastic', [x, 0, z]);
   for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; p.add(cyl(6, 14, 12), 'blackPlastic', [x + 22 * Math.cos(a), 196, z + 22 * Math.sin(a)]); }
   p.add(cyl(6, 16, 12), 'blackPlastic', [x, 204, z]);
-  // vacuum unit
+  // vacuum unit, with the advance nipple the vacuum hose seats on
   p.add(yToX(cyl(20, 26, 24)), 'zincPlate', [x - 44, 150, z]);
+  p.add(cylBetween([x - 44 - 12, 150, z], DIST_VAC.tip, 3.4, 10), 'brass');
   return p.g;
 }
 /** Top of a shroud wing at this |x| (left skin is thicker upward). */

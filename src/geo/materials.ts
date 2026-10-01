@@ -6,7 +6,7 @@ export type MatKey =
   | 'chrome' | 'blackPlastic' | 'satinBlack' | 'rubber' | 'gasket' | 'ceramic' | 'brass'
   | 'heatSteel' | 'zincPlate' | 'friction' | 'redPaint' | 'bore' | 'filterPaper' | 'bronze'
   | 'finBlack' | 'forgedDark' | 'yellowZinc' | 'blackPaint' | 'aluminized' | 'polishedSteel'
-  | 'magCast' | 'shroudRed';
+  | 'magCast' | 'shroudRed' | 'urethane';
 
 const DEF: Record<MatKey, { color: number; metalness: number; roughness: number }> = {
   castAlu: { color: 0x96989a, metalness: 0.6, roughness: 0.66 },
@@ -38,6 +38,7 @@ const DEF: Record<MatKey, { color: number; metalness: number; roughness: number 
   blackPaint: { color: 0x131416, metalness: 0.15, roughness: 0.5 }, // painted sheet metal
   magCast: { color: 0x6c6f71, metalness: 0.1, roughness: 0.92 }, // lit housing reads ~#8A8D8F; key light lifts a lighter albedo toward white
   shroudRed: { color: 0xc04a30, metalness: 0.04, roughness: 0.62 }, // 1978 upper air guide, orange-red GRP
+  urethane: { color: 0xe1842a, metalness: 0.02, roughness: 0.72 }, // Mahle LX 261 seal frame (JE teardown filter photo)
   aluminized: { color: 0x8e8b84, metalness: 0.7, roughness: 0.6 }, // aluminised steel heat exchangers
   polishedSteel: { color: 0xc9ccd0, metalness: 1.0, roughness: 0.18 }, // ground journals
 };

@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import {
-  Part, V3, lathe, boxMM, cyl, cylBetween, extrude, roundRect, circlePath, hexNut, tube, mesh, cutGroup,
+  Part, V3, lathe, boxMM, cyl, cylBetween, extrude, roundRect, circlePath, hexNut, tube, torus, mesh, cutGroup,
 } from './util';
 import { CYL_Z, INTAKE_PORT, INJ, bankOf } from '../data/layout';
 
@@ -44,10 +44,29 @@ export const RUNNER_TIP_X = STUB_TIP_X + SLEEVE.gap; // 113.5
 export const SLEEVE_IN_X = STUB_TIP_X - (SLEEVE.len - SLEEVE.gap) / 2; // 84.5
 /** Air-flow-meter opening on the box top (the venturi sits here). */
 export const AFM_PORT = { x: -14, z: -64, r: 22 };
-/** Neck from the box up to the air-cleaner drum (drum numbers must match AIRBOX in aux.ts). */
-export const AIR_NECK = { x: 26, z: 46, r: 15 };
+/**
+ * Outlet neck from the box top into the air-cleaner floor (aux.ts AIRBOX.floorY).
+ * The floor hole is larger (r 22) so the tube (r 16) passes with radial air; the flange seats on the floor.
+ */
+export const AIR_NECK = { x: 36, z: -8, r: 16, hole: 22, flange: 30 };
 /** Throttle housing, rear face of the box (+Z, pulley end). */
 export const THROTTLE = { y: 222, zFace: 128, bore: 26 };
+/**
+ * Auxiliary-air takeoff on the air-flow meter (metered air, after the sensor plate).
+ * The barb points +X, toward the auxiliary air valve on the flywheel face.
+ */
+export const AFM_AUX = { tip: [28, 280, -64] as V3, axis: [1, 0, 0] as V3 };
+/** Discharge spigot on the plenum flywheel face. The auxiliary-air valve's lower port feeds it. */
+export const PLENUM_AUX = { tip: [32, 180, -134] as V3, axis: [0, 0, -1] as V3 };
+/** Manifold-vacuum nipple on the plenum lid, downstream of the throttle. */
+export const MANIFOLD_VAC = { tip: [-30, 268, 40] as V3, axis: [0, 1, 0] as V3 };
+/** Distributor vacuum-advance nipple, outboard end of the can (aux.ts distributor). */
+export const DIST_VAC = { tip: [-168, 150, 146] as V3, axis: [-1, 0, 0] as V3 };
+/** Auxiliary air valve mount. Prototype +Y is world −Z; the two barbs are prototype ±X. */
+export const AAV_MOUNT = { origin: [52, 200, -95.6] as V3, normal: [0, 0, -1] as V3 };
+/** Vacuum T-piece and limiter origins (world mm). smallParts poses the fittings here. */
+export const VAC_T = { origin: [6, 260, 62] as V3 };
+export const VAC_LIMIT = { origin: [70, 252.6, -72] as V3 };
 
 const LINE_R = 2.15;
 
@@ -197,8 +216,8 @@ const WUR_FD = [
 export const WUR_FACES: V3[] = [[-84, 128, -174], [-84, 128, -156]];
 const WUR_BANJO = WUR_FACES.map((face) => banjoFrame(face, [-1, 0, 0], [0, 0, 1]));
 
-/** Cold-start valve: origin on the plenum boss, +Y of the prototype points out (−Z). */
-export const CSV_POSE = { origin: [0, 200, -106] as V3, normal: [0, 0, -1] as V3, xHint: [1, 0, 0] as V3 };
+/** Cold-start valve: origin centred on the plenum boss (stubY), +Y of the prototype points out (−Z). */
+export const CSV_POSE = { origin: [0, BOX.stubY, -106] as V3, normal: [0, 0, -1] as V3, xHint: [1, 0, 0] as V3 };
 /** Fuel-port face in the cold-start-valve prototype (+Y out, +Z up). */
 export const CSV_PORT_LOCAL = { y: 26, faceZ: 11 };
 export function csvPoseMatrix() {
@@ -217,10 +236,19 @@ const CSV_BANJO = (() => {
 
 const RETURN_FACE: V3 = [-80, 292, -26];
 const RETURN_AXIS: V3 = [0, 0, 1];
-const FEED_BLOCK: V3 = [-156, 268, -48];
-const FEED_BLOCK_AXIS: V3 = [1, 0, 0];
-const RETURN_BLOCK: V3 = [-156, 248, 16];
-const RETURN_BLOCK_AXIS: V3 = [1, 0, 0];
+/**
+ * Filter-side union (930 110 513). The filter is off the engine; this fitting is the end of the
+ * line. Axis points back along the line (+Z) so the tube runs away from the distributor and stops
+ * on the hex instead of hooking past it.
+ */
+const FEED_BLOCK: V3 = [-142, 238, -176];
+const FEED_BLOCK_AXIS: V3 = [0, 0, 1];
+/**
+ * Tank-side union on the return. The copper sealing ring (orange) is on the distributor port;
+ * this hex is the lower end of that short line. Axis −Z: the tube arrives from the distributor.
+ */
+const RETURN_BLOCK: V3 = [-82, 268, 40];
+const RETURN_BLOCK_AXIS: V3 = [0, 0, -1];
 
 function endOf(part: string, point: V3, axis: V3): FuelEnd {
   return { part, point, axis: norm(axis) };
@@ -341,8 +369,8 @@ function filleted(corners: V3[], radius = 12): V3[] {
   return out;
 }
 
-function addNamed(p: Part, id: string, g: THREE.BufferGeometry) {
-  const me = mesh(g, 'steel');
+function addNamed(p: Part, id: string, g: THREE.BufferGeometry, mat: 'steel' | 'rubber' = 'steel') {
+  const me = mesh(g, mat);
   me.name = `line:${id}`;
   p.g.add(me);
 }
@@ -406,6 +434,10 @@ export function buildPlenumBox() {
   p.add(boxMM([38, THROTTLE.y + 8, 104], [46, THROTTLE.y + 14, 124]), 'darkSteel');
   // cold-start boss on the flywheel end, spraying into the lower chamber (no 1980 spider)
   p.add(boxMM([-24, stubY - 16, -106], [24, stubY + 16, z0]), 'castAlu');
+  // Auxiliary-air discharge spigot, flywheel face, clear of the cold-start boss (x ±24).
+  p.add(cylBetween([PLENUM_AUX.tip[0], PLENUM_AUX.tip[1], -94], PLENUM_AUX.tip, 4.6, 12), 'brass');
+  // Manifold-vacuum nipple on the lid, downstream of the throttle.
+  p.add(cylBetween([MANIFOLD_VAC.tip[0], y1 - 0.8, MANIFOLD_VAC.tip[2]], MANIFOLD_VAC.tip, 3.4, 10), 'brass');
   const cuts = [
     ...BOX.stubZ.flatMap((z) => [1, -1].map((s) => cylBetween([s * (faceX - 16), stubY, z], [s * (faceX + stubLen + 2), stubY, z], portId / 2, 20))),
     cylBetween([0, THROTTLE.y, z1 - 12], [0, THROTTLE.y, THROTTLE.zFace + 2], THROTTLE.bore, 24),
@@ -478,38 +510,39 @@ export function fuelLines() {
   return p.g;
 }
 
-function axisPoint(c: number, t: number): V3 {
-  const { pos, axis } = injectorPose(c);
-  return pos.clone().addScaledVector(axis, t).toArray() as V3;
+/**
+ * Injector lines leave the distributor as one vertical ribbon just outboard of the body,
+ * each on its own height (8 mm) so the Ø4.3 tubes never share a point. They run along Z
+ * to that cylinder, then a short drop onto the injector axis. Right-bank lines cross at
+ * y 264, just above the plenum lid, clear of the outlet neck (x 36, z −8).
+ */
+function bundle(i: number, z: number): V3 {
+  return [-134, 274 + i * 8, z];
 }
-/** Private loom lane for injector line i: 8 mm pitch so the Ø4.3 tubes keep air between them. */
-function laneX(i: number) { return -158 - i * 8; }
-
-/** Cylinders whose own z would carry the line through the air meter (z −96…−32) or the drum neck (z 31…61). */
-const DETOUR_Z: Partial<Record<number, number>> = { 3: -8, 5: 0, 2: 8 };
 
 function routeMids(id: string): V3[] {
   if (id.startsWith('inj-')) {
     const c = Number(id.slice(4));
     const i = PORT_CYL.indexOf(c);
-    const x = laneX(i);
-    const yLoom = 258;
-    const mouth = axisPoint(c, 96);
-    // Cross the engine out of the meter and the neck. Each line keeps its own z so neighbours stay 8 mm apart.
-    const zCross = DETOUR_Z[c] ?? mouth[2];
-    const mids: V3[] = [
-      [x, 308, FDZ[i]],
-      [x, yLoom, FDZ[i]],
-      [x, yLoom, zCross],
-      [mouth[0], yLoom, zCross],
-    ];
-    if (Math.abs(zCross - mouth[2]) > 1) mids.push([mouth[0], yLoom, mouth[2]]);
-    mids.push(mouth);
+    const s = bankOf(c) as 1 | -1;
+    const zC = CYL_Z[c];
+    const mids: V3[] = [bundle(i, FDZ[i]), bundle(i, zC)];
+    if (s > 0) {
+      // Cross just above the plenum lid (y 252). Cylinder 3's z sits under the banjo
+      // nuts, so that line crosses behind the distributor (z −136) and comes back.
+      const zCross = zC > -125 && zC < -35 ? -136 : zC;
+      mids.push([-134, 264, zCross], [150, 264, zCross]);
+      if (zCross !== zC) mids.push([168, 230, zC]);
+      mids.push([230, 190, zC]);
+    } else mids.push([-210, 220, zC]);
     return mids;
   }
-  if (id === 'feed') return [[-150, 300, -90], [-170, 280, -48]];
-  if (id === 'return') return [[-80, 270, 16], [-120, 248, 16]];
-  if (id === 'csv') return [[-20, 300, -90], [20, 230, -140]];
+  // Feed drops below the warm-up stubs (y 286 / 304 at z −139) and stops on the filter union.
+  // Return is the short line off the copper-ring union, straight onto the tank-side hex.
+  // CSV drops from the distributor's inboard side port onto the valve banjo.
+  if (id === 'feed') return [[-128, 256, -132]];
+  if (id === 'return') return [[-81, 278, 6]];
+  if (id === 'csv') return [[-20, 270, -108], [30, 236, -132]];
   return [];
 }
 
@@ -520,23 +553,23 @@ export function wurLinesPart() {
     placeBanjo(p, WUR_FD[i]);
     placeBanjo(p, WUR_BANJO[i]);
     const line = FUEL_LINES.find((l) => l.id === `wur-${i}`)!;
-    const zBack = -78 - i * 14;
-    // Stay above the injector loom (y 258) until clear of it (lanes reach x −198), then drop outside the skirt.
-    // Skirt bottom is y 102, end plate z −200, hot-air socket z < −203. Stubs point +Z.
+    // Cyl-6 window is open for x ≤ −174, y 64–188, z −220…−75. The wing rib is at z −185
+    // and the hot-air socket screws sit on the end plate (z ≈ −205), so the drop is at
+    // z −162/−174, x −208/−218. The return runs under the wing sheet (y ≈ 140 there).
+    const x = -208 - i * 10;
+    const z = -162 - i * 12;
     addLine(p, line.id, line.a.point, line.a.axis, line.b.point, line.b.axis, [
-      [-180, 304 - i * 10, -142],
-      [-240, 280 - i * 8, -152],
-      [-272, 160 - i * 6, -166],
-      [-272, 90 - i * 5, -166],
-      [-120, 90 - i * 5, -166],
-      [-108, 128, zBack],
+      [-156, 300 - i * 8, -168],
+      [x, 220, z],
+      [x, 124, z],
+      [-124, 124, -156 - i * 10],
     ]);
   }
-  // Catalogue leftovers, clear of the distributor and of both lines.
-  p.add(lathe([[4, 0], [7, 0], [7, 8], [4, 8]], 14).translate(-236, 214, -96), 'brass');
-  p.add(hexNut(14, 6).translate(-236, 224, -96), 'zincPlate');
-  p.add(lathe([[5, 0], [8, 0], [8, 1.4], [5, 1.4]], 14).translate(-236, 212.6, -96), 'copper');
-  p.add(lathe([[4.2, 0], [7.5, 0], [7.5, 1.3], [4.2, 1.3]], 14).translate(-226, 214, -104), 'copper');
+  // Catalogue leftovers, parked above the drop and clear of both lines.
+  p.add(lathe([[4, 0], [7, 0], [7, 8], [4, 8]], 14).translate(-168, 268, -96), 'brass');
+  p.add(hexNut(14, 6).translate(-168, 278, -96), 'zincPlate');
+  p.add(lathe([[5, 0], [8, 0], [8, 1.4], [5, 1.4]], 14).translate(-168, 266.6, -96), 'copper');
+  p.add(lathe([[4.2, 0], [7.5, 0], [7.5, 1.3], [4.2, 1.3]], 14).translate(-158, 268, -108), 'copper');
   return p.g;
 }
 
@@ -569,15 +602,103 @@ export function mixtureControlUnit() {
   p.add(cylBetween([FD.x0, FEED_BANJO.face[1], FEED_BANJO.face[2]], shy(FEED_BANJO.face, FEED_BANJO.axis), 6.2, 14), 'zincPlate');
   p.add(cylBetween([FD.x1, CSV_FD_BANJO.face[1], CSV_FD_BANJO.face[2]], shy(CSV_FD_BANJO.face, CSV_FD_BANJO.axis), 6.2, 14), 'zincPlate');
   for (const b of WUR_FD) p.add(cylBetween([b.face[0], b.face[1], FD.z0], shy(b.face, b.axis), 6.2, 14), 'zincPlate');
-  // M14×1.5 return union (Bosch K-Jet test-point / return note)
+  // M14×1.5 return union (Bosch K-Jet test-point / return note). Copper ring sits on this face.
   unionFace(p, RETURN_FACE, RETURN_AXIS, 7, 21);
-  // Rubber elbow from the meter outlet to the throttle. x 58 clears the neck (x 26 ± 15);
-  // y 270 sits under the drum (bottom ~282) and above the injector loom (y 258).
-  // x 80 is outboard of the airbox-strut studs (x ±62) and the neck (x 26).
-  const hose: V3[] = [[24, 280, -40], [82, 274, -40], [82, 270, 110], [8, 264, 122], [0, 246, 150], [0, 240, 154]];
-  p.add(tube(filleted(hose, 18), 7.5, 12, 40), 'rubber');
+  // Metered-air barb for the auxiliary air valve. The hose itself is aux-air-plumbing.
+  p.add(cylBetween([11, AFM_AUX.tip[1], AFM_AUX.tip[2]], AFM_AUX.tip, 5.2, 12), 'brass');
   return p.g;
 }
 
-/** Saddle under the six injector lines where they drop beside the distributor (FDZ −110…−50). */
-export const LINE_CLIP = { x: -178, yTop: 253.4, z: -80, span: 56, depth: 72 };
+/** World pose of the auxiliary air valve (prototype +Y → world −Z, +X hint world +Y). */
+export function aavMatrix() {
+  const Y = v(...AAV_MOUNT.normal).normalize();
+  const X = v(0, 1, 0).addScaledVector(Y, -v(0, 1, 0).dot(Y)).normalize();
+  const Z = new THREE.Vector3().crossVectors(X, Y).normalize();
+  return new THREE.Matrix4().makeBasis(X, Y, Z).setPosition(v(...AAV_MOUNT.origin));
+}
+/** The two barbs. `up` points world +Y, `down` world −Y. Tips are the hose seats. */
+export function aavPorts() {
+  const M = aavMatrix();
+  const one = (lx: number) => {
+    const tip = v(lx, 16, 0).applyMatrix4(M).toArray() as V3;
+    const axis = v(Math.sign(lx) || 1, 0, 0).transformDirection(M).toArray() as V3;
+    return { tip, axis };
+  };
+  return { up: one(26), down: one(-26) };
+}
+
+/**
+ * Rubber / vacuum hose. `ahead` is the collinear run past the straight lead; keep it short
+ * where a long lead would enter the shroud (the auxiliary-air valve's lower barb).
+ */
+function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5, ahead = 10) {
+  const A = norm(a.axis), B = norm(b.axis);
+  const lead = 8;
+  const start = add(a.point, A, 0.35);
+  const end = add(b.point, B, 0.35);
+  const a1 = add(a.point, A, lead);
+  const b1 = add(b.point, B, lead);
+  addNamed(p, id, cylBetween(start, a1, r, 8), 'rubber');
+  addNamed(p, id, cylBetween(end, b1, r, 8), 'rubber');
+  const pts = filleted([a1, add(a.point, A, lead + ahead), ...mids, add(b.point, B, lead + ahead), b1], 10);
+  addNamed(p, id, tube(pts, r, 7, Math.max(16, pts.length * 3)), 'rubber');
+}
+
+function vacTPorts() {
+  const [ox, oy, oz] = VAC_T.origin;
+  return {
+    minusX: { tip: [ox - 14, oy, oz] as V3, axis: [-1, 0, 0] as V3 },
+    plusX: { tip: [ox + 14, oy, oz] as V3, axis: [1, 0, 0] as V3 },
+    plusZ: { tip: [ox, oy, oz + 28] as V3, axis: [0, 0, 1] as V3 },
+  };
+}
+function vacLimitPort() {
+  const [ox, oy, oz] = VAC_LIMIT.origin;
+  return { tip: [ox + 22, oy + 10, oz] as V3, axis: [1, 0, 0] as V3 };
+}
+
+/** Every air and vacuum hose. Fuel lines stay in FUEL_LINES. Both ends are real fittings. */
+export function serviceHoses(): FuelLineDef[] {
+  const aav = aavPorts();
+  const t = vacTPorts();
+  const lim = vacLimitPort();
+  return [
+    { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis) },
+    { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
+    { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: endOf('vacuum-fittings', t.minusX.tip, t.minusX.axis) },
+    { id: 'vac-limiter', part: 'vacuum-fittings', a: endOf('vacuum-fittings', t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
+    { id: 'vac-distributor', part: 'vacuum-fittings', a: endOf('vacuum-fittings', t.plusZ.tip, t.plusZ.axis), b: endOf('distributor', DIST_VAC.tip, DIST_VAC.axis) },
+  ];
+}
+
+export function auxAirPlumbingPart() {
+  const p = new Part();
+  const lines = serviceHoses().filter((h) => h.part === 'aux-air-plumbing');
+  const meter = lines[0], mani = lines[1];
+  addHose(p, meter.id, meter.a, meter.b, [[50, 274, -86]]);
+  // Lower barb points down at the shroud roof (y 153.5). Stay under the valve body (r 20
+  // about y 200) and above the roof, then come up onto the plenum pipe past the body.
+  addHose(p, mani.id, mani.a, mani.b, [[48, 164, -128], [32, 168, -148]], 5, 2);
+  for (const q of [[36, 280, -64], [52, 232, -111.6], [52, 166, -111.6], [32, 180, -142]] as V3[]) {
+    p.add(torus(6.2, 0.7, 6, 16).translate(q[0], q[1], q[2]), 'zincPlate');
+  }
+  return p;
+}
+
+export function vacuumHosesPart() {
+  const p = new Part();
+  const lines = serviceHoses().filter((h) => h.part === 'vacuum-fittings');
+  const [mani, lim, dist] = lines;
+  addHose(p, mani.id, mani.a, mani.b, [[-22, 274, 52]], 3.2);
+  // Limiter barb points +X, so the hose runs past it and turns back into the tip.
+  addHose(p, lim.id, lim.a, lim.b, [[70, 268, 40], [108, 270, -20], [108, 268, -72]], 3.2);
+  // Left of the cap (cap reaches about x −135) and above the lead that drops at y 188.
+  addHose(p, dist.id, dist.a, dist.b, [[-40, 278, 110], [-190, 240, 130], [-186, 200, 146]], 3.2);
+  return p;
+}
+
+/**
+ * Vertical clip just outboard of the injector ribbon (ribbon x −134, heights 274…314).
+ * The plate stays 12 mm clear of the tubes; the fingers stop short of them.
+ */
+export const LINE_CLIP = { x: -148, y0: 266, y1: 326, z: -80, depth: 20 };
