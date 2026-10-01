@@ -137,6 +137,7 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('valve-cover-upper|valve-cover-lower', 'rockers|valves', 'SIMPLIFIED hollow covers (v5): rocker-arm tips / valve-spring retainers cross the seat line at the long edges (modelled rocker gear ~5 mm wider than the cover seat)'),
   pair('cam-key', 'cam-shim', 'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)'),
   pair('valve-cover-upper|valve-cover-lower', 'rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED a few rocker-shaft screw/nut heads tuck under the inner edge of an ear boss (bosses kept full so the cover-nut seats stay solid)'),
+  pair('crankcase-left', 'oil-pump-nuts', 'SIMPLIFIED one pump-cover nut corner grazes the hollow-case inner wall (PR #8 casting, 2 triangles)'),
   pair('valve-cover-gasket-upper|valve-cover-gasket-lower', 'rockers|valves', 'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)'),
   pair('ignition-leads', '.*', 'SIMPLIFIED flexible ignition leads drawn on an approximate path (they drape over other parts)'),
   pair('rockers', 'valve-cover-nuts-upper|valve-cover-nuts-lower', 'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear'),

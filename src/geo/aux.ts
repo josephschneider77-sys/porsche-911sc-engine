@@ -425,13 +425,13 @@ export function fuelLines() {
   return p.g;
 }
 /** Warm-up regulator (107-10 #54) on the left case top near the flywheel end: flange, body, vacuum can, two screws. */
-export const WUR = { flangeTop: 115.2, screws: [[-60, -188], [-60, -152]] as [number, number][] };
+export const WUR = { flangeTop: 121.2, screws: [[-60, -188], [-60, -152]] as [number, number][] };
 export function warmUpRegulator() {
   const p = new Part();
-  p.add(boxMM([-70, 110.2, -195], [-50, WUR.flangeTop, -145]), 'zincPlate');
-  p.add(boxMM([-74, WUR.flangeTop, -182], [-46, 136, -158]), 'zincPlate');
-  p.add(cyl(11, 9, 20), 'zincPlate', [-60, 140.5, -170]);
-  for (const z of [-178, -162]) p.add(yToX(cyl(4, 10, 10)), 'brass', [-79, 128, z]); // fuel connection pieces (#57)
+  p.add(boxMM([-70, WUR.flangeTop - 5, -195], [-50, WUR.flangeTop, -145]), 'zincPlate');
+  p.add(boxMM([-74, WUR.flangeTop, -182], [-46, 139, -158]), 'zincPlate');
+  p.add(cyl(11, 8, 20), 'zincPlate', [-60, 143, -170]);
+  for (const z of [-178, -162]) p.add(yToX(cyl(4, 10, 10)), 'brass', [-79, 131, z]); // fuel connection pieces (#57)
   return p.g;
 }
 /** Air-cleaner struts (106-00 #18/#19) with bonded rubber buffers (#20), on the air distributor top. */

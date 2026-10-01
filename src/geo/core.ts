@@ -191,11 +191,15 @@ export function crankcaseHalf(s: 1 | -1) {
     // (101-10 #43-#50: small-part sets seat on the boss tops)
     p.add(boxMM([58, 104, 102], [92, 112, 168]), 'castAlu');
     p.add(boxMM([62, 111, 110], [88, 113.5, 160]), 'machinedAlu');
-    for (const [bx, bz] of [[40, 150], [64, 120], [64, 160]]) p.add(cyl(11, 10, 16), 'castAlu', [bx, 115, bz]);
+    for (const [bx, bz] of [[40, 150], [64, 120], [64, 160]]) p.add(cyl(11, 10, 16), 'castAlu', [bx, 118, bz]);
+    // spot-faced pads for the odd 101-10 #11 bolt and #20/#21 stud nut (E positions)
+    for (const bz of [-95, 55]) p.add(cyl(10, 12, 20), 'castAlu', [30, 119, bz]);
     // oil-thermostat pad under the right half (flange face y -128, 3 studs)
     p.add(cyl(30, 12, 32), 'castAlu', [58, -122, 118]);
   } else {
     p.add(boxMM([-76, 108, 120], [-30, 122, 185]), 'castAlu');
+    // spot-faced pad under the left half for the 101-05 #22/#23 M10 stud nut (E position)
+    p.add(cyl(10, 8, 20), 'castAlu', [-40, -127, -186]);
   }
   // round sump boss (strainer cover seats here)
   p.add(yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), 'castAlu', [0, -126, -10]);

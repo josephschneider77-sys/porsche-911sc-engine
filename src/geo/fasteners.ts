@@ -155,12 +155,12 @@ export function fastenerSets(): FSet[] {
   cache = out;
   return out;
 }
-/** First flat (level within 0.05 mm over r 10) spot on the case top near the given candidates (build time). */
+/** First flat (level within 0.05 mm over r 6) spot on the case top near the given candidates (build time). */
 function caseFlat(s: 1 | -1, cands: [number, number][]) {
   const id = s > 0 ? 'crankcase-right' : 'crankcase-left';
   for (const [x0, z0] of cands) for (let dx = -12; dx <= 12; dx += 3) for (let dz = -12; dz <= 12; dz += 3) {
     const x = x0 + dx, z = z0 + dz; const h = probe(id, V(x, 400, z), V(0, -1, 0)); if (!h) continue;
-    const ok = [[10, 0], [-10, 0], [0, 10], [0, -10], [7, 7], [-7, -7]].every(([a, b]) => { const q = probe(id, V(x + a, 400, z + b), V(0, -1, 0)); return q && Math.abs(q.point.y - h.point.y) < 0.05; });
+    const ok = [[6, 0], [-6, 0], [0, 6], [0, -6], [4, 4], [-4, -4]].every(([a, b]) => { const q = probe(id, V(x + a, 400, z + b), V(0, -1, 0)); return q && Math.abs(q.point.y - h.point.y) < 0.05; });
     if (ok) return h.point.clone();
   }
   throw new Error('caseFlat: no flat spot');
