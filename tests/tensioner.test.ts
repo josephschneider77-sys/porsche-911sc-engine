@@ -4,8 +4,9 @@ import { CAM_X, INT_SHAFT_Y } from '../src/data/layout';
 import {
   basePath, chainPath, chainPins, tensionerLayout, ADJ, CAM_NOSE, CAM_SPROCKET_R, INT_SPROCKET_R,
   SPROCKET_HOLES, FLANGE_NOTCHES, VERNIER, CHAIN_Z, guideRails, railInner, chainTensioner,
-  CRANK_GEAR_T, INT_GEAR, INT_T, CAM_T, IDLER_T, crankGears, intermediateShaft,
+  CRANK_GEAR_T, INT_GEAR, INT_T, CAM_T, IDLER_T, crankGears, intermediateShaft, perimeterClashSolids, MESH_DZ,
 } from '../src/geo/core';
+import { convexPlanes } from '../src/geo/util';
 import { rayHit } from './hw';
 
 describe('cam drive ratio', () => {
@@ -18,28 +19,29 @@ describe('cam drive ratio', () => {
     expect(CRANK_GEAR_T).toBe(35);
     expect(INT_GEAR.teeth).toBe(60);
   });
-  it('intermediate tooth tips clear the perimeter nut, the saddle face and the pulley-end bore wall', () => {
+  it('intermediate gear clears the lock nut and the stud at the lower lug', () => {
     const root = intermediateShaft();
     root.updateMatrixWorld(true);
+    const solids = perimeterClashSolids().map((g) => convexPlanes(g));
     const v = new THREE.Vector3();
     const mod = INT_GEAR.module;
     const pr = (INT_GEAR.teeth * mod) / 2;
     const rTip = pr + 1.6 * (mod / 2);
-    const lug = (p: THREE.Vector3) => {
-      const dx = p.x < -18 ? -18 - p.x : p.x > 0 ? p.x : 0;
-      const radial = Math.hypot(p.y + 136, p.z - 190);
-      return dx === 0 ? radial - 8 : Math.hypot(dx, Math.max(0, radial - 8));
-    };
-    let tips = 0;
+    let near = 0, tips = 0;
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       const P = mesh.geometry.getAttribute('position');
       for (let i = 0; i < P.count; i++) {
         v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
+        for (const planes of solids) {
+          let mx = -Infinity;
+          for (const p of planes) mx = Math.max(mx, p.n.dot(v) - p.c);
+          expect(mx, `inside a lug solid at ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`).toBeGreaterThan(-0.02);
+          if (mx < 0.5) near++;
+        }
         if (Math.hypot(v.x, v.y - INT_SHAFT_Y) < rTip - 0.55) continue;
         tips++;
-        expect(lug(v), `nut clearance at ${v.x.toFixed(1)},${v.y.toFixed(1)}`).toBeGreaterThan(0.8);
         expect(v.z).toBeGreaterThan(191.4);
         if (v.z > 204.95) {
           const inCrankBore = Math.hypot(v.x, v.y) < 37.6;
@@ -48,6 +50,7 @@ describe('cam drive ratio', () => {
         }
       }
     });
+    expect(near, 'cut follows the real solids').toBeGreaterThan(20);
     expect(tips).toBeGreaterThan(20);
   });
   it('crank and intermediate gear sections do not overlap across the face', () => {
@@ -66,15 +69,13 @@ describe('cam drive ratio', () => {
         const at = (i: number) => v.clone().fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
         const nTri = idx ? idx.count / 3 : P.count / 3;
         for (let t = 0; t < nTri; t++) {
-          const ia = idx ? idx.getX(t * 3) : t * 3;
-          const ib = idx ? idx.getX(t * 3 + 1) : t * 3 + 1;
-          const ic = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
-          const tri = [at(ia), at(ib), at(ic)];
+          const tri = [0, 1, 2].map((k) => at(idx ? idx.getX(t * 3 + k) : t * 3 + k));
           const hits: [number, number][] = [];
           for (let k = 0; k < 3; k++) {
             const A = tri[k], B = tri[(k + 1) % 3];
             const sa = A.z - z, sb = B.z - z;
-            if (Math.abs(sa) < 1e-6) hits.push([A.x, A.y]);
+            if (sa === 0 && sb === 0) continue;
+            if (Math.abs(sa) <= 1e-8) hits.push([A.x, A.y]);
             else if (sa * sb < 0) {
               const u = sa / (sa - sb);
               hits.push([A.x + (B.x - A.x) * u, A.y + (B.y - A.y) * u]);
@@ -85,33 +86,64 @@ describe('cam drive ratio', () => {
       });
       return segs;
     };
-    const inside = (segs: Array<[[number, number], [number, number]]>, x: number, y: number) => {
-      let n = 0;
+    const crossings = (segs: Array<[[number, number], [number, number]]>, y: number) => {
+      const xs: { x: number; dir: number }[] = [];
       for (const [a, b] of segs) {
         if ((a[1] > y) === (b[1] > y)) continue;
         const u = (y - a[1]) / (b[1] - a[1]);
-        if (a[0] + u * (b[0] - a[0]) > x) n++;
+        xs.push({ x: a[0] + (b[0] - a[0]) * u, dir: b[1] > a[1] ? 1 : -1 });
       }
-      return n % 2 === 1;
+      xs.sort((p, q) => p.x - q.x);
+      return xs;
     };
-    // Depths Bottom End sectioned: inboard, mid-face, and the pulley end of the 12.7 mm face.
-    for (const z of [196, 199.3, 203, 204.5]) {
-      const a = segsAt(crank, z), b = segsAt(mid, z);
-      const cell = 0.2;
-      let both = 0, crankN = 0, intN = 0;
-      for (let x = -8; x <= 8; x += cell) {
-        for (let y = -42; y <= -20; y += cell) {
-          const ic = inside(a, x, y), ii = inside(b, x, y);
-          if (ic) crankN++;
-          if (ii) intN++;
-          if (ic && ii) both++;
-        }
+    // Winding, not paired crossings: a duplicated edge stays inside instead of flipping the parity.
+    const spansOf = (xs: { x: number; dir: number }[]) => {
+      let w = 0, open = 0;
+      const spans: [number, number][] = [];
+      for (const c of xs) {
+        const prev = w;
+        w += c.dir;
+        if (prev === 0 && w !== 0) open = c.x;
+        if (prev !== 0 && w === 0) spans.push([open, c.x]);
       }
-      expect(crankN, `crank section at z ${z}`).toBeGreaterThan(20);
-      expect(intN, `intermediate section at z ${z}`).toBeGreaterThan(20);
-      expect(both * cell * cell, `overlap at z ${z}`).toBe(0);
+      return { spans, open: w !== 0 };
+    };
+    const overlapLen = (a: [number, number][], b: [number, number][]) => {
+      let s = 0;
+      for (const [a0, a1] of a) for (const [b0, b1] of b) {
+        const lo = Math.max(a0, b0), hi = Math.min(a1, b1);
+        if (hi > lo) s += hi - lo;
+      }
+      return s;
+    };
+    // Whole tooth face, including the slice seams. 0.04 mm in z and in y; x is the exact crossing.
+    let worst = 0, worstAt = '', samples = 0, crankLen = 0, intLen = 0, odds = 0, lines = 0;
+    const oddNote: string[] = [];
+    for (let z = 192.02; z < 204.68; z += 0.04) {
+      const q = Math.abs(z - (192 + Math.round((z - 192) / MESH_DZ) * MESH_DZ)) < 1e-4 ? z + 0.01 : z;
+      const a = segsAt(crank, q), b = segsAt(mid, q);
+      samples++;
+      for (let y = -40; y <= -22; y += 0.04) {
+        const yy = y + 1e-6;
+        const ca = spansOf(crossings(a, yy)), cb = spansOf(crossings(b, yy));
+        lines++;
+        if (ca.open || cb.open) {
+          odds++;
+          if (oddNote.length < 8) oddNote.push(`z ${q.toFixed(3)} y ${yy.toFixed(3)}`);
+          continue;
+        }
+        for (const [x0, x1] of ca.spans) crankLen += x1 - x0;
+        for (const [x0, x1] of cb.spans) intLen += x1 - x0;
+        const len = overlapLen(ca.spans, cb.spans);
+        if (len > worst) { worst = len; worstAt = `z ${q.toFixed(3)} y ${y.toFixed(2)}`; }
+      }
     }
-  });
+    expect(samples).toBeGreaterThan(200);
+    expect(odds, `odd crossings on ${odds}/${lines} scanlines: ${oddNote.join('; ')}`).toBe(0);
+    expect(crankLen, 'crank section').toBeGreaterThan(1000);
+    expect(intLen, 'intermediate section').toBeGreaterThan(1000);
+    expect(worst, `flank overlap ${worstAt}`).toBeLessThan(1e-4);
+  }, 120000);
 });
 
 describe.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('chain tensioner, %s bank', (s, b) => {

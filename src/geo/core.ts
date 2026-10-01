@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
-  polyShape, hull, circlePts, gearShape, sprocketRingShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, woodruffGeom, cutGroup,
+  polyShape, hull, circlePts, gearShape, timingGearShape, sprocketRingShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, woodruffGeom, cutGroup, subtractSolids,
 } from './util';
 import {
   SPEC, SPARK_Z, CYL_Z, MAIN_Z, THROW_DEG, DECK_X, CYL_TOP_X, HEAD_OUT_X, CAM_X, CAM_HOUSING_OUT_X, INT_SHAFT_Y, CASE_Z, NOSE_BEARING_Z,
@@ -132,7 +132,8 @@ export function crankcaseHalf(s: 1 | -1) {
     const tuck = 12 * Math.exp(-(((z + 8) / 120) ** 2));
     // Tuck the belly inboard of the oil-pump cover nuts at the flywheel end (z ≈ -161).
     const pump = Math.exp(-(((z + 158) / 22) ** 2));
-    const open: [number, number][] = [[10, -88], [52, -56 - drop * 0.12], [68 - tuck, -100 - drop], [16, -116 - drop * 0.4]];
+    // Inner corner stays outside the intermediate-shaft tunnel (the old [10, −88] ran through the shaft).
+    const open: [number, number][] = [[28, -104], [52, -56 - drop * 0.12], [68 - tuck, -100 - drop], [16, -116 - drop * 0.4]];
     const clear: [number, number][] = [[8, -124], [14, -128], [20, -134], [10, -136]];
     return open.map((q, i) => [q[0] + (clear[i][0] - q[0]) * pump, q[1] + (clear[i][1] - q[1]) * pump] as [number, number]);
   }, z0 + 6, z1 - 6);
@@ -212,9 +213,17 @@ export function crankcaseHalf(s: 1 | -1) {
   };
   // solid sump wall under the bay (same section as the pre-sculpt case) so relief valves and oil fittings
   // seat on the outside bottom instead of a ray slipping through the thin belly into the crank
-  addProfile([
-    [0, -56], [0, -120], [14, -128], [40, -126], [70, -118], [90, -104], [84, -90], [60, -74], [32, -62],
-  ], z0 + 4, z1 - 4, CAST);
+  // Semicircular relief on the split (r 17.5 about the intermediate shaft) so the shaft,
+  // the Ø32 flange land and the thrust collar are not buried in the sump wall. Each half
+  // bulges the relief into its own x, and the outer belly stays so the oil fittings still seat.
+  const boreR = 17.5, cy = INT_SHAFT_Y;
+  const sump: [number, number][] = [[0, -56], [0, cy + boreR]];
+  for (let i = 1; i < 12; i++) {
+    const a = Math.PI / 2 - (i / 12) * Math.PI;
+    sump.push([boreR * Math.cos(a), cy + boreR * Math.sin(a)]);
+  }
+  sump.push([0, cy - boreR], [0, -120], [14, -128], [40, -126], [70, -118], [90, -104], [84, -90], [60, -74], [32, -62]);
+  addProfile(sump, z0 + 4, z1 - 4, CAST);
   // Lower edge stays inboard of the oil-pump cover nuts (y ≈ -88, |x| ≈ 28) at the flywheel main.
   const WEB: [number, number][] = [
     [0, 96], [24, 92], [50, 70], [50, 46], [40, 36], [40, -28], [26, -50], [22, -68], [22, -104], [0, -100],
@@ -345,6 +354,29 @@ export function crankcaseHalf(s: 1 | -1) {
   }
   // round sump boss (strainer cover seats here)
   p.add(yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), CAST, [0, -126, -10]);
+  // Pulley-end bay. The 60 T tips stop at z 204.7; the pocket continues through the bulkhead
+  // so that face cannot meet the teeth. Web bores are opened because a hole centred on the
+  // split does not survive the extrude triangulator. The running tunnel stays inside the
+  // bearing-seat ID (13.6) except at the collar and the sprockets.
+  const axial = (r: number, y: number, zA: number, zB: number) => {
+    const g = yToZ(cyl(r, zB - zA, 32));
+    g.translate(0, y, (zA + zB) / 2);
+    return g;
+  };
+  const yS = INT_SHAFT_Y;
+  // End disks are not capped: these are through-bores, and a disk at the cutter end sealed the hole.
+  const open = (n: THREE.Vector3) => Math.abs(n.z) < 0.85;
+  subtractSolids(p.g, [
+    axial(13.55, yS, -210, 161.4),
+    axial(16.6, yS, 160.8, 168.8),
+    axial(13.55, yS, 168.4, 186.6),
+    axial(57.5, yS, 186.2, 209.2),
+    axial(39.5, yS, 186.2, 210.2),
+    axial(15.5, yS, 208.6, 226.5),
+    axial(41.2, yS, 225.5, 270),
+    axial(14.5, yS, 269, 284),
+    axial(36.5, 0, 190.8, 225),
+  ], open);
   return p.g;
 }
 
@@ -476,37 +508,72 @@ export function crankshaft() {
   return p.g;
 }
 
-/** Helical tooth stack. The bore stays round so a fixed hub can carry the keyway (slices rotate). */
-function addHelix(p: Part, teeth: number, rRoot: number, rTip: number, holeR: number, z0: number, z1: number, twist: number, mat: MatKey, at: V3, slices = 10, phase = 0) {
-  const dz = (z1 - z0) / slices;
-  for (let i = 0; i < slices; i++) {
-    const s = gearShape(teeth, rRoot, rTip, holeR);
-    const ang = phase + twist * ((i + 0.5) / slices - 0.5);
-    p.add(extrude(s, dz + 0.04, 0, 1).rotateZ(ang), mat, [at[0], at[1], at[2] + z0 + i * dz]);
+/**
+ * Shared slice pitch for the timing pair. Both helices step on these planes over z 192–204.7
+ * (12.7 mm / 64). A mismatched 11-vs-12 stair made the flanks cross between slice centres.
+ */
+export const MESH_DZ = 12.7 / 64;
+const MESH_ZREF = 192 + 12.7 / 2;
+/** Helical tooth stack. `rate` is d(angle)/dz. `tapered` is the timing pair; the distributor wheel keeps gearShape. */
+function addHelix(p: Part, teeth: number, rRoot: number, rTip: number, holeR: number, z0: number, z1: number, rate: number, mat: MatKey, at: V3, phase = 0, tapered = false, dz = 0) {
+  const step = dz > 0 ? dz : (z1 - z0) / 8;
+  const zRef = dz > 0 ? MESH_ZREF : (z0 + z1) / 2;
+  const lip = tapered ? 0 : 0.04;
+  for (let z = z0; z < z1 - 1e-6;) {
+    const zNext = Math.min(z1, z + step);
+    const ang = phase + rate * ((z + zNext) / 2 - zRef);
+    const s = tapered ? timingGearShape(teeth, rRoot, rTip, holeR) : gearShape(teeth, rRoot, rTip, holeR);
+    p.add(extrude(s, zNext - z + lip, 0, 1).rotateZ(ang), mat, [at[0], at[1], at[2] + z]);
+    z = zNext;
   }
+}
+/** Keyed hub disc. The slot opens through the OD so it is not drawn past the rim (that sliver was degenerate). */
+function keyedHubOutline(hubR: number, boreR: number, kb: number) {
+  const yOut = Math.sqrt(Math.max(0, hubR * hubR - kb * kb));
+  const a = Math.asin(kb / boreR);
+  const aL = Math.atan2(yOut, -kb), aR = Math.atan2(yOut, kb);
+  const pts: [number, number][] = [];
+  const n = 72;
+  for (let i = 0; i <= n; i++) {
+    const ang = aL + (aR + Math.PI * 2 - aL) * (i / n);
+    pts.push([hubR * Math.cos(ang), hubR * Math.sin(ang)]);
+  }
+  const b0 = Math.PI / 2 - a, b1 = Math.PI / 2 + a - Math.PI * 2;
+  for (let i = 0; i <= 64; i++) {
+    const ang = b0 + (b1 - b0) * (i / 64);
+    pts.push([boreR * Math.cos(ang), boreR * Math.sin(ang)]);
+  }
+  pts.push([-kb, yOut]);
+  const deduped: [number, number][] = [];
+  for (const p of pts) {
+    const last = deduped[deduped.length - 1];
+    if (last && Math.hypot(last[0] - p[0], last[1] - p[1]) < 1e-4) continue;
+    deduped.push(p);
+  }
+  const first = deduped[0], last = deduped[deduped.length - 1];
+  if (first && last && Math.hypot(first[0] - last[0], first[1] - last[1]) < 1e-4) deduped.pop();
+  return polyShape(deduped);
 }
 /** Crank timing gear (102-00 #8, 35 T helical) + distributor drive wheel (102-00 #10, smaller brass helical). */
 export function crankGears() {
   const p = new Part();
   const N = CRANK_NOSE, kb = N.key.b / 2 + 0.05;
-  const keyedBore = () => { const h = new THREE.Path(); const a = Math.asin(kb / (N.seatR + 0.05)); h.absarc(0, 0, N.seatR + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false); h.lineTo(kb, N.seatR + N.key.proud + 0.4); h.lineTo(-kb, N.seatR + N.key.proud + 0.4); h.closePath(); return h; };
   const z0 = N.gear[0], z1 = N.gear[1];
-  // 35 T on the 84 mm centres (module shared with the 60 T intermediate gear).
-  // Root r = pr − 1.7 ≈ 29.25, so 1.25 mm of web sits under the Ø56 nose (r 28). The Woodruff
-  // key top is r 30.6 and the keyway reaches r 31.0, which is past that root, so this tooth
-  // count cannot clear the key. Main's hub OD (r 33.4) is this gear's tip circle and is not
-  // restored: a disc that large would bury the teeth. The keyed hub stays just under the root.
+  // Crank gear key/root interference is a known geometric conflict between the 84 mm gear centres
+  // and the Ø56 crank nose with its Woodruff key, pending a real measurement of the crank nose Ø or gear centres.
+  // 35 T stays. The hub slot stops at the rim (r ≈ 29.35). It is not cut into the tooth ring:
+  // extending it to the key top (r 31.0) left a solid tab in the 12-o'clock gaps.
   const pr = (CRANK_GEAR_T * INT_GEAR.module) / 2;
-  const hub = circleShape(pr - 1.6); hub.holes.push(keyedBore());
-  p.add(extrude(hub, z1 - z0), 'steel', [0, 0, z0]);
-  // ψ ≈ 30° over the full 14 mm face. The intermediate teeth use the same tan(ψ) over their 12.7 mm face.
-  const twist = Math.tan(30 * DEG) * (z1 - z0) / pr;
-  addHelix(p, CRANK_GEAR_T, pr - 1.7, pr + 2.5, N.seatR + 0.25, z0, z1, twist, 'steel', [0, 0, 0], 11);
-  // smaller-OD brass distributor gear, same hand, narrow face
+  const hubR = pr - 1.6;
+  p.add(extrude(keyedHubOutline(hubR, N.seatR + 0.05, kb), z1 - z0, 0, 1), 'steel', [0, 0, z0]);
+  // Same tan(30°)/pr rate and the same z planes as the intermediate gear over the 12.7 mm mesh.
+  const rate = Math.tan(30 * DEG) / pr;
+  addHelix(p, CRANK_GEAR_T, pr - 1.7, pr + 2.5, N.seatR + 0.25, z0, z1, rate, 'steel', [0, 0, 0], 0, true, MESH_DZ);
+  // smaller-OD brass distributor gear, same hand, narrow face. Spur profile, not the timing taper.
   const d0 = N.drive[0], d1 = N.drive[1];
-  const dTwist = Math.tan(28 * DEG) * (d1 - d0) / 31;
+  const dRate = Math.tan(28 * DEG) / 31;
   p.add(extrude(ringShape(30.2, N.seatR + 0.05), d1 - d0), 'bronze', [0, 0, d0]);
-  addHelix(p, 22, 29.4, 32.4, 28.6, d0, d1, dTwist, 'bronze', [0, 0, 0], 8);
+  addHelix(p, 22, 29.4, 32.4, 28.6, d0, d1, dRate, 'bronze', [0, 0, 0], 0, false, 0);
   return p.g;
 }
 
@@ -1652,17 +1719,13 @@ export function intermediateShaft() {
   }
   p.add(extrude(hub, g1 - g0 + 2), 'steel', [0, y, g0 - 1]);
   const k = INT_GEAR.module / 2;
-  // Teeth stop at z 204.7. With the slice's 0.04 mm overlap the tips stay 0.26 mm short of the
-  // pulley-end bulkhead (z 205). The hub still spans the original face z 192–206.
-  // Twist is tan(30°) over that 12.7 mm tooth face. Using the 14 mm hub width here made the
-  // helix steeper than the crank gear, so a phase that was right at mid-face drifted off.
+  // Teeth stop at z 204.7, 0.26 mm short of the pulley-end bulkhead (z 205). The hub still spans z 192–206.
+  // Same slice planes as the crank gear (MESH_DZ) and the opposite tan(30°)/pr rate, so a flank
+  // that clears at one depth clears the whole face. Phase seats the crank tip in the gap.
   const toothZ1 = 204.7;
-  const twist = -Math.tan(30 * DEG) * (toothZ1 - g0) / pr;
-  // Half a tooth (π/60) plus Bottom End's −0.021 rad (~0.2 tooth) on the old −0.017 offset
-  // seats the crank tip in the gap. Another −0.006 rad lets the tapered flanks clear at every
-  // depth of the face (the slice centres are not the same z on the two gears).
-  const meshPhase = Math.PI / INT_GEAR.teeth - 0.017 - 0.021 - 0.006;
-  addHelix(p, INT_GEAR.teeth, pr - 3.2 * k, pr + 1.6 * k, 34, g0, toothZ1, twist, 'steel', [0, y, 0], 12, meshPhase);
+  const rate = -Math.tan(30 * DEG) / pr;
+  const meshPhase = Math.PI / INT_GEAR.teeth - 0.055;
+  addHelix(p, INT_GEAR.teeth, pr - 3.2 * k, pr + 1.6 * k, 34, g0, toothZ1, rate, 'steel', [0, y, 0], meshPhase, true, MESH_DZ);
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + 0.18;
     const x = 28 * Math.cos(a), yy = y + 28 * Math.sin(a);
@@ -1683,60 +1746,30 @@ export function intermediateShaft() {
   seg(12, 250.2, 257.6, 'steel'); // land between the almost-touching sprocket rows
   seg(11, 266, 276, 'polishedSteel');
   p.add(yToZ(hexNut(16, 6)), 'darkSteel', [0, y, 280]);
-  // Static-pose hack. The nut head sits outboard of the split (x ≈ −28..−18, axis y −136, z 190,
-  // washer r 8). A box chord was deleting about eight teeth; main only needed three bald ones.
-  // Cut the head's envelope plus 1 mm — a round relief, not a chord — and pull any tip that still
-  // enters the lug cylinder back along the tip circle. The nut and the case are not moved.
-  const nutHead = cyl(9, 16, 32);
-  nutHead.rotateZ(Math.PI / 2);
-  nutHead.translate(-24, -136, 190);
-  cutGroup(p.g, nutHead);
-  shavePerimeterTips(p.g);
+  // Static-pose hack. The case pocket already clears both lug bosses. What remains in the tooth
+  // ring is the left M8 lock nut and the stud through the lug (z 190, y −136). The nut and the
+  // case are not moved; only the tooth metal that enters them is cut, and only by their own envelope.
+  subtractSolids(p.g, perimeterClashSolids());
   return p.g;
 }
 
-/** See intermediateShaft. Tip band is r > rTip − 0.55, the same vertices the clearance test checks. */
-function shavePerimeterTips(root: THREE.Object3D) {
-  const mod = INT_GEAR.module;
-  const pr = (INT_GEAR.teeth * mod) / 2;
-  const k = mod / 2;
-  const rTip = pr + 1.6 * k;
-  const rRoot = pr - 3.2 * k;
-  const rKeep = rTip - 0.55;
-  const y0 = INT_SHAFT_Y;
-  const lug = (x: number, y: number, z: number) => {
-    const dx = x < -18 ? -18 - x : x > 0 ? x : 0;
-    const radial = Math.hypot(y + 136, z - 190);
-    return dx === 0 ? radial - 8 : Math.hypot(dx, Math.max(0, radial - 8));
-  };
-  root.updateMatrixWorld(true);
-  const v = new THREE.Vector3();
-  root.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    const g = mesh.geometry;
-    const P = g.getAttribute('position') as THREE.BufferAttribute;
-    const inv = mesh.matrixWorld.clone().invert();
-    let changed = false;
-    for (let i = 0; i < P.count; i++) {
-      v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
-      const dx = v.x, dy = v.y - y0, r = Math.hypot(dx, dy);
-      if (r <= rKeep || lug(v.x, v.y, v.z) >= 1) continue;
-      const ang = Math.atan2(dy, dx), c = Math.cos(ang), s = Math.sin(ang);
-      const L = (rr: number) => lug(rr * c, y0 + rr * s, v.z);
-      let nr = rRoot + 0.15;
-      if (L(nr) >= 1) {
-        let lo = nr, hi = r;
-        for (let n = 0; n < 16; n++) {
-          const mid = (lo + hi) / 2;
-          if (L(mid) >= 1) lo = mid; else hi = mid;
-        }
-        nr = lo;
-      }
-      v.set(nr * c, y0 + nr * s, v.z).applyMatrix4(inv);
-      P.setXYZ(i, v.x, v.y, v.z);
-      changed = true;
-    }
-    if (changed) { P.needsUpdate = true; g.computeVertexNormals(); }
-  });
+/**
+ * Solids the 60 T gear still has to clear after the case pocket removes both lug bosses:
+ * the left M8 lock nut (washer r 8, hex AF 13, nylon cap) and the stud through the lug.
+ * Each solid is 2.4 mm outside the fastener. The collision test erodes 1 mm, and the
+ * fastener normals point inward, so a tighter pad comes back as a hit.
+ */
+export function perimeterClashSolids(): THREE.BufferGeometry[] {
+  const seat = new THREE.Vector3(-CASE_LUG.x, CASE_LUG.yBot, 190);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-1, 0, 0));
+  const m = new THREE.Matrix4().compose(seat, q, new THREE.Vector3(1, 1, 1));
+  const wt = 1.6, h = 6.5, af = 13, pad = 2.4;
+  const along = (g: THREE.BufferGeometry, y0: number, y1: number) => g.translate(0, (y0 + y1) / 2, 0).applyMatrix4(m);
+  const washer = along(cyl(8 + pad, wt + 0.4, 24), -0.2, wt + 0.2);
+  const hex = along(cyl(af / Math.sqrt(3) + pad, h + 0.3, 16), wt - 0.15, wt + h + 0.15);
+  const nylon = along(cyl(af * 0.45 + pad, h * 0.3 + 1.6, 20), wt + h - 0.2, wt + h + h * 0.3 + 1.4);
+  // studGeometry: r = M/2*0.96, from -(grip+embed) to headHeight+1.5. Lock head is wt + h*1.3.
+  const top = wt + h * 1.3 + 1.5, bot = -(2 * CASE_LUG.x + 14);
+  const stud = along(cyl(4 * 0.96 + pad, top - bot + 0.4, 12), bot - 0.2, top + 0.2);
+  return [washer, hex, nylon, stud];
 }
