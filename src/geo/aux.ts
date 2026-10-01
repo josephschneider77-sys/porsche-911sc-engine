@@ -336,36 +336,64 @@ export function breatherLid() {
   p.add(boxMM([tx - 6, y0 + 5, tz - 12], [tx + 4, y0 + 8, tz - 3]), 'castAlu');
   return p.g;
 }
+/**
+ * Raised trapezoidal bead along a horizontal path. `depth` is proud toward −Y
+ * (the sump camera). Crown half-width `crown`, base half-width `halfW`.
+ */
+function raisedBead(path: V3[], halfW: number, crown: number, depth: number) {
+  const N = path.length;
+  const P = 4;
+  const prof: [number, number][] = [[-halfW, 0], [-crown, depth], [crown, depth], [halfW, 0]];
+  const pos: number[] = [];
+  for (let i = 0; i < N; i++) {
+    const p = new THREE.Vector3(...path[i]);
+    const a = new THREE.Vector3(...path[Math.max(0, i - 1)]);
+    const b = new THREE.Vector3(...path[Math.min(N - 1, i + 1)]);
+    const t = b.sub(a); t.y = 0;
+    if (t.lengthSq() < 1e-8) t.set(1, 0, 0);
+    t.normalize();
+    const side = new THREE.Vector3(-t.z, 0, t.x);
+    for (const [s, u] of prof) pos.push(p.x + side.x * s, p.y - u, p.z + side.z * s);
+  }
+  const idx: number[] = [];
+  for (let i = 0; i < N - 1; i++) {
+    for (let k = 0; k < P - 1; k++) {
+      const q = i * P + k;
+      idx.push(q, q + P, q + 1, q + 1, q + P, q + P + 1);
+    }
+  }
+  const cap = (i: number, flip: boolean) => {
+    const b = i * P;
+    idx.push(...(flip ? [b, b + 2, b + 1, b, b + 3, b + 2] : [b, b + 1, b + 2, b, b + 2, b + 3]));
+  };
+  cap(0, false);
+  cap(N - 1, true);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
 /** Sump (strainer) cover. Nut face y = seatY, 12 M6 nuts at r 74 (101-05 #35 qty 12). */
 export const SUMP = { seatY: -134, zc: -10, boltR: 74, grip: 6 };
 export function sumpPlate() {
   const p = new Part();
   const yNut = SUMP.seatY, zc = SUMP.zc;
-  // Flat nut flange at axial 0, raised outer rim ring, then the dish. Negative axial is proud (down).
+  // Flat field, raised rim, nut flange at axial 0. Negative axial is proud (toward the bottom camera).
   const dish = lathe([
-    [0.1, 1.6], [10, 1.6], [11.5, -1.2], [22, -5.2], [46, -4.6],
-    [50, -2.2], [53, -5.6], [58, -6.8], [63, -5.6], [66, -1.4],
-    [68, 0], [80, 0], [80, 2.6], [68, 2.6], [63, 0.6],
-    [46, -1.4], [24, -2.4], [12, 2.4], [0.1, 2.4],
+    [0.1, -0.45], [48, -0.45], [52, -0.5], [56, -3.0], [61, -3.5], [65, -2.4],
+    [68, 0], [80, 0], [80, 2.4], [68, 2.4], [62, 0.8], [52, 1.4], [16, 2.0], [0.1, 2.0],
   ], 80);
   p.add(dish, 'zincPlate', [0, yNut, zc]);
-  // Solid horseshoe emboss, ~10 mm deep. The arc is open toward +Z (top of the
-  // bottom-view frame) so the drain plug sits in that opening.
-  const Ro = 40, Ri = 18;
-  const a0 = Math.PI + 0.38, a1 = Math.PI * 2 - 0.38;
-  const shoe = new THREE.Shape();
-  const N = 64;
-  // Negate shape Y so the opening lands at the top of the bottom-view frame (+Z).
-  const polar = (rad: number, a: number): [number, number] => [rad * Math.cos(a), -rad * Math.sin(a)];
-  const o0 = polar(Ro, a0);
-  shoe.moveTo(o0[0], o0[1]);
-  for (let i = 1; i <= N; i++) { const q = polar(Ro, a0 + (a1 - a0) * (i / N)); shoe.lineTo(q[0], q[1]); }
-  for (let i = N; i >= 0; i--) { const q = polar(Ri, a0 + (a1 - a0) * (i / N)); shoe.lineTo(q[0], q[1]); }
-  shoe.closePath();
-  const kidney = extrude(shoe, 10, 0.6);
-  kidney.rotateX(Math.PI / 2);
-  kidney.translate(0, yNut - 5.5, zc - 6);
-  p.add(kidney, 'zincPlate');
+  // Sharp raised U. Feet sink 0.3 mm into the flat field so the walls emerge cleanly.
+  // Crown is 5.5 mm proud, base 18 mm wide; opening toward +Z puts the plug in the notch.
+  const Ru = 34, cz = zc - 12, a0 = 0.8, a1 = Math.PI * 2 - 0.8;
+  const path: V3[] = [];
+  for (let i = 0; i <= 48; i++) {
+    const a = a0 + (a1 - a0) * (i / 48);
+    path.push([Ru * Math.sin(a), yNut - 0.15, cz + Ru * Math.cos(a)]);
+  }
+  p.add(raisedBead(path, 9, 3.2, 5.8), 'zincPlate');
   // central drain boss + hex plug (911 107 176 03). Sealing ring sits at yNut − 9.
   p.add(cyl(11, 4, 24), 'zincPlate', [0, yNut - 5, zc]);
   p.add(hexNut(17, 7), 'darkSteel', [0, yNut - 9 - 3.5, zc]);
@@ -392,10 +420,12 @@ export const OIL_PUMP = {
   // Flywheel face of the cover. M8 nuts stand ~8 mm proud toward −Z and must stay
   // pulley-side of the flywheel web (solid through z −169).
   coverFace: -158,
-  studs: [[-22, -68], [-12, -104], [34, -98]] as [number, number][],
+  // Ears break the body silhouette (side camera looks along −Z). All stay inboard of
+  // the left relief piston and outside the cyl-6 cheek disc.
+  studs: [[38, -56], [-10, -116], [30, -116]] as [number, number][],
   seals: [
     [-14, -64.8, -147], [24, -64.8, -147],
-    [-16, -90, -157.2], [-4, -80, -157.2], [10, -100, -157.2], [24, -86, -157.2], [16, -104, -157.2],
+    [-16, -90, -157.2], [-4, -80, -157.2], [10, -100, -157.2], [16, -88, -157.2], [2, -96, -157.2],
   ] as [number, number, number][],
 };
 export function oilPump() {
@@ -409,30 +439,28 @@ export function oilPump() {
     g.translate(x0, y, zc);
     p.add(g, mat);
   };
-  // Scavenge (larger, −X) and pressure (+X). Tops share y −70. Bottom stays above the relief piston (y −94).
+  // Scavenge (larger, −X) and pressure (+X). Tops share y −70. Bottom stays above the relief piston.
   section(-26, 6, 32, 20, -86, 'castAlu');
   section(8, 44, 28, 18, -84, 'castAlu');
   section(3, 11, 34, 20, -85, 'machinedAlu');
-  for (const dz of [-6.2, -2.1, 2.1, 6.2]) {
-    p.add(boxMM([-22, -70, zc + dz - 0.9], [40, -66.6, zc + dz + 0.9]), 'castAlu');
+  for (const dz of [-7.2, -2.4, 2.4, 7.2]) {
+    p.add(boxMM([-20, -70, zc + dz - 1.15], [40, -62.8, zc + dz + 1.15]), 'castAlu');
   }
-  // Cover plate: body outline plus three flat ears. Nut face is z = coverFace.
-  // Ears stay inboard of the left relief piston (x −37).
+  // Cover plate behind the body, plus three ears that stick out of the XY silhouette.
+  // Nut face is z = coverFace. No bolts on the pressure-section end.
   const plate = polyShape(hull([
     [-24, -100], [-24, -72], [42, -72], [42, -100],
-    ...circlePts(-22, -68, 9.5, 12),
-    ...circlePts(-12, -104, 9.5, 12),
-    ...circlePts(34, -98, 9.5, 12),
   ]));
-  for (const [x, y] of OIL_PUMP.studs) plate.holes.push(circlePath(3.5, x, y) as THREE.Path);
   const cover = extrude(plate, 3.4);
   cover.translate(0, 0, z0);
   p.add(cover, 'machinedAlu');
-  for (const [x, y] of OIL_PUMP.studs) p.add(cyl(3.5, 6, 12).rotateX(Math.PI / 2), 'bore', [x, y, z0 + 3]);
-  // Round end cap on the pressure section (the face the side camera sees) and four cover bolts.
-  p.add(yToX(cyl(12.4, 3.2, 28)), 'machinedAlu', [44.2, -84, zc]);
-  for (const a of [0.7, 2.3, 3.9, 5.4]) {
-    p.add(yToX(hexNut(6.2, 2.6)), 'darkSteel', [46.2, -84 + 8.4 * Math.sin(a), zc + 8.4 * Math.cos(a)]);
+  for (const [x, y] of OIL_PUMP.studs) {
+    const ear = circleShape(11, x, y);
+    ear.holes.push(circlePath(3.5, x, y) as THREE.Path);
+    const g = extrude(ear, 3.4);
+    g.translate(0, 0, z0);
+    p.add(g, 'machinedAlu');
+    p.add(cyl(3.5, 6, 12).rotateX(Math.PI / 2), 'bore', [x, y, z0 + 3]);
   }
   p.add(cyl(7.2, 5, 16), 'castAlu', [-14, -67.2, zc]);
   p.add(cyl(6.4, 5, 16), 'castAlu', [24, -67.2, zc]);
@@ -445,16 +473,17 @@ export function oilPump() {
     g.translate(0, INT_SHAFT_Y, -128);
     p.add(g, 'darkSteel');
   }
-  // Short suction pipe: horizontal along the body, then a tight ~90° drop. Stays at z ≈ −148
-  // so it does not run the length of the case, and inboard of the left relief plug.
-  p.add(cyl(7.4, 6, 14), 'castAlu', [-18, -98, -149]);
-  p.add(tube([
-    [-22, -96, -149],
-    [-14, -100, -149],
-    [-10, -110, -148],
-    [-8, -118, -147],
-  ], 6.1, 12, 20), 'castAlu');
-  p.add(cylBetween([-10, -112, -148], [-7, -120, -146], 7.6, 14), 'castAlu');
+  // Pickup leaves the +X end and rises ~90°. The bend is about as long as the body.
+  // Once it climbs it stays outside the cyl-6 cheek (x ≳ 60 above y −60).
+  const bend: V3[] = [[30, -84, zc], [42, -84, zc]];
+  const Rc = 44, x0 = 46, y0 = -40;
+  for (let i = 0; i <= 6; i++) {
+    const t = (i / 6) * Math.PI / 2;
+    bend.push([x0 + Rc * Math.sin(t), y0 - Rc * Math.cos(t), zc - 2 * Math.sin(t)]);
+  }
+  bend.push([90, -30, zc - 3], [90, -22, zc - 3.4]);
+  p.add(tube(bend, 6.3, 14, 48), 'castAlu');
+  p.add(cylBetween([90, -24, zc - 3.2], [90, -14, zc - 3.6], 8.2, 16), 'castAlu');
   return p.g;
 }
 
