@@ -90,7 +90,7 @@ The full registry, with descriptions, specs and explode vectors, is in `src/data
 ## 4. Teardown order (engine on stand)
 Adapted from Pelican Parts / Wayne Dempsey, *101 Projects*, Project 12 "Engine Teardown" [W2], plus Joe Engineer's teardown write-up [W3] and the Pelican rebuild overview [W4]:
 
-1. Clutch pressure plate and disc → 2. Flywheel → 3. Silencer → 4. Heat exchangers → 5. Air-cleaner lid and element → 6. Mixture control unit, injection lines and injectors → 7. Air distributor and intake pipes → 8. V-belt and fan pulley → 9. Fan housing with fan and alternator → 10. Distributor and plugs → 11. Upper air guide and oil cooler → 12. Crank pulley → 13. Valve covers → 14. Chain-housing covers and tensioners → 15. Cam sprockets and timing chains (on the real engine the chains hang slack round the intermediate shaft until the case is split; the viewer removes them here so they don't hang as rigid loops) → 16. Rocker arms and shafts → 17. Camshafts → 18. Chain housings → 19. Cam housings with heads (12 head-stud nuts per bank; the heads and valves lift off with their cam housing as one unit, via the step's `carries` list) → 20. Valves (bench, on the lifted unit) → 21. Heads off the cam housings (bench) → 22. Cylinders → 23. Pistons → 24. Breather, thermostat, sump plate → 25. Split the case → 26. Crank with rods → 27. Intermediate shaft and oil pump → 28. Main bearing shells. The right case half stays on the stand.
+1. Clutch pressure plate and disc (9 bolts) → 2. Flywheel (9 bolts) → 3. Silencer → 4. Heat exchangers (6 port nuts per side) → 5. Air-cleaner lid and element → 6. Mixture control unit, injection lines and injectors → 7. Air distributor and intake pipes (6 flange nuts per side) → 8. V-belt and fan pulley (pulley nut) → 9. Fan housing with fan and alternator → 10. Distributor and plugs → 11. Upper air guide and oil cooler → 12. Crank pulley (centre bolt) → 13. Valve covers (8 upper + 12 lower nuts per bank) → 14. Chain-housing covers (10 right / 9 left lock nuts); with the covers off the tensioned chains are visible → 15. Chain tensioners and idler arms → 16. Cam sprockets and timing chains (on the real engine the chains hang slack round the intermediate shaft until the case is split; the viewer removes them here so they don't hang as rigid loops) → 17. Rocker arms and shafts (6 shaft screws + 6 nuts per bank) → 18. Camshafts → 19. Chain housings (5 nuts per side) → 20. Cam housings with heads (12 barrel nuts per bank; the heads and valves lift off with their cam housing as one unit, via the step's `carries` list, together with the 24 cam-housing-to-head nuts) → 21. Valves (bench, on the lifted unit) → 22. Heads off the cam housings (bench; the 24 cam-housing nuts) → 23. Cylinders → 24. Pistons → 25. Breather (2 nuts), thermostat (3 nuts), sump plate (12 nuts) → 26. Split the case (11 through-bolts, 13 through-bolt nuts, 24 perimeter nuts) → 27. Crank with rods → 28. Intermediate shaft and oil pump (4 nuts) → 29. Main bearing shells. The right case half stays on the stand.
 
 The order is encoded in `src/data/teardown.ts` and checked in `tests/teardown.test.ts`.
 
@@ -134,7 +134,7 @@ Stoddard and Rose Passion catalogue pages cross-check the same part numbers, e.g
 ## 6. Accuracy caveats
 - Overall proportions and the dimensions marked *E* are estimates traced from the catalogue drawings and scaled to the known bore, stroke and component sizes. They are not measured CAD data.
 - Bank offset, cam and valve angles, and gear and sprocket tooth counts are approximate.
-- Cam chains are duplex 3/8" roller chains on duplex sprockets. They run as straight tangent runs; the slight deflection over the idler sprocket is not modelled. Chain-box size and shape are scaled from rebuild photos by chain-pitch counting (§8), not measured; wall draft and internal webs are simplified.
+- Cam chains are duplex 3/8" roller chains on duplex sprockets. Since v4 the slack run is wrapped round the idler sprocket (§9); the deflection is set by the model's geometry and is not a measured value. Chain-box size and shape are scaled from rebuild photos by chain-pitch counting (§8), not measured; wall draft and internal webs are simplified.
 - The oil pump sits inside the case at the flywheel end (cyl. 6 bay), driven off the back of the intermediate shaft by the connecting shaft (factory side-section [W1], Klassik ATS). Its exact position and shape are simplified.
 - The air-injection pump (108-00), engine carrier (109-00), oil lines and tank, heater blower (108-10), plug leads and wiring are not modelled.
 - 1978 air guide: the catalogue lists the -78 part 930 106 041 00 as red. The model shows the later black part, as requested.
@@ -185,7 +185,7 @@ Joe's v2 review: the chain cover collided with the exhaust and the chain covers 
 | Chain box, end view | hull reaching x ≈ −16 … 372, y ≈ −200 … 80 (crossed the centreline, overlapped the other bank and sat on the heat exchanger) | **x 118 … 347, y −145 … 55** (≈229 × 200 mm): straight inner edge at \|x\| = 118, round end around the cam (r 55), floor rising from −145 at the tensioner corner to −58 under the cam |
 | Box depth | 54 + dome | 70 mm from the case face (z 212 → 282), flat cover, low cam boss (5 mm) |
 | Chain planes | z 221 / 239 (the two chains overlapped) | z 235 (left) / 258 (right), clear of the cam-housing end (z 222) and of each other |
-| Tensioner | adjuster hanging vertically below the idler (to y ≈ −200, over the heat exchanger) | 15 T idler under the slack run at x ≈ 213; arm pivots outboard; adjuster lies inclined ~20° in the lower inner corner (x 104 … 183, y ≥ −145). In rebuild-pic10 the adjuster stands at ≈60°; at that angle this model's box floor would have to drop to ≈ −165, onto the heat exchanger, so the angle is a deliberate compromise |
+| Tensioner | adjuster hanging vertically below the idler (to y ≈ −200, over the heat exchanger) | 15 T idler under the slack run at x ≈ 213 (v4: see §9); arm pivots outboard; adjuster lies inclined ~20° in the lower inner corner (x 104 … 183, y ≥ −145). In rebuild-pic10 the adjuster stands at ≈60°; at that angle this model's box floor would have to drop to ≈ −165, onto the heat exchanger, so the angle is a deliberate compromise |
 | Oil pump | pulley end, in the chain path | flywheel end, cyl. 6 bay |
 
 Inboard of x = 118 the chains run in a hollow cast **chain well** on the case face. It has top and bottom walls and a front plate flush with the covers, plus the bearing-8 boss. The well opens sideways into the bolted-on chain box. The heat exchanger's fresh-air inlet is now a forward stub low on the outboard side of its pulley-end cap, instead of a tube rising into the chain box.
@@ -197,7 +197,97 @@ Inboard of x = 118 the chains run in a hollow cast **chain well** on the case fa
 4. Extra assertions:
    - No cam-drive part ever touches the exhaust.
    - The left and right cam drives never touch each other.
-   - Chain box, cover and tensioner each keep ≥ 10 mm of air to the heat exchanger. Current values: box 21.6 / 22.2 mm, cover 25.8 / 26.6 mm, tensioner 43.9 / 33.8 mm (right / left).
+   - Chain box, cover and tensioner each keep ≥ 10 mm of air to the heat exchanger. Current values (v4): box 25.3 / 28.4 mm, cover 26.8 / 26.8 mm, tensioner 52.7 / 51.5 mm (right / left).
 
 Against the v2 geometry all 9 assertions fail.
+
+## 9. Chain tensioning and fasteners (v4)
+Joe's v3 review: the idler floated beside the chain without tensioning it, many bolts pointed the wrong way, and most of the engine's fasteners were missing.
+
+### Tensioner
+- The chain path (`chainPath()` in `src/geo/core.ts`) is a three-circle loop: crank-side intermediate sprocket, cam sprocket, and the 15 T idler wrapped **from the outside** on the return (slack) run. The idler centre is pushed 38 mm into the loop from the straight two-sprocket run (`IDLER_PUSH`). The chain pitch line wraps it by 36°, and 2 rollers of the 88-link chain sit in idler tooth gaps. Tooth phase on the idler, cam and intermediate sprockets is set so the gaps line up with the rollers.
+- The links are placed by `chainPins()` along that path, so the rendered chain bends round the idler instead of running straight past it.
+- The idler arm pivots on its shaft. Its tail carries a round pad, and the hydraulic adjuster's plunger dome touches that pad (contact gap 0.000 mm, plunger out 8.6 mm). The adjuster is held by a stud, washer and M8 nut on a mounting ear on the housing. Guide rails sit on the tight run (upper) and outside the slack run (lower).
+- Both banks are mirrored. Heat-exchanger clearances are in §8 (tensioner ≥ 51 mm, box ≥ 25 mm).
+- The teardown now shows the covers off (step 14) before the tensioners come out (step 15).
+- `tests/tensioner.test.ts` checks, per bank:
+  - wrapped from outside;
+  - pitch-line deflection ≥ 10 mm at the idler station;
+  - wrap ≥ 25°;
+  - ≥ 2 rollers on the idler pitch circle;
+  - plunger contact ≤ 0.5 mm with positive extension.
+
+  The collision test separately enforces that the chain stays clear of the housing.
+
+### Fasteners
+Each set is its own removable registry part (system `hardware`, catalogue group "Fasteners & hardware"). Geometry is in `src/geo/fasteners.ts` and specs (counts, steps, catalogue references) are in `src/data/fastenerSpec.ts`.
+- Each set exports as **one GLB** with one `InstancedMesh` per material (EXT_mesh_gpu_instancing, meshopt). The matching studs are added to the part they thread into (case, heads, cam housing, chain housing, case lugs, flywheel flange).
+- Every item has a position, an axis `n` (pointing out of the joint, towards the head or nut), a seat part, and an `into` part.
+- Totals: **254 nuts/bolts in 31 sets, plus 164 studs**. The GLB total went from 3.12 MiB to 3.38 MiB (58 → 89 files).
+
+| Set | Qty | Size | Removed at step | Catalogue (ill. #pos part no. ×qty per engine) |
+|---|---|---|---|---|
+| `head-nuts-right` | 12 | M10 barrel nut + washer | cam-housings | 103-00 #17 901 104 382 02 ×24; 101-05 #3 930 101 170 00 ×12 |
+| `head-nuts-left` | 12 | M10 barrel nut + washer | cam-housings | 103-00 #17 901 104 382 02 ×24; 101-05 #3 930 101 170 00 ×12 |
+| `cam-housing-nuts-right` | 12 | M8 hex nut + washer | heads (lifted with `cam-housing-right`) | 103-05 #22 900 084 004 03 ×40; 103-00 #7 999 062 041 02 ×24 |
+| `cam-housing-nuts-left` | 12 | M8 hex nut + washer | heads (lifted with `cam-housing-left`) | 103-05 #22 900 084 004 03 ×40; 103-00 #7 999 062 041 02 ×24 |
+| `valve-cover-nuts-upper-right` | 8 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #14/15 999 062 009 02 / 999 062 010 02 ×34 |
+| `valve-cover-nuts-upper-left` | 8 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #14/15 999 062 009 02 / 999 062 010 02 ×34 |
+| `valve-cover-nuts-lower-right` | 12 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #14/15 999 062 009 02 / 999 062 010 02 ×34 |
+| `valve-cover-nuts-lower-left` | 12 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #14/15 999 062 009 02 / 999 062 010 02 ×34 |
+| `chain-cover-nuts-right` | 10 | M6 lock nut + washer | chain-covers | 103-05 #12 900 910 012 02 ×19; 103-05 #3 999 062 102 02 ×19 |
+| `chain-cover-nuts-left` | 9 | M6 lock nut + washer | chain-covers | 103-05 #12 900 910 012 02 ×19; 103-05 #3 999 062 102 02 ×19 |
+| `chain-housing-nuts-right` | 5 | M8 hex nut + washer | chain-housings | 103-05 #22 900 084 004 03 ×40 |
+| `chain-housing-nuts-left` | 5 | M8 hex nut + washer | chain-housings | 103-05 #22 900 084 004 03 ×40 |
+| `intake-nuts-right` | 6 | M8 lock nut + washer | intake | 106-00 #8 999 084 601 02 ×12; 103-00 #6 999 062 009 02 ×12 |
+| `intake-nuts-left` | 6 | M8 lock nut + washer | intake | 106-00 #8 999 084 601 02 ×12; 103-00 #6 999 062 009 02 ×12 |
+| `exhaust-nuts-right` | 6 | M8 brass nut | heat-exchangers | 202-00 #32/33 900 076 025 02 / 999 085 001 02 ×12; 103-00 #5 999 062 220 02 ×12 |
+| `exhaust-nuts-left` | 6 | M8 brass nut | heat-exchangers | 202-00 #32/33 900 076 025 02 / 999 085 001 02 ×12; 103-00 #5 999 062 220 02 ×12 |
+| `case-through-bolts` | 11 | M10x1 through-bolt + washer | split | 101-10 #25 930 101 173 02 ×11 |
+| `case-through-nuts` | 13 | M10x1 cap nut + washer | split | 101-05 #26 930 101 172 01 ×13 |
+| `case-perimeter-nuts` | 24 | M8 lock nut + washer | split | 101-05 #21 900 910 022 02 ×24; 101-10 #5 999 062 115 02 ×13 |
+| `flywheel-bolts` | 9 | M10 flywheel bolt | flywheel | 102-00 #6 930 102 206 00 ×9 |
+| `clutch-bolts` | 9 | M8 pan-head screw + lock ring | clutch | 301-00 #4 900 067 090 02 ×9 |
+| `pulley-bolt` | 1 | M12x1.5x22 + washer | pulley | 102-00 #15 999 093 005 02 ×1 |
+| `fan-pulley-nut` | 1 | M16x1 nut | belt | 105-00 #11 901 603 905 01 ×1 |
+| `oil-pump-nuts` | 4 | M8 nut + tab washer | int-shaft | 104-00 #5 900 076 025 02 ×7 |
+| `sump-nuts` | 12 | M6 nut + spring washer | externals | 101-05 #35 900 076 010 02 ×12 |
+| `thermostat-nuts` | 3 | M6 lock nut + washer | externals | 101-10 #41 900 910 012 02 ×3 |
+| `breather-nuts` | 2 | M6 nut + spring washer | externals | 101-10 #36 900 076 010 02 ×2 |
+| `rocker-shaft-screws-right` | 6 | Pan-head screw | rockers | 103-15 #45 999 067 008 00 ×12 |
+| `rocker-shaft-screws-left` | 6 | Pan-head screw | rockers | 103-10 #45 999 067 008 00 ×12 |
+| `rocker-shaft-nuts-right` | 6 | Nut | rockers | 103-15 #47 901 105 376 02 ×12 |
+| `rocker-shaft-nuts-left` | 6 | Nut | rockers | 103-10 #47 901 105 376 02 ×12 |
+
+Placement sources:
+- Pelican/Dempsey rebuild photos (head barrel nuts through the cam housing, case perimeter nuts and through-bolts, chain-housing interior nuts, tensioner ear).
+- 101 Projects sample pages.
+- Catalogue illustrations 101-05/10, 102-00, 103-00/05, 104-00, 106-00, 202-00, 301-00.
+- Where no photo shows a station, the spacing is estimated (E) from the part outline.
+
+`tests/fasteners.test.ts` checks:
+- Count per set matches the spec (and the instance count in the GLB builder).
+- **Normal to the seat:** rays parallel to the axis, fired at four points round the bearing face, all hit the seat part within 2 ± 0.6 mm, with face normal within 6° of the axis.
+- **Seated:** the head or nut bears on the seat, neither floating nor buried.
+- **Accessible side:** nothing of the seat part lies within head height + 3 mm along +n.
+- **Thread reach:** the stud or bolt reaches into its `into` part.
+- **Teardown:** every set is removed in its spec step, together with the part it holds or one step before it.
+
+In the collision test, set × seat, set × into, and stud host × seat are auto-allowlisted as **JOINT**s. Overlaps between hardware and simplified solids (rocker-shaft hardware inside the solid valve covers, air-guide/fuel-line envelopes, the valve-spring stack passing the cam-housing nut stations) are listed explicitly as **SIMPLIFIED**.
+
+Other fixes in this pass:
+- The spark plug is moved to z 22 so no head stud runs through it (the old crankcase × spark-plug allowlist entry is removed).
+- The pressure-plate fulcrum ring, which stood on edge, now lies flat.
+- Fake nuts on the chain-well front plate and the vertical "perimeter" nuts are removed.
+- The heat-exchanger flange is waisted round its two studs.
+
+### Known v4 inaccuracies
+- Chain-cover nuts: the catalogue gives 19 per engine. The 10 right / 9 left split is estimated; 3.2 photos show about 13 per side.
+- The cam-housing-to-chain-housing end studs are not modelled. 5 of the 8 chain-housing nuts per side are modelled, on the case flange.
+- Exhaust port nuts are all modelled as hex. The catalogue mixes hex and socket-head.
+- Breather-lid nut positions are estimated.
+- Not modelled as separate hardware: distributor clamp, fan-housing strap and alternator bolts, oil-cooler nuts, air-guide screws, main-bearing studs (inside the case), oil-pump internal bolts. The SC has no engine-mounted oil-filter console (the filter is on the body), so none is modelled.
+- Conrod bolts, cam-sprocket bolt, idler and adjuster-ear nuts are part of their host meshes and are not checked by the fastener test.
+- The valve-spring stack passes through the cam-housing nut stations (simplified springs).
+- The 46° adjuster angle remains a compromise; the photos show about 60°.
 

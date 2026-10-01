@@ -14,7 +14,8 @@ export const FAN = { y: 255, zHousing0: 205, zHousing1: 290, zFan: 262, zBelt: 3
 export const PLENUM = { y0: 205, y1: 262, x: 110, z0: -165, z1: 172 };
 /** Round air-cleaner canister lying across the engine (SC), axis along X. */
 export const AIRBOX = { y: 362, z: 40, r: 80, len: 440 };
-export const EXH_PORT = { x: CYL_TOP_X + 34, y: -68 };
+/** Exhaust port centre at the head flange; y puts the 7.2 mm heat-exchanger flange flush under the head flange (y -63.5). */
+export const EXH_PORT = { x: CYL_TOP_X + 34, y: -64.1 };
 
 // ---------------------------------------------------------------- 105-00 cooling
 export function fanHousing() {
@@ -106,15 +107,14 @@ export function fanPulley() {
   p.add(g, 'yellowZinc', [0, FAN.y, FAN.zBelt - 8]);
   // belt-adjusting shims stack + 3 hub bolts, central nut
   p.add(yToZ(lathe([[14, 0], [30, 0], [30, 4], [14, 4]], 36)), 'yellowZinc', [0, FAN.y, FAN.zBelt + 6]);
-  for (let i = 0; i < 3; i++) { const a = i * 2.094 + 0.5; p.add(yToZ(hexNut(10, 5)), 'zincPlate', [22 * Math.cos(a), FAN.y + 22 * Math.sin(a), FAN.zBelt + 12]); }
-  p.add(yToZ(hexNut(22, 10)), 'darkSteel', [0, FAN.y, FAN.zBelt + 15]);
+  // M16x1 pulley nut: fasteners.ts (fan-pulley-nut)
   return p.g;
 }
 export function crankPulley() {
   const p = new Part();
   p.add(yToZ(vPulley(FAN.rCrankPulley, 2, 14)), 'yellowZinc', [0, 0, 290]);
   p.add(yToZ(lathe([[18, 0], [34, 0], [34, 6], [18, 6]], 36)), 'yellowZinc', [0, 0, 318]);
-  p.add(yToZ(hexNut(19, 10)), 'darkSteel', [0, 0, 327]);
+  // central bolt + washer: fasteners.ts (pulley-bolt)
   // timing marks (Z1 TDC notch + paint)
   p.add(boxMM([-1, FAN.rCrankPulley - 6, 316], [1, FAN.rCrankPulley, 318.5]), 'ceramic');
   return p.g;
@@ -200,38 +200,43 @@ export function oilCooler() {
   p.add(cylBetween([x1, 98, 120], [-60, 104, 120], 7, 12), 'castAlu');
   return p.g;
 }
+/** Oil thermostat under the right half: flange (y -133..-128) on a cast pad, 3 nuts (fasteners.ts). */
+export const THERMO = { x: 58, z: 118, seatY: -133, grip: 5 };
 export function oilThermostat() {
   const p = new Part();
-  p.add(lathe([[0.1, 0], [22, 0], [22, 4], [16, 6], [16, 34], [0.1, 34]], 32), 'castAlu', [58, -168, 118]);
-  p.add(cyl(28, 5, 32), 'castAlu', [58, -136, 118]);
-  for (const a of [0, 2.1, 4.2]) p.add(hexNut(10, 6), 'zincPlate', [58 + 22 * Math.cos(a), -140, 118 + 22 * Math.sin(a)]);
+  p.add(lathe([[0.1, 0], [22, 0], [22, 4], [16, 6], [16, 34], [0.1, 34]], 32), 'castAlu', [THERMO.x, -162.5, THERMO.z]);
+  p.add(cyl(28, 5, 32), 'castAlu', [THERMO.x, -130.5, THERMO.z]);
   return p.g;
 }
+/** Breather cover on the left half: plate y 122..132 at x -52, two M6 nuts (fasteners.ts). */
+export const BREATHER = { x: -52, seatY: 132, grip: 10, studs: [[-38, 128], [-38, 176]] as [number, number][] };
 export function breatherLid() {
   const p = new Part();
   const sh = roundRect(46, 70, 16);
   const g = extrude(sh, 6, 2); g.rotateX(-Math.PI / 2);
-  p.add(g, 'castAlu', [-45, 120, 152]);
-  p.add(cylBetween([-45, 128, 152], [-45, 150, 152], 11, 20), 'castAlu');
-  p.add(cylBetween([-45, 150, 152], [-45, 150, 190], 9, 16), 'castAlu');
-  for (const dz of [-24, 24]) p.add(hexNut(11, 6), 'zincPlate', [-45, 130, 152 + dz]);
+  p.add(g, 'castAlu', [BREATHER.x, 124, 152]);
+  p.add(cylBetween([BREATHER.x, 132, 152], [BREATHER.x, 154, 152], 11, 20), 'castAlu');
+  p.add(cylBetween([BREATHER.x, 154, 152], [BREATHER.x, 154, 190], 9, 16), 'castAlu');
   return p.g;
 }
+/** Sump (strainer) cover: top face y -130 under the gasket/strainer stack, flat 4 mm flange; 12 nuts at r 74. */
+export const SUMP = { seatY: -134, zc: -10, boltR: 74, grip: 6 };
 export function sumpPlate() {
   const p = new Part();
-  const y = -134;
-  const plate = lathe([[0.1, 0], [80, 0], [80, 4], [70, 6], [60, 12], [0.1, 12]], 64);
+  const y = -130;
+  const plate = lathe([[0.1, 0], [80, 0], [80, 4], [67, 4], [60, 12], [0.1, 12]], 64);
   plate.rotateX(Math.PI);
   p.add(plate, 'castAlu', [0, y, -10]);
-  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; p.add(hexNut(10, 6), 'zincPlate', [74 * Math.cos(a), y - 6, -10 + 74 * Math.sin(a)]); }
   p.add(hexNut(19, 8), 'darkSteel', [0, y - 16, -10]);
   // strainer (#38) sits inside, sandwiched by gaskets (#39)
-  p.add(lathe([[0.1, 0], [72, 0], [72, 2], [0.1, 2]], 64), 'gasket', [0, y + 1, -10]);
+  p.add(lathe([[0.1, 0], [72, 0], [72, 2], [0.1, 2]], 64), 'gasket', [0, y, -10]);
   const scr = lathe([[0.1, 0], [68, 0], [68, 18], [60, 22], [0.1, 22]], 64);
   p.add(scr, 'zincPlate', [0, y + 3, -10]);
   for (let r = 12; r < 68; r += 8) p.add(torus(r, 0.8, 4, 48).rotateX(Math.PI / 2), 'darkSteel', [0, y + 25.5, -10]);
   return p.g;
 }
+/** Oil-pump cover nuts: studs through the cover plate (outer face z -161) into the body. */
+export const OIL_PUMP = { coverFace: -161, studs: [[-28, -88], [28, -88], [-28, -108], [28, -108]] as [number, number][] };
 export function oilPump() {
   // Pressure + scavenge pump inside the crankcase at the FLYWHEEL end (cyl. 6 bay between mains 1 and 2), driven off
   // the back of the intermediate shaft by a splined connecting shaft (factory side-section; Klassik ATS / Pelican rebuild).
@@ -240,7 +245,6 @@ export function oilPump() {
   p.add(extrudeC(roundRect(70, 40, 10), 14, 1.2), 'castAlu', [0, y, zc + 4]);
   for (const [x, t] of [[-17, 9], [17, 9]] as const) p.add(extrudeC(gearShape(t, 11, 13.5, 3), 6), 'steel', [x, y, zc - 6]);
   p.add(extrudeC(roundRect(70, 40, 10), 4), 'castAlu', [0, y, zc - 11]);
-  for (const [x, yy] of [[-28, 13], [28, 13], [-28, -13], [28, -13]]) p.add(yToZ(hexNut(9, 4)), 'zincPlate', [x, y + yy, zc - 15]);
   p.add(yToZ(cyl(7, 46, 16)), 'steel', [0, INT_SHAFT_Y, zc + 32]); // connecting shaft (#6) to the int. shaft
   p.add(cylBetween([20, y - 20, zc + 2], [20, -140, zc + 2], 6, 12), 'castAlu'); // pickup to the strainer
   return p.g;
@@ -342,10 +346,10 @@ export function airCleanerLid() {
 export function intakeRunner() {
   const p = new Part();
   const P0: V3 = [0, 0, 0];
-  const pts: V3[] = [P0, [0, 40, 0], [-12, 90, 0], [-40, 132, 0], [-80, 154, 0], [-(INTAKE_PORT.x - PLENUM.x - 34), 160, 0]];
+  const pts: V3[] = [P0, [0, 40, 0], [-12, 90, 0], [-40, 132, 0], [-80, 154, 0], [-(INTAKE_PORT.x - PLENUM.x - 34), 167, 0]];
   p.add(tube(pts, 20, 24, 48), 'castAlu');
   // head flange
-  const fl = roundRect(46, 40, 12); fl.holes.push(circlePath(17.5) as THREE.Path);
+  const fl = roundRect(46, 76, 12); fl.holes.push(circlePath(17.5) as THREE.Path); // wide enough for the M8 studs at z +-28
   const fg = extrudeC(fl, 8); fg.rotateX(Math.PI / 2); p.add(fg, 'castAlu', [0, 4, 0]);
   // injector boss (#21 injector sits here)
   p.add(cylBetween([-6, 44, 0], [22, 62, 0], 9, 16), 'castAlu');
@@ -469,11 +473,13 @@ export function heatExchanger(s: 1 | -1) {
     const port: V3 = [X(EXH_PORT.x), EXH_PORT.y, zc];
     const pts: V3[] = [port, [X(EXH_PORT.x), -100, zc], [X(EXH_PORT.x - 4), -130, zc + 6], [X(shellX), shellY + 20, zc + 12]];
     p.add(tube(pts, 18, 16, 24), 'aluminized');
-    const fl = polyShape(hull([...circlePts(0, 0, 22, 20), ...circlePts(-30, 0, 9, 10), ...circlePts(30, 0, 9, 10)]));
-    fl.holes.push(circlePath(16) as THREE.Path);
-    const fg = extrudeC(fl, 6, 0.6, 4); fg.rotateX(Math.PI / 2); fg.rotateY(Math.PI / 2);
-    p.add(fg, 'heatSteel', [port[0], port[1] - 3, port[2]]);
-    for (const dz of [-30, 30]) p.add(hexNut(12, 7), 'brass', [port[0], port[1] - 9, port[2] + dz]);
+    // waisted 2-stud flange (ring + stud ears + narrow bridges) so the spark plug beside it stays clear
+    const fl = circleShape(18.5); fl.holes.push(circlePath(16) as THREE.Path);
+    const parts = [fl, circleShape(8.6, -30, 0), circleShape(8.6, 30, 0), roundRect(14, 9, 2, -22, 0), roundRect(14, 9, 2, 22, 0)];
+    for (const sh of parts) {
+      const fg = extrudeC(sh, 6, 0.6, 4); fg.rotateX(Math.PI / 2); fg.rotateY(Math.PI / 2);
+      p.add(fg, 'heatSteel', [port[0], port[1] - 3, port[2]]);
+    }
     // sleeve where the primary enters the box
     p.add(yToZ(lathe([[19, -8], [24, -8], [24, 8], [19, 8]], 20)).rotateX(-Math.PI / 2 + 0.5), 'aluminized', [X(EXH_PORT.x - 2), -136, zc + 8]);
   }
@@ -528,12 +534,11 @@ export function flywheel() {
   // starter ring gear, 9 bolts on a centre boss, dowels on the rim.
   const p = new Part();
   const z = FLY_Z;
-  const prof: [number, number][] = [[20, 0], [55, 0], [60, -4], [110, -4], [128, -2], [134, 0], [134, -28], [128, -30], [60, -30], [55, -18], [20, -18]];
+  const prof: [number, number][] = [[20, 0], [55, 0], [60, -4], [110, -4], [128, -2], [134, 0], [134, -28], [128, -30], [60, -30], [55, -14], [20, -14]];
   p.add(yToZ(lathe(prof, 96)), 'darkSteel', [0, 0, z]);
   p.add(yToZ(lathe([[78, -30.2], [127, -30.2], [127, -30.6], [78, -30.6]], 96)), 'polishedSteel', [0, 0, z]);
   p.add(extrude(gearShape(130, 136, 142, 133), 12, 0, 4), 'forgedSteel', [0, 0, z - 14]);
-  for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; p.add(yToZ(hexNut(13, 6)), 'darkSteel', [36 * Math.cos(a), 36 * Math.sin(a), z - 21]); }
-  for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2 + 0.2; p.add(yToZ(cyl(4, 8, 8)), 'zincPlate', [124 * Math.cos(a), 124 * Math.sin(a), z - 33]); }
+  // 9 flywheel bolts on the hub rear face (z-18) and 9 pressure-plate screws on the rim: fasteners.ts
   // lightening/balance drillings on the back face
   for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; p.add(yToZ(cyl(6, 1, 12)), 'bore', [92 * Math.cos(a), 92 * Math.sin(a), z - 4.6]); }
   return p.g;
@@ -560,8 +565,10 @@ export function pressurePlate() {
   const p = new Part();
   const z = FLY_Z - 40;
   // cover (#1) -- stamped steel with ventilation windows
-  const cover = lathe([[132, 0], [132, -4], [126, -6], [120, -28], [112, -34], [72, -36], [70, -34], [112, -30], [117, -26], [126, -4]], 72);
-  p.add(yToZ(cover), 'zincPlate', [0, 0, z]);
+  // flat 4 mm mounting flange seated on the flywheel friction-face plane (z FLY_Z-30.6), screws at r 129
+  const zf = FLY_Z - 30.6, d = z - zf;
+  const cover = lathe([[136, 0], [136, -4], [122, -4], [120, -28 + d], [112, -34 + d], [72, -36 + d], [70, -34 + d], [112, -30 + d], [117, -26 + d], [119, -4 + d * 0.3], [120, 0]], 72);
+  p.add(yToZ(cover), 'zincPlate', [0, 0, zf]);
   // diaphragm spring fingers
   for (let i = 0; i < 18; i++) {
     const a = (i / 18) * Math.PI * 2;
@@ -569,10 +576,9 @@ export function pressurePlate() {
     const g = extrudeC(f, 2); g.rotateZ(a);
     p.add(g, 'steel', [0, 0, z - 32]);
   }
-  p.add(yToZ(torus(78, 3, 6, 64)), 'steel', [0, 0, z - 32]);
+  p.add(torus(78, 3, 6, 64), 'steel', [0, 0, z - 32]); // fulcrum ring in the plate plane (was standing vertical)
   // pressure plate ring
   p.add(extrudeC(ringShape(112, 78), 10), 'castAlu', [0, 0, z - 10]);
   // mounting bolts (#3 lock rings x9)
-  for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2 + 0.2; p.add(yToZ(hexNut(13, 6)), 'darkSteel', [124 * Math.cos(a), 124 * Math.sin(a), z - 8]); }
   return p.g;
 }

@@ -4,7 +4,7 @@
 
 A phone-friendly Three.js model of the 1978 Porsche 911 SC Type 930/03 air-cooled flat-six (2994 cc, 95 × 70.4 mm). Every part is modelled at real-world scale in millimetres. Shapes are traced from the Porsche parts-catalogue illustrations; see [`docs/engine-spec.md`](docs/engine-spec.md).
 
-- **Disassemble** step by step in the workshop teardown order (28 steps, Next/Back).
+- **Disassemble** step by step in the workshop teardown order (29 steps, Next/Back).
 - **Explode** slider for an animated exploded view.
 - **Tap a part** to highlight it and see its name, description, specs, Porsche part number and catalogue illustration/position. From there you can **Hide**, **Isolate** or **Focus** it.
 - **Parts list** grouped by system, following the catalogue groups 101-105, 106/107, 202, 301 and 901.

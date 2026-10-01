@@ -55,6 +55,8 @@ export function pinX(cyl: number, crankDeg = 0): { pinX: number; throwXY: [numbe
   return { pinX: px, throwXY: [tx, ty], rodAngle };
 }
 
-export const INTAKE_PORT = { x: CYL_TOP_X + 26, y: 72 };
+/** Spark-plug boss offset along the cylinder row from the bore axis (head-local z), clear of the lower head stud. */
+export const SPARK_Z = 22;
+export const INTAKE_PORT = { x: CYL_TOP_X + 26, y: 65 }; // runner flange seats on the head intake flange (top y 65)
 /** Injector seat in the intake runner (runner-local, right bank) and its axis. */
 export const INJ = { dx: 8, dy: 50, ux: 0.84, uy: 0.54 };

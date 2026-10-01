@@ -1,5 +1,6 @@
 import { SystemKey } from './catalog';
-import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ } from './layout';
+import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ, SPARK_Z } from './layout';
+import { FASTENER_SPECS } from './fastenerSpec';
 
 export type Vec3 = [number, number, number];
 export interface CatalogRef {
@@ -77,7 +78,7 @@ function perCylinder(): PartDef[] {
     const zRot: Vec3 = s === 1 ? [0, 0, -20 * (R / 180)] : [0, R, -20 * (R / 180)];
     out.push({
       id: `spark-plug-${c}`, name: `Spark plug, cyl. ${c}`, system: 'ignition', asset: 'spark-plug',
-      position: [(CYL_TOP_X + 16) * s, -44, z + 34 * s], rotation: zRot, explode: [s * 380, -220, 0],
+      position: [(CYL_TOP_X + 16) * s, -44, z + SPARK_Z * s], rotation: zRot, explode: [s * 380, -220, 0],
       catalog: [{ ill: '901-00', pos: '16', pn: '999 170 162 90', qty: 6 }, { ill: '901-00', pos: '21', pn: '911 602 315 00', note: 'Plug connector' }],
       description: 'Spark plug with shielded connector, fitted from below on the exhaust side of each head.',
       specs: { Thread: 'M14 x 1.25', Gap: '0.7 mm (typ.)' },
@@ -149,8 +150,8 @@ function perBank(): PartDef[] {
     out.push({
       id: `chain-tensioner-${b}`, name: `Chain tensioner & guides, ${b}`, system: 'camdrive', asset: `chain-tensioner-${b}`, explode: [s * 360, -120, 320],
       catalog: [{ ill, pos: '10', pn: '930 105 049 00', note: 'Chain adjuster (hydraulic, oil-fed on later cars)' }, { ill, pos: '5/6', pn: s === 1 ? '901 105 506 02 / 901 105 055 00' : '901 105 505 02 / 901 105 055 00', note: 'Idler arm / idler sprocket' }, { ill, pos: '2', pn: '911 105 222 06', note: 'Guide rail' }],
-      description: 'Idler arm pivoting outboard of the 15 T idler sprocket, which sits under the slack run; the hydraulic chain adjuster lies inclined in the lower inner corner of the box and pushes the arm tail up. Plastic guide ramps above the tight run and under the slack run control chain whip.',
-      specs: { Type: 'Hydraulic adjuster (930/03: sealed, spring-assisted)', Idler: '15 T' },
+      description: 'Idler arm pivoting outboard of the 15 T idler sprocket. The idler presses 38 mm into the slack (return) run from outside the loop, so the chain wraps it by about 36° with two rollers seated in its teeth. The hydraulic chain adjuster lies inclined in the lower inner corner of the box (stud, washer and nut on a housing ear); its plunger dome bears on the round pad on the arm tail. Plastic guide ramps above the tight run and outside the slack run control chain whip.',
+      specs: { Type: 'Hydraulic adjuster (930/03: sealed, spring-assisted)', Idler: '15 T, 36° wrap', 'Slack-run deflection': '38 mm (model)', Plunger: '≈ 8.6 mm out, in contact with arm' },
     });
     out.push({
       id: `chain-housing-${b}`, name: `Chain housing, ${b}`, system: 'camdrive', asset: `chain-housing-${b}`, explode: [s * 340, -20, 170],
@@ -274,6 +275,21 @@ const single: PartDef[] = [
     description: 'Diaphragm-spring pressure plate bolted to the flywheel.', specs: { Diameter: '225 mm' } },
 ];
 
-export const PARTS: PartDef[] = [...single, ...perBank(), ...perCylinder()];
+const base: PartDef[] = [...single, ...perBank(), ...perCylinder()];
+/** Fastener sets (data/fastenerSpec.ts) as removable hardware parts; geometry is in world coordinates (no pose). */
+function hardware(): PartDef[] {
+  const ex = (id: string) => base.find((p) => p.id === id)!.explode;
+  return FASTENER_SPECS.map((f) => {
+    const e = ex(f.follows);
+    const len = Math.hypot(...e) || 1;
+    return {
+      id: f.id, name: f.name, system: 'hardware' as SystemKey, asset: f.id,
+      explode: e.map((v) => v * (1 + 60 / len)) as Vec3,
+      catalog: f.catalog, description: f.description,
+      specs: { Quantity: String(f.count), Size: f.size, 'Removed at step': f.step },
+    };
+  });
+}
+export const PARTS: PartDef[] = [...base, ...hardware()];
 export const PART_BY_ID: Record<string, PartDef> = Object.fromEntries(PARTS.map((p) => [p.id, p]));
 export { side };

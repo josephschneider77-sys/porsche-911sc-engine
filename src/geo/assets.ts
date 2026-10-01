@@ -1,65 +1,27 @@
 import * as THREE from 'three';
-import * as C from './core';
-import * as A from './aux';
+import { RAW_BUILDERS } from './rawAssets';
+import { fastenerSets, fastenerGroup, studGeometry } from './fasteners';
+import { PARTS } from '../data/parts';
+import { mat } from './materials';
 
-/** Every GLB asset exported to public/parts/<id>.glb. */
+/** Registry pose of a part as a matrix (engine frame). */
+export function partPose(id: string) {
+  const d = PARTS.find((p) => p.id === id)!;
+  return new THREE.Matrix4().compose(new THREE.Vector3(...(d.position ?? [0, 0, 0])), new THREE.Quaternion().setFromEuler(new THREE.Euler(...(d.rotation ?? [0, 0, 0]))), new THREE.Vector3(1, 1, 1));
+}
+/** Add the studs that stay in this part (threaded into it) to its asset. Shared assets use their first part's pose. */
+function withStuds(asset: string, build: () => THREE.Object3D) {
+  return () => {
+    const g = build();
+    const first = PARTS.find((p) => p.asset === asset);
+    if (!first) return g;
+    const inv = partPose(first.id).invert();
+    for (const f of fastenerSets()) for (const it of f.items) if (it.stud && it.into === first.id) g.add(new THREE.Mesh(studGeometry(f, it).applyMatrix4(inv), mat('zincPlate')));
+    return g;
+  };
+}
+/** Every GLB asset exported to public/parts/<id>.glb: part builders (+ their studs) and one instanced asset per fastener set. */
 export const ASSET_BUILDERS: Record<string, () => THREE.Object3D> = {
-  'crankcase-right': () => C.crankcaseHalf(1),
-  'crankcase-left': () => C.crankcaseHalf(-1),
-  'main-bearings': C.mainBearings,
-  crankshaft: C.crankshaft,
-  'crank-gears': C.crankGears,
-  conrod: C.conrod,
-  piston: C.piston,
-  cylinder: C.cylinder,
-  'cylinder-head': C.cylinderHead,
-  'valve-set': C.valveSet,
-  'cam-housing-right': () => C.camHousing(1),
-  'cam-housing-left': () => C.camHousing(-1),
-  'valve-cover-upper-right': () => C.valveCover(1, true),
-  'valve-cover-lower-right': () => C.valveCover(1, false),
-  'valve-cover-upper-left': () => C.valveCover(-1, true),
-  'valve-cover-lower-left': () => C.valveCover(-1, false),
-  'camshaft-right': () => C.camshaft(1),
-  'camshaft-left': () => C.camshaft(-1),
-  'rockers-right': () => C.rockers(1),
-  'rockers-left': () => C.rockers(-1),
-  'timing-chain-right': () => C.timingChain(1),
-  'timing-chain-left': () => C.timingChain(-1),
-  'cam-sprocket-right': () => C.camSprocket(1),
-  'cam-sprocket-left': () => C.camSprocket(-1),
-  'chain-tensioner-right': () => C.chainTensioner(1),
-  'chain-tensioner-left': () => C.chainTensioner(-1),
-  'chain-housing-right': () => C.chainHousing(1),
-  'chain-housing-left': () => C.chainHousing(-1),
-  'chain-housing-lid-right': () => C.chainHousingLid(1),
-  'chain-housing-lid-left': () => C.chainHousingLid(-1),
-  'intermediate-shaft': C.intermediateShaft,
-  'fan-housing': A.fanHousing,
-  'fan-impeller': A.fanImpeller,
-  alternator: A.alternator,
-  'fan-pulley': A.fanPulley,
-  'crank-pulley': A.crankPulley,
-  'fan-belt': A.fanBelt,
-  'upper-air-guide': A.upperAirGuide,
-  'oil-cooler': A.oilCooler,
-  'oil-thermostat': A.oilThermostat,
-  'breather-lid': A.breatherLid,
-  'sump-plate': A.sumpPlate,
-  'oil-pump': A.oilPump,
-  plenum: A.plenum,
-  'air-filter': A.airFilter,
-  'air-cleaner-lid': A.airCleanerLid,
-  'intake-runner': A.intakeRunner,
-  injector: A.injector,
-  'mixture-control-unit': A.mixtureControlUnit,
-  'fuel-lines': A.fuelLines,
-  distributor: A.distributor,
-  'spark-plug': A.sparkPlug,
-  'heat-exchanger-right': () => A.heatExchanger(1),
-  'heat-exchanger-left': () => A.heatExchanger(-1),
-  muffler: A.muffler,
-  flywheel: A.flywheel,
-  'clutch-disc': A.clutchDisc,
-  'pressure-plate': A.pressurePlate,
+  ...Object.fromEntries(Object.entries(RAW_BUILDERS).map(([k, b]) => [k, withStuds(k, b)])),
+  ...Object.fromEntries(fastenerSets().map((f) => [f.id, () => fastenerGroup(f)])),
 };
