@@ -499,7 +499,7 @@ K = published figure. E = estimated from the JE / FVD photographs in `photo-ref/
 | Stub length past the face | 28 mm | E | reassembly-19, short straight tubes, axis horizontal |
 | Throttle bore | 26 mm | E | Housing at the pulley end (+Z) |
 
-The 1978 car has no cold-start spider. The cold-start valve sprays into the lower chamber through a boss on the flywheel end. The lower air-cleaner shell stays in the housing part (911 110 106 13). A neck rises from the box toward the drum and stops 1.5 mm short of the shell (a boolean hole in the shell left triangles inside the filter). The lid and the filter element are still separate parts. The lid's intake snout stays in the upper half.
+The 1978 car has no cold-start spider. The cold-start valve sprays into the lower chamber through a boss on the flywheel end. The lower air-cleaner shell stays in the housing part (911 110 106 13). The neck and the shell seam from the first pass are closed in §18.
 
 Each runner is its own mesh (`intake-runner-1`…`6`) because the head pitch is 118 mm and the stub pitch is 50 mm, so the Z bend differs per cylinder. Stub order follows the crank: the pulley-end cylinder of each bank (1 and 4) takes the pulley-end stub (z +50), so the pipes converge and do not cross. The spigot is coaxial with its stub and the sleeve. Left-bank injectors lean outboard (−X); the pose is a +57° roll, the mirror of the right bank's −57°.
 
@@ -507,10 +507,39 @@ The paper flange gasket is drawn 2.2 mm thick (real paper is about 0.5 mm) so th
 
 Fuel-line ends, and what they seat on:
 
-- feed: filter-side block in `fuel-lines` → banjo + two washers on the distributor inlet
+- feed: banjo + two washers on the distributor inlet → filter-side hex in `fuel-lines` (the filter is off the engine)
 - six injector lines: distributor outlet banjo → injector nipple face
 - warm-up regulator: two lines (`wur-lines`), banjo + two washers at both ends (1978 distributor with the push valve)
-- cold-start feed: distributor banjo → cold-start-valve banjo
-- return: M14×1.5 union on the distributor → tank-side block in `fuel-lines`
+- cold-start feed: distributor side banjo → cold-start-valve banjo
+- return: M14×1.5 union on the distributor (the copper sealing ring) → tank-side hex in `fuel-lines`
 
-The filter and the tank are off the engine, so those two blocks are part of the line assembly. Catalogue feature counts in `checklist.ts` are unchanged.
+The filter and the tank are off the engine, so those two hexes are fittings in the line assembly. Each line arrives along the hex axis and stops on the face. Catalogue feature counts in `checklist.ts` are unchanged.
+
+## 18. Air cleaner and fuel-line routing
+
+The Ø160 × 440 mm open drum is replaced by a flat oval canister, the black housing in JE reassembly-55 and 57. The paper element is not a round cartridge. The part on the car is **911 110 185 02**, Mahle LX 261, the orange rectangular panel in the JE filter photo. A circle tall enough to hold that 181 mm panel would be larger than the old drum, so the shell is an ellipse around the panel.
+
+| Dimension | Value | Tag | Source |
+| --- | --- | --- | --- |
+| Element length | 402 mm | K | Heritage 911 110 185 02; Mahle LX 261 |
+| Element width | 181 mm | K | Same |
+| Element height | 41.4 mm | K | mhteile.com Mahle LX 261 listing |
+| Inner ellipse | 224 × 84 mm | E | Clears the panel corners (half-axes 112 and 42) |
+| Wall | 3.6 mm | E | reassembly-61 tray |
+| Straight length | 440 mm, plus 3.6 mm end caps | E | reassembly-55, a long canister rather than a trough |
+| Equator | y 378 | E | Split of the two halves; underside y 332.4 |
+| Lip | 9 × 3.2 mm | E | Clip land in reassembly-55 |
+| Canister centre Z | 36 mm | E | +Z cheek stays clear of the alternator slip-ring face (z ≈ 164) |
+| Outlet neck | Ø32 tube, opening Ø44, flange Ø60 | E | Seated on the outer bottom; the opening is left out of the skin |
+
+The curved wall stops 0.7 mm short of the equator and the lip stands 0.15 mm apart. A shared edge on this ellipse fails the 1 mm erosion test: the wall normal tilts, so the two edges move into each other. The lip is the joint the clips close over. The outlet neck ends on the outer bottom with its flange on that surface; the skin leaves a Ø44 opening so the tube is not a dead end. The element is centred on the equator.
+
+Fuel lines no longer loop out to the shroud skirt. The six injector lines are a ribbon at x −134, 8 mm apart in height, running along Z beside the distributor and then dropping onto the injector axis. Right-bank lines cross at y 264, just above the plenum; the cylinder-3 line crosses at z −136 so it misses the banjo nuts. The two warm-up-regulator lines drop through the cylinder-6 shroud window (x ≤ −208, z −162/−174, clear of the z −185 wing rib and the hot-air socket screws) and come back inboard under the wing. The cold-start feed, the inlet and the return are short runs off their fittings. The injection-line bracket is the vertical clip just outboard of the ribbon.
+
+The head flange and the bottom end are unchanged. The distributor recess and the ignition-lead paths over the shroud edge are not moved. The canister stays above the alternator (measured clearance about 24 mm); the plenum throttle face (z 128) does not reach the alternator (z ≈ 164).
+
+### Auxiliary air, vacuum, cold-start seat
+
+The black rubber tube that left the air-meter and stopped near the right-front runner was not the throttle boot (it was Ø15, and it met no spigot). On the K-Jetronic layout that takeoff is metered air for the auxiliary air regulator: after the sensor plate, through the regulator, back into the manifold downstream of the throttle. The meter now has a brass barb. One hose runs to the regulator's upper barb; the lower barb feeds a brass pipe on the plenum's flywheel face, clear of the regulator body and of the shroud roof (y 153.5). The cold-start valve is centred on its boss (y 206, the spray hole) with the O-ring 0.2 mm off the face, a flange, and two pan-head screws with spring washers. The shanks stop 0.3 mm short of the casting so they are not an allowlisted stud-in-hole.
+
+Vacuum: a nipple on the plenum lid, the T-piece, the limiter's side barb, and a nipple on the distributor vacuum can. Three hoses join those four fittings. The breather tower's neck is the spigot for 901 107 394 00, which the checklist leaves off the engine (the oil tank is body-mounted); there is no breather hose mesh. The heater flexible pipe seats on the left adapter mouth and on a ferrule at the body end. `tests/fuel-lines.test.ts` checks every named line, including these.

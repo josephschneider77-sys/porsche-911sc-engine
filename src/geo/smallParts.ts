@@ -4,15 +4,15 @@
  * gives one world matrix per piece. Counts/steps/claims live in data/smallSpec.ts; tests/smallParts check both agree.
  */
 import * as THREE from 'three';
-import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, woodruffGeom, spring, yToZ, cylBetween, csgSub, type V3 } from './util';
+import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, type V3 } from './util';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
 import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
 import { LIP_Z, chainLidStations } from './stations';
-import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD } from './aux';
-import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX } from './induction';
+import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
+import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, VAC_T, VAC_LIMIT } from './induction';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const X = V(1, 0, 0), Y = V(0, 1, 0), Z = V(0, 0, 1);
@@ -291,22 +291,86 @@ def('alternator-strap', () => {
 }, () => [M(V(0, 0, 0), Y, X)]);
 
 // ===== induction / exhaust composites =====
-def('cold-start-valve', () => { const p = new Part(); p.add(lathe([[0.1, 0], [16, 0], [16, 1.6], [0.1, 1.6]], 24), 'gasket'); p.add(lathe([[0.1, 1.6], [13, 1.6], [13, 8], [0.1, 8]], 24), 'castAlu'); p.add(torus(11, 1.3, 6, 24).rotateX(Math.PI / 2).translate(0, 8.5, 0), 'rubber'); p.add(lathe([[0.1, 9], [12, 9], [12, 42], [8, 46], [0.1, 46]], 24), 'zincPlate'); p.add(box(14, 10, 12).translate(0, 50, 0), 'blackPlastic'); for (const k of [-1, 1]) { p.add(hexNut(8, 3).translate(k * 19, 10, 0), 'zincPlate'); p.add(lathe([[2.7, 8], [5, 8], [5, 8.6], [2.7, 8.6]], 12).translate(k * 19, 0, 0), 'darkSteel'); } csvPortLocalGeometry(p); return p; }, () => [csvPoseMatrix()]);
-def('aux-air-valve', () => { const p = new Part(); p.add(lathe([[0.1, 0], [20, 0], [20, 30], [0.1, 30]], 28), 'castAlu'); p.add(cylBetween([0, 16, 0], [26, 16, 0], 5.5, 12), 'castAlu'); p.add(cylBetween([0, 16, 0], [-26, 16, 0], 5.5, 12), 'castAlu'); for (const k of [-1, 1]) { p.add(hexNut(10, 4).translate(k * 24, 5, 0), 'zincPlate'); p.add(lathe([[3.2, 0.15], [5.5, 0.15], [5.5, 1.05], [3.2, 1.05]], 12).translate(k * 24, 0, 0), 'darkSteel'); } p.add(box(52, 2, 12).translate(0, 1.2, 0), 'zincPlate'); return p; }, () => [frame(V(52, 200, BOX.z0 - 0.6), V(0, 0, -1), Y)]);
-def('aux-air-plumbing', () => { const p = new Part(); const a: V3 = [52, 234, -111], b: V3 = [78, 248, -145], c: V3 = [70, 248, -178]; p.add(tube([a, b, c], 5.2, 10, 24), 'rubber'); p.add(cylBetween(c, [70, 248, -192], 4.4, 10), 'steel'); for (const q of [b, c]) p.add(torus(6.2, 0.7, 6, 16).translate(q[0], q[1], q[2]), 'zincPlate'); return p; }, () => [new THREE.Matrix4()]);
-def('vacuum-limiter', () => { const p = new Part(); p.add(lathe([[0.1, 0], [16, 0], [16, 20], [0.1, 20]], 24), 'satinBlack'); p.add(cylBetween([0, 10, 0], [22, 10, 0], 3.6, 10), 'blackPlastic'); p.add(cyl(4.2, 5, 12).translate(0, 23, 0), 'zincPlate'); p.add(hexNut(10, 5).translate(0, 28, 0), 'zincPlate'); p.add(lathe([[3.6, 20], [6.2, 20], [6.2, 21.3], [3.6, 21.3]], 12), 'darkSteel'); return p; }, () => [M(V(70, BOX.y1 + 0.6, -72), Y)]);
-def('vacuum-fittings', () => { const p = new Part(); p.add(cylBetween([-14, 0, 0], [14, 0, 0], 3.6, 10), 'blackPlastic'); p.add(cylBetween([0, 0, 0], [0, 0, 16], 3.6, 10), 'blackPlastic'); p.add(cylBetween([0, 0, 16], [0, 0, 28], 2.8, 10), 'brass'); for (const [x, z] of [[-10, 0], [10, 0], [0, 8]]) p.add(yToZ(torus(4.2, 0.7, 6, 14)).rotateY(z ? 0 : Math.PI / 2).translate(x, 0, z), 'zincPlate'); return p; }, () => [M(V(6, BOX.y1 + 8, 62), Y)]);
-def('airbox-clamps', () => { const p = new Part(); p.add(box(30, 1.5, 14).translate(0, 0.75, 0), 'zincPlate'); p.add(box(4, 8, 14).translate(14, 4, 0), 'zincPlate'); p.add(torus(4, 0.9, 6, 12).translate(-10, 3, 0), 'zincPlate'); return p; }, () => [-1, 1].map((k) => M(V(k * (AIRBOX.r + 0.1), AIRBOX.y, AIRBOX.z - AIRBOX.len / 2 + 60), V(k, 0, 0), Z)));
+def('cold-start-valve', () => {
+  const p = new Part();
+  // O-ring 0.2 mm off the boss face, centred on the spray hole. Flange and pan-head screws (107-10 #34/#35) sit on it.
+  p.add(lathe([[7.2, 0.2], [14, 0.2], [14, 2.2], [7.2, 2.2]], 24), 'gasket');
+  p.add(box(44, 3.2, 14).translate(0, 3.8, 0), 'castAlu');
+  p.add(lathe([[0.1, 2.2], [12, 2.2], [12, 8], [0.1, 8]], 24), 'castAlu');
+  p.add(torus(11, 1.3, 6, 24).rotateX(Math.PI / 2).translate(0, 8.5, 0), 'rubber');
+  p.add(lathe([[0.1, 9], [12, 9], [12, 42], [8, 46], [0.1, 46]], 24), 'zincPlate');
+  p.add(box(14, 10, 12).translate(0, 50, 0), 'blackPlastic');
+  for (const k of [-1, 1]) {
+    const x = k * 16;
+    // Shank stops 0.3 mm short of the boss so it does not enter the casting.
+    p.add(cyl(2.4, 6.4, 10).translate(x, 3.5, 0), 'darkSteel');
+    p.add(lathe([[2.6, 6.6], [5.2, 6.6], [5.2, 7.6], [2.6, 7.6]], 12).translate(x, 0, 0), 'darkSteel');
+    p.add(lathe([[0.1, 7.6], [4.6, 7.6], [4.6, 9.4], [3.2, 10.2], [0.1, 10.2]], 16).translate(x, 0, 0), 'zincPlate');
+  }
+  csvPortLocalGeometry(p);
+  return p;
+}, () => [csvPoseMatrix()]);
+def('aux-air-valve', () => { const p = new Part(); p.add(lathe([[0.1, 0], [20, 0], [20, 30], [0.1, 30]], 28), 'castAlu'); p.add(cylBetween([0, 16, 0], [26, 16, 0], 5.5, 12), 'castAlu'); p.add(cylBetween([0, 16, 0], [-26, 16, 0], 5.5, 12), 'castAlu'); for (const k of [-1, 1]) { p.add(hexNut(10, 4).translate(k * 24, 5, 0), 'zincPlate'); p.add(lathe([[3.2, 0.15], [5.5, 0.15], [5.5, 1.05], [3.2, 1.05]], 12).translate(k * 24, 0, 0), 'darkSteel'); } p.add(box(52, 2, 12).translate(0, 1.2, 0), 'zincPlate'); return p; }, () => [aavMatrix()]);
+def('aux-air-plumbing', () => auxAirPlumbingPart(), () => [new THREE.Matrix4()]);
+def('vacuum-limiter', () => { const p = new Part(); p.add(lathe([[0.1, 0], [16, 0], [16, 20], [0.1, 20]], 24), 'satinBlack'); p.add(cylBetween([0, 10, 0], [22, 10, 0], 3.6, 10), 'blackPlastic'); p.add(cyl(4.2, 5, 12).translate(0, 23, 0), 'zincPlate'); p.add(hexNut(10, 5).translate(0, 28, 0), 'zincPlate'); p.add(lathe([[3.6, 20], [6.2, 20], [6.2, 21.3], [3.6, 21.3]], 12), 'darkSteel'); return p; }, () => [M(V(...VAC_LIMIT.origin), Y)]);
+def('vacuum-fittings', () => {
+  const p = new Part();
+  // Identity pose so the named vacuum hoses survive export (instancing drops mesh names).
+  const [ox, oy, oz] = VAC_T.origin;
+  p.add(cylBetween([ox - 14, oy, oz], [ox + 14, oy, oz], 3.6, 10), 'blackPlastic');
+  p.add(cylBetween([ox, oy, oz], [ox, oy, oz + 16], 3.6, 10), 'blackPlastic');
+  p.add(cylBetween([ox, oy, oz + 16], [ox, oy, oz + 28], 2.8, 10), 'brass');
+  // Rings around the barbs, inboard of each tip so the hose ray meets the barb face.
+  const xRing = torus(4.2, 0.7, 6, 14).rotateY(Math.PI / 2);
+  p.add(xRing, 'zincPlate', [ox - 4, oy, oz]);
+  p.add(xRing.clone(), 'zincPlate', [ox + 10, oy, oz]);
+  p.add(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, oy, oz + 20]);
+  p.g.add(vacuumHosesPart().g);
+  return p;
+}, () => [new THREE.Matrix4()]);
+def('airbox-clamps', () => { const p = new Part(); const R = SNOUT_R + 2.2; p.add(torus(R, 1.15, 8, 28).rotateX(Math.PI / 2), 'zincPlate'); p.add(box(4, 5, 4).translate(R + 2, 0, 0), 'zincPlate'); p.add(hexNut(7, 3).translate(R + 3.2, 3, 0), 'zincPlate'); return p; }, () => airboxSnoutSamples().map(({ p, dir }) => M(V(...p), V(...dir), Y)));
 def('injection-banjos', () => banjoProto(), () => injectorBanjoMatrices());
 def('injection-line-rings', () => washer(4.1, 6.2, 1, 'copper'), () => sealRingFrames().map(({ p, n }) => M(V(...p), V(...n))));
-def('injection-line-bracket', () => { const p = new Part(); p.add(box(LINE_CLIP.span, 1.6, LINE_CLIP.depth).translate(0, 0.8, 0), 'zincPlate'); p.add(box(3, 8, 8).translate(-LINE_CLIP.span / 2 + 2, -3.2, 0), 'zincPlate'); p.add(yToZ(torus(3.6, 0.7, 6, 14)).translate(-LINE_CLIP.span / 2 + 2, -6, 0), 'zincPlate'); p.add(hexNut(10, 4).translate(0, -2.6, 6), 'zincPlate'); p.add(lathe([[3.2, -1.5], [5.2, -1.5], [5.2, -0.3], [3.2, -0.3]], 12).translate(0, 0, 6), 'darkSteel'); return p; }, () => [M(V(LINE_CLIP.x, LINE_CLIP.yTop - 1.6, LINE_CLIP.z), Y, X)]);
+def('injection-line-bracket', () => {
+  const p = new Part();
+  const h = LINE_CLIP.y1 - LINE_CLIP.y0;
+  // Backplate outboard of the ribbon. Fingers reach toward the tubes and stop 6 mm short.
+  p.add(box(1.8, h, LINE_CLIP.depth).translate(0, h / 2, 0), 'zincPlate');
+  p.add(box(8, 1.5, LINE_CLIP.depth).translate(4.6, 8, 0), 'zincPlate');
+  p.add(box(8, 1.5, LINE_CLIP.depth).translate(4.6, h - 8, 0), 'zincPlate');
+  p.add(hexNut(8, 3.2).translate(-3, 6, 0), 'zincPlate');
+  return p;
+}, () => [M(V(LINE_CLIP.x, LINE_CLIP.y0, LINE_CLIP.z), Y, X)]);
 def('wur-lines', () => { const p = new Part(); p.addObj(wurLinesPart()); return p; }, () => [new THREE.Matrix4()]);
 def('throttle-linkage', () => { const p = new Part(); p.add(box(16, 2, 12).translate(0, 1, 0), 'zincPlate'); for (const k of [-1, 1]) p.add(lathe([[3.2, 2], [5.2, 2], [5.2, 9], [3.2, 9]], 12).translate(k * 5, 0, 0), 'bronze'); p.add(box(14, 3, 3.5).translate(7, 11, 0), 'zincPlate'); p.add(lathe([[3, 9], [6.5, 9], [6.5, 10.4], [3, 10.4]], 12), 'zincPlate'); p.add(cylBetween([7, 11, 0], [24, 16, 32], 2.1, 8), 'zincPlate'); p.add(spring(2.2, 0.65, 6, 18, 7).translate(-6, 0, 3), 'darkSteel'); for (const k of [-1, 1]) { p.add(hexNut(8, 3.2).translate(k * 5, 11, 0), 'zincPlate'); p.add(lathe([[2.5, 2], [4, 2], [4, 3.1], [2.5, 3.1]], 10).translate(k * 5, 0, 0), 'darkSteel'); } return p; }, () => [M(V(42, 236.6, 114), Y, X)]);
-def('airbox-straps', () => { const p = new Part(); p.add(box(14, 60, 1.5).translate(0, 30, 0), 'zincPlate'); p.add(box(20, 3, 20).translate(0, 1.5, 0), 'zincPlate'); p.add(hexNut(8, 4).translate(0, 5, 0), 'zincPlate'); return p; }, () => [-1, 1].map((k) => M(V(k * (AIRBOX.r + 2), AIRBOX.y - 30, AIRBOX.z), Y)));
-def('airbox-fittings', () => { const p = new Part(); p.add(lathe([[0.1, 0], [30, 0], [30, 0.6], [0.1, 0.6]], 32), 'gasket'); p.add(hexNut(14, 6).translate(40, 4, 0), 'zincPlate'); p.add(lathe([[5, 0], [8, 0], [8, 1.5], [5, 1.5]], 16).translate(40, 0, 0), 'copper'); p.add(cylBetween([-40, 0, 0], [-40, 20, 0], 6, 12), 'blackPlastic'); p.add(cylBetween([-40, 20, 0], [-60, 34, 0], 5, 12), 'blackPlastic'); for (const y of [8, 26]) p.add(torus(7, 0.8, 6, 16).rotateX(Math.PI / 2).translate(-40, y, 0), 'zincPlate'); p.add(cyl(6, 10, 12).translate(20, 5, 20), 'rubber'); p.add(lathe([[4, 0], [7, 0], [7, 1.2], [4, 1.2]], 12).translate(-20, 0, 20), 'darkSteel'); for (const x of [-12, -4]) p.add(lathe([[4.2, 0], [8, 0], [8, 1.2], [4.2, 1.2]], 12).translate(x, 0, -20), 'zincPlate'); p.add(lathe([[4.2, 0], [7, 0], [7, 1.4], [4.2, 1.4]], 12).translate(6, 0, -20), 'darkSteel'); return p; }, () => [M(V(200, AIRBOX.y, -56), V(0, 0, -1))]);
+def('airbox-straps', () => { const p = new Part(); p.add(box(16, 1.6, 86).translate(0, 0.8, 0), 'zincPlate'); p.add(hexNut(8, 3.2).translate(0, 3.4, 0), 'zincPlate'); p.add(lathe([[3.2, 1.6], [5.2, 1.6], [5.2, 2.4], [3.2, 2.4]], 12), 'darkSteel'); return p; }, () => [-90, 90].map((x) => M(V(x, airCleanerLayout().crown + 1.8, AIRBOX.z), Y, X)));
+def('airbox-fittings', () => { const p = new Part(); p.add(lathe([[0.1, 0], [18, 0], [18, 0.8], [0.1, 0.8]], 24), 'gasket'); p.add(hexNut(12, 5).translate(0, 6, 14), 'zincPlate'); p.add(lathe([[4, 0], [6.5, 0], [6.5, 1.2], [4, 1.2]], 12).translate(0, 0, 14), 'copper'); p.add(cylBetween([0, 2, 0], [0, 16, 0], 5, 12), 'blackPlastic'); p.add(cylBetween([0, 16, 0], [0, 28, 8], 4, 12), 'blackPlastic'); for (const y of [6, 18]) p.add(torus(6.2, 0.7, 6, 14).rotateX(Math.PI / 2).translate(0, y, 0), 'zincPlate'); return p; }, () => [M(V(airCleanerLayout().outerX + 1.2, AIRBOX.yMid - 16, AIRBOX.z + 16), X, Y)]);
 def('muffler-hardware', () => { const p = new Part(); p.add(lathe([[30, 0], [44, 0], [44, 1.2], [30, 1.2]], 32), 'gasket'); p.add(lathe([[30, -40], [36, -40], [36, -39], [30, -39]], 32), 'gasket'); for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2; p.add(hexNut(13, 6.5).translate(38 * Math.cos(a), 4.5, 38 * Math.sin(a)), 'zincPlate'); p.add(cyl(4, 20, 8).translate(38 * Math.cos(a), 0, 38 * Math.sin(a)), 'zincPlate'); } for (const k of [-1, 1]) p.add(torus(30, 2.5, 6, 32).rotateX(Math.PI / 2).translate(k * 120, -30, 0), 'zincPlate'); return p; }, () => [M(V(0, -250, -330), V(0, 0, 1))]);
 def('heater-adapters', () => { const p = new Part(); p.add(lathe([[38, 0], [41, 0], [41, 30], [38, 30]], 32), 'aluminized'); p.add(torus(41.5, 2, 6, 32).rotateX(Math.PI / 2).translate(0, 15, 0), 'zincPlate'); p.add(cylBetween([41, 15, 0], [52, 15, 0], 3, 8), 'zincPlate'); return p; }, () => [-1, 1].map((s) => M(V(s * 180, -150, -250), V(0, 0, -1))));
-def('heater-hose', () => { const p = new Part(); p.add(tube([[0, 0, 0], [0, -20, -40], [0, -20, -160]], 30, 16, 32), 'aluminized'); for (const z of [-30, -150]) p.add(torus(31, 1.5, 6, 32).translate(0, -20, z), 'zincPlate'); return p; }, () => [M(V(-180, -150, -282), Y, X)]);
+/** Left heater-adapter mouth (axis −Z) and the body-side ferrule (mouth faces the hose, +Z). */
+export const HEATER_HOSE_ENDS = {
+  adapter: { tip: [-180, -150, -280] as V3, axis: [0, 0, -1] as V3 },
+  ferrule: { tip: [-180, -170, -440] as V3, axis: [0, 0, 1] as V3 },
+};
+def('heater-hose', () => {
+  const p = new Part();
+  const a = HEATER_HOSE_ENDS.adapter.tip, b = HEATER_HOSE_ENDS.ferrule.tip;
+  // Ferrule: the cabin duct is off the engine. Mouth (the tip) faces the adapter.
+  p.add(cylBetween([b[0], b[1], b[2] - 18], b, 27, 16), 'aluminized');
+  p.add(lathe([[27, 0], [33, 0], [33, 3], [27, 3]], 20).rotateX(Math.PI / 2).translate(b[0], b[1], b[2] - 16), 'zincPlate');
+  const start: V3 = [a[0], a[1], a[2] - 0.35];
+  const end: V3 = [b[0], b[1], b[2] + 0.35];
+  const a1: V3 = [a[0], a[1], a[2] - 14];
+  const b1: V3 = [b[0], b[1], b[2] + 14];
+  for (const g of [cylBetween(start, a1, 26, 16), cylBetween(end, b1, 26, 16), tube([a1, [a[0], a[1] - 6, a[2] - 36], [b[0], b[1], b[2] + 28], b1], 26, 12, 20)]) {
+    const me = mesh(g, 'aluminized');
+    me.name = 'line:heater';
+    p.g.add(me);
+  }
+  p.add(torus(28.5, 1.4, 6, 24).translate(a[0], a[1] - 3, a[2] - 16), 'zincPlate');
+  p.add(torus(28.5, 1.4, 6, 24).translate(b[0], b[1], b[2] + 14), 'zincPlate');
+  return p;
+}, () => [new THREE.Matrix4()]);
 def('muffler-bracket', () => { const p = new Part(); p.add(box(120, 4, 30).translate(0, 2, 0), 'zincPlate'); for (const k of [-1, 1]) { p.add(hexNut(13, 6.5).translate(k * 50, 7.5, 0), 'zincPlate'); p.add(lathe([[4.2, 4], [7.5, 4], [7.5, 5.2], [4.2, 5.2]], 12).translate(k * 50, 0, 0), 'darkSteel'); p.add(lathe([[4.2, -1.6], [8, -1.6], [8, 0], [4.2, 0]], 12).translate(k * 50, 0, 0), 'zincPlate'); p.add(cyl(4, 30, 8).translate(k * 50, -10, 0), 'zincPlate'); p.add(hexNut(13, 5.5).translate(k * 50, -25, 0), 'zincPlate'); } return p; }, () => [M(V(0, -300, -260), V(0, -1, 0))]);
 def('pre-muffler', () => { const p = new Part(); p.add(boxMM([-110, -24, -40], [110, 24, 40]), 'aluminized'); for (const k of [-1, 1]) p.add(cylBetween([k * 110, 0, 0], [k * 170, 30, 40], 20, 16), 'aluminized'); p.add(cylBetween([0, 0, -40], [0, -10, -90], 22, 16), 'aluminized'); p.add(lathe([[20, 0], [24, 0], [24, 30], [20, 30]], 24).rotateX(-Math.PI / 2).translate(0, -10, -90), 'heatSteel'); for (const k of [-1, 1]) p.add(torus(22, 2, 6, 24).rotateY(Math.PI / 2).translate(k * 130, 10, 14), 'zincPlate'); p.add(lathe([[20, 0], [32, 0], [32, 1], [20, 1]], 24).rotateX(-Math.PI / 2).translate(0, -10, -120), 'gasket'); for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; p.add(cylBetween([26 * Math.cos(a), -10 + 26 * Math.sin(a), -124], [26 * Math.cos(a), -10 + 26 * Math.sin(a), -116], 3, 8), 'zincPlate'); p.add(yToZ(hexNut(10, 5)), 'zincPlate', [26 * Math.cos(a), -10 + 26 * Math.sin(a), -126.5]); } for (const k of [-1, 1]) { p.add(cylBetween([k * 130, 36, 6], [k * 130, 36, 22], 3, 8), 'zincPlate'); p.add(yToZ(hexNut(10, 5)), 'zincPlate', [k * 130, 36, 24.5]); } for (const k of [-1, 1]) { p.add(lathe([[20, 0], [32, 0], [32, 1], [20, 1]], 24).rotateZ(Math.PI / 2).translate(k * 172, 30, 40), 'gasket'); } p.add(lathe([[4, 0], [12, 0], [12, 2], [4, 2]], 16).translate(0, 24, 0), 'zincPlate'); return p; }, () => [M(V(0, -250, -330), Y, X)]);
 void [box, HOUSING_Z1, INJ, seat, Y, Z, X];
