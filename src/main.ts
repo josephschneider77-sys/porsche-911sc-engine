@@ -1,6 +1,6 @@
 import './style.css';
 import { Viewer } from './app/viewer';
-import { cameraFromQuery } from './app/queryCamera';
+import { cameraFromQuery, viewFromQuery } from './app/queryCamera';
 import { PARTS, PART_BY_ID } from './data/parts';
 import { TEARDOWN, stepIndexOf } from './data/teardown';
 import { SYSTEMS, SystemKey, design911Url, ILLUSTRATIONS } from './data/catalog';
@@ -113,6 +113,8 @@ viewer.load(import.meta.env.BASE_URL, (f) => { $('load-text').textContent = `Loa
     const q = new URLSearchParams(location.search);
     if (q.has('explode')) { const v = Math.max(0, Math.min(100, +q.get('explode')!)); slider.value = String(v); slider.dispatchEvent(new Event('input')); }
     if (q.has('step')) { viewer.setStep(Math.max(0, Math.min(N, +q.get('step')!))); renderStep(); }
+    const named = viewFromQuery(q.get('view'));
+    if (named) { viewer.setStep(named.step); renderStep(); }
     if (q.has('part')) showInfo(q.get('part'));
     if (q.has('isolate')) { viewer.isolate(q.get('isolate')); viewer.focus(q.get('isolate')!); }
     // ?only=id,id hides every other part (assembled case-pair shots)
@@ -128,6 +130,7 @@ viewer.load(import.meta.env.BASE_URL, (f) => { $('load-text').textContent = `Loa
     };
     const pose = cameraFromQuery({ cam: q.get('cam'), target: q.get('target') }, stepPose);
     if (q.has('cam') && pose !== stepPose) viewer.lockQueryCamera(pose.pos, pose.target);
+    else if (named) viewer.lockQueryCamera(named.pos, named.target);
     (window as any).__ready = true;
   })
   .catch((e) => { $('load-text').textContent = `Failed to load: ${e}`; console.error(e); });

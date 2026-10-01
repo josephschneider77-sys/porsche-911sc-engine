@@ -1036,7 +1036,7 @@ const ROW = 5.1; // duplex row offset from chain centre (transverse pitch ≈ 10
 export const HOUSING_Z0 = CASE_Z.pulley, HOUSING_Z1 = CASE_Z.pulley + 70;
 /** Straight inner (crankcase-side) edge of the chain box, |x|. Inboard of this the chains run in the case's chain well. */
 export const CHAIN_BOX_INNER_X = 118;
-const CAM_END_X = 254; // inboard edge of the cam-housing end face that sits inside the box
+export const CAM_END_X = 254; // inboard edge of the cam-housing end face that sits inside the box
 const CAM_HOUSING_END_Z = CASE_Z.pulley + 10; // 222
 
 /** Straight two-sprocket loop (intermediate + cam sprocket, external tangents): the reference the idler deflects. */
@@ -1104,13 +1104,15 @@ export function chainPath(s: 1 | -1) {
   const idlerToCam = s > 0 ? tans[2] : tans[0];
   return { ...B, pts, arcs, idlerArc, idlerWrap: Math.abs(idlerArc.a1 - idlerArc.a0), slackA: intToIdler, slackB: idlerToCam };
 }
+const pinCache = new Map<number, { n: number; len: number; pins: THREE.Vector3[] }>();
 /**
  * Chain pin centres. On each sprocket the rollers sit one tooth apart (chord = pitch),
- * centred on the wrap, so a valley lines up with every roller. Straight runs are split
- * into equal chords as close to the pitch as the tangent length allows. Even count so
- * inner and outer plates alternate.
+ * and the whole set is slid along the wrap so every straight run splits into equal
+ * chords within 0.2 mm of the pitch. Even count so inner and outer plates alternate.
  */
 export function chainPins(s: 1 | -1) {
+  const hit = pinCache.get(s);
+  if (hit) return hit;
   const { arcs } = chainPath(s);
   const teethOf = (r: number) => {
     let teeth = CAM_T, bd = Math.abs(r - CAM_SPROCKET_R);
@@ -1120,21 +1122,56 @@ export function chainPins(s: 1 | -1) {
     }
     return teeth;
   };
-  const arcPts = arcs.map((A) => {
+  // How far an end roller may pass the geometric tangent (mm of arc) while it is still seated.
+  const HANG = 2.4;
+  const spec = arcs.map((A) => {
     const step = (Math.PI * 2) / teethOf(A.circ.r);
     const sweep = A.a1 - A.a0;
     const dir = Math.sign(sweep) || 1;
     const span = Math.abs(sweep);
     const nInt = Math.max(1, Math.round(span / step));
-    const margin = (span - nInt * step) / 2;
-    const a0 = A.a0 + dir * margin;
+    const slack = span - nInt * step;
+    const hang = HANG / A.circ.r;
+    return { A, step, dir, nInt, slack, lo: -hang, hi: slack + hang };
+  });
+  const block = (i: number, inset: number) => {
+    const { A, step, dir, nInt } = spec[i];
+    const a0 = A.a0 + dir * inset;
     const pts: THREE.Vector3[] = [];
     for (let k = 0; k <= nInt; k++) {
       const a = a0 + dir * step * k;
       pts.push(new THREE.Vector3(A.circ.c.x + A.circ.r * Math.cos(a), A.circ.c.y + A.circ.r * Math.sin(a), 0));
     }
     return pts;
-  });
+  };
+  const worstOf = (insets: number[]) => {
+    const arcPts = insets.map((inset, i) => block(i, inset));
+    let worst = 0, n = 0;
+    for (let i = 0; i < arcPts.length; i++) {
+      const here = arcPts[i], next = arcPts[(i + 1) % arcPts.length];
+      const d = here[here.length - 1].distanceTo(next[0]);
+      const nChord = Math.max(1, Math.round(d / PITCH));
+      n += spec[i].nInt + nChord;
+      worst = Math.max(worst, Math.abs(d / nChord - PITCH));
+    }
+    // Inner and outer plates alternate, so the loop has to close on an even count.
+    return n % 2 === 0 ? worst : Infinity;
+  };
+  // Centred is the start. Slide each wrap so the short idler run (and the others) land on the pitch.
+  const steps = 17;
+  let best = spec.map((sp) => Math.min(sp.hi, Math.max(sp.lo, sp.slack / 2)));
+  let bestErr = worstOf(best);
+  const sample = (sp: (typeof spec)[number]) => {
+    const out: number[] = [];
+    for (let k = 0; k < steps; k++) out.push(sp.lo + ((sp.hi - sp.lo) * k) / (steps - 1));
+    return out;
+  };
+  const grids = spec.map(sample);
+  for (const a of grids[0]) for (const b of grids[1]) for (const c of grids[2]) {
+    const err = worstOf([a, b, c]);
+    if (err < bestErr - 1e-6) { bestErr = err; best = [a, b, c]; }
+  }
+  const arcPts = best.map((inset, i) => block(i, inset));
   const pins: THREE.Vector3[] = [];
   for (let i = 0; i < arcs.length; i++) {
     const here = arcPts[i], next = arcPts[(i + 1) % arcs.length];
@@ -1146,7 +1183,9 @@ export function chainPins(s: 1 | -1) {
   }
   let len = 0;
   for (let i = 0; i < pins.length; i++) len += pins[i].distanceTo(pins[(i + 1) % pins.length]);
-  return { n: pins.length, len, pins };
+  const out = { n: pins.length, len, pins };
+  pinCache.set(s, out);
+  return out;
 }
 /** y of a run (line a-b) at engine x. */
 const runY = (a: THREE.Vector2, b: THREE.Vector2, x: number) => a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x);
@@ -1579,7 +1618,7 @@ export function chainHousing(s: 1 | -1) {
   const wall = boxWallPath(o, s);
   const T = tensionerLayout(s);
   // back wall at the case face (inboard of the cam-housing end) + front ring in front of the cam-housing end
-  const backPoly = clipBelowX(o, s, CAM_END_X);
+  const backPoly = chainCaseFace(s);
   p.add(extrude(shapeFrom(backPoly), 4, 0, 8), 'castAlu', [0, 0, HOUSING_Z0]);
   // outboard of CAM_END_X the cam-housing end face itself closes the back of the box (gasketed joint)
   // side walls: full depth inboard of the cam-housing end, from the cam-end ring outboard of it
@@ -1711,6 +1750,10 @@ function splitRuns(pts: [number, number][], f: (q: [number, number]) => boolean)
   for (const q of pts) { if (f(q)) cur.push(q); else { if (cur.length > 1) out.push(cur); cur = []; } }
   if (cur.length > 1) out.push(cur);
   return out;
+}
+/** Back face of the chain housing, where it gaskets onto the case. Outboard of CAM_END_X the cam housing closes the box, so the case gasket stops here. */
+export function chainCaseFace(s: 1 | -1) {
+  return clipBelowX(chainOutline(s, 0), s, CAM_END_X);
 }
 /** Clip a convex polygon to x*s <= x0. */
 function clipBelowX(pts: [number, number][], s: 1 | -1, x0: number): [number, number][] {
