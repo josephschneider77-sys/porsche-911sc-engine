@@ -23,5 +23,10 @@ function withStuds(asset: string, build: () => THREE.Object3D) {
 export const ASSET_BUILDERS: Record<string, () => THREE.Object3D> = {
   ...Object.fromEntries(Object.entries(RAW_BUILDERS).map(([k, b]) => [k, withStuds(k, b)])),
   ...Object.fromEntries(fastenerSets().map((f) => [f.id, () => fastenerGroup(f)])),
-  ...Object.fromEntries(Object.entries(SMALL_GEOM).map(([id, g]) => [id, () => instancedGroup(id, g.proto(), g.items())])),
+  ...Object.fromEntries(Object.entries(SMALL_GEOM).map(([id, g]) => [id, () => {
+    const items = g.items();
+    // A single identity pose keeps mesh names (fuel-line endpoints are named line:<id>).
+    if (items.length === 1 && items[0].equals(new THREE.Matrix4())) return g.proto().g;
+    return instancedGroup(id, g.proto(), items);
+  }])),
 };
