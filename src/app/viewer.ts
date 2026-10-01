@@ -193,12 +193,31 @@ export class Viewer {
     const box = new THREE.Box3().setFromObject(n.root);
     if (box.isEmpty()) return;
     const c = box.getCenter(new THREE.Vector3()); const r = Math.max(box.getSize(new THREE.Vector3()).length() * 0.5, 120);
-    const dir = this.camera.position.clone().sub(this.controls.target).normalize();
     const dist = Math.min(Math.max(r / Math.sin((this.camera.fov * Math.PI) / 360) * 1.1, 400), 2600);
+    // Keep the current viewing direction unless other parts would block the view of this one
+    // (e.g. a lower valve cover on the far bank); then look at it from its own side of the engine.
+    let dir = this.camera.position.clone().sub(this.controls.target).normalize();
+    if (this.occluded(id, c, dir, dist)) {
+      const out = c.clone().sub(HOME_TARGET).setY(0);
+      if (out.lengthSq() > 1) {
+        out.normalize().add(new THREE.Vector3(0, c.y < HOME_TARGET.y ? -0.35 : 0.35, 0)).normalize();
+        if (!this.occluded(id, c, out, dist)) dir = out;
+      }
+    }
     this.camGoal = { pos: c.clone().add(dir.multiplyScalar(dist)), target: c };
     this.kick(120);
   }
 
+  /** True if another visible part sits between a camera at c + dir*dist and the centre c of part `id`. */
+  private occluded(id: string, c: THREE.Vector3, dir: THREE.Vector3, dist: number) {
+    const targets: THREE.Object3D[] = [];
+    for (const n of this.nodes.values()) if (this.visibleFlag(n.def.id)) targets.push(...n.meshes);
+    this.ray.set(c.clone().add(dir.clone().multiplyScalar(dist)), dir.clone().negate());
+    this.ray.far = dist;
+    const hit = this.ray.intersectObjects(targets, false)[0];
+    this.ray.far = Infinity;
+    return !!hit && hit.object.userData.partId !== id;
+  }
   isRemoved(id: string) { return this.removed.has(id); }
   visibleFlag(id: string) {
     if (this.hidden.has(id)) return false;
