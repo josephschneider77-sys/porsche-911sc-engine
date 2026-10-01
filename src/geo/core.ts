@@ -31,6 +31,30 @@ export const bankZ = (s: 1 | -1) => (s === 1 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : 
  * Chain well stays at the pulley end (+Z): that is where the cam-drive chain housings bolt on.
  */
 const CASE_CAST: MatKey = 'sandCast';
+/** Drop loft triangles that enter the distributor bore. The open skin cannot be CSG'd. Axis matches DIST in aux.ts. */
+function punchDistributor(g: THREE.BufferGeometry) {
+  const src = g.index ? g.toNonIndexed() : g;
+  const P = src.getAttribute('position');
+  const o = new THREE.Vector3(-36.2, 26.5, 216);
+  const aim = new THREE.Vector3(-150, 168, 150);
+  const A = aim.sub(o).normalize();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), w = new THREE.Vector3();
+  const near = (p: THREE.Vector3) => {
+    const t = w.copy(p).sub(o).dot(A);
+    if (t < 8 || t > 100) return false;
+    return w.copy(o).addScaledVector(A, t).distanceTo(p) < 18;
+  };
+  const pos: number[] = [];
+  for (let i = 0; i < P.count; i += 3) {
+    a.fromBufferAttribute(P, i); b.fromBufferAttribute(P, i + 1); c.fromBufferAttribute(P, i + 2);
+    if (near(a) || near(b) || near(c)) continue;
+    pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.computeVertexNormals();
+  return out;
+}
 export function crankcaseHalf(s: 1 | -1) {
   const p = new Part();
   const z0 = CASE_Z.flywheel, z1 = CASE_Z.pulley;
@@ -114,9 +138,9 @@ export function crankcaseHalf(s: 1 | -1) {
     }
     return y;
   };
-  const loft = (section: (z: number) => [number, number][], zA: number, zB: number) => {
+  const loft = (section: (z: number) => [number, number][], zA: number, zB: number, punch = false) => {
     const n = section(zA).length;
-    p.add(paramSurface((u, v) => {
+    let g = paramSurface((u, v) => {
       const z = zA + (zB - zA) * u;
       const sec = section(z);
       const f = Math.min(n - 1e-4, v * n);
@@ -124,7 +148,9 @@ export function crankcaseHalf(s: 1 | -1) {
       const t = f - i;
       const a = sec[i], b = sec[(i + 1) % n];
       return [(a[0] + (b[0] - a[0]) * t) * s, a[1] + (b[1] - a[1]) * t, z];
-    }, 64, n * 3), CAST);
+    }, 64, n * 3);
+    if (punch) g = punchDistributor(g);
+    p.add(g, CAST);
   };
   // Skin stays outside the crank/rod swing. Chords of a 4-point loop cut back into the bay,
   // so each section is subdivided and pushed out to r 86 (rod swing peaks near r 73).
@@ -177,7 +203,7 @@ export function crankcaseHalf(s: 1 | -1) {
       q = underTab(q[0], q[1], z);
       return clearGear(q[0], q[1], z);
     });
-  }, z0 + 6, z1 - 6);
+  }, z0 + 6, z1 - 6, s < 0);
   loft((z) => {
     // Oil-pump cover and pickup (z -175..-120): skin stays below the nuts and the pump body.
     const open: [number, number][] = [[12, -100], [40, -86], [62, -104], [74, -118], [46, -124], [16, -116]];
@@ -429,9 +455,17 @@ export function crankcaseHalf(s: 1 | -1) {
     // warm-up regulator flange underside is y = 116.2 (WUR.flangeTop - 5). Screws thread down into this pad.
     p.add(boxMM([-72, 114.8, -198], [-48, 116.2, -142]), 'machinedAlu');
     p.add(boxMM([-76, 46, -202], [-44, 114.8, -138]), CAST);
-    // distributor clamp spacer bottoms at y = 107 (DIST.caseY).
-    p.add(boxMM([-80.2, 105.4, 99], [-64, 107, 115]), 'machinedAlu');
-    p.add(boxMM([-80.2, 52, 99], [-64, 105.4, 115]), CAST);
+    // Distributor mount. Sleeve around the bore; the hold-down stud lands in the pad above.
+    // Axis matches DIST in aux.ts: pinion (−36.2, 26.5, 216) toward (−150, 168, 150).
+    {
+      const o = [-36.2, 26.5, 216], aim = [-150, 168, 150];
+      const d = [aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]];
+      const L = Math.hypot(d[0], d[1], d[2]);
+      const u = d.map((v) => v / L);
+      const at = (t: number): [number, number, number] => [o[0] + u[0] * t, o[1] + u[1] * t, o[2] + u[2] * t];
+      // Starts past the crank gear. r 18 stays outside the fan drum and the shroud collar.
+      p.add(cylBetween(at(40), at(94), 18, 20), CAST);
+    }
   }
   // round sump boss (strainer cover seats here). The right half is faced back to x 81.2
   // where the cooler flange crosses it (flange face x 82); the plate itself is inside r 80.
@@ -531,8 +565,16 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
   }
   // Fan-collar tab relief (solid chain-well strips; the shoulder loft is ducked in the section).
   cuts.push(yToZ(cyl(22, 36, 20)).translate(s * 39, 84.2, 200));
-  // Distributor shank on the left, and spot-faces for the oil-pump cover nuts.
-  if (s < 0) cuts.push(cyl(36, 56, 28).translate(-98, 118, 146));
+  // Distributor bore on the left (r 14.6 around the shaft). The boss added above is the land.
+  // Pinion (−36.2, 26.5, 216) to just past the shoulder. Keep in step with DIST in aux.ts.
+  if (s < 0) {
+    const o = [-36.2, 26.5, 216], aim = [-150, 168, 150];
+    const d = [aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]];
+    const L = Math.hypot(d[0], d[1], d[2]);
+    const u = d.map((v) => v / L);
+    const at = (t: number): [number, number, number] => [o[0] + u[0] * t, o[1] + u[1] * t, o[2] + u[2] * t];
+    cuts.push(cylBetween(at(-6), at(96), 14.6, 24));
+  }
   const nutPockets: [number, number][] = s < 0 ? [[-10, -116], [30, -116]] : [[30, -116], [38, -56]];
   for (const [x, y] of nutPockets) cuts.push(yToZ(cyl(14, 36, 16)).translate(x, y, -166));
   // Every pocket in one pass. A second pass sees BufferGeometry and skips the flange,
