@@ -885,19 +885,149 @@ export function distributor() {
   p.add(yToX(cyl(20, 26, 24)), 'zincPlate', [x - 44, 150, z]);
   return p.g;
 }
-/** Ignition lead set (901-00 #17): cap towers -> above the plenum -> down outside the cam housings -> plug connectors. */
+/** Top of a shroud wing at this |x| (left skin is thicker upward). */
+function wingTop(x: number) {
+  const { ax, ay, bx, by, t } = SHROUD;
+  const u = Math.max(0, Math.min(1, (Math.abs(x) - ax) / (bx - ax)));
+  return ay + (by - ay) * u + (x < 0 ? t : 0);
+}
+/** Circular fillets so a Catmull-Rom tube stays on the polyline instead of bowing off it. */
+function filleted(corners: V3[], radius = 16): V3[] {
+  const P = corners.map((q) => new THREE.Vector3(...q));
+  const out: V3[] = [];
+  const push = (v: THREE.Vector3) => {
+    const last = out.length ? new THREE.Vector3(...out[out.length - 1]) : null;
+    if (!last || last.distanceTo(v) > 0.6) out.push([v.x, v.y, v.z]);
+  };
+  push(P[0]);
+  for (let i = 1; i < P.length - 1; i++) {
+    const prev = P[i - 1], c = P[i], next = P[i + 1];
+    const d0 = c.clone().sub(prev), d1 = next.clone().sub(c);
+    const l0 = d0.length(), l1 = d1.length();
+    if (l0 < 1e-3 || l1 < 1e-3) { push(c); continue; }
+    d0.multiplyScalar(1 / l0); d1.multiplyScalar(1 / l1);
+    const beta = Math.acos(Math.min(1, Math.max(-1, d0.dot(d1))));
+    if (beta < 0.12 || beta > 2.85) { push(c); continue; }
+    const trim = Math.min(radius * Math.tan(beta / 2), l0 * 0.46, l1 * 0.46);
+    const rEff = trim / Math.tan(beta / 2);
+    const bin = new THREE.Vector3().crossVectors(d0, d1);
+    if (bin.lengthSq() < 1e-10) { push(c); continue; }
+    bin.normalize();
+    const n0 = new THREE.Vector3().crossVectors(bin, d0).normalize();
+    const a = c.clone().addScaledVector(d0, -trim);
+    const b = c.clone().addScaledVector(d1, trim);
+    const center = a.clone().addScaledVector(n0, rEff);
+    const va = a.clone().sub(center), vb = b.clone().sub(center);
+    const axis = new THREE.Vector3().crossVectors(va, vb);
+    if (axis.lengthSq() < 1e-10) { push(a); push(b); continue; }
+    axis.normalize();
+    const ang = va.angleTo(vb);
+    const steps = Math.max(2, Math.ceil(ang / (14 * DEG)));
+    for (let k = 0; k <= steps; k++) push(center.clone().add(va.clone().applyAxisAngle(axis, ang * (k / steps))));
+  }
+  push(P[P.length - 1]);
+  return out;
+}
+/** Arc at constant y around the distributor axis. `dir` forces the long way when the short way enters the fan. */
+function capArc(a0: number, a1: number, r: number, y: number, dir: 1 | -1 | 0 = 0): V3[] {
+  let d = a1 - a0;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  if (dir && Math.sign(d) !== dir) d += dir * Math.PI * 2;
+  const steps = Math.max(2, Math.ceil(Math.abs(d) / 0.5));
+  const pts: V3[] = [];
+  for (let k = 1; k <= steps; k++) {
+    const a = a0 + d * (k / steps);
+    pts.push([DIST.x + r * Math.cos(a), y, DIST.z + r * Math.sin(a)]);
+  }
+  return pts;
+}
+/** Straight run along a shroud edge, hopping the wing ribs so the wire stays on the skin. */
+function alongEdge(x: number, y: number, z0: number, z1: number, ribs: number[]): V3[] {
+  const dir = Math.sign(z1 - z0) || 1;
+  const pts: V3[] = [[x, y, z0]];
+  for (const z of ribs.filter((z) => (z - z0) * dir > 14 && (z1 - z) * dir > 14).sort((p, q) => (p - q) * dir)) {
+    pts.push([x, y, z - dir * 12], [x, y + 8, z], [x, y, z + dir * 12]);
+  }
+  pts.push([x, y, z1]);
+  return pts;
+}
+/**
+ * One plug lead. Leaves its cap tower, rides the shroud edge (through the lead holders over that
+ * bank), then drops just outside the cam housing and comes in above the heat exchanger to the boot.
+ * The last segment is collinear with the plug-boot axis.
+ */
+function plugLead(c: number, i: number): V3[] {
+  const s: 1 | -1 = c <= 3 ? 1 : -1;
+  const lane = [1, 6, 2, 4, 3, 5].filter((n) => (n <= 3) === (c <= 3)).sort((a, b) => CYL_Z[b] - CYL_Z[a]).indexOf(c);
+  const a = (i / 6) * Math.PI * 2;
+  const xLoom = s * (151 + lane * 9);
+  const yLoom = wingTop(xLoom) + 9;
+  const boot = new THREE.Vector3(0, -92, 0).applyMatrix4(partPose(`spark-plug-${c}`));
+  const axis = new THREE.Vector3(0, -1, 0).transformDirection(partPose(`spark-plug-${c}`));
+  // Short straight into the boot mouth. A longer run on this axis enters the heat exchanger.
+  const mouth = boot.clone().addScaledVector(axis, 4);
+  const aside = new THREE.Vector3(mouth.x + s * 26, mouth.y + 6, mouth.z);
+  const at = (r: number, y: number): V3 => [DIST.x + r * Math.cos(a), y, DIST.z + r * Math.sin(a)];
+  // Beside the bore, clear of the intake-runner tube, and still over the wing.
+  const zRail = CYL_Z[c] + s * 34;
+  const xOut = s * (352 + lane * 8);
+  const yLow = -104 - lane * 7;
+  // Inboard run stays off the primary's z until it is inside the pipe, then lines up with the boot.
+  const zWide = boot.z + s * 14;
+  // Out the top of the tower (above the cap, inside the plenum recess), then sideways below the plenum.
+  const ribsL = [-185, -90, 30];
+  const ribsR = [-150, -30, 90];
+  const R = 74;
+  // Cylinder 6's tower faces the alternator, so that lead steps left above the cap instead of radially out.
+  const corners: V3[] = s < 0 && a > 0.4 && a < 1.3
+    ? [at(22, 208), at(22, 212), [-126, 206, 152], [-168, 188, 136], [xLoom, yLoom + 12, 128]]
+    : [at(22, 208), at(22, 212), at(22, 201), at(46, 194)];
+  if (s < 0 && a > 0.4 && a < 1.3) {
+    corners.push(...alongEdge(xLoom, yLoom, 116, zRail, ribsL));
+  } else if (s < 0) {
+    corners.push(at(R, 180), ...capArc(a, Math.PI, R, 180));
+    corners.push(
+      [xLoom, yLoom + 14, 124],
+      ...alongEdge(xLoom, yLoom, 112, zRail, ribsL),
+    );
+  } else {
+    // Right bank rides the left shroud edge aft, crosses the flywheel end above the roof, then the right clips.
+    const xFeed = -186;
+    const yFeed = wingTop(xFeed) + 9;
+    corners.push(at(R, 180), ...capArc(a, -Math.PI / 2, R, 180));
+    corners.push(
+      [xFeed, yFeed + 6, 124],
+      ...alongEdge(xFeed, yFeed, 112, -168, ribsL),
+      [xFeed, 168, -176],
+      [xLoom, 168, -178],
+      ...alongEdge(xLoom, yLoom, -160, zRail, ribsR),
+    );
+  }
+  const park: V3 = [s * 216, yLow, zWide];
+  const lead = filleted([
+    ...corners,
+    [s * 214, wingTop(214) + 10, zRail],
+    [s * 246, 160, zRail],
+    [xOut, 148, zRail],
+    [xOut, yLow, zWide],
+    park,
+  ], 10);
+  const tail = filleted([
+    park,
+    [aside.x, aside.y, aside.z],
+    [mouth.x, mouth.y, mouth.z],
+    [boot.x, boot.y, boot.z],
+  ], 4);
+  return [...lead, ...tail.slice(1)];
+}
+/** Ignition lead set (901-00 #17): cap towers along the shroud edge, in the holders, down to each plug boot. */
 export function ignitionLeads() {
   const p = new Part();
   const order = [1, 6, 2, 4, 3, 5];
   order.forEach((c, i) => {
-    const a = (i / 6) * Math.PI * 2, s = c <= 3 ? 1 : -1, z = CYL_Z[c];
-    const tw: V3 = [DIST.x + 22 * Math.cos(a), 203, DIST.z + 22 * Math.sin(a)];
-    const end = new THREE.Vector3(0, -92, 0).applyMatrix4(partPose(`spark-plug-${c}`));
-    const out = new THREE.Vector3(0, -1, 0).transformDirection(partPose(`spark-plug-${c}`));
-    const e2 = end.clone().addScaledVector(out, 30);
-    const yTop = 272 + i * 1.6, xs = s * (362 + i * 3);
-    const pts: V3[] = [tw, [tw[0], yTop - 8, tw[2]], [tw[0] * 0.5 + s * 40, yTop, (tw[2] + z) / 2], [s * 300, yTop, z], [xs, yTop - 40, z], [xs, 0, z], [xs, e2.y + 20, z], [e2.x, e2.y, e2.z], [end.x, end.y, end.z]];
-    p.add(tube(pts.map((q) => q as V3), 3.6, 8, 120), 'blackPlastic');
+    const pts = plugLead(c, i);
+    p.add(tube(pts, 3.6, 8, Math.max(64, pts.length * 2)), 'blackPlastic');
   });
   // coil lead (901-00 #18) from the centre tower toward the body-mounted coil, ending in its cable plug (#19)
   const cl: V3[] = [[DIST.x, 212, DIST.z], [DIST.x, 290, DIST.z], [DIST.x - 60, 300, DIST.z + 60], [DIST.x - 160, 300, DIST.z + 120]];
