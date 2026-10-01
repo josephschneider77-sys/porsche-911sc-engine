@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { PARTS, PartDef } from '../data/parts';
 import { removedAfter } from '../data/teardown';
@@ -90,7 +91,7 @@ export class Viewer {
   }
 
   async load(baseUrl: string, progress: (f: number) => void) {
-    const loader = new GLTFLoader();
+    const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
     const assets = [...new Set(PARTS.map((p) => p.asset))];
     const cache = new Map<string, THREE.Object3D>();
     let done = 0;
@@ -112,7 +113,8 @@ export class Viewer {
         if (!me.isMesh) return;
         const m = (me.material as THREE.MeshStandardMaterial).clone();
         m.side = THREE.DoubleSide;
-        tune(m);
+        me.updateWorldMatrix(true, false);
+        tune(m, me.matrixWorld);
         me.material = m; me.userData.partId = def.id;
         meshes.push(me); mats.push(m);
       });
@@ -244,12 +246,36 @@ export class Viewer {
   }
 }
 
+/** Cast / painted surfaces get a subtle procedural sand-cast speckle (roughness + albedo noise) in rest-pose part space. */
+const CAST_NOISE: Record<string, number> = { castAlu: 0.34, magnesium: 0.34, finBlack: 0.22, forgedDark: 0.26, aluminized: 0.3, heatSteel: 0.3, blackPaint: 0.12, satinBlack: 0.12 };
+const NOISE_GLSL = `
+uniform float uCastAmt; varying vec3 vRestPos;
+float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float vn(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+`;
+function addCastNoise(m: THREE.MeshStandardMaterial, rest: THREE.Matrix4, amt: number) {
+  const uRest = { value: rest.clone() }, uCastAmt = { value: amt };
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uRest = uRest; sh.uniforms.uCastAmt = uCastAmt;
+    sh.vertexShader = 'uniform mat4 uRest; varying vec3 vRestPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vRestPos = (uRest * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = NOISE_GLSL + sh.fragmentShader
+      .replace('#include <color_fragment>', '#include <color_fragment>\n float castN = vn(vRestPos * 0.3) * 0.4 + vn(vRestPos * 0.08) * 0.4 + vn(vRestPos * 0.02) * 0.2;\n diffuseColor.rgb *= 1.0 + (castN - 0.5) * uCastAmt * 0.55;')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = clamp(roughnessFactor + (castN - 0.5) * uCastAmt, 0.04, 1.0);');
+  };
+  m.customProgramCacheKey = () => 'cast';
+}
+
 /** Per-material tuning after load (GLB carries base PBR values; tweak env response). */
-function tune(m: THREE.MeshStandardMaterial) {
+function tune(m: THREE.MeshStandardMaterial, rest?: THREE.Matrix4) {
+  if (rest && CAST_NOISE[m.name] !== undefined) addCastNoise(m, rest, CAST_NOISE[m.name]);
   switch (m.name) {
     case 'chrome': m.envMapIntensity = 1.4; break;
     case 'satinBlack': case 'blackPlastic': m.envMapIntensity = 0.6; break;
-    case 'castAlu': case 'magnesium': m.envMapIntensity = 0.9; break;
+    case 'castAlu': case 'magnesium': case 'aluminized': m.envMapIntensity = 0.9; break;
+    case 'polishedSteel': m.envMapIntensity = 1.25; break;
+    case 'finBlack': case 'blackPaint': m.envMapIntensity = 0.7; break;
     default: m.envMapIntensity = 1;
   }
 }

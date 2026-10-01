@@ -138,3 +138,18 @@ Stoddard and Rose Passion catalogue pages cross-check the same part numbers, e.g
 - The oil pump is placed at the pulley end below the intermediate shaft. Its exact internal position and shape are simplified.
 - The air-injection pump (108-00), engine carrier (109-00), oil lines and tank, heater blower (108-10), plug leads and wiring are not modelled.
 - 1978 air guide: the catalogue lists the -78 part 930 106 041 00 as red. The model shows the later black part, as requested.
+
+## 7. Visual fidelity pass (v2, photo-referenced)
+The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild series, FVD, Design911 and Heritage product shots) and remodelled to match. The photos are reference only and are not shipped with the app.
+
+**Materials:** `castAlu` (raw sand-cast aluminium, 0x96989a), `magnesium`, `finBlack` (satin-black cylinder fins), `forgedDark` (as-forged crank webs and rod beams), `polishedSteel` (journals), `yellowZinc` (pulleys and fasteners), `blackPaint`, and `aluminized` (heat exchangers). At load time the viewer adds a procedural sand-cast noise to cast and painted materials. It changes albedo and roughness and is evaluated in rest-pose space, so the texture stays fixed to the part when the engine explodes.
+
+**Compression:** `scripts/export-glb.ts` writes GLBs with gltf-transform `dedup`, `weld` and meshopt compression (`--raw` turns this off). The viewer decodes them with `MeshoptDecoder`.
+
+**Bottom end (PR 1):**
+- Crankcase halves: split-line flanges with stud and nut bosses, transverse ribs and gussets, through-bolt bosses and nuts, external oil gallery, ribbed flywheel bell with gearbox studs, machined pulley-end rim, and engine-number pad.
+- Cylinders: rounded-square fin pack (16 fins, stud notches at the corners) in satin black, with a bare machined skirt and spigot.
+- Heads: fins stacked along the cylinder axis, combustion chamber, spring-well cam face, and port bosses.
+- Pistons: ring belt, recessed skirt, and a domed crown with valve reliefs.
+- Conrods: forged beam, blended big end and bolted cap.
+- Crankshaft: dark forged webs, polished journals and oil holes.

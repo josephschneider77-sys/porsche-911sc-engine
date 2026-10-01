@@ -151,3 +151,29 @@ export function consolidate(root: THREE.Object3D, name: string): THREE.Group {
   }
   return out;
 }
+
+/** Parametric surface from f(u,v) -> [x,y,z], u,v in [0,1]; optional wrap in u. */
+export function paramSurface(f: (u: number, v: number) => V3, nu: number, nv: number, wrapU = false) {
+  const pos: number[] = [], idx: number[] = [];
+  const cu = wrapU ? nu : nu + 1;
+  for (let j = 0; j <= nv; j++) for (let i = 0; i < cu; i++) pos.push(...f(i / nu, j / nv));
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
+    const i1 = wrapU ? (i + 1) % nu : i + 1;
+    const a = j * cu + i, b = j * cu + i1, c = (j + 1) * cu + i, d = (j + 1) * cu + i1;
+    idx.push(a, c, b, b, c, d);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+/** Rounded-rectangle plate with optional circular holes, extruded along +Z, centred. */
+export function plate(w: number, h: number, r: number, t: number, holes: [number, number, number][] = [], bevel = 0) {
+  const s = roundRect(w, h, r);
+  for (const [x, y, rr] of holes) s.holes.push(circlePath(rr, x, y) as THREE.Path);
+  return extrudeC(s, t, bevel, 6);
+}
+/** Triangular gusset plate in the XY plane (points a,b,c), thickness t along Z centred on z. */
+export function gusset(a: [number, number], b: [number, number], c: [number, number], t: number, z: number) {
+  const g = extrudeC(polyShape([a, b, c]), t); g.translate(0, 0, z); return g;
+}
