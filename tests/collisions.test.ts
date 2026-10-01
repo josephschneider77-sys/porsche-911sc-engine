@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { findCollisions, findIntraPartHits, erodedSolidsClash, isMating, clearance, geometriesClash } from './collide';
+import { findCollisions, findIntraPartHits, erodedSolidsClash, isMating, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
 import { rayHit } from './hw';
 import { OIL_COOLER } from '../src/geo/aux';
 
@@ -53,6 +53,10 @@ describe('intra-part fuel and induction solids', () => {
 
 describe('assembled-pose interference', () => {
   const hits = findCollisions(1); // 1 mm erosion per part => >2 mm interpenetration counts
+  it('bottom-end and ancillary allowlist entries name a threaded, pressed or seated joint', () => {
+    const bare = MATING.filter(([, , why]) => !TOP_END_WHY.has(why) && !/\b(threaded|pressed|seated|PENDING-INTAKE)\b/i.test(why));
+    expect(bare.map(([, , why]) => why)).toEqual([]);
+  });
   it('no part pair intersects unless it is a listed mating / known-simplified pair', () => {
     const bad = hits.filter((h) => !isMating(h.a, h.b)).map((h) => `${h.a} x ${h.b} (${h.tris} tri pairs)`);
     expect(bad).toEqual([]);

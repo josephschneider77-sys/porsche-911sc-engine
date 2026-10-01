@@ -15,4 +15,14 @@ export const CASE_LUG = {
   x: 18, yTop: 104, yBot: -136, r: 8,
   top: Array.from({ length: 16 }, (_, i) => -188 + (i * (190 + 188)) / 15),
   bottom: [-188, -163, -138, -113, 115, 140, 165, 190],
+  /**
+   * The bottom stud at z 190 sits under the intermediate gear. y −136 is 52 mm from the
+   * shaft, so an M8 stud (r 3.84) and its lock-nut hex cut a 60 T tip circle (r 54.8).
+   * y −150 puts the lug (r 8) 3.4 mm outside that circle; the stud and the nut hex are further out.
+   */
+  yBelowGear: -150,
 };
+/** Split-flange lug centre height. Only the gear stud (bottom, z 190) is lowered. */
+export function caseLugY(z: number, top: boolean) {
+  return top ? CASE_LUG.yTop : z === 190 ? CASE_LUG.yBelowGear : CASE_LUG.yBot;
+}

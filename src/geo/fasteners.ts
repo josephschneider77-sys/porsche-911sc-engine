@@ -9,7 +9,7 @@ import { instancedGroup } from './instancing';
 import { Part, yToZ, hexNut, cyl, lathe, mesh } from './util';
 import { MatKey } from './materials';
 import { CYL_Z, CYL_TOP_X, INTAKE_PORT, CAM_X, CASE_Z } from '../data/layout';
-import { HEAD_HW, CASE_TB, CASE_LUG } from './hwLayout';
+import { HEAD_HW, CASE_TB, CASE_LUG, caseLugY } from './hwLayout';
 export { HEAD_HW, CASE_TB, CASE_LUG };
 import { seat, probe } from './probe';
 import { adjusterCover } from './smallParts';
@@ -104,7 +104,7 @@ export function fastenerSets(): FSet[] {
   // perimeter: studs in the right half, lock nuts on the left-half lugs
   set('case-perimeter-nuts', 'lock', 8, { washer: DIM[8].wr, grip: 2 * CASE_LUG.x, embed: 14 }, [
     ...CASE_LUG.top.map((z) => ({ p: V(-CASE_LUG.x, CASE_LUG.yTop, z), n: V(-1, 0, 0), seat: 'crankcase-left', into: 'crankcase-right', stud: true })),
-    ...CASE_LUG.bottom.map((z) => ({ p: V(-CASE_LUG.x, CASE_LUG.yBot, z), n: V(-1, 0, 0), seat: 'crankcase-left', into: 'crankcase-right', stud: true })),
+    ...CASE_LUG.bottom.map((z) => ({ p: V(-CASE_LUG.x, caseLugY(z, false), z), n: V(-1, 0, 0), seat: 'crankcase-left', into: 'crankcase-right', stud: true })),
   ]);
   const ring = (n: number, r: number, a0 = 0) => Array.from({ length: n }, (_, i) => a0 + (i / n) * Math.PI * 2).map((a) => [r * Math.cos(a), r * Math.sin(a)]);
   // flywheel bolts (seat on the hub rear face), clutch bolts (seat on the cover flange)

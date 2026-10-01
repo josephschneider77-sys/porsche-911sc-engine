@@ -512,13 +512,28 @@ export function gusset(a: [number, number], b: [number, number], c: [number, num
 }
 
 // ---------------------------------------------------------------- CSG (asset-build time only)
-import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
+import { Brush, Evaluator, ADDITION, SUBTRACTION } from 'three-bvh-csg';
 const csgEval = new Evaluator(); csgEval.attributes = ['position', 'normal'];
+const cleanCsg = (g: THREE.BufferGeometry) => {
+  const q = g.index ? g.toNonIndexed() : g.clone();
+  for (const k of Object.keys(q.attributes)) if (k !== 'position' && k !== 'normal') q.deleteAttribute(k);
+  if (!q.attributes.normal) q.computeVertexNormals();
+  return q;
+};
+/** Union of closed solids in the same frame. One subtraction of the result beats a stack of coaxial cuts. */
+export function csgUnion(geoms: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  if (!geoms.length) throw new Error('csgUnion: empty');
+  let b = new Brush(cleanCsg(geoms[0])); b.updateMatrixWorld();
+  for (let i = 1; i < geoms.length; i++) {
+    const cb = new Brush(cleanCsg(geoms[i])); cb.updateMatrixWorld();
+    b = csgEval.evaluate(b, cb, ADDITION) as Brush;
+  }
+  return b.geometry;
+}
 /** base minus cutters (geometries already in the same frame). Returns position/normal geometry. */
 export function csgSub(base: THREE.BufferGeometry, ...cutters: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  const clean = (g: THREE.BufferGeometry) => { let q = g.index ? g.toNonIndexed() : g.clone(); for (const k of Object.keys(q.attributes)) if (k !== 'position' && k !== 'normal') q.deleteAttribute(k); if (!q.attributes.normal) q.computeVertexNormals(); return q; };
-  let b = new Brush(clean(base)); b.updateMatrixWorld();
-  for (const c of cutters) { const cb = new Brush(clean(c)); cb.updateMatrixWorld(); b = csgEval.evaluate(b, cb, SUBTRACTION) as Brush; }
+  let b = new Brush(cleanCsg(base)); b.updateMatrixWorld();
+  for (const c of cutters) { const cb = new Brush(cleanCsg(c)); cb.updateMatrixWorld(); b = csgEval.evaluate(b, cb, SUBTRACTION) as Brush; }
   return b.geometry;
 }
 /** Woodruff key outline (half-moon): chord of length 2*sqrt(h(D-h)) on y = 0, arc down to y = -h; extruded `b` thick (centred on z). */

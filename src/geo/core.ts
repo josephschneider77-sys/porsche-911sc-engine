@@ -6,13 +6,13 @@
 import * as THREE from 'three';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
-  polyShape, hull, circlePts, gearShape, timingGearShape, sprocketRingShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, woodruffGeom, cutGroup, subtractSolids,
+  polyShape, hull, circlePts, gearShape, timingGearShape, sprocketRingShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, csgUnion, woodruffGeom, cutGroup, subtractSolids,
 } from './util';
 import {
   SPEC, SPARK_Z, CYL_Z, MAIN_Z, THROW_DEG, DECK_X, CYL_TOP_X, HEAD_OUT_X, CAM_X, CAM_HOUSING_OUT_X, INT_SHAFT_Y, CASE_Z, NOSE_BEARING_Z,
 } from '../data/layout';
 import type { MatKey } from './materials';
-import { HEAD_HW, CASE_TB, CASE_LUG } from './hwLayout';
+import { HEAD_HW, CASE_TB, CASE_LUG, caseLugY } from './hwLayout';
 
 /** Chain plane (centre of the duplex chain) per bank: in front of the cam-housing end (z 222), rows clear of each other. */
 export const CHAIN_Z: Record<1 | -1, number> = { 1: 258, [-1]: 235 } as any;
@@ -75,7 +75,9 @@ export function crankcaseHalf(s: 1 | -1) {
     for (let i = N; i >= 0; i--) {
       const z = z0e + (z1e - z0e) * (i / N);
       const drop = outer ? 12 * Math.exp(-(((z + 10) / 78) ** 2)) : 0;
-      pts.push([yB - scallop(z, CASE_LUG.bottom, ampBot) - drop, z]);
+      // The z 190 lug is lowered clear of the intermediate gear. The flange lobe follows it.
+      const gearLug = outer ? 16 * Math.exp(-(((z - 190) / 9) ** 2)) : 0;
+      pts.push([yB - scallop(z, CASE_LUG.bottom, ampBot) - drop - gearLug, z]);
     }
     for (let i = 1; i < 12; i++) {
       const a = -Math.PI / 2 - (i / 12) * Math.PI;
@@ -96,6 +98,7 @@ export function crankcaseHalf(s: 1 | -1) {
     g.rotateY(Math.PI / 2);
     g.translate(s > 0 ? x0 : -(x0 + thick), 0, 0);
     p.add(g, mat);
+    (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.flange = true;
   };
   // bright machined parting face, cast body of the flange just behind it
   flange('machinedAlu', 0, 1.5);
@@ -123,19 +126,64 @@ export function crankcaseHalf(s: 1 | -1) {
       return [(a[0] + (b[0] - a[0]) * t) * s, a[1] + (b[1] - a[1]) * t, z];
     }, 64, n * 3), CAST);
   };
+  // Skin stays outside the crank/rod swing. Chords of a 4-point loop cut back into the bay,
+  // so each section is subdivided and pushed out to r 86 (rod swing peaks near r 73).
+  const pushOut = (x: number, y: number, minR: number): [number, number] => {
+    const r = Math.hypot(x, y);
+    if (r >= minR) return [x, y];
+    const k = minR / Math.max(r, 0.001);
+    return [x * k, y * k];
+  };
+  const bulge = (pts: [number, number][], minR: number): [number, number][] => {
+    const out: [number, number][] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      for (let k = 0; k < 6; k++) {
+        const t = k / 6;
+        out.push(pushOut(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, minR));
+      }
+    }
+    return out;
+  };
+  // 48 T gear, tip r 49.6 about the intermediate shaft. Keep the skin 8 mm outside that circle.
+  const clearGear = (x: number, y: number, z: number): [number, number] => {
+    if (z < 178 || z > 230) return [x, y];
+    const dy = y - INT_SHAFT_Y;
+    const d = Math.hypot(x, dy);
+    if (d >= 66) return [x, y];
+    const k = 66 / Math.max(d, 0.2);
+    return [x * k, INT_SHAFT_Y + dy * k];
+  };
+  // Low fan-collar tab (r 9 at local x 39, y 84). Drop the shoulder under it.
+  const underTab = (x: number, y: number, z: number): [number, number] => {
+    if (z < 186 || z > 216) return [x, y];
+    if (x > 18 && x < 64 && y > 48 && y < 120) return [x, 48];
+    return [x, y];
+  };
+  // Shoulder clears the piston skirts (r 47 on each bore) and the rod beams that rise beside them.
+  const overPistons = (x: number, y: number, z: number): [number, number] => {
+    let yy = y;
+    for (const zc of cyls) {
+      if (Math.abs(z - zc) > 50 || x > 100) continue;
+      if (yy < 86 && yy > 10) yy = 88;
+    }
+    return [x, yy];
+  };
   loft((z) => {
     const c = crown(z);
-    return [[8, 104], [60, c + 2], [48, Math.max(24, c - 16)], [14, 90]];
+    const raw: [number, number][] = [[8, 104], [34, Math.max(90, c)], [64, Math.max(88, c)], [78, 70], [50, 88], [16, 96]];
+    return bulge(raw, 90).map(([x, y]) => {
+      let q = overPistons(x, y, z);
+      q = underTab(q[0], q[1], z);
+      return clearGear(q[0], q[1], z);
+    });
   }, z0 + 6, z1 - 6);
   loft((z) => {
-    const drop = 22 * Math.exp(-(((z + 8) / 96) ** 2));
-    const tuck = 12 * Math.exp(-(((z + 8) / 120) ** 2));
-    // Tuck the belly inboard of the oil-pump cover nuts at the flywheel end (z ≈ -161).
-    const pump = Math.exp(-(((z + 158) / 22) ** 2));
-    // Inner corner stays outside the intermediate-shaft tunnel (the old [10, −88] ran through the shaft).
-    const open: [number, number][] = [[28, -104], [52, -56 - drop * 0.12], [68 - tuck, -100 - drop], [16, -116 - drop * 0.4]];
-    const clear: [number, number][] = [[8, -124], [14, -128], [20, -134], [10, -136]];
-    return open.map((q, i) => [q[0] + (clear[i][0] - q[0]) * pump, q[1] + (clear[i][1] - q[1]) * pump] as [number, number]);
+    // Oil-pump cover and pickup (z -175..-120): skin stays below the nuts and the pump body.
+    const open: [number, number][] = [[12, -100], [40, -86], [62, -104], [74, -118], [46, -124], [16, -116]];
+    const low: [number, number][] = [[16, -138], [42, -148], [64, -146], [78, -132], [52, -140], [20, -142]];
+    const raw = (z > -178 && z < -118 ? low : open);
+    return bulge(raw, 90).map(([x, y]) => clearGear(x, y, z));
   }, z0 + 6, z1 - 6);
 
   // far wall of the tub. Outline necks between the bores; only the three spigot circles are open.
@@ -164,20 +212,22 @@ export function crankcaseHalf(s: 1 | -1) {
     const z = wallZA + (wallZB - wallZA) * i / WN;
     wall.push([env(z, -1), z]);
   }
-  extrudeYZ(wall, 66, 12, CAST, cyls.map((z) => [0, z, 46.2]));
+  extrudeYZ(wall, 66, 12, CAST, cyls.map((z) => [0, z, 54]));
 
   // one barrel boss per spigot: open bore, bright counterbore ring, stud bosses just outside the ring
   for (const zc of cyls) {
+    // Bore 54: 2.5 mm off the cylinder skirt (OD 51.5). The deck seat is the face outside that.
+    // Peak r 62: the old r 76 swell reached the flywheel (cyl 6) and the next piston skirt.
     const boss = yToX(lathe([
-      [46.4, 0], [52, 2], [76, 9], [76, 16], [56, 23], [50.2, 27.5], [46.4, 29.5],
+      [54, 0], [58, 2], [62, 9], [62, 16], [56, 23], [54, 27.5], [54, 29.5],
     ], 48));
     if (s < 0) boss.rotateZ(Math.PI);
     const root = (DECK_X - 29.5) * s;
     p.add(boss, CAST, [root, 0, zc]);
-    const face = yToX(lathe([[46.3, 0], [50.4, 0], [50.4, 2.2], [46.3, 2.2]], 48));
+    const face = yToX(lathe([[58.5, 0], [64, 0], [64, 2.2], [58.5, 2.2]], 48));
     if (s < 0) face.rotateZ(Math.PI);
     p.add(face, 'machinedAlu', [(DECK_X - 2.2) * s, 0, zc]);
-    const liner = yToX(lathe([[45.0, 0.8], [46.2, 0.8], [46.2, 20], [45.0, 20]], 32));
+    const liner = yToX(lathe([[53.2, 0.8], [54, 0.8], [54, 20], [53.2, 20]], 32));
     if (s < 0) liner.rotateZ(Math.PI);
     p.add(liner, 'bore', [root, 0, zc]);
     for (const a of [45, 135, 225, 315]) {
@@ -198,12 +248,6 @@ export function crankcaseHalf(s: 1 | -1) {
   const disk = (r: number, x: number, y: number) => {
     const h = new THREE.Path(); h.absarc(x * s, y, r, 0, Math.PI * 2, s > 0); return h;
   };
-  const notch = (x0: number, y0: number, x1: number, y1: number) => {
-    const h = new THREE.Path();
-    const a: [number, number][] = [[x0 * s, y0], [x0 * s, y1], [x1 * s, y1], [x1 * s, y0]];
-    const q = s > 0 ? a : a.slice().reverse();
-    h.moveTo(q[0][0], q[0][1]); q.slice(1).forEach(([x, y]) => h.lineTo(x, y)); h.closePath(); return h;
-  };
   const addProfile = (pts: [number, number][], zA: number, zB: number, mat: MatKey, holes: THREE.Path[] = []) => {
     if (zB - zA < 0.4) return;
     const m = pts.map(([x, y]) => [x * s, y] as [number, number]);
@@ -211,33 +255,44 @@ export function crankcaseHalf(s: 1 | -1) {
     for (const h of holes) sh.holes.push(h);
     const g = extrude(sh, zB - zA, 0, 8); g.translate(0, 0, zA); p.add(g, mat);
   };
-  // solid sump wall under the bay (same section as the pre-sculpt case) so relief valves and oil fittings
-  // seat on the outside bottom instead of a ray slipping through the thin belly into the crank
-  // Semicircular relief on the split (r 17.5 about the intermediate shaft) so the shaft,
-  // the Ø32 flange land and the thrust collar are not buried in the sump wall. Each half
-  // bulges the relief into its own x, and the outer belly stays so the oil fittings still seat.
-  const boreR = 17.5, cy = INT_SHAFT_Y;
-  const sump: [number, number][] = [[0, -56], [0, cy + boreR]];
-  for (let i = 1; i < 12; i++) {
-    const a = Math.PI / 2 - (i / 12) * Math.PI;
-    sump.push([boreR * Math.cos(a), cy + boreR * Math.sin(a)]);
-  }
-  sump.push([0, cy - boreR], [0, -120], [14, -128], [40, -126], [70, -118], [90, -104], [84, -90], [60, -74], [32, -62]);
-  addProfile(sump, z0 + 4, z1 - 4, CAST);
+  // Sump is a wall, not a plug. Inner edge stays ~14 mm inside the outer skin so the crank bay,
+  // intermediate shaft and oil pump are open; the outer skin still carries the sump studs and plugs.
+  // The wall top (y −108 at the split) sits below the shaft, so the Ø32 land is not buried in it.
+  addProfile([
+    [0, -108], [0, -120], [16, -128], [42, -126], [74, -116], [90, -102], [82, -88], [66, -78],
+    [54, -84], [68, -98], [70, -110], [44, -116], [22, -112], [12, -106],
+  ], z0 + 4, z1 - 4, CAST);
   // Lower edge stays inboard of the oil-pump cover nuts (y ≈ -88, |x| ≈ 28) at the flywheel main.
   const WEB: [number, number][] = [
-    [0, 96], [24, 92], [50, 70], [50, 46], [40, 36], [40, -28], [26, -50], [22, -68], [22, -104], [0, -100],
+    [0, 96], [24, 92], [50, 70], [50, 46], [40, 36], [40, -28], [26, -50], [22, -68], [22, -108], [0, -112],
   ];
+  // Cheek faces sit ~6.2 mm from each main centre. Webs stop at 3 mm so the gap is ~3 mm.
+  // Pulley main may run forward to z 185 (timing gear starts at 192). Flywheel main may run aft.
+  const webSpan = (z: number): [number, number] => (z < -160 ? [z - 5, z + 3] : z > 160 ? [z - 3, z + 8] : [z - 3, z + 3]);
   for (const z of MAIN_Z) {
-    // Flywheel main stays clear of the oil-pump cover nuts; the others are the thick saddle webs.
-    const half = z < -160 ? 8 : 14;
-    addProfile(WEB, z - half, z + half, CAST, [disk(SADDLE_R, 0, 0), disk(16, 0, INT_SHAFT_Y), notch(0, 30.5, 7, 40)]);
-    const seat = yToZ(lathe([[SADDLE_R - 0.4, -9], [SADDLE_R + 2.6, -9], [SADDLE_R + 2.6, 9], [SADDLE_R - 0.4, 9]], 36, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI));
+    const [zA, zB] = webSpan(z);
+    // Bores are notches in the outline. A hole across the split leaves a wall through the journal.
+    const webPts: [number, number][] = WEB.map((q) => [q[0], q[1]]);
+    const addNotch = (r: number, cy: number) => {
+      webPts.push([0, cy - r]);
+      const N = 18;
+      for (let i = 1; i < N; i++) {
+        const a = -Math.PI / 2 + (i / N) * Math.PI;
+        webPts.push([r * Math.cos(a), cy + r * Math.sin(a)]);
+      }
+      webPts.push([0, cy + r]);
+    };
+    addNotch(20, INT_SHAFT_Y);
+    addNotch(34, 0);
+    addProfile(webPts, zA, zB, CAST);
+    (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.saddle = true;
+    const seat = yToZ(lathe([[SADDLE_R - 0.4, -3], [SADDLE_R + 2.6, -3], [SADDLE_R + 2.6, 3], [SADDLE_R - 0.4, 3]], 36, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI));
     p.add(seat, 'machinedAlu', [0, 0, z]);
-    const iSeat = yToZ(lathe([[13.6, -8], [17.2, -8], [17.2, 8], [13.6, 8]], 28, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI));
+    // ID 16.2 clears the r 13 intermediate journals by 3 mm (the old 13.6 land was a 0.6 mm running fit, inside the 1 mm erosion).
+    const iSeat = yToZ(lathe([[16.2, -3], [19.4, -3], [19.4, 3], [16.2, 3]], 28, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI));
     p.add(iSeat, 'machinedAlu', [0, INT_SHAFT_Y, z]);
     for (const y of [46, -46]) {
-      p.add(boxMM([s > 0 ? 0 : -4, y - 7.5, z - 10], [s > 0 ? 4 : 0, y + 7.5, z + 10]), 'machinedAlu');
+      p.add(boxMM([s > 0 ? 0 : -4, y - 7.5, z - 3], [s > 0 ? 4 : 0, y + 7.5, z + 3]), 'machinedAlu');
       p.add(yToX(cyl(4.2, 3.4, 14)), 'bore', [X(1.8), y, z]);
     }
   }
@@ -246,8 +301,15 @@ export function crankcaseHalf(s: 1 | -1) {
   const END: [number, number][] = [
     [0, 100], [18, 106], [46, 64], [58, 28], [58, -36], [44, -72], [20, -108], [0, -112],
   ];
-  addProfile(END, z0, z0 + 8, CAST, [disk(46, 0, 0), disk(18, 0, INT_SHAFT_Y)]);
-  addProfile(END, z1 - 7, z1, 'machinedAlu', [disk(38, 0, 0), disk(18, 0, INT_SHAFT_Y)]);
+  // Rear bore clears the flywheel flange (r 54) with 6 mm. Pulley bore clears the crank gear
+  // (tip r 38.6) and the intermediate gear (tip r 49.6); the two holes meet because the gears mesh.
+  addProfile(END, z0, z0 + 8, CAST, [disk(62, 0, 0), disk(20, 0, INT_SHAFT_Y)]);
+  // Crown held at y 76 so the fan drum (bottom ~ y 88) and the alternator are outside the casting.
+  const END_FAN: [number, number][] = [
+    [0, 76], [28, 76], [46, 64], [58, 28], [58, -36], [44, -72], [20, -108], [0, -112],
+  ];
+  // Starts at z 209: crank gear ends at 206, so the wall is 3 mm clear of the teeth.
+  addProfile(END_FAN, z1 - 3, z1, 'machinedAlu', [disk(44, 0, 0), disk(54, 0, INT_SHAFT_Y)]);
 
   // through-bolt bosses: seat face exactly at |x| = CASE_TB.x
   for (const z of CASE_TB.z) for (const y of CASE_TB.y) {
@@ -256,7 +318,8 @@ export function crankcaseHalf(s: 1 | -1) {
     p.add(yToX(cyl(CASE_TB.r, 1, 24)), 'machinedAlu', [X(CASE_TB.x - 0.5), y, z]);
   }
   // perimeter nut bosses, one per bolt, sitting in the flange lobes. Seat face at |x| = CASE_LUG.x.
-  for (const [y, zs] of [[CASE_LUG.yTop, CASE_LUG.top], [CASE_LUG.yBot, CASE_LUG.bottom]] as const) for (const z of zs) {
+  for (const [top, zs] of [[true, CASE_LUG.top], [false, CASE_LUG.bottom]] as const) for (const z of zs) {
+    const y = caseLugY(z, top);
     p.add(yToX(cyl(CASE_LUG.r, CASE_LUG.x, 16)), CAST, [X(CASE_LUG.x / 2), y, z]);
     p.add(yToX(cyl(CASE_LUG.r - 0.8, 1.2, 14)), 'machinedAlu', [X(CASE_LUG.x - 0.6), y, z]);
   }
@@ -275,13 +338,13 @@ export function crankcaseHalf(s: 1 | -1) {
     p.add(yToX(hexNut(12, 5)), 'darkSteel', [X(60), y, z]);
   }
 
-  // flywheel end is a round seal boss, not a squared plate
-  const bell = yToZ(new THREE.CylinderGeometry(56, 62, 12, 40, 1, true, s > 0 ? 0 : Math.PI, Math.PI));
-  p.add(bell, CAST, [0, 2, z0 - 5]);
-  p.add(yToZ(lathe([[44, -1.1], [58, -1.1], [58, 1.1], [44, 1.1]], 40, s > 0 ? 0 : Math.PI, Math.PI)), 'machinedAlu', [0, 2, z0 - 12]);
+  // Seal land in the flywheel recess. Disk face at r > 60 is z -217; this face is z -214.5
+  // (2.5 mm running clearance). ID 66 stays outside the crank flange (r 54) and the hub (r 55).
+  p.add(yToZ(lathe([[66, 0], [78, 0], [78, 7], [66, 7]], 48, s > 0 ? 0 : Math.PI, Math.PI)), CAST, [0, 0, -214.5]);
   for (const [x, y] of [[78, 58], [84, -54], [36, -100], [40, 92]] as const) {
-    p.add(yToZ(cyl(8, 10, 14)), CAST, [X(x), y, z0 - 4]);
-    p.add(yToZ(cyl(4.6, 22, 8)), 'zincPlate', [X(x), y, z0 - 10]);
+    // Bosses end at z -209, 4 mm off the hub face and 8 mm off the recessed disk.
+    p.add(yToZ(cyl(8, 6, 14)), CAST, [X(x), y, -206]);
+    p.add(yToZ(cyl(4.6, 6, 8)), 'zincPlate', [X(x), y, -206]);
   }
 
   // pulley-end chain well: hollow pocket in front of the case face, open sideways into the chain box at |x| = 118.
@@ -298,12 +361,27 @@ export function crankcaseHalf(s: 1 | -1) {
   };
   strip(s > 0 ? top : top.slice().reverse());
   strip(s > 0 ? bot : bot.slice().reverse());
-  const plate = polyShape(s > 0 ? [...bot, ...top] : [...bot, ...top].reverse());
-  plate.holes.push(circlePath(29, 0, 0) as THREE.Path);
-  p.add(extrude(plate, 6, 0, 8), CAST, [0, 0, W.z1 - 6]);
+  // Bores are notches on the split. A full circle centred on x=0 sits outside the half-plate, so earcut
+  // drops it and the nose (r 20) plus the intermediate-shaft nut stay buried in a solid wall.
+  const notchArc = (sign: 1 | -1, cy: number, r: number, down: boolean): [number, number][] => {
+    const pts: [number, number][] = [];
+    const N = 16;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const a = down ? Math.PI / 2 - t * Math.PI : -Math.PI / 2 + t * Math.PI;
+      pts.push([sign * Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+    return pts;
+  };
+  const platePts: [number, number][] = s > 0
+    ? [...bot, ...top.slice(0, -1), [0.5, 46], ...notchArc(1, 0, 46, true), [0.5, -46], [0.5, INT_SHAFT_Y + 24], ...notchArc(1, INT_SHAFT_Y, 24, true), [0.5, INT_SHAFT_Y - 24], [0.5, -136]]
+    : [[-0.5, 50], [-60, 44], [X(CHAIN_BOX_INNER_X), W.yTop], [X(CHAIN_BOX_INNER_X), W.yBot], [-70, -140], [-0.5, -138], [-0.5, -136], [-0.5, INT_SHAFT_Y - 24], ...notchArc(-1, INT_SHAFT_Y, 24, false), [-0.5, INT_SHAFT_Y + 24], [-0.5, -46], ...notchArc(-1, 0, 46, false), [-0.5, 46]];
+  p.add(extrude(polyShape(platePts), 6, 0, 8), CAST, [0, 0, W.z1 - 6]);
   const noseZ = 236;
-  p.add(yToZ(lathe([[29, 0], [42, 0], [42, W.z1 - 6 - 220], [29, W.z1 - 6 - 220]], 32, s > 0 ? 0 : Math.PI, Math.PI)), CAST, [0, 0, 220]);
-  p.add(yToZ(lathe([[26.2, -8], [32, -8], [32, 8], [26.2, 8]], 32, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)), 'machinedAlu', [0, 0, noseZ]);
+  // Inner r 36 clears the distributor-drive gear (tip r 32.4) where this tube starts at z 220.
+  p.add(yToZ(lathe([[36, 0], [42, 0], [42, W.z1 - 6 - 220], [36, W.z1 - 6 - 220]], 32, s > 0 ? 0 : Math.PI, Math.PI)), CAST, [0, 0, 220]);
+  // Bore 31: the nose journal is r 27 here. The old r 26.2 saddle was inside the journal.
+  p.add(yToZ(lathe([[31, -8], [36, -8], [36, 8], [31, 8]], 32, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)), 'machinedAlu', [0, 0, noseZ]);
   for (const y of [40, -40]) {
     p.add(boxMM([s > 0 ? 0 : -4, y - 6, noseZ - 7], [s > 0 ? 4 : 0, y + 6, noseZ + 7]), 'machinedAlu');
     p.add(yToX(cyl(3.6, 3.2, 12)), 'bore', [X(1.6), y, noseZ]);
@@ -343,28 +421,20 @@ export function crankcaseHalf(s: 1 | -1) {
     // distributor clamp spacer bottoms at y = 107 (DIST.caseY). Stay inboard of the cooler feet (x >= -81).
     p.add(boxMM([-80.2, 105.4, 99], [-64, 107, 115]), 'machinedAlu');
     p.add(boxMM([-80.2, 52, 99], [-64, 105.4, 115]), CAST);
-    // oil-cooler feet: underside exactly y = 95 (footTop 101 − foot 6). Four pads, inboard of the
-    // tank wall at x = -95, z-extent ±8.15 so the oil-port spigots at z = 49 and z = 75 (r 4) stay clear.
-    for (const sz of [36, 62, 88, 112]) {
-      // disk under the stud, r 5.5 inside the r 8 foot and inboard of the tank wall at x -95.
-      // Top face exactly y 95. Stalk stays below the foot and clear of the oil-port spigots.
-      p.add(cyl(5.5, 1.4, 24), 'machinedAlu', [-89, 94.3, sz]);
-      p.add(boxMM([-94.2, 50, sz - 6], [-83, 93.8, sz + 6]), CAST);
-    }
+    // Cooler pads are added after the interior cut. The distributor bore (r 36 at z 146) reaches the z 112 stud.
   }
   // round sump boss (strainer cover seats here)
   p.add(yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), CAST, [0, -126, -10]);
-  // Pulley-end bay. The 60 T tips stop at z 204.7; the pocket continues through the bulkhead
-  // so that face cannot meet the teeth. Web bores are opened because a hole centred on the
-  // split does not survive the extrude triangulator. The running tunnel stays inside the
-  // bearing-seat ID (13.6) except at the collar and the sprockets.
+  hollowCaseInterior(p, s);
+  // 60 T running tunnel. The hollow above opens the bay; these cutters finish the bearing
+  // seats and the gear pocket (tips stop at z 204.7). Plane clip, so it still cuts meshes
+  // the hollow already turned into BufferGeometry. End disks stay open.
   const axial = (r: number, y: number, zA: number, zB: number) => {
     const g = yToZ(cyl(r, zB - zA, 32));
     g.translate(0, y, (zA + zB) / 2);
     return g;
   };
   const yS = INT_SHAFT_Y;
-  // End disks are not capped: these are through-bores, and a disk at the cutter end sealed the hole.
   const open = (n: THREE.Vector3) => Math.abs(n.z) < 0.85;
   subtractSolids(p.g, [
     axial(13.55, yS, -210, 161.4),
@@ -377,15 +447,113 @@ export function crankcaseHalf(s: 1 | -1) {
     axial(14.5, yS, 269, 284),
     axial(36.5, 0, 190.8, 225),
   ], open);
-  // The gear pocket removes the lower lug. The left lock nut still needs a seat under the
-  // two rays the pocket took (the other two still hit the lug outside the pocket). Both
-  // patches stay out of the 60 T ring: z 196.8 is 0.5 mm outside the tip circle, and
-  // y −129.2 is at z 190, ahead of the tooth face at z 192.
-  if (s < 0) {
-    p.add(boxMM([-18, -137.4, 195.6], [-16.5, -136.0, 198.0]), 'machinedAlu');
-    p.add(boxMM([-18, -130.6, 189.0], [-14.5, -127.8, 190.9]), 'machinedAlu');
-  }
   return p.g;
+}
+
+/** CSG only on closed solids. Open skins (param surfaces, lathes) invert under three-bvh-csg. */
+function cutSolids(root: THREE.Object3D, cutters: THREE.BufferGeometry[]) {
+  root.updateMatrixWorld(true);
+  const boxes = cutters.map((c) => { c.computeBoundingBox(); return c.boundingBox!.clone(); });
+  const solid = new Set(['ExtrudeGeometry', 'CylinderGeometry', 'BoxGeometry']);
+  root.traverse((o: THREE.Object3D) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || (mesh as THREE.InstancedMesh).isInstancedMesh) return;
+    if (!solid.has(mesh.geometry.type)) return;
+    if (mesh.userData.saddle) return; // extruded half-bores; a later boolean fills them
+    const g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+    g.computeBoundingBox();
+    const hit = cutters.filter((_, i) => boxes[i].intersectsBox(g.boundingBox!));
+    if (!hit.length) return;
+    // One cutter. A stack of coaxial subtractions drops the later bores (the pulley bay stayed solid).
+    mesh.geometry = csgSub(g, hit.length === 1 ? hit[0] : csgUnion(hit));
+    mesh.position.set(0, 0, 0); mesh.rotation.set(0, 0, 0); mesh.scale.set(1, 1, 1); mesh.updateMatrix();
+  });
+}
+
+/**
+ * Clearance pockets in the casting. Cutters are the empty volume (running clearance built in),
+ * so internal parts are not buried in a solid bay and the saddle bores stay put.
+ */
+function hollowCaseInterior(p: Part, s: 1 | -1) {
+  const cuts: THREE.BufferGeometry[] = [];
+  const cylZ = (r: number, y: number, za: number, zb: number, segs = 28) => {
+    if (zb - za < 1) return;
+    cuts.push(yToZ(cyl(r, zb - za, segs)).translate(0, y, (za + zb) / 2));
+  };
+  // Crank bay between the saddle webs. Webs keep their half-bores (r 33.2 / r 16).
+  // r 76 clears the cheek envelope (~r 70) and opens the rear bulkhead around the flange (r 54).
+  const webs = [...MAIN_Z].sort((a, b) => a - b);
+  const webSpan = (z: number): [number, number] => (z < -160 ? [z - 5, z + 3] : z > 160 ? [z - 3, z + 8] : [z - 3, z + 3]);
+  let prev = -206;
+  for (const z of webs) {
+    const [a, b] = webSpan(z);
+    // 1.2 mm short of the web so the saddle bore (r 33.2) is not opened. The split flange
+    // is bored separately — a bay cutter that stops in the journal leaves a disk in the crank.
+    cylZ(76, 0, prev, a - 1.2);
+    prev = b + 1.2;
+  }
+  cylZ(76, 0, prev, 204);
+  // Intermediate shaft through the sump wall. r 14 sits inside the Ø32 web bores, so the saddles are not opened.
+  cylZ(14, INT_SHAFT_Y, -130, 186);
+  // Timing gears: crank tip 38.6, intermediate tip 49.6. Start at z 187 so the pulley web (face z 186) stays.
+  cylZ(48, 0, 186, 240);
+  cylZ(64, INT_SHAFT_Y, 186, 284);
+  // Oil-pump body, 3 mm off the casting. Stops at the z -118 web face so the saddle bore stays.
+  // Floor stays above the sump skin so the oil-line fittings still find the outside wall.
+  cuts.push(boxMM([-40, -132, -178], [60, -58, -130]));
+  if (s > 0) {
+    // Pickup stays in the sump, inboard of the cyl-3 spigot (x < 70). Same bend as oilPump().
+    const path: [number, number, number][] = [[32, -86, -147], [46, -98, -147], [48, -112, -155], [24, -118, -148]];
+    for (let i = 0; i + 1 < path.length; i++) cuts.push(cylBetween(path[i], path[i + 1], 11, 12));
+  }
+  // Cylinder register: skirt OD 51.5, bore 54 leaves 2.5 mm. Deck face outside r 54 stays as the seat.
+  for (const zc of bankZ(s)) {
+    const inner = 56, outer = DECK_X + 0.4, depth = outer - inner;
+    cuts.push(yToX(cyl(54, depth, 36)).translate(s * (inner + depth / 2), 0, zc));
+  }
+  // Fan-collar tab relief (solid chain-well strips; the shoulder loft is ducked in the section).
+  cuts.push(yToZ(cyl(22, 36, 20)).translate(s * 39, 84.2, 200));
+  // Distributor shank on the left, and spot-faces for the oil-pump cover nuts.
+  if (s < 0) cuts.push(cyl(36, 56, 28).translate(-98, 118, 146));
+  const nutPockets: [number, number][] = s < 0 ? [[-10, -116], [30, -116]] : [[30, -116], [38, -56]];
+  for (const [x, y] of nutPockets) cuts.push(yToZ(cyl(14, 36, 16)).translate(x, y, -166));
+  // Every pocket in one pass. A second pass sees BufferGeometry and skips the flange,
+  // which left the gears, the pump and the nut spot-faces buried in the split face.
+  cutSolids(p.g, cuts);
+  // Crank bore through the split flange only. r 42 clears the seal journal (r 30) and the
+  // main (r 30); it stops at z -165, inside the flange mouth, so the end disk is not a wall.
+  // The saddle webs are not tagged and keep their press-fit bores.
+  // Bores in the split flange only (saddle webs keep the press-fit holes from the extrusion).
+  // Crank r 42 clears the seal and main journals. Intermediate r 62 clears the 60 T tip (r 54.5).
+  const flangeBores = [
+    yToZ(cyl(42, 250, 28)).translate(0, 0, -85),
+    yToZ(cyl(62, 120, 28)).translate(0, INT_SHAFT_Y, 230),
+  ];
+  p.g.updateMatrixWorld(true);
+  p.g.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.userData.flange) return;
+    let g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+    for (const cutter of flangeBores) g = csgSub(g, cutter);
+    mesh.geometry = g;
+    mesh.position.set(0, 0, 0); mesh.rotation.set(0, 0, 0); mesh.scale.set(1, 1, 1); mesh.updateMatrix();
+  });
+  // Gear and pump pockets clip the bottom perimeter-lug seats. Put those bosses back
+  // so the nuts still land on a machined face. The z 190 stud is the lowered gear clearance.
+  for (const z of CASE_LUG.bottom) {
+    const y = caseLugY(z, false);
+    p.add(yToX(cyl(CASE_LUG.r, CASE_LUG.x, 16)), CASE_CAST, [s * CASE_LUG.x / 2, y, z]);
+    p.add(yToX(cyl(CASE_LUG.r - 0.8, 1.2, 14)), 'machinedAlu', [s * (CASE_LUG.x - 0.6), y, z]);
+  }
+  if (s < 0) {
+    // Foot underside is y 95. The supporting pad stops 0.2 mm under it (a coplanar rim counts as a hit).
+    // The bright spot the stud ray sees is r 3.8, inside the foot's r 4.5 hole, and its top is exactly y 95.
+    for (const sz of [36, 62, 88, 112]) {
+      p.add(cyl(5.5, 1.2, 24), 'machinedAlu', [-89, 94.2, sz]);
+      p.add(cyl(3.8, 0.4, 16), 'machinedAlu', [-89, 94.8, sz]);
+      p.add(boxMM([-94.2, 50, sz - 6], [-83, 93.8, sz + 6]), CASE_CAST);
+    }
+  }
 }
 
 // ---------------------------------------------------------------- main bearing shells (102-00 #21-24)
@@ -1881,39 +2049,5 @@ export function intermediateShaft() {
   seg(12, 250.2, 257.6, 'steel'); // land between the almost-touching sprocket rows
   seg(11, 266, 276, 'polishedSteel');
   p.add(yToZ(hexNut(16, 6)), 'darkSteel', [0, y, 280]);
-  TEMP_shaveForLockNutStud(p.g);
   return p.g;
-}
-
-/**
- * Temporary static-pose hack for the left M8 lock nut and the stud through the lower lug.
- * Bottom End's zero-clash PR will move the stud and boss outboard and then delete this.
- * Removing the call restores all 60 whole teeth.
- */
-export const TEMP_LOCKNUT_STUD_SHAVE = true;
-export function TEMP_shaveForLockNutStud(root: THREE.Object3D) {
-  if (!TEMP_LOCKNUT_STUD_SHAVE) return;
-  subtractSolids(root, perimeterClashSolids());
-}
-
-/**
- * Solids the 60 T gear still has to clear after the case pocket removes both lug bosses:
- * the left M8 lock nut (washer r 8, hex AF 13, nylon cap) and the stud through the lug.
- * Each solid is 2.4 mm outside the fastener. The collision test erodes 1 mm, and the
- * fastener normals point inward, so a tighter pad comes back as a hit.
- */
-export function perimeterClashSolids(): THREE.BufferGeometry[] {
-  const seat = new THREE.Vector3(-CASE_LUG.x, CASE_LUG.yBot, 190);
-  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-1, 0, 0));
-  const m = new THREE.Matrix4().compose(seat, q, new THREE.Vector3(1, 1, 1));
-  const wt = 1.6, h = 6.5, af = 13, pad = 2.4;
-  const along = (g: THREE.BufferGeometry, y0: number, y1: number) => g.translate(0, (y0 + y1) / 2, 0).applyMatrix4(m);
-  // Inboard of the seat (local y < 0) so the tooth ring is already gone on the face the nut bears on.
-  const washer = along(cyl(8 + pad, wt + 1.8, 24), -1.6, wt + 0.2);
-  const hex = along(cyl(af / Math.sqrt(3) + pad, h + 0.3, 16), wt - 0.15, wt + h + 0.15);
-  const nylon = along(cyl(af * 0.45 + pad, h * 0.3 + 1.6, 20), wt + h - 0.2, wt + h + h * 0.3 + 1.4);
-  // studGeometry: r = M/2*0.96, from -(grip+embed) to headHeight+1.5. Lock head is wt + h*1.3.
-  const top = wt + h * 1.3 + 1.5, bot = -(2 * CASE_LUG.x + 14);
-  const stud = along(cyl(4 * 0.96 + pad, top - bot + 0.4, 12), bot - 0.2, top + 0.2);
-  return [washer, hex, nylon, stud];
 }
