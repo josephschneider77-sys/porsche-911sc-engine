@@ -4,10 +4,11 @@ import * as THREE from 'three';
 export type MatKey =
   | 'castAlu' | 'machinedAlu' | 'magnesium' | 'nikasil' | 'forgedSteel' | 'steel' | 'darkSteel'
   | 'chrome' | 'blackPlastic' | 'satinBlack' | 'rubber' | 'gasket' | 'ceramic' | 'brass'
-  | 'heatSteel' | 'zincPlate' | 'friction' | 'redPaint' | 'bore' | 'filterPaper' | 'bronze';
+  | 'heatSteel' | 'zincPlate' | 'friction' | 'redPaint' | 'bore' | 'filterPaper' | 'bronze'
+  | 'finBlack' | 'forgedDark' | 'yellowZinc' | 'blackPaint' | 'aluminized' | 'polishedSteel';
 
 const DEF: Record<MatKey, { color: number; metalness: number; roughness: number }> = {
-  castAlu: { color: 0x9a9c9b, metalness: 0.65, roughness: 0.62 },
+  castAlu: { color: 0x96989a, metalness: 0.6, roughness: 0.66 },
   machinedAlu: { color: 0xc4c7ca, metalness: 0.9, roughness: 0.3 },
   magnesium: { color: 0x7e7f77, metalness: 0.5, roughness: 0.66 },
   nikasil: { color: 0x6f7275, metalness: 0.7, roughness: 0.5 },
@@ -28,6 +29,12 @@ const DEF: Record<MatKey, { color: number; metalness: number; roughness: number 
   bore: { color: 0x2a2b2d, metalness: 0.6, roughness: 0.6 },
   filterPaper: { color: 0xd9c89a, metalness: 0.0, roughness: 0.95 },
   bronze: { color: 0xb07a45, metalness: 1.0, roughness: 0.35 },
+  finBlack: { color: 0x2b2c2e, metalness: 0.25, roughness: 0.6 }, // satin-black painted cylinder fins (Mahle)
+  forgedDark: { color: 0x4a4b4d, metalness: 0.75, roughness: 0.55 }, // as-forged crank webs / rods
+  yellowZinc: { color: 0xc4ad5e, metalness: 0.85, roughness: 0.38 }, // yellow-passivated pulleys
+  blackPaint: { color: 0x131416, metalness: 0.15, roughness: 0.5 }, // painted sheet metal / fan housing
+  aluminized: { color: 0x8e8b84, metalness: 0.7, roughness: 0.6 }, // aluminised steel heat exchangers
+  polishedSteel: { color: 0xc9ccd0, metalness: 1.0, roughness: 0.18 }, // ground journals
 };
 
 const cache = new Map<MatKey, THREE.MeshStandardMaterial>();
