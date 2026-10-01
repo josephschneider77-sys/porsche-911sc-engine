@@ -24,7 +24,7 @@ export const bankZ = (s: 1 | -1) => (s === 1 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : 
 // ---------------------------------------------------------------- crankcase half (101-05 left / 101-10 right)
 /**
  * Pressure-cast aluminium half (SC: aluminium, not magnesium). The section changes along the crank:
- * scalloped split flange (one lobe per perimeter bolt, no fin row), a sloping shoulder, a belly that
+ * flat top split flange (perimeter nuts and cast bosses flush with the rail), a scalloped bottom edge, a sloping shoulder, a belly that
  * curves inward under the crank, and a deck of three proud spigot bosses with recessed joins between
  * them. The bay is a deep tub — thick saddle webs inboard of the spigot tunnels, a far wall behind
  * them — so the bores read as open holes and the split face is not a row of see-through slots.
@@ -57,14 +57,16 @@ export function crankcaseHalf(s: 1 | -1) {
     const zA = outer ? -198 : -182;
     const zB = outer ? 204 : 188;
     const endR = outer ? 20 : 12;
-    const amp = outer ? 13 : 0;
+    // Top rail is flat. A scallop here reads as a fin comb from the pulley end.
+    const ampTop = 0;
+    const ampBot = outer ? 13 : 0;
     const pts: [number, number][] = [];
     const N = 120;
     const z0e = zA + endR, z1e = zB - endR;
     const yM = (yT + yB) / 2, yR = (yT - yB) / 2;
     for (let i = 0; i <= N; i++) {
       const z = z0e + (z1e - z0e) * (i / N);
-      pts.push([yT + scallop(z, CASE_LUG.top, amp), z]);
+      pts.push([yT + scallop(z, CASE_LUG.top, ampTop), z]);
     }
     for (let i = 1; i < 12; i++) {
       const a = Math.PI / 2 - (i / 12) * Math.PI;
@@ -73,7 +75,7 @@ export function crankcaseHalf(s: 1 | -1) {
     for (let i = N; i >= 0; i--) {
       const z = z0e + (z1e - z0e) * (i / N);
       const drop = outer ? 12 * Math.exp(-(((z + 10) / 78) ** 2)) : 0;
-      pts.push([yB - scallop(z, CASE_LUG.bottom, amp) - drop, z]);
+      pts.push([yB - scallop(z, CASE_LUG.bottom, ampBot) - drop, z]);
     }
     for (let i = 1; i < 12; i++) {
       const a = -Math.PI / 2 - (i / 12) * Math.PI;
@@ -322,7 +324,7 @@ export function crankcaseHalf(s: 1 | -1) {
     p.add(cyl(20, 2.2, 32), 'machinedAlu', [96, 108.9, 176]);
   } else {
     p.add(boxMM([-76, 108, 108], [-30, 122, 190]), CAST);
-    p.add(boxMM([-80, 56, 118], [-26, 108, 188]), CAST);
+    p.add(boxMM([-80, 56, 118], [-36, 108, 188]), CAST);
     // spot-faced pad under the left half for the 101-05 #22/#23 M10 stud nut (E position)
     p.add(cyl(10, 8, 20), CAST, [-40, -127, -186]);
     p.add(cyl(10, 28, 16, 16), CAST, [-40, -109, -186]);
