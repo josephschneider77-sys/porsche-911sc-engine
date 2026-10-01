@@ -11,11 +11,20 @@ import {
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
 export { INTAKE_PORT, INJ };
 
-/** Fan axis stays at y 255. rFanPulley 41 is the 82 mm OD (pitch r 36). Belt pitch length at this height is ~814 mm, not the real 725 — see the spec. */
-export const FAN = { y: 255, zHousing0: 205, zHousing1: 296, zFan: 262, zBelt: 303, rCrankPulley: 65, rFanPulley: 41 };
+/** Fan axis. y 210.33 is the crank-to-fan centre distance that makes the pitch length 725 mm (crank pitch r 60, fan pitch r 36, belt plane z 303). */
+export const FAN = { y: 210.33, zHousing0: 205, zHousing1: 296, zFan: 262, zBelt: 303, rCrankPulley: 65, rFanPulley: 41 };
+/** How far the fan group moved down from the old y 255 axis, mm. */
+export const FAN_DROP = 255 - FAN.y;
 export const PLENUM = { y0: 205, y1: 262, x: 110, z0: -165, z1: 172 };
+/**
+ * How far the CIS intake stack (plenum, air cleaner, mixture unit) is lifted so the
+ * lowered fan cowl can rise into the housing collar without running through it.
+ * Runners, boots and lines are re-routed by the same amount; flanges stay put.
+ */
+export const INTAKE_LIFT = 168;
 /** Round air-cleaner canister lying across the engine (SC), axis along X. */
 export const AIRBOX = { y: 362, z: 40, r: 80, len: 440 };
+function liftIntake<T extends THREE.Object3D>(g: T): T { g.position.y += INTAKE_LIFT; return g; }
 /** Exhaust port centre at the head flange; y puts the 7.2 mm heat-exchanger flange flush under the head flange (y -63.5). */
 export const EXH_PORT = { x: CYL_TOP_X + 34, y: -64.1 };
 
@@ -34,18 +43,19 @@ export function fanHousing() {
   const p = new Part();
   // Flange starts at z 208 so the shroud collar tabs (end z 204.9) stay clear of the drum face.
   const z0 = 208;
+  // Lip stays inside r 136 so the full circle clears the crank pulley (top y 67) and the chain-box gaskets.
   const prof: [number, number][] = [
-    [124, z0], [117, 218], [117, 280], [128, 288], [146, 294], [154, 296],
-    [154, 293], [144, 286], [138, 276], [136, 264],
+    [122, z0], [117, 218], [117, 280], [124, 288], [132, 294], [136, 296],
+    [136, 293], [132, 286], [130, 276], [132, 264],
   ];
   let gz = 256;
   for (let i = 0; i < 5; i++) {
-    prof.push([136, gz], [132.2, gz - 1.5], [132.2, gz - 4.8], [136, gz - 6.3]);
+    prof.push([132, gz], [128.4, gz - 1.5], [128.4, gz - 4.8], [132, gz - 6.3]);
     gz -= 8.4;
   }
-  prof.push([136, z0 + 4], [124, z0]);
+  prof.push([132, z0 + 4], [122, z0]);
   p.add(yToZ(lathe(prof, 80)), 'magCast', [0, FAN.y, 0]);
-  for (let i = 0; i < 12; i++) p.add(fanBox(5.2, 3.2, 48, 134.4, 232, (i / 12) * Math.PI * 2 + 0.08), 'magCast');
+  for (let i = 0; i < 12; i++) p.add(fanBox(5.2, 3.2, 48, 129.2, 232, (i / 12) * Math.PI * 2 + 0.08), 'magCast');
   // five broad stator vanes, curved from the cradle out to the drum
   for (let i = 0; i < 5; i++) {
     const a0 = -0.55 + (i / 5) * Math.PI * 2;
@@ -106,29 +116,36 @@ export function fanImpeller() {
   return p.g;
 }
 export function alternator() {
-  // Bosch 14 V (911 603 120 02): two cast end shields with open windows, laminated stator,
-  // copper windings in the windows, rectifier on the slip-ring end. Coaxial on the fan.
-  // Shaft stops at z 312 so the pulley nut stays proud.
+  // Bosch 14 V (911 603 120 02): bright cast drive-end shield with cooling slots, a short
+  // dark laminated waist, copper visible in the windows, rectifier shield with the brush
+  // holder. Coaxial on the fan. Shaft stops at z 312 so the pulley nut stays proud.
   const p = new Part();
   const y = FAN.y;
   const at = (r: number, a: number, z: number): V3 => [r * Math.cos(a), y + r * Math.sin(a), z];
   const worldLathe = (prof: [number, number][], segs = 48) => { const g = yToZ(lathe(prof, segs)); g.translate(0, y, 0); return g; };
-  const windows = (zc: number, ang0: number) => {
+  const slots = (n: number, zc: number, ang0: number, sx: number, sy: number, sz: number, r: number) => {
     const cuts: THREE.BufferGeometry[] = [];
-    for (let i = 0; i < 4; i++) cuts.push(fanBox(30, 22, 16, 43, zc, ang0 + (i / 4) * Math.PI * 2));
+    for (let i = 0; i < n; i++) cuts.push(fanBox(sx, sy, sz, r, zc, ang0 + (i / n) * Math.PI * 2));
     return cuts;
   };
-  // slip-ring shield (engine side) and drive shield, each with four windows between the through-bolts
   const boltAng = 0.6;
-  p.add(csgSub(worldLathe([[22, 168], [56, 168], [57, 172], [57, 196], [52, 198], [22, 198], [22, 174], [16, 170], [16, 168]], 56), ...windows(184, boltAng + Math.PI / 4)), 'castAlu');
-  p.add(csgSub(worldLathe([[20, 234], [52, 234], [57, 238], [57, 256], [52, 258], [24, 258], [18, 262], [14, 262], [14, 248], [20, 244], [20, 234]], 56), ...windows(247, boltAng + Math.PI / 4)), 'castAlu');
-  // laminated stator band, darker than the shields
-  const st: [number, number][] = [[50, 198]];
-  for (let z = 200; z <= 230; z += 2.4) st.push([57.2, z], [57.2, z + 0.45], [55.6, z + 0.7], [55.6, z + 1.9]);
-  st.push([50, 234], [50, 198]);
+  // Rectifier / slip-ring shield (engine side). Smaller windows so the diode plates and brush block read as a face.
+  p.add(csgSub(
+    worldLathe([[20, 164], [54, 164], [58, 170], [58, 206], [54, 210], [24, 210], [20, 204], [16, 168], [16, 164]], 64),
+    ...slots(4, 186, boltAng + Math.PI / 4, 34, 16, 18, 40),
+  ), 'machinedAlu');
+  // Drive-end shield (pulley side): the bright cast face, with six long cooling slots.
+  p.add(csgSub(
+    worldLathe([[18, 228], [52, 228], [58, 234], [58, 258], [54, 264], [28, 266], [16, 266], [14, 250], [18, 244], [18, 228]], 64),
+    ...slots(6, 246, boltAng, 42, 14, 22, 36),
+  ), 'machinedAlu');
+  // Short laminated waist, inset so the shields — not the windings — own the silhouette.
+  const st: [number, number][] = [[48, 210]];
+  for (let z = 212; z <= 226; z += 2.2) st.push([53.4, z], [53.4, z + 0.35], [51.6, z + 0.6], [51.6, z + 1.7]);
+  st.push([48, 228], [48, 210]);
   p.add(yToZ(lathe(st, 72)), 'darkSteel', [0, y, 0]);
-  // windings fill the shield windows (radially inside the remaining wall)
-  p.add(yToZ(lathe([[30, 176], [42, 180], [46, 188], [46, 248], [40, 254], [30, 254], [28, 220], [30, 176]], 40)), 'copper', [0, y, 0]);
+  // Copper only inside the window band (does not form the outer diameter).
+  p.add(yToZ(lathe([[28, 176], [40, 182], [47, 190], [47, 252], [40, 258], [28, 258], [26, 220], [28, 176]], 40)), 'copper', [0, y, 0]);
   // rectifier: two flat horseshoe diode plates on the slip-ring face, buttons, brush block, studs
   const horse = (a0: number) => {
     const R = 34, ri = 15, sweep = 2.15;
@@ -153,8 +170,8 @@ export function alternator() {
   }
   p.add(boxMM([-12, y - 13, 152], [12, y + 13, 168.4]), 'blackPlastic');
   p.add(yToZ(cyl(9, 7, 16)), 'blackPlastic', [0, y, 155.5]);
-  // stud the ground strap leaves from, on the lower slip-ring face (below the plenum), plus two neighbours
-  p.add(yToZ(cyl(3.2, 9, 10)), 'brass', [8, 199, 158]);
+  // stud the ground strap leaves from, on the right-hand slip-ring face, plus two neighbours
+  p.add(yToZ(cyl(3.2, 9, 10)), 'brass', [52, y - 18, 178]);
   p.add(yToZ(cyl(2.4, 8, 8)), 'brass', [-18, y - 28, 160]);
   p.add(yToZ(cyl(2.4, 8, 8)), 'brass', [20, y - 26, 160]);
   // four through-bolts, heads on both ends
@@ -254,6 +271,42 @@ export function fanBelt() {
 /** Collar bolt tabs (bolts into the fan-housing front lip at r 132). */
 export const SHROUD_TAB = { z0: 197, z1: 204.9, a: [-Math.PI / 2 - 0.3, -Math.PI / 2 + 0.3, -Math.PI / 2 + 0.95, -Math.PI / 2 + 1.12] };
 export const SHROUD = { zA: -200, zB: 192, t: 3.5, ax: 95, ay: 150, bx: 252, by: 130, skirtY: 102, lipW: 12 };
+/**
+ * Moulded cowl: a shell from the fan-end of the flat roof up into the round collar.
+ * Two skins, ~3.6 mm apart. The crown stays under the lifted throttle body and outside the alternator.
+ */
+function addFanCowl(p: Part) {
+  for (const off of [1.8, -1.8]) {
+    p.add(paramSurface((u, v) => {
+      const t = u * u * (3 - 2 * u);
+      const a = Math.PI * (0.90 - 0.80 * v);
+      const R = 147 + off;
+      const x1 = R * Math.cos(a);
+      const y1 = FAN.y + R * Math.sin(a);
+      const z1 = 217;
+      const s = (v - 0.5) * 2;
+      const x0 = s * (154 + off);
+      const y0 = 152.6 + off * 0.35;
+      // Front of the lip (v = 0.5) reaches back over the case; the sides stay near the collar.
+      const z0 = 176 - 108 * Math.cos(s * Math.PI * 0.5);
+      const x = x0 + (x1 - x0) * t;
+      let y = y0 + (y1 - y0) * t;
+      const z = z0 + (z1 - z0) * t;
+      // Cap and vacuum unit sit under the left flank. Clear them by rising, not by cutting across the alternator.
+      if (x < -55 && z > 100 && z < 200 && y < 230) y = 230;
+      // Stay outside the alternator body (r ~58) wherever the shell would otherwise enter it.
+      if (z > 155 && z < 275) {
+        const rA = 68;
+        const dy = y - FAN.y;
+        if (x * x + dy * dy < rA * rA) {
+          const yHi = FAN.y + Math.sqrt(rA * rA - x * x);
+          if (y < yHi) y = yHi;
+        }
+      }
+      return [x, y, z];
+    }, 28, 22), 'shroudRed');
+  }
+}
 export function upperAirGuide() {
   const p = new Part();
   const { zA, zB, t, ax, ay, bx, by, skirtY, lipW } = SHROUD; const len = zB - zA;
@@ -264,8 +317,10 @@ export function upperAirGuide() {
   roof.holes.push(cut);
   const rg = extrude(roof, t); rg.rotateX(Math.PI / 2); rg.translate(0, ay + t, (zA + zB) / 2);
   // v5 cut-outs: distributor cap opening (roof + left wing), breather neck, air-distributor foot slot
-  const distCut = boxMM([-137, 138, 120], [-60, 170, 180]), brCut = boxMM([-70, 142, 168], [-40, 176, 200]);
-  p.add(csgSub(rg, distCut, brCut, boxMM([-94, 140, -157], [94, 165, -143])), 'shroudRed');
+  const distCut = boxMM([-175, 130, 90], [-48, 180, 190]), brCut = boxMM([-70, 142, 168], [-40, 176, 200]);
+  // alternator bottom now sits on the old roof line; open that patch so the roof does not swallow it
+  // Fan-end of the flat plate is replaced by the cowl. Leave the flywheel-end roof, the centre boss and the wing roots.
+  p.add(csgSub(rg, distCut, brCut, boxMM([-94, 140, -157], [94, 165, -143]), boxMM([-100, 140, 62], [100, 172, 198])), 'shroudRed');
   const slopeLen = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax);
   for (const s of [1, -1] as const) {
     const zs = s > 0 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]];
@@ -315,15 +370,11 @@ export function upperAirGuide() {
   // flywheel-end plate beyond the last cylinders
   const fp = polyShape([[-bx, skirtY], [-110, skirtY], [-110, 132], [110, 132], [110, skirtY], [bx, skirtY], [bx, by + 2], [ax, ay + t], [-ax, ay + t], [-bx, by + 2]]);
   p.add(extrude(fp, t), 'shroudRed', [0, 0, zA - t]);
-  // Full collar around the engine-side barrel (inner r 139.5, ~3 mm off the Ø272 drum). Local fan axis is y = 0 until the mesh is placed.
-  const collarProf: [number, number][] = [[141, 210], [141, 230], [149, 232], [149, 208], [145, 208], [141, 210]];
-  let collar = yToZ(lathe(collarProf, 72));
-  const uCut = boxMM([-26, 144, 198], [26, 162, 216]);
-  collar = csgSub(collar, uCut);
-  p.add(collar, 'shroudRed', [0, FAN.y, 0]);
-  // Upper funnel from the roof's fan end up into the collar. phi π/2..3π/2 is the top half after yToZ.
-  const funnel: [number, number][] = [[112, 192], [130, 198], [146, 204], [149, 208], [144, 206], [126, 200], [108, 194], [112, 192]];
-  p.add(yToZ(lathe(funnel, 40, Math.PI / 2, Math.PI)), 'shroudRed', [0, FAN.y, 0]);
+  // Full collar around the engine-side barrel. Starts at z 218 so the ring clears the chain-housing gaskets (z ~212)
+  // and ends at z 234, short of the band clamp (z 238).
+  const collarProf: [number, number][] = [[142, 218], [142, 232], [150, 234], [150, 220], [142, 218]];
+  p.add(yToZ(lathe(collarProf, 72)), 'shroudRed', [0, FAN.y, 0]);
+  addFanCowl(p);
   for (const a of SHROUD_TAB.a) p.add(yToZ(cyl(9, SHROUD_TAB.z1 - SHROUD_TAB.z0, 16)), 'shroudRed', [132 * Math.cos(a), FAN.y + 132 * Math.sin(a), (SHROUD_TAB.z0 + SHROUD_TAB.z1) / 2]);
   // raised centre boss on the roof
   p.add(lathe([[0.1, 0], [16, 0], [24, 3.5], [24, 8], [18, 10.5], [0.1, 10.5]], 28), 'shroudRed', [0, 153.5, -22]);
@@ -631,10 +682,10 @@ export function plenum() {
   p.add(extrude(roundRect(150, 60, 24), AIRBOX.y - AIRBOX.r + 30 - y1, 2).rotateX(-Math.PI / 2).translate(0, y1, AIRBOX.z), 'blackPlastic');
   // lower half of the round air-cleaner canister (#9)
   airboxHalf(p, -1);
-  // struts (#18/#19)
-  for (const s of [1, -1]) p.add(cylBetween([s * 100, 212, -140], [s * 88, 150, -150], 4, 8), 'zincPlate');
+  // short hangers under the body (they used to reach the case; the stack is lifted with the cowl)
+  for (const s of [1, -1]) p.add(cylBetween([s * 100, PLENUM.y0 + 8, -140], [s * 88, PLENUM.y0 - 6, -150], 4, 8), 'zincPlate');
   // v5: recess in the underside over the distributor cap
-  return cutGroup(p.g, cyl(36, 30, 40).translate(DIST.x, 200, DIST.z));
+  return liftIntake(cutGroup(p.g, cyl(36, 30, 40).translate(DIST.x, 200, DIST.z)));
 }
 /** Half (sign: +1 upper / -1 lower) of the cylindrical air-cleaner canister: shell, dished end caps, seam lip. */
 function airboxHalf(p: Part, sign: 1 | -1) {
@@ -676,7 +727,7 @@ export function airFilter() {
   const inner = paramSurface((u, v) => { const a = u * Math.PI * 2; const rr = r - 36; return [-L / 2 + L * v, y + rr * Math.sin(a), z + rr * Math.cos(a)]; }, 36, 1, true);
   p.add(inner, 'zincPlate');
   for (const e of [-1, 1]) p.add(yToX(lathe([[r - 38, -5], [r - 4, -5], [r - 4, 5], [r - 38, 5]], 48)), 'rubber', [e * (L / 2), y, z]);
-  return p.g;
+  return liftIntake(p.g);
 }
 export function airCleanerLid() {
   // Upper half of the round canister with spring clips and the intake snout at the left end.
@@ -689,13 +740,15 @@ export function airCleanerLid() {
   }
   // intake snout (#14) on the left end, pointing forward/down
   p.add(tube([[-len / 2 + 30, y + r - 20, z - 20], [-len / 2 + 30, y + r + 10, z - 60], [-len / 2 + 30, y + 40, z - 120]], 30, 24, 16), 'blackPlastic');
-  return p.g;
+  return liftIntake(p.g);
 }
 /** Intake pipe for one cylinder (106-00 #1-#6), local coords: port at origin z=0, right-bank orientation. */
 export function intakeRunner() {
   const p = new Part();
   const P0: V3 = [0, 0, 0];
-  const pts: V3[] = [P0, [0, 40, 0], [-12, 90, 0], [-40, 132, 0], [-80, 154, 0], [-(INTAKE_PORT.x - PLENUM.x - 34), 167, 0]];
+  const endX = -(INTAKE_PORT.x - PLENUM.x - 34);
+  // Keep the original bend, then rise vertically so the lower pipe does not bow into the shroud wing.
+  const pts: V3[] = [P0, [0, 40, 0], [-12, 90, 0], [-40, 132, 0], [-80, 154, 0], [endX, 167, 0], [endX, 167 + INTAKE_LIFT * 0.5, 0], [endX, 167 + INTAKE_LIFT, 0]];
   p.add(tube(pts, 20, 24, 48), 'castAlu');
   // head flange
   const fl = roundRect(46, 76, 12); fl.holes.push(circlePath(17.5) as THREE.Path); // wide enough for the M8 studs at z +-28
@@ -731,7 +784,7 @@ export function mixtureControlUnit() {
   for (const a of [0.5, 3.6]) p.add(yToX(cyl(6, 20, 10)), 'brass', [fd[0] + 34 * Math.cos(a), fd[1] - 5, fd[2] + 34 * Math.sin(a)]);
   // boot from the meter outlet to the throttle housing / distributor
   p.add(tube([[c[0], c[1] - 40, c[2]], [c[0] + 10, c[1] - 55, c[2]], [-110, 232, c[2]]], 34, 20, 20), 'rubber');
-  return p.g;
+  return liftIntake(p.g);
 }
 export function fuelLines() {
   const p = new Part();
@@ -740,9 +793,9 @@ export function fuelLines() {
   for (const [c, zc] of Object.entries(CYL_Z)) {
     const s = +c <= 3 ? 1 : -1;
     const a = (i++ / 6) * Math.PI * 2;
-    const start: V3 = [fd[0] + 28 * Math.cos(a), fd[1], fd[2] + 28 * Math.sin(a)];
+    const start: V3 = [fd[0] + 28 * Math.cos(a), fd[1] + INTAKE_LIFT, fd[2] + 28 * Math.sin(a)];
     const end: V3 = [s * (INTAKE_PORT.x + INJ.dx + 40 * INJ.ux), INTAKE_PORT.y + INJ.dy + 40 * INJ.uy, zc];
-    const mid: V3 = [s * 140 + (s < 0 ? -20 : 0), 300, zc * 0.8 + 10];
+    const mid: V3 = [s * 140 + (s < 0 ? -20 : 0), 300 + INTAKE_LIFT, zc * 0.8 + 10];
     p.add(tube([start, [start[0], start[1] + 18, start[2]], mid, [end[0], end[1] + 30, end[2]], end], 2.4, 6, 48), 'steel');
   }
   return p.g;
@@ -758,7 +811,7 @@ export function warmUpRegulator() {
   return p.g;
 }
 /** Air-cleaner struts (106-00 #18/#19) with bonded rubber buffers (#20), on the air distributor top. */
-export const AIRBOX_STRUTS = [[-72, 266, 30], [-48, 266, 30], [48, 266, 30], [72, 266, 30]] as V3[];
+export const AIRBOX_STRUTS = [[-72, 266 + INTAKE_LIFT, 30], [-48, 266 + INTAKE_LIFT, 30], [48, 266 + INTAKE_LIFT, 30], [72, 266 + INTAKE_LIFT, 30]] as V3[];
 export function airboxStruts() {
   const p = new Part();
   for (const x of [-60, 60]) {
@@ -766,12 +819,12 @@ export function airboxStruts() {
     p.add(boxMM([x - 4, 266, 26], [x + 4, 276, 34]), 'zincPlate');
     p.add(cyl(9, 6, 16), 'rubber', [x, 279, 30]); // rubber buffer
   }
-  return p.g;
+  return liftIntake(p.g);
 }
 
 // ---------------------------------------------------------------- 901-00 ignition
 /** Distributor hold-down clamp (stud in the left case top at z 116; cast spacer up to the clamp tab). */
-export const DIST = { x: -75, z: 150, clampY: 122, clampT: 5, clampTop: 127, stud: [-72, 107] as [number, number], caseY: 107 };
+export const DIST = { x: -98, z: 146, clampY: 122, clampT: 5, clampTop: 127, stud: [-72, 107] as [number, number], caseY: 107 };
 export function distributorClamp() {
   const p = new Part();
   const sh = polyShape(hull([...circlePts(DIST.x, DIST.z, 29.5, 32), ...circlePts(DIST.stud[0], DIST.stud[1], 9, 12)]));
@@ -812,7 +865,7 @@ export function fanHub() {
 }
 export function distributor() {
   const p = new Part();
-  const x = -75, z = 150;
+  const x = DIST.x, z = DIST.z;
   p.add(lathe([[14, 104], [20, 104], [24, 120], [32, 150], [32, 168], [0.1, 168]], 32), 'castAlu', [x, 0, z]);
   // cap (#8) with 7 towers
   p.add(lathe([[0.1, 168], [36, 168], [37, 180], [30, 196], [0.1, 198]], 36), 'blackPlastic', [x, 0, z]);
@@ -832,18 +885,18 @@ export function ignitionLeads() {
     const end = new THREE.Vector3(0, -92, 0).applyMatrix4(partPose(`spark-plug-${c}`));
     const out = new THREE.Vector3(0, -1, 0).transformDirection(partPose(`spark-plug-${c}`));
     const e2 = end.clone().addScaledVector(out, 30);
-    const yTop = 272 + i * 1.6, xs = s * (362 + i * 3);
+    const yTop = 272 + INTAKE_LIFT + i * 1.6, xs = s * (362 + i * 3);
     const pts: V3[] = [tw, [tw[0], yTop - 8, tw[2]], [tw[0] * 0.5 + s * 40, yTop, (tw[2] + z) / 2], [s * 300, yTop, z], [xs, yTop - 40, z], [xs, 0, z], [xs, e2.y + 20, z], [e2.x, e2.y, e2.z], [end.x, end.y, end.z]];
     p.add(tube(pts.map((q) => q as V3), 3.6, 8, 120), 'blackPlastic');
   });
   // coil lead (901-00 #18) from the centre tower toward the body-mounted coil, ending in its cable plug (#19)
-  const cl: V3[] = [[DIST.x, 212, DIST.z], [DIST.x, 290, DIST.z], [DIST.x - 60, 300, DIST.z + 60], [DIST.x - 160, 300, DIST.z + 120]];
+  const cl: V3[] = [[DIST.x, 212, DIST.z], [DIST.x, 290 + INTAKE_LIFT, DIST.z], [DIST.x - 60, 300 + INTAKE_LIFT, DIST.z + 60], [DIST.x - 160, 300 + INTAKE_LIFT, DIST.z + 120]];
   p.add(tube(cl, 3.6, 8, 60), 'blackPlastic');
-  p.add(cylBetween([DIST.x - 160, 300, DIST.z + 120], [DIST.x - 185, 300, DIST.z + 135], 6, 12), 'blackPlastic');
+  p.add(cylBetween([DIST.x - 160, 300 + INTAKE_LIFT, DIST.z + 120], [DIST.x - 185, 300 + INTAKE_LIFT, DIST.z + 135], 6, 12), 'blackPlastic');
   // primary electric line (#9) from the distributor body to the CD unit, with its plug
-  const el: V3[] = [[DIST.x - 20, 150, DIST.z + 18], [DIST.x - 40, 175, DIST.z + 50], [DIST.x - 150, 290, DIST.z + 115]];
+  const el: V3[] = [[DIST.x - 20, 150, DIST.z + 18], [DIST.x - 40, 175 + INTAKE_LIFT * 0.5, DIST.z + 50], [DIST.x - 150, 290 + INTAKE_LIFT, DIST.z + 115]];
   p.add(tube(el, 1.8, 6, 40), 'blackPlastic');
-  p.add(cylBetween([DIST.x - 150, 290, DIST.z + 115], [DIST.x - 166, 290, DIST.z + 124], 4, 10), 'blackPlastic');
+  p.add(cylBetween([DIST.x - 150, 290 + INTAKE_LIFT, DIST.z + 115], [DIST.x - 166, 290 + INTAKE_LIFT, DIST.z + 124], 4, 10), 'blackPlastic');
   return p.g;
 }
 export function sparkPlug() {
