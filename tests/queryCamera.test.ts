@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cameraFromQuery, type CamPose } from '../src/app/queryCamera';
+import { cameraFromQuery, viewFromQuery, type CamPose } from '../src/app/queryCamera';
 
 describe('URL camera vs teardown step framing', () => {
   // Step 27 is "Pistons" (1-based). Its default framing is the home pose of whatever is left on the stand.
@@ -15,6 +15,15 @@ describe('URL camera vs teardown step framing', () => {
     expect(cameraFromQuery({ cam: '560,40,30' }, step0)).toEqual({ pos: [560, 40, 30], target: [1, 2, 3] });
     expect(cameraFromQuery({ cam: '0,-1050,80', target: '0,0,40' }, step27))
       .toEqual({ pos: [0, -1050, 80], target: [0, 0, 40] });
+  });
+
+  it('cover-gasket is step 14, framed on the right flange', () => {
+    const v = viewFromQuery('cover-gasket');
+    expect(v?.step).toBe(14);
+    expect(v?.pos.every((n) => Number.isFinite(n))).toBe(true);
+    expect(v?.target.every((n) => Number.isFinite(n))).toBe(true);
+    expect(viewFromQuery(null)).toBeNull();
+    expect(viewFromQuery('missing')).toBeNull();
   });
 
   it('keeps the step pose when cam is missing or not three finite numbers', () => {

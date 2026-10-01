@@ -7,8 +7,8 @@ import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { CAM_X } from '../src/data/layout';
 import {
-  CAM_NOSE, CAM_SPROCKET_R, CAM_T, CHAIN_LID, CHAIN_Z, HOUSING_Z1, PITCH, SPROCKET_GAP,
-  camSprocket, chainCoverBolts, chainOutline, chainPath, chainPins, chainTensioner, tensionerLayout, toothPhase,
+  CAM_END_X, CAM_NOSE, CAM_SPROCKET_R, CAM_T, CHAIN_LID, CHAIN_Z, HOUSING_Z1, PITCH, SPROCKET_GAP,
+  camSprocket, chainCaseFace, chainCoverBolts, chainOutline, chainPath, chainPins, chainTensioner, tensionerLayout, timingChain, toothPhase,
 } from '../src/geo/core';
 import { DIM, fastenerGroup, fastenerSets, springT } from '../src/geo/fasteners';
 import { frame } from '../src/geo/instancing';
@@ -150,13 +150,6 @@ describe('cam-sprocket chain wrap', () => {
     });
     expect(wrap.length).toBeGreaterThan(8);
     for (const q of wrap) expect(Math.abs(Math.hypot(q.x - CAM_X * s, q.y) - CAM_SPROCKET_R)).toBeLessThan(0.3);
-    // Chords stay on the pitch. The short idler run is the longest miss, still under half a millimetre.
-    let worst = 0;
-    for (let i = 0; i < pins.length; i++) {
-      const a = pins[i], b = pins[(i + 1) % pins.length];
-      worst = Math.max(worst, Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - PITCH));
-    }
-    expect(worst).toBeLessThan(0.5);
     // Gap centres of sprocketRingShape, using the same phase the sprocket is built with.
     const phase = toothPhase(s, CAM_X * s, 0, CAM_SPROCKET_R, CAM_T);
     const step = (Math.PI * 2) / CAM_T;
@@ -171,6 +164,41 @@ describe('cam-sprocket chain wrap', () => {
       }
       expect(best * CAM_SPROCKET_R).toBeLessThan(0.15);
     }
+  });
+
+  it.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('roller spacing is the pitch all the way around and plates stay in the chain plane, %s', (s) => {
+    const { pins } = chainPins(s);
+    let worst = 0, turn = 0;
+    for (let i = 0; i < pins.length; i++) {
+      const a = pins[i], b = pins[(i + 1) % pins.length], c = pins[(i + 2) % pins.length];
+      worst = Math.max(worst, Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - PITCH));
+      let d = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x);
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      turn = Math.max(turn, Math.abs(d));
+    }
+    expect(worst, 'roller spacing').toBeLessThan(0.2);
+    // One tooth on the 19 T idler is about 19°. A flipped link would jump by about 180°.
+    expect(turn, 'link direction').toBeLessThan((35 * Math.PI) / 180);
+    const chain = timingChain(s);
+    chain.updateMatrixWorld(true);
+    let plates = 0;
+    const v = new THREE.Vector3();
+    chain.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const P = mesh.geometry.attributes.position;
+      let z0 = Infinity, z1 = -Infinity;
+      for (let i = 0; i < P.count; i++) {
+        v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
+        z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z);
+      }
+      if (z1 - z0 > 2) return;
+      plates++;
+      expect(z1 - z0, 'plate stays parallel to the chain plane').toBeLessThan(1.45);
+      expect(Math.abs((z0 + z1) / 2 - CHAIN_Z[s]), 'plate sits in the chain stack').toBeLessThan(12);
+    });
+    expect(plates).toBeGreaterThan(200);
   });
 });
 
@@ -202,6 +230,19 @@ describe('idler sprocket shaft', () => {
 });
 
 describe('timing cover gasket', () => {
+  it('stays on the flange after the cover comes off and leaves on the next step', () => {
+    expect(stepIndexOf('chain-lid-gasket-right')).toBe(stepIndexOf('chain-tensioner-right'));
+    expect(removedAfter(14).has('chain-housing-lid-right')).toBe(true);
+    expect(removedAfter(14).has('chain-lid-gasket-right')).toBe(false);
+    expect(removedAfter(15).has('chain-lid-gasket-right')).toBe(true);
+  });
+
+  it.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('the case gasket stops where the cam housing closes the box, %s', (s) => {
+    const face = chainCaseFace(s);
+    expect(face.length).toBeGreaterThan(4);
+    for (const [x] of face) expect(x * s).toBeLessThanOrEqual(CAM_END_X + 0.05);
+  });
+
   it.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('sits on the flange, under the cover, holes on the studs, %s', (s) => {
     const m = frame(V(0, 0, HOUSING_Z1), V(0, 0, 1), V(1, 0, 0));
     const geom = bake(chainLidGasket(s).g, m);

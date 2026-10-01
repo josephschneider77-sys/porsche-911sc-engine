@@ -21,7 +21,7 @@ const DEF: Record<MatKey, { color: number; metalness: number; roughness: number 
   blackPlastic: { color: 0x151515, metalness: 0.0, roughness: 0.55 },
   satinBlack: { color: 0x1b1c1e, metalness: 0.35, roughness: 0.48 },
   rubber: { color: 0x0e0e0e, metalness: 0.0, roughness: 0.85 },
-  gasket: { color: 0x5a4a3a, metalness: 0.0, roughness: 0.9 },
+  gasket: { color: 0x3a2a1c, metalness: 0.0, roughness: 0.92 },
   ceramic: { color: 0xeeeae0, metalness: 0.0, roughness: 0.3 },
   brass: { color: 0xc9a54a, metalness: 1.0, roughness: 0.35 },
   heatSteel: { color: 0x5b5752, metalness: 0.75, roughness: 0.58 },

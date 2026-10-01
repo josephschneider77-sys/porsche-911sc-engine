@@ -13,6 +13,19 @@ export function parseVec3(raw: string | null | undefined): [number, number, numb
  * whatever pose the teardown step, explode slider or part focus would have framed.
  * An absent or invalid cam leaves the step pose untouched.
  */
+/**
+ * Named camera. `cover-gasket` is teardown step 14 (covers off) framed on the right
+ * timing-cover gasket, still seated on the chain-housing flange.
+ */
+export const VIEW_PRESETS: Record<string, { step: number } & CamPose> = {
+  'cover-gasket': { step: 14, pos: [455, 70, 500], target: [290, -15, 278] },
+};
+
+export function viewFromQuery(name: string | null | undefined): ({ step: number } & CamPose) | null {
+  if (!name) return null;
+  return VIEW_PRESETS[name] ?? null;
+}
+
 export function cameraFromQuery(query: { cam?: string | null; target?: string | null }, stepPose: CamPose): CamPose {
   const cam = parseVec3(query.cam);
   if (!cam) return stepPose;
