@@ -30,8 +30,9 @@ export const TEARDOWN: TeardownStep[] = [
   { id: 'camshafts', title: 'Camshafts', note: 'Slide out toward the chain end without scoring the housing.', parts: both('camshaft') },
   { id: 'chain-housings', title: 'Chain housings', note: 'Now the chain cases can be unbolted.', parts: both('chain-housing') },
   { id: 'cam-housings', title: 'Cam housings (with heads on the bench)', note: 'Remove the 12 head-stud nuts per bank; lift cam housing + 3 heads off as one unit.', parts: both('cam-housing') },
+  // Valves before heads: the viewer keeps the heads in place, so pulling the heads first would leave the valve sets floating.
+  { id: 'valves', title: 'Valves & springs', note: 'Shown in situ (done on the bench): spring compressor; keep valves in order.', parts: cyl('valves') },
   { id: 'heads', title: 'Cylinder heads', note: 'Separate the heads from the cam housing on the bench.', parts: cyl('head') },
-  { id: 'valves', title: 'Valves & springs', note: 'Spring compressor; keep valves in order.', parts: cyl('valves') },
   { id: 'cylinders', title: 'Cylinders', note: 'Rock each off the studs; keep matched to its piston.', parts: cyl('cylinder') },
   { id: 'pistons', title: 'Pistons', note: 'Circlips out, push pins; mark cylinder number and direction.', parts: cyl('piston') },
   { id: 'externals', title: 'Breather, oil thermostat & sump plate', note: 'Last external items before splitting the case.', parts: ['breather-lid', 'oil-thermostat', 'sump-plate'] },
