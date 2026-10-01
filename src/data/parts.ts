@@ -1,5 +1,6 @@
 import { SystemKey } from './catalog';
-import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ, SPARK_Z } from './layout';
+import * as THREE from 'three';
+import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ, SPARK_Z, SPARK_TIP, SPARK_ROLL, sparkDirHead } from './layout';
 import { FASTENER_SPECS } from './fastenerSpec';
 import { SMALL_SPECS, smallRef } from './smallSpec';
 
@@ -76,10 +77,17 @@ function perCylinder(): PartDef[] {
       description: 'Intake (Ø49 mm) and exhaust (Ø41.5 mm) valves with a directional outer spring, inner spring, stepped retainer and two three-bead keeper halves. The stem seal and keepers are the existing catalogue parts, reshaped. Clearance is the 0.10 mm gap at the rocker screw, cold. The mesh is built at the assembled crank, so a cylinder on overlap is off its seat.',
       specs: { 'Valve clearance': '0.10 mm cold', Springs: 'Dual, outer damper coils at the head', 'Stem Ø': '9 mm', 'Installed height': '34.5 mm (Bentley SC, not Dempsey)', 'Keeper grooves': '3' },
     });
-    const zRot: Vec3 = s === 1 ? [0, 0, -20 * (R / 180)] : [0, R, -20 * (R / 180)];
+    // Tip in the chamber. Left bank mirrors the head, so the outward axis flips X and Z.
+    const [dx, dy, dz] = sparkDirHead();
+    const axis = new THREE.Vector3(s * dx, dy, s * dz);
+    const qPlug = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), axis);
+    // Local +Y spin, applied before the axis alignment, turns a hex flat toward the barrel.
+    qPlug.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), SPARK_ROLL));
+    const euler = new THREE.Euler().setFromQuaternion(qPlug, 'XYZ');
+    const zRot: Vec3 = [euler.x, euler.y, euler.z];
     out.push({
       id: `spark-plug-${c}`, name: `Spark plug, cyl. ${c}`, system: 'ignition', asset: 'spark-plug',
-      position: [(CYL_TOP_X + 16) * s, -44, z + SPARK_Z * s], rotation: zRot, explode: [s * 380, -220, 0],
+      position: [(CYL_TOP_X + SPARK_TIP.x) * s, SPARK_TIP.y, z + SPARK_Z * s], rotation: zRot, explode: [s * 380, -220, 0],
       catalog: [{ ill: '901-00', pos: '16', pn: '999 170 162 90', qty: 6 }, { ill: '901-00', pos: '21', pn: '911 602 315 00', note: 'Plug connector' }],
       description: 'Spark plug with shielded connector, fitted from below on the exhaust side of each head.',
       specs: { Thread: 'M14 x 1.25', Gap: '0.7 mm (typ.)' },

@@ -55,8 +55,28 @@ export function pinX(cyl: number, crankDeg = 0): { pinX: number; throwXY: [numbe
   return { pinX: px, throwXY: [tx, ty], rodAngle };
 }
 
-/** Spark-plug boss offset along the cylinder row from the bore axis (head-local z), clear of the lower head stud. */
-export const SPARK_Z = 22;
+/**
+ * Spark plug, head-local. One M14 plug per cylinder, exhaust side.
+ *
+ * The electrode tip is just inside the chamber, low on the exhaust side. A full-diameter
+ * face on the line from (5, −10, 24) at +17° cuts the exhaust valve, and the same face
+ * further down the bore cuts the piston crown. This axis (14° lean, 10° toward +Z,
+ * tip at (2, −34, 18)) keeps the nose off the barrel's top corner and the crown, and
+ * the boot off the header. The hex sits out along the same axis, below the fins.
+ */
+export const SPARK_TIP = { x: 2, y: -34 };
+export const SPARK_Z = 18;
+/** Radians. Lean about +Z from straight down (−Y), outboard as the plug leaves the chamber. */
+export const SPARK_TILT = 14 * Math.PI / 180;
+/** Radians. Swing about +X applied after the tilt. Negative moves the boot toward +Z. */
+export const SPARK_PITCH = -10 * Math.PI / 180;
+/** Radians. Spin about the plug axis so a hex flat faces the barrel fins. */
+export const SPARK_ROLL = 1 * Math.PI / 180;
+/** Unit axis in the head frame, from the electrode tip toward the boot. */
+export function sparkDirHead(): [number, number, number] {
+  const c = Math.cos(SPARK_TILT);
+  return [Math.sin(SPARK_TILT), -c * Math.cos(SPARK_PITCH), -c * Math.sin(SPARK_PITCH)];
+}
 export const INTAKE_PORT = { x: CYL_TOP_X + 26, y: 65 }; // runner flange seats on the head intake flange (top y 65)
 /** Injector seat in the intake runner (runner-local, right bank) and its axis. */
 export const INJ = { dx: 8, dy: 50, ux: 0.84, uy: 0.54 };

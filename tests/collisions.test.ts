@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { MeshBVH } from 'three-mesh-bvh';
 import { findCollisions, isMating, clearance } from './collide';
 import { rayHit } from './hw';
 import { OIL_COOLER } from '../src/geo/aux';
+import { cylinder, conrod } from '../src/geo/core';
+import { bankOf, CYL_Z, DECK_X, pinX } from '../src/data/layout';
 
 const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|timing-chain|cam-sprocket)-(left|right)$/;
 const EXHAUST = /^(heat-exchanger-(left|right)|muffler)$/;
@@ -39,5 +42,101 @@ describe('assembled-pose interference', () => {
       expect(hit!.normal.y, `seat normal (${x}, ${z})`).toBeGreaterThan(0.99);
     }
     expect(clearance('oil-cooler', 'crankcase-left')).toBeLessThan(0.6);
+  });
+});
+
+describe('conrod swing versus the cylinder skirt', () => {
+  // Same predicate as findCollisions, at crank angles the assembled pose does not sample.
+  // Explode fractions follow the viewer (EXPLODE_SCALE 0.85): the barrel slides out along its
+  // axis faster than the rod, so the assembled pose is the tight one.
+  const EXPLODE_SCALE = 0.85;
+  function bake(root: THREE.Object3D) {
+    root.updateMatrixWorld(true);
+    const out: number[] = [];
+    const v = new THREE.Vector3();
+    root.traverse((o: any) => {
+      if (!o.isMesh) return;
+      const g: THREE.BufferGeometry = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      const P = g.attributes.position;
+      for (let i = 0; i < P.count; i++) {
+        v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld);
+        out.push(v.x, v.y, v.z);
+      }
+    });
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+    const bvh = new MeshBVH(geom);
+    geom.boundsTree = bvh as any;
+    return geom;
+  }
+  const cylG = bake(cylinder());
+  const rodG = bake(conrod());
+  const cylBVH = cylG.boundsTree as MeshBVH;
+
+  /** Rod `rodCyl` placed at `crank` degrees, expressed in the local frame of cylinder `barrelCyl`. */
+  function rodToBarrel(rodCyl: number, barrelCyl: number, crank: number, explode: number) {
+    const s = bankOf(rodCyl);
+    const { throwXY, rodAngle } = pinX(rodCyl, crank);
+    const rodM = new THREE.Matrix4().compose(
+      new THREE.Vector3(throwXY[0] + s * 70 * explode * EXPLODE_SCALE, throwXY[1], CYL_Z[rodCyl]),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, rodAngle)),
+      new THREE.Vector3(1, 1, 1),
+    );
+    const bs = bankOf(barrelCyl);
+    const cylM = new THREE.Matrix4().compose(
+      new THREE.Vector3(DECK_X * bs + bs * 290 * explode * EXPLODE_SCALE, 0, CYL_Z[barrelCyl]),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, bs === 1 ? 0 : Math.PI, 0)),
+      new THREE.Vector3(1, 1, 1),
+    );
+    return cylM.invert().multiply(rodM);
+  }
+
+  function poseRod(m: THREE.Matrix4) {
+    const src = rodG.attributes.position;
+    const arr = new Float32Array(src.count * 3);
+    const v = new THREE.Vector3();
+    let min = Infinity;
+    const target: { distance: number } = { distance: Infinity };
+    for (let i = 0; i < src.count; i++) {
+      v.fromBufferAttribute(src, i).applyMatrix4(m);
+      arr[i * 3] = v.x; arr[i * 3 + 1] = v.y; arr[i * 3 + 2] = v.z;
+      cylBVH.closestPointToPoint(v, target as any);
+      if (target.distance < min) min = target.distance;
+    }
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    const bvh = new MeshBVH(geom);
+    geom.boundsTree = bvh as any;
+    let tris = 0;
+    const seg = new THREE.Line3();
+    cylBVH.bvhcast(bvh, new THREE.Matrix4(), {
+      intersectsTriangles(t1: any, t2: any) {
+        if (!t1.intersectsTriangle(t2, seg)) return false;
+        tris++;
+        return true;
+      },
+    } as any);
+    return { min, tris };
+  }
+
+  it('keeps at least 1 mm to its own barrel and the opposite-bank neighbour through a full turn', () => {
+    let own = Infinity, opp = Infinity;
+    for (const explode of [0, 0.5]) {
+      for (let crank = 0; crank < 360; crank += 15) {
+        for (const cyl of [1, 4] as const) {
+          const a = poseRod(rodToBarrel(cyl, cyl, crank, explode));
+          expect(a.tris, `cyl ${cyl} crank ${crank} explode ${explode}`).toBe(0);
+          own = Math.min(own, a.min);
+          const other = cyl === 1 ? 4 : 1;
+          const b = poseRod(rodToBarrel(cyl, other, crank, explode));
+          expect(b.tris, `rod ${cyl} vs cyl ${other} crank ${crank} explode ${explode}`).toBe(0);
+          opp = Math.min(opp, b.min);
+        }
+      }
+    }
+    // Envelope plus the measured gap. Own-barrel minimum is the spigot corner; the opposite-bank
+    // minimum is the neighbouring fin, still clear of a rod notch.
+    expect(own).toBeGreaterThanOrEqual(1);
+    expect(opp).toBeGreaterThanOrEqual(1);
   });
 });

@@ -82,6 +82,8 @@ const id = (base: string) => new RegExp(`^(${base})(-[1-6]|-left|-right)?$`);
 const pair = (a: string, b: string, why: string): [RegExp, RegExp, string] => [id(a), id(b), why];
 const sameSide = (a: string, b: string, why: string): [RegExp, RegExp, string][] =>
   ['right', 'left'].map((sd) => [new RegExp(`^(${a})-${sd}$`), new RegExp(`^(${b})-${sd}$`), why] as [RegExp, RegExp, string]);
+const sameCyl = (a: string, b: string, why: string): [RegExp, RegExp, string][] =>
+  [1, 2, 3, 4, 5, 6].map((n) => [new RegExp(`^${a}-${n}$`), new RegExp(`^${b}-${n}$`), why] as [RegExp, RegExp, string]);
 
 /**
  * Allowlist of pairs whose interpenetration (beyond the erosion tolerance) is expected. Everything else fails the
@@ -102,9 +104,15 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('flywheel', 'clutch-disc|pressure-plate', 'JOINT clutch stack'), pair('clutch-disc', 'pressure-plate', 'JOINT clutch stack'),
   // ---- JOINT: top end
   pair('cylinder', 'head', 'JOINT cylinder/head sealing joint'),
+<<<<<<< HEAD
   pair('head', 'valves|spark-plug', 'JOINT guides/seats, plug thread'),
   pair('cam-housing', 'head|camshaft|rockers|valves|valve-cover-upper|valve-cover-lower', 'JOINT cam housing on heads, bearings, rocker shafts, cover flanges'),
   pair('camshaft', 'rockers', 'JOINT lobes on rocker pads'), pair('rockers', 'valves', 'JOINT rocker tips on stems'),
+=======
+  pair('head', 'intake-runner', 'JOINT intake-port flange'),
+  ...sameCyl('head', 'spark-plug', 'JOINT M14 thread in the plug boss and the crush washer seated on the boss face'),
+  pair('cam-housing', 'head|rockers|valve-cover-upper|valve-cover-lower', 'JOINT cam housing on the heads, rocker shafts in the towers, cover flanges'),
+>>>>>>> ec109b0 (Clear the top end, seat the spark plugs, and drop the rod-skirt shortcut.)
   // ---- JOINT: cam drive (same bank only)
   ...sameSide('cam-housing', 'chain-housing', 'JOINT cam-housing end face gasketed into the chain box'),
   ...sameSide('camshaft', 'cam-sprocket', 'JOINT sprocket on cam nose'),
@@ -127,17 +135,9 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('ignition-leads', 'distributor|spark-plug', 'JOINT leads in the cap towers / plug connectors'),
   // ---- SIMPLIFIED (pre-v3, not cam drive / exhaust)
   pair('crankcase-right|crankcase-left', 'conrod|piston|head|flywheel|pressure-plate', 'SIMPLIFIED case interior / head studs / rear seal boss not relieved'),
-  pair('conrod', 'cylinder', 'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)'),
-  pair('piston', 'head|valves', 'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut'),
-  pair('cylinder', 'valves', 'SIMPLIFIED valve heads at the barrel top'),
-  pair('valve-cover-upper|valve-cover-lower', 'rockers|valves', 'SIMPLIFIED hollow covers (v5): rocker-arm tips / valve-spring retainers cross the seat line at the long edges (modelled rocker gear ~5 mm wider than the cover seat)'),
-  pair('cam-housing-plug', 'cam-splash-tube', 'JOINT gallery screw plug shank reaches the splash-tube bore it closes (E position)'),
   pair('cam-key', 'cam-shim', 'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)'),
-  pair('valve-cover-upper|valve-cover-lower', 'rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED a few rocker-shaft screw/nut heads tuck under the inner edge of an ear boss (bosses kept full so the cover-nut seats stay solid)'),
   pair('crankcase-left', 'oil-pump-nuts', 'SIMPLIFIED one pump-cover nut corner grazes the hollow-case inner wall (PR #8 casting, 2 triangles)'),
-  pair('valve-cover-gasket-upper|valve-cover-gasket-lower', 'rockers|valves', 'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)'),
   pair('ignition-leads', '.*', 'SIMPLIFIED flexible ignition leads drawn on an approximate path (they drape over other parts)'),
-  pair('rockers', 'valve-cover-nuts-upper|valve-cover-nuts-lower', 'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear'),
  
 ];
 /**

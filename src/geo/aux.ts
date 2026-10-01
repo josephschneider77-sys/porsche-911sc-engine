@@ -993,9 +993,13 @@ export function ignitionLeads() {
 export function sparkPlug() {
   const p = new Part();
   // local: tip at origin, terminal along -Y (hangs below the head)
-  p.add(lathe([[0.1, 0], [7, 0], [7, -18]], 16), 'steel');
-  p.add(hexNut(20.8, 10).translate(0, -23, 0), 'steel');
-  p.add(lathe([[0.1, -28], [9, -28], [6, -36], [5.5, -58], [3, -60], [3, -66], [0.1, -66]], 20), 'ceramic');
+  // Centre electrode in the chamber. The M14 shell and its hex sit further out,
+  // below the barrel fins: a hex in the usual place crosses the fin tips.
+  p.add(lathe([[0.15, 0], [1.35, 0], [1.35, -8], [4, -14], [7, -18], [7, -30]], 16), 'steel');
+  // Crush washer. The face at local y = -30 seats on the boss.
+  p.add(lathe([[7.3, -31.1], [11.2, -31.1], [11.2, -30], [7.3, -30]], 24), 'copper');
+  p.add(hexNut(20.8, 10).translate(0, -35, 0), 'steel');
+  p.add(lathe([[0.1, -40], [8, -40], [6, -48], [5.5, -58], [3, -60], [3, -66], [0.1, -66]], 20), 'ceramic');
   // plug connector (#21)
   p.add(lathe([[0.1, -52], [11, -52], [11, -80], [6, -92], [0.1, -92]], 16), 'rubber');
   return p.g;

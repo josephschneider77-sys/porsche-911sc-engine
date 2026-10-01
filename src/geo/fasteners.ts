@@ -13,7 +13,7 @@ import { HEAD_HW, CASE_TB, CASE_LUG } from './hwLayout';
 export { HEAD_HW, CASE_TB, CASE_LUG };
 import { seat, probe } from './probe';
 import { adjusterCover } from './smallParts';
-import { END_PAD, railBolts, tensionerLayout, coverMatrix, VC_EARS, VC_EDGE, chainCoverBolts, chainHousingStuds, HOUSING_Z1, HOUSING_Z0, CHAIN_LID, CHAIN_Z, CAM_NOSE } from './core';
+import { END_PAD, railBolts, tensionerLayout, coverMatrix, coverEdgeX, VC_EARS, chainCoverBolts, chainHousingStuds, HOUSING_Z1, HOUSING_Z0, CHAIN_LID, CHAIN_Z, CAM_NOSE } from './core';
 import { rockerStations, SHAFT } from './valvetrain';
 import { chainEndStations, chainLidStations, VC_SPECIAL, shroudScrews } from './stations';
 import { EXH_PORT, FAN, FLY_Z, SUMP, THERMO, BREATHER, OIL_PUMP, OIL_COOLER, DIST, AIRBOX_STRUTS, WUR } from './aux';
@@ -64,8 +64,8 @@ export function fastenerSets(): FSet[] {
     for (const upper of [true, false]) {
       const m = coverMatrix(s, upper), nm = new THREE.Matrix3().getNormalMatrix(m), u = upper ? 'upper' : 'lower';
       const items: FItem[] = [];
-      VC_EARS(upper).forEach((yy, i) => { for (const xx of [-VC_EDGE, VC_EDGE]) if (upper || xx < 0 || !VC_SPECIAL.includes(i))
-        items.push({ p: V(xx, yy, 7).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-${u}-${b}`, into: `cam-housing-${b}`, stud: true }); });
+      VC_EARS(upper).forEach((yy, i) => { for (const side of [1, -1] as const) if (upper || side < 0 || !VC_SPECIAL.includes(i))
+        items.push({ p: V(coverEdgeX(s, upper, side), yy, 7).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-${u}-${b}`, into: `cam-housing-${b}`, stud: true }); });
       set(`valve-cover-nuts-${u}-${b}`, 'nut', 8, { washer: DIM[8].wr, grip: 7, embed: 10 }, items);
     }
     // chain-housing cover
@@ -127,7 +127,7 @@ export function fastenerSets(): FSet[] {
     set(`chain-end-nuts-${b}`, 'nut', 8, { washer: 7, spring: true, grip: END_PAD.z1 - END_PAD.z0, embed: 12 }, chainEndStations(s).map((q) => ({ p: q, n: V(0, 0, 1), seat: `chain-housing-${b}`, into: `cam-housing-${b}`, stud: true })));
     // valve-cover special nuts (103-05 #24): stud-nuts on 3 outboard lower-cover ears per bank
     const m = coverMatrix(s, false), nm = new THREE.Matrix3().getNormalMatrix(m);
-    set(`valve-cover-special-${b}`, 'cap', 8, { washer: DIM[8].wr, len: 14, mat: 'darkSteel' }, VC_SPECIAL.map((i) => ({ p: V(VC_EDGE, VC_EARS(false)[i], 7).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-lower-${b}`, into: `cam-housing-${b}` })));
+    set(`valve-cover-special-${b}`, 'cap', 8, { washer: DIM[8].wr, len: 14, mat: 'darkSteel' }, VC_SPECIAL.map((i) => ({ p: V(coverEdgeX(s, false, 1), VC_EARS(false)[i], 7).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-lower-${b}`, into: `cam-housing-${b}` })));
   }
   // chain-housing lid nuts (103-05 '-' 3 nuts + spring washers): long studs from the box back wall through the lid
   for (const s of sides) set(`chain-lid-nuts-${bname(s)}`, 'nut', 8, { spring: true, grip: CHAIN_LID.top - HOUSING_Z0, embed: 0 }, chainLidStations(s).map((q) => ({ p: V(q.x, q.y, CHAIN_LID.top), n: V(0, 0, 1), seat: `chain-housing-lid-${bname(s)}`, into: `chain-housing-${bname(s)}`, stud: true })));

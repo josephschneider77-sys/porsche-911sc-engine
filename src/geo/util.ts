@@ -446,7 +446,7 @@ export function cutGroup(root: THREE.Object3D, ...cutters: THREE.BufferGeometry[
     const g: THREE.BufferGeometry = o.geometry.clone().applyMatrix4(o.matrixWorld); g.computeBoundingBox();
     const hit = cutters.filter((_, i) => boxes[i].intersectsBox(g.boundingBox!));
     if (!hit.length) return;
-    o.geometry = csgSub(g, ...hit); o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); o.updateMatrix();
+    o.geometry = dropDegenerate(csgSub(g, ...hit)); o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); o.updateMatrix();
   });
   return root;
 }
@@ -515,6 +515,32 @@ export function gusset(a: [number, number], b: [number, number], c: [number, num
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 const csgEval = new Evaluator(); csgEval.attributes = ['position', 'normal'];
 /** base minus cutters (geometries already in the same frame). Returns position/normal geometry. */
+/** Drop zero-area triangles. Boolean meshes leave slivers that the collision test treats as hits. */
+export function dropDegenerate(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  const geo = g.index ? g.toNonIndexed() : g;
+  const pos = geo.attributes.position;
+  const keep: number[] = [];
+  let dropped = 0;
+  for (let i = 0; i < pos.count; i += 3) {
+    const ax = pos.getX(i), ay = pos.getY(i), az = pos.getZ(i);
+    const bx = pos.getX(i + 1), by = pos.getY(i + 1), bz = pos.getZ(i + 1);
+    const cx = pos.getX(i + 2), cy = pos.getY(i + 2), cz = pos.getZ(i + 2);
+    const abx = bx - ax, aby = by - ay, abz = bz - az;
+    const acx = cx - ax, acy = cy - ay, acz = cz - az;
+    const bcx = cx - bx, bcy = cy - by, bcz = cz - bz;
+    const nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx;
+    const area2 = nx * nx + ny * ny + nz * nz;
+    const edge2 = Math.max(abx * abx + aby * aby + abz * abz, acx * acx + acy * acy + acz * acz, bcx * bcx + bcy * bcy + bcz * bcz);
+    // Altitude under 0.05 mm: a sliver the collision BVH reports as a solid hit.
+    if (area2 < 1e-6 || area2 < edge2 * 0.05 * 0.05) { dropped++; continue; }
+    keep.push(ax, ay, az, bx, by, bz, cx, cy, cz);
+  }
+  if (!dropped) return g;
+  const ng = new THREE.BufferGeometry();
+  ng.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
+  ng.computeVertexNormals();
+  return ng;
+}
 export function csgSub(base: THREE.BufferGeometry, ...cutters: THREE.BufferGeometry[]): THREE.BufferGeometry {
   const clean = (g: THREE.BufferGeometry) => { let q = g.index ? g.toNonIndexed() : g.clone(); for (const k of Object.keys(q.attributes)) if (k !== 'position' && k !== 'normal') q.deleteAttribute(k); if (!q.attributes.normal) q.computeVertexNormals(); return q; };
   let b = new Brush(clean(base)); b.updateMatrixWorld();

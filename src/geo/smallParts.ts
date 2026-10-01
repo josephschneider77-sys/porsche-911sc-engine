@@ -4,12 +4,17 @@
  * gives one world matrix per piece. Counts/steps/claims live in data/smallSpec.ts; tests/smallParts check both agree.
  */
 import * as THREE from 'three';
-import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, woodruffGeom, spring, yToZ, cylBetween, csgSub, type V3 } from './util';
+import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, woodruffGeom, spring, yToZ, cylBetween, csgSub, dropDegenerate, type V3 } from './util';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
+<<<<<<< HEAD
 import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
+=======
+import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, coverMatrix, coverOutline, coverCamSign, VC_CAM_HALF, VC_HEAD_HALF, VC_SEAT_CAM, VC_SEAT_HEAD, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
+import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INTAKE_PORT, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
+>>>>>>> ec109b0 (Clear the top end, seat the spark plugs, and drop the rod-skirt shortcut.)
 import { LIP_Z, chainLidStations } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD } from './aux';
 import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX } from './induction';
@@ -139,21 +144,23 @@ for (const s of BANKS) {
   def(`chain-case-plug-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [7.5, 0], [7.5, 0.6], [6, 1.6], [0.1, 1.6]], 24), 'steel'); return p; }, () => [onSurf(`chain-housing-${b}`, V(s * 230, 120, HOUSING_Z0 + 30), V(0, -1, 0))]);
   // cam housing: valve-cover gaskets (#18 upper, #20 lower), end lid (#16), splash tube, stoppers, banjo feed, temp switch
   for (const up of [true, false]) {
-    const L = CH_Z1 - CH_Z0 - 8, w = 58;
+    const L = CH_Z1 - CH_Z0 - 8;
     def(`valve-cover-gasket-${up ? 'upper' : 'lower'}-${b}`, () => {
       const e = VC_EXT(s);
-      const sh = roundRect(w, L + e, 7);
-      sh.holes.push(new THREE.Path(roundRect(52, L - 14 + e, 4).getPoints(6)));
+      const sh = coverOutline(s, up, VC_CAM_HALF, VC_HEAD_HALF, L + e, 7);
+      sh.holes.push(new THREE.Path(coverOutline(s, up, VC_SEAT_CAM, VC_SEAT_HEAD, L - 14 + e, 4).getPoints(8)));
       let g: THREE.BufferGeometry = extrudeC(sh, 0.8);
       g.translate(0, -e / 2, -0.4);
-      // Left bank only: cylinder 6's rocker shafts sit so close to the flywheel end that the
-      // screw shank and the intake nut land on the end rail. Open the middle of that rail
-      // (the hardware is already inside the cavity in x) and leave the two corner seals.
-      if (s < 0) {
-        const yOut = -(L + e) / 2 - 1 - e / 2;
-        const yIn = -(L - 14 + e) / 2 + 2 - e / 2;
-        g = csgSub(g, boxMM([-27, yOut, -2], [27, yIn, 2]));
-      }
+      // End rocker bosses (cylinder 6 on the left, and the shaft nuts) sit on the end rails.
+      // Open the middle of each end rail and leave the corner seals.
+      const cam = coverCamSign(s, up);
+      const xLo = Math.min(cam * (VC_SEAT_CAM - 1), -cam * (VC_SEAT_HEAD - 1));
+      const xHi = Math.max(cam * (VC_SEAT_CAM - 1), -cam * (VC_SEAT_HEAD - 1));
+      const yHalf = (L + e) / 2;
+      g = dropDegenerate(csgSub(g,
+        boxMM([xLo, yHalf - 24, -2], [xHi, yHalf + 4, 2]),
+        boxMM([xLo, -yHalf - 4, -2], [xHi, -yHalf + 24, 2]),
+      ));
       return new Part().add(g, 'gasket');
     }, () => [coverMatrix(s, up).clone()]);
   }
