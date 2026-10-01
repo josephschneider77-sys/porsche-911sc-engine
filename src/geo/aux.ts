@@ -162,8 +162,9 @@ export function upperAirGuide() {
   fp.holes.pop();
   const hole = new THREE.Path(); hole.moveTo(-105, 60); hole.lineTo(105, 60); hole.lineTo(105, 120); hole.lineTo(-105, 120); hole.closePath(); fp.holes.push(hole);
   p.add(extrude(fp, t), 'satinBlack', [0, 0, zA - t]);
-  // rear collar cradling the fan housing (partial ring)
-  const collar = yToZ(new THREE.CylinderGeometry(141, 141, 26, 48, 1, true, Math.PI * 0.62, Math.PI * 0.76));
+  // rear collar cradling the fan housing (partial ring under the fan axis).
+  // CylinderGeometry puts theta=0 at +Z; after yToZ that maps to -Y, so centre the arc on theta=0 to sit below the housing.
+  const collar = yToZ(new THREE.CylinderGeometry(141, 141, 26, 48, 1, true, -Math.PI * 0.38, Math.PI * 0.76));
   p.add(collar, 'satinBlack', [0, FAN.y, zB - 6]);
   // hot air outlet socket (#4) at the flywheel end, left
   p.add(yToZ(lathe([[30, 0], [34, 0], [34, 40], [30, 40]], 32)), 'satinBlack', [-160, 118, zA - 40]);
