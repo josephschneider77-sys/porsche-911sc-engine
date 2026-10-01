@@ -116,31 +116,33 @@ export function crankPulley() {
   // pitch is FAN.rCrankPulley − 5 = 60, in the valley at z FAN.zBelt. Hub recess still
   // presents a washer face at z 324 for the pulley bolt.
   const p = new Part();
+  // Groove is wide enough for the 9.5 mm belt (mesh spans about z 298–308, r 55–65).
   const prof: [number, number][] = [
-    [6.6, 294],
-    [52, 294],
-    [67, 297.2],
-    [67, 300.4],
-    [53, 303],
-    [67, 305.6],
-    [67, 309.2],
-    [58, 312.4],
-    [58, 314.2],
-    [48, 317],
-    [48, 318.6],
-    [38, 321.2],
-    [38, 322.6],
-    [28, 325.4],
-    [22, 328.2],
+    [6.6, 290],
+    [46, 290],
+    [67, 294],
+    [67, 296],
+    [54, 300],
+    [54, 306],
+    [67, 310],
+    [67, 312],
+    [58, 315],
+    [58, 316.6],
+    [48, 319.2],
+    [48, 320.6],
+    [38, 323],
+    [38, 324.4],
+    [28, 327],
+    [22, 329.4],
     [17.6, 331],
     [17.6, 322.2],
     [6.6, 322.2],
   ];
   const body = yToZ(lathe(prof, 72));
-  const notch = boxMM([-1.2, 64, 296], [1.2, 70, 310]);
+  const notch = boxMM([-1.2, 64, 294], [1.2, 70, 312]);
   p.add(csgSub(body, notch), 'yellowZinc');
   // concentric pressed rings on the dish (the lathe steps, plus a bright bead on each)
-  for (const [r, z] of [[58, 313.2], [48, 317.8], [38, 321.9]] as [number, number][]) {
+  for (const [r, z] of [[58, 315.8], [48, 319.8], [38, 323.6]] as [number, number][]) {
     p.add(yToZ(lathe([[r - 1.3, -0.45], [r + 0.4, -0.15], [r + 0.4, 0.35], [r - 1.3, 0.55]], 64)), 'yellowZinc', [0, 0, z]);
   }
   // recessed hub: washer face exactly at z 324, normal +Z, bore for the M12 bolt
@@ -371,7 +373,7 @@ export const OIL_PUMP = {
   coverFace: -158,
   studs: [[-14, -96], [-14, -86], [22, -92]] as [number, number][],
   seals: [
-    [-12, -75.6, -148], [18, -75.6, -148],
+    [-12, -80, -148], [18, -80, -148],
     [-16, -98, -157.2], [-8, -88, -157.2], [8, -96, -157.2], [20, -90, -157.2], [2, -104, -157.2],
   ] as [number, number, number][],
 };
@@ -379,17 +381,19 @@ export function oilPump() {
   const p = new Part();
   // Bay between the z −177 web (face −169) and the z −118 web (face −132) is ~37 mm.
   // Long axis is X. Body stays inboard of the left relief plug (x −45, z −160).
-  const z0 = OIL_PUMP.coverFace, z1 = -136, y0 = -104, y1 = -78;
-  p.add(boxMM([-24, y0, z0], [4, y1, z1]), 'castAlu');
-  p.add(boxMM([4, y0 + 1, z0 + 1], [36, y1 - 1, z1 - 1]), 'castAlu');
-  p.add(boxMM([2, y0 - 1, z0], [8, y1 + 1, z1]), 'machinedAlu');
-  for (const z of [-154, -149, -144, -139]) p.add(boxMM([8, y1 - 1, z], [32, y1 + 2.6, z + 1.8]), 'castAlu');
+  const z0 = OIL_PUMP.coverFace, z1 = -136;
+  const yc = -91, zc = -147;
+  // Round sections along X: larger scavenge, smaller pressure, a joint band between them.
+  p.add(yToX(cyl(10.5, 28, 28)), 'castAlu', [-10, yc, zc]);
+  p.add(yToX(cyl(8.2, 30, 24)), 'castAlu', [20, yc + 1, zc]);
+  p.add(yToX(cyl(11.2, 6, 24)), 'machinedAlu', [4, yc, zc]);
+  for (const z of [-154, -149.5, -145, -140.5]) p.add(boxMM([10, yc + 6, z], [33, yc + 9.2, z + 1.6]), 'castAlu');
   for (const [x, y] of OIL_PUMP.studs) {
     p.add(boxMM([x - 7, y - 6, z0], [x + 7, y + 6, z0 + 8]), 'castAlu');
     p.add(cyl(3.6, 8, 12).rotateX(Math.PI / 2), 'bore', [x, y, z0 + 4]);
   }
-  p.add(cyl(10, 3.5, 24), 'castAlu', [-12, y1 - 1, -148]);
-  p.add(cyl(10, 3.5, 24), 'castAlu', [18, y1 - 1, -148]);
+  p.add(cyl(9, 4, 20), 'castAlu', [-12, yc + 9, -148]);
+  p.add(cyl(8, 4, 20), 'castAlu', [18, yc + 9, -148]);
   for (const [x, y] of OIL_PUMP.seals.slice(2)) p.add(cyl(7, 2.4, 14).rotateX(Math.PI / 2), 'castAlu', [x, y, z0 + 1.2]);
   for (const [y, z] of [[-90, -152], [-90, -142], [-100, -152], [-100, -142]] as [number, number][]) {
     p.add(yToX(cyl(2.1, 48, 8)), 'steel', [6, y, z]);
