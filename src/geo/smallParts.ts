@@ -8,7 +8,7 @@ import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect,
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
-import { chainCoverBolts, CAM_NOSE, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, chainOutline, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
+import { VC_EXT, chainCoverBolts, CAM_NOSE, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, chainOutline, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INTAKE_PORT, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
 import { LIP_Z } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, PLENUM, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD } from './aux';
@@ -94,7 +94,7 @@ for (const s of BANKS) {
   // cam housing: valve-cover gaskets (#18 upper, #20 lower), end lid (#16), splash tube, stoppers, banjo feed, temp switch
   for (const up of [true, false]) {
     const L = CH_Z1 - CH_Z0 - 8, w = 58;
-    def(`valve-cover-gasket-${up ? 'upper' : 'lower'}-${b}`, () => { const sh = roundRect(w, L, 7); sh.holes.push(new THREE.Path(roundRect(w - 14, L - 14, 4).getPoints(6))); const g = extrudeC(sh, 0.8); g.translate(0, 0, -0.4); return new Part().add(g, 'gasket'); }, () => [coverMatrix(s, up).clone()]);
+    def(`valve-cover-gasket-${up ? 'upper' : 'lower'}-${b}`, () => { const e = VC_EXT(s); const sh = roundRect(w, L + e, 7); sh.holes.push(new THREE.Path(roundRect(52, L - 14 + e, 4).getPoints(6))); const g = extrudeC(sh, 0.8); g.translate(0, -e / 2, -0.4); return new Part().add(g, 'gasket'); }, () => [coverMatrix(s, up).clone()]);
   }
   def(`cam-end-cover-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [27, 0], [27, 1], [25, 3], [0.1, 3]], 36), 'castAlu'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc, 0, CH_Z0 - 60), Z)]);
   def(`cam-splash-tube-${b}`, () => new Part().add(cyl(3.5, CH_Z1 - CH_Z0 - 40, 14).translate(0, (CH_Z1 - CH_Z0 - 40) / 2, 0), 'steel'), () => [M(V((CAM_X + 24) * s, 0, CH_Z0 + 20), Z)]);
@@ -167,7 +167,7 @@ def('distributor-oring', () => oring(21.5, 1.8), () => [M(V(DIST.x, DIST.clampTo
 def('ignition-lead-holders', () => { const p = new Part(); p.add(box(14, 10, 20).translate(0, 5, 0), 'blackPlastic'); return p; }, () => [-1, 1].flatMap((s) => [-60, 60].map((z) => onSurf('upper-air-guide', V(s * 160, 400, z), V(0, -1, 0)))));
 def('shroud-speed-nuts', () => { const p = new Part(); p.add(box(18, 1, 22).translate(0, 0.5, 0), 'darkSteel'); return p; }, () => LIP_Z.right.map((z) => M(V(SHROUD.bx - SHROUD.lipW / 2, SHROUD.skirtY, z), V(0, -1, 0))));
 def('shroud-cover-plate', () => { const p = new Part(); const g = extrudeC(roundRect(60, 40, 5), 1.5); g.rotateX(Math.PI / 2); g.translate(0, 0.75, 0); p.add(g, 'satinBlack'); return p; }, () => [onSurf('upper-air-guide', V(50, 400, -120), V(0, -1, 0))]);
-def('shroud-stopper', () => { const p = new Part(); p.add(lathe([[0.1, -3], [9, -3], [9, 0], [11, 0], [11, 2], [0.1, 2]], 18), 'rubber'); return p; }, () => [onSurf('upper-air-guide', V(-50, 400, -150), V(0, -1, 0))]);
+def('shroud-stopper', () => { const p = new Part(); p.add(lathe([[0.1, -3], [9, -3], [9, 0], [11, 0], [11, 2], [0.1, 2]], 18), 'rubber'); return p; }, () => [onSurf('upper-air-guide', V(-50, 400, -125), V(0, -1, 0))]);
 def('alternator-strap', () => { const p = new Part(); p.add(tube([[0, 0, 0], [0, 0, 20], [0, -30, 50], [0, -60, 60]], 2.5, 8, 24), 'copper'); return p; }, () => [M(V(-70, FAN.y - 40, 300), Y, X)]);
 
 // ===== induction / exhaust composites =====

@@ -134,16 +134,14 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('conrod', 'cylinder', 'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)'),
   pair('piston', 'head|valves', 'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut'),
   pair('cylinder', 'valves', 'SIMPLIFIED valve heads at the barrel top'),
-  pair('valve-cover-upper|valve-cover-lower', 'rockers|valves|camshaft|rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED covers are solid shells (rocker-shaft screw heads inside them)'),
+  pair('valve-cover-upper|valve-cover-lower', 'rockers|valves', 'SIMPLIFIED hollow covers (v5): rocker-arm tips / valve-spring retainers cross the seat line at the long edges (modelled rocker gear ~5 mm wider than the cover seat)'),
   pair('cam-key', 'cam-shim', 'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)'),
-  pair('valve-cover-gasket-upper|valve-cover-gasket-lower', 'rockers|valves|rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED cover seat outline: rocker pivots / valve springs reach the cover flange line'),
+  pair('valve-cover-upper|valve-cover-lower', 'rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED a few rocker-shaft screw/nut heads tuck under the inner edge of an ear boss (bosses kept full so the cover-nut seats stay solid)'),
+  pair('valve-cover-gasket-upper|valve-cover-gasket-lower', 'rockers|valves', 'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)'),
   pair('ignition-leads', '.*', 'SIMPLIFIED flexible ignition leads drawn on an approximate path (they drape over other parts)'),
   pair('rockers', 'valve-cover-nuts-upper|valve-cover-nuts-lower', 'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear'),
-  pair('upper-air-guide', 'cam-housing|cylinder|head|intake-runner|injector|plenum|rockers|valves|valve-cover-upper|distributor|fuel-lines|valve-cover-nuts-upper|intake-nuts|breather-nuts', 'SIMPLIFIED shroud cut-outs not modelled'),
-  pair('fuel-lines', 'case-perimeter-nuts|crankcase-right|crankcase-left', 'SIMPLIFIED injection-line routing over the split-flange lugs is approximate'),
   pair('valves', 'cam-housing-nuts', 'SIMPLIFIED modelled valve springs/retainers sit too high (long tilted valves) and pass the cam-housing nut stations, as they pass the base plate'),
-  pair('oil-cooler', 'distributor|distributor-clamp|intake-runner|upper-air-guide', 'SIMPLIFIED cooler block envelope'),
-  pair('breather-lid', 'distributor|distributor-clamp|distributor-oring|upper-air-guide', 'SIMPLIFIED breather cover envelope overlaps the distributor base'), pair('plenum', 'distributor', 'SIMPLIFIED'),
+ 
 ];
 /**
  * Fastener joints (JOINT, generated): each hardware set may overlap the part it seats on and the part it threads

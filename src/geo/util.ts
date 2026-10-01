@@ -126,6 +126,19 @@ export class Part {
   addObj(o: THREE.Object3D) { this.g.add(o); return this; }
 }
 
+/** Cut every (non-instanced) mesh of a group whose bounds meet a cutter: transforms are baked first. */
+export function cutGroup(root: THREE.Object3D, ...cutters: THREE.BufferGeometry[]) {
+  root.updateMatrixWorld(true);
+  const boxes = cutters.map((c) => { c.computeBoundingBox(); return c.boundingBox!.clone(); });
+  root.traverse((o: any) => {
+    if (!o.isMesh || o.isInstancedMesh) return;
+    const g: THREE.BufferGeometry = o.geometry.clone().applyMatrix4(o.matrixWorld); g.computeBoundingBox();
+    const hit = cutters.filter((_, i) => boxes[i].intersectsBox(g.boundingBox!));
+    if (!hit.length) return;
+    o.geometry = csgSub(g, ...hit); o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); o.updateMatrix();
+  });
+  return root;
+}
 /** Merge all meshes of a group per material into a compact object (no uvs). */
 export function consolidate(root: THREE.Object3D, name: string): THREE.Group {
   root.updateMatrixWorld(true);

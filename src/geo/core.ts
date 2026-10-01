@@ -604,32 +604,41 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
  * FVD genuine 901.105.115.11): flat-topped cast pan with chamfered sides on a thin seat flange, rounded bolt ears
  * (3 upper / 5 lower per edge), two machined round bosses on the upper cover, raised lettering band.
  */
+/** Valve-cover cavity: half-width at the seat (w0 + 8 bevel = 26) and how much the v5 hollow pan top rose (z 13.5 -> 22). */
+export const VC_CAV = { w0: 18 }, VC_RAISE = 8.5;
+/** Extra cover length at the flywheel end (local -y), per bank. */
+export const VC_EXT = (s: 1 | -1) => (s < 0 ? 30 : 0);
 export function valveCover(s: 1 | -1, upper: boolean) {
   const loc = new Part();
   const len = CH_Z1 - CH_Z0 - 8, w = 58;
   const L = CH_Z1 - CH_Z0;
-  // seat flange
-  loc.add(extrude(roundRect(w, len, 7), 3, 0.6, 6), 'castAlu');
-  // chamfered pan body (single-segment bevel = straight draft)
-  const pan = new THREE.ExtrudeGeometry(roundRect(w - 22, len - 22, 6), { depth: 1, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
-  pan.translate(0, 0, 3.5);
-  loc.add(pan, 'castAlu');
-  // ears with nuts and washers (both long edges)
+  // hollow cast pan (v5): drafted outer shell 2.5-3 mm thick over a matching cavity that clears the rocker gear,
+  // on a seat flange ring; everything below the seat plane is trimmed off.
+  // the left bank's cylinder 6 rocker gear sits past the housing centre line: that cover is 30 mm longer at the flywheel end (E: overhangs the housing end)
+  const ext = VC_EXT(s), cy = -ext / 2;
+  const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
+  cavity.translate(0, cy, -20);
+  const below = boxMM([-w, -len, -40], [w, len, 0.01]);
+  loc.add(csgSub(extrude(roundRect(w, len + ext, 7), 3, 0.6, 6).translate(0, cy, 0), cavity), 'castAlu');
+  const pan = new THREE.ExtrudeGeometry(roundRect(w - 17, len - 22 + ext, 6), { depth: 12, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
+  loc.add(csgSub(pan.translate(0, cy, 0), cavity, below), 'castAlu');
+  // ears (both long edges): bosses trimmed to a slightly narrower cavity so the full nut seat stays solid, nut seat at z 7
+  const earCut = new THREE.ExtrudeGeometry(roundRect(31, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 }).translate(0, cy, -20);
   for (const yy of VC_EARS(upper)) {
-    for (const xx of [-VC_EDGE, VC_EDGE]) loc.add(yToZ(cyl(8.5, 7, 16)), 'castAlu', [xx, yy, 3.5]); // ear, nut seat at z 7
+    for (const xx of [-VC_EDGE, VC_EDGE]) loc.add(csgSub(yToZ(cyl(8.5, 7, 16)).translate(xx, yy, 3.5), earCut), 'castAlu');
   }
   if (upper) {
     // two machined round bosses
     for (const yy of [-len * 0.2, len * 0.2]) {
-      loc.add(yToZ(lathe([[0, 0], [12, 0], [12, 2], [15, 3], [18, 5], [18, 0]].reverse().map(([r, z]) => [r, z] as [number, number]), 36)), 'castAlu', [0, yy, 13.5]);
-      loc.add(yToZ(lathe([[0, 0], [16.5, 0], [16.5, 0.8], [12, 0.8], [11.5, -2], [0, -2]], 36)), 'machinedAlu', [0, yy, 18.6]);
+      loc.add(yToZ(lathe([[0, 0], [12, 0], [12, 2], [15, 3], [18, 5], [18, 0]].reverse().map(([r, z]) => [r, z] as [number, number]), 36)), 'castAlu', [0, yy, 13.5 + VC_RAISE]);
+      loc.add(yToZ(lathe([[0, 0], [16.5, 0], [16.5, 0.8], [12, 0.8], [11.5, -2], [0, -2]], 36)), 'machinedAlu', [0, yy, 18.6 + VC_RAISE]);
     }
     // raised cast PORSCHE lettering along the flat top
     // reads correctly from each bank's own side (letter-up toward +Y, advance toward the viewer's right)
-    raisedText(loc, 'PORSCHE', s > 0 ? 1 : 13.6, 0, 2.1, 13.2, 1.3, 1.5, s, -s);
+    raisedText(loc, 'PORSCHE', s > 0 ? 1 : 13.6, 0, 2.1, 13.2 + VC_RAISE, 1.3, 1.5, s, -s);
   } else {
     // lower covers: low longitudinal stiffening ribs
-    for (const dx of [-8, 8]) loc.add(boxMM([dx - 1.2, -len / 2 + 20, 13], [dx + 1.2, len / 2 - 20, 15.5]), 'castAlu');
+    for (const dx of [-8, 8]) loc.add(boxMM([dx - 1.2, -len / 2 + 20, 13 + VC_RAISE], [dx + 1.2, len / 2 - 20, 15.5 + VC_RAISE]), 'castAlu');
   }
   loc.g.applyMatrix4(coverMatrix(s, upper));
   const out = new Part(); out.addObj(loc.g); return out.g;

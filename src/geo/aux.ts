@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { partPose } from './probe';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
-  polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts,
+  polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
 } from './util';
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
 export { INTAKE_PORT, INJ };
@@ -155,25 +155,31 @@ export function upperAirGuide() {
   cut.moveTo(-95 + 0.5, zCut0); cut.lineTo(-20, zCut0); cut.lineTo(-20, zCut1); cut.lineTo(-95 + 0.5, zCut1); cut.closePath();
   roof.holes.push(cut);
   const rg = extrude(roof, t); rg.rotateX(Math.PI / 2); rg.translate(0, ay + t, (zA + zB) / 2);
-  p.add(rg, 'satinBlack');
+  // v5 cut-outs: distributor cap opening (roof + left wing), breather neck, air-distributor foot slot
+  const distCut = boxMM([-137, 138, 120], [-60, 170, 180]), brCut = boxMM([-65, 138, 183], [-39, 170, 196]);
+  p.add(csgSub(rg, distCut, brCut, boxMM([-94, 140, -157], [94, 165, -143])), 'satinBlack');
   const slopeLen = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax);
   for (const s of [1, -1] as const) {
     const zs = s > 0 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]];
     const wing = new THREE.Shape();
     wing.moveTo(0, zA); wing.lineTo(slopeLen, zA); wing.lineTo(slopeLen, zB - 20); wing.lineTo(0, zB); wing.closePath();
     const sAt = (INTAKE_PORT.x - ax) / Math.cos(ang);
-    for (const zc of zs) { const h = new THREE.Path(); h.absellipse(sAt, zc, 30, 30, 0, Math.PI * 2, true, 0); wing.holes.push(h); }
+    for (const zc of zs) { const h = new THREE.Path(); h.absellipse(sAt, zc, 34, 34, 0, Math.PI * 2, true, 0); wing.holes.push(h); }
     const wg = extrude(wing, t);
     const u = new THREE.Vector3(Math.cos(ang) * s, Math.sin(ang), 0), e = new THREE.Vector3(0, 0, 1), n = new THREE.Vector3().crossVectors(u, e);
     wg.applyMatrix4(new THREE.Matrix4().makeBasis(u, e, n).setPosition(ax * s, ay, 0));
-    p.add(wg, 'satinBlack');
+    // injector clearance bores along each injector axis (wing + skirt)
+    const injCuts = zs.map((zc) => { const P = new THREE.Vector3(s * (INTAKE_PORT.x + INJ.dx), INTAKE_PORT.y + INJ.dy, zc), d = new THREE.Vector3(s * INJ.ux, INJ.uy, 0); return cylBetween(P.clone().addScaledVector(d, -10).toArray() as V3, P.clone().addScaledVector(d, 140).toArray() as V3, 13, 20); });
+    p.add(csgSub(wg, ...(s < 0 ? [distCut] : []), ...injCuts), 'satinBlack');
     // outer skirt (YZ plate at x = bx) with a hole round each injector, inward screw lip at the bottom
     const sk = new THREE.Shape(); sk.moveTo(skirtY, zA); sk.lineTo(by + 1, zA); sk.lineTo(by + 1, zB - 20); sk.lineTo(skirtY, zB - 20); sk.closePath();
     const injY = INTAKE_PORT.y + INJ.dy + ((bx - (INTAKE_PORT.x + INJ.dx)) / INJ.ux) * INJ.uy;
     for (const zc of zs) sk.holes.push(circlePath(13, injY, zc) as THREE.Path);
-    p.add(swapSkirt(sk, t, s, bx), 'satinBlack');
-    p.add(boxMM([s > 0 ? bx - lipW : -bx, skirtY, zA], [s > 0 ? bx : -bx + lipW, skirtY + t, zB - 20]), 'satinBlack');
-    for (const zr of [zA + 40, (zA + zB) / 2, zB - 60]) p.add(cylBetween([(ax + 10) * s, ay + 4, zr], [(bx - 10) * s, by + 4 + 2, zr], 2.2, 6), 'satinBlack');
+    p.add(csgSub(swapSkirt(sk, t, s, bx), ...injCuts, ...zs.map((zc) => boxMM([s > 0 ? bx - 10 : -bx - 2, skirtY - 1, zc - 18], [s > 0 ? bx + 2 : -bx + 10, skirtY + 12, zc + 18]))), 'satinBlack');
+    // screw lip, notched round each intake runner
+    const lipCuts = zs.map((zc) => boxMM([s > 0 ? bx - lipW - 1 : -bx - 1, skirtY - 1, zc - 18], [s > 0 ? bx + 1 : -bx + lipW + 1, skirtY + t + 1, zc + 18]));
+    p.add(csgSub(boxMM([s > 0 ? bx - lipW : -bx, skirtY, zA], [s > 0 ? bx : -bx + lipW, skirtY + t, zB - 20]), ...lipCuts), 'satinBlack');
+    for (const zr of s > 0 ? [-150, -30, 90] : [-185, -90, 30]) p.add(cylBetween([(ax + 10) * s, ay + 4, zr], [(bx - 10) * s, by + 4 + 2, zr], 2.2, 6), 'satinBlack');
   }
   // flywheel-end plate beyond the last cylinders
   const fp = polyShape([[-bx, skirtY], [-110, skirtY], [-110, 132], [110, 132], [110, skirtY], [bx, skirtY], [bx, by + 2], [ax, ay + t], [-ax, ay + t], [-bx, by + 2]]);
@@ -197,7 +203,7 @@ function swapSkirt(sk: THREE.Shape, t: number, s: 1 | -1, bx: number) {
 // ---------------------------------------------------------------- 104-00 / 101 lubrication bits
 export function oilCooler() {
   const p = new Part();
-  const x0 = -205, x1 = -95, y0 = 74, y1 = 124, z0 = 30, z1 = 148;
+  const x0 = -199, x1 = -95, y0 = 74, y1 = 124, z0 = 30, z1 = 148;
   p.add(boxMM([x0, y0, z0], [x0 + 6, y1, z1]), 'castAlu');
   p.add(boxMM([x1 - 6, y0, z0], [x1, y1, z1]), 'castAlu');
   for (let z = z0 + 3; z < z1 - 2; z += 3.2) p.add(boxMM([x0 + 6, y0 + 3, z], [x1 - 6, y1 - 3, z + 0.9]), 'machinedAlu');
@@ -205,6 +211,8 @@ export function oilCooler() {
   // oil ports: short spigots from the end tank to the case-top passages (O-rings: smallParts oil-cooler-seals)
   for (const z of [49, 75]) { p.add(cylBetween([x1, 97, z], [-84, 97, z], 4, 12), 'castAlu'); p.add(cylBetween([-84, 97, z], [-84, 92, z], 4, 12), 'castAlu'); }
   // four mounting feet on the case top (nuts: fasteners.ts oil-cooler-nuts)
+  // v5: the end tank corner is relieved round the distributor base instead of overlapping it (feet added after the cut)
+  cutGroup(p.g, distRelief(70, 100));
   for (const [x, z] of OIL_COOLER.studs) p.add(extrudeC(polyShape(hull([...circlePts(x, z, 8, 12), ...circlePts(x1 + 2, z, 8, 12)])), OIL_COOLER.foot).rotateX(Math.PI / 2), 'castAlu', [0, OIL_COOLER.footTop - OIL_COOLER.foot / 2, 0]);
   return p.g;
 }
@@ -220,13 +228,18 @@ export function oilThermostat() {
 }
 /** Breather cover on the left half: plate y 122..132 at x -52, two M6 nuts (fasteners.ts). */
 export const BREATHER = { x: -52, seatY: 132, grip: 10, studs: [[-38, 128], [-38, 176]] as [number, number][] };
+/** Clearance prism round the distributor base + clamp (plan hull), height h centred at y. */
+function distRelief(h: number, y: number) { return extrudeC(polyShape(hull([...circlePts(DIST.x, DIST.z, 31, 32), ...circlePts(DIST.stud[0], DIST.stud[1], 11, 12)])), h).rotateX(Math.PI / 2).translate(0, y, 0); }
 export function breatherLid() {
   const p = new Part();
   const sh = roundRect(46, 70, 16);
-  const g = extrude(sh, 6, 2); g.rotateX(-Math.PI / 2);
-  p.add(g, 'castAlu', [BREATHER.x, 124, 152]);
-  p.add(cylBetween([BREATHER.x, 132, 152], [BREATHER.x, 154, 152], 11, 20), 'castAlu');
-  p.add(cylBetween([BREATHER.x, 154, 152], [BREATHER.x, 154, 190], 9, 16), 'castAlu');
+  const g = extrude(sh, 6, 2); g.rotateX(-Math.PI / 2); g.translate(BREATHER.x, 124, 152);
+  // v5: the casting is relieved round the distributor base (clamp + O-ring) instead of overlapping it
+  const relief = distRelief(60, 140);
+  p.add(csgSub(g, relief), 'castAlu');
+  const nx = BREATHER.x + 20;
+  p.add(cylBetween([nx, 132, 152], [nx, 154, 152], 9, 20), 'castAlu');
+  p.add(cylBetween([nx, 154, 152], [nx, 154, 185], 8, 16), 'castAlu');
   return p.g;
 }
 /** Sump (strainer) cover: top face y -130 under the gasket/strainer stack, flat 4 mm flange; 12 nuts at r 74. */
@@ -295,7 +308,8 @@ export function plenum() {
   airboxHalf(p, -1);
   // struts (#18/#19)
   for (const s of [1, -1]) p.add(cylBetween([s * 100, 212, -140], [s * 88, 150, -150], 4, 8), 'zincPlate');
-  return p.g;
+  // v5: recess in the underside over the distributor cap
+  return cutGroup(p.g, cyl(36, 30, 40).translate(DIST.x, 200, DIST.z));
 }
 /** Half (sign: +1 upper / -1 lower) of the cylindrical air-cleaner canister: shell, dished end caps, seam lip. */
 function airboxHalf(p: Part, sign: 1 | -1) {
