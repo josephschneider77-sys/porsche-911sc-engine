@@ -48,6 +48,8 @@ export class Viewer {
   private carried = new Map<string, string>();
   private userMoved = false;
   private camGoal: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
+  /** When set, this pose is reapplied after step/explode/focus framing and after OrbitControls. */
+  private urlPose: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
   private clock = new THREE.Clock();
   private ray = new THREE.Raycaster();
   private needsFrames = 90;
@@ -65,7 +67,7 @@ export class Viewer {
     this.controls.minDistance = 250;
     this.controls.maxDistance = 9000;
     this.controls.addEventListener('change', () => this.kick());
-    this.controls.addEventListener('start', () => { this.camGoal = null; this.userMoved = true; });
+    this.controls.addEventListener('start', () => { this.camGoal = null; this.userMoved = true; this.urlPose = null; });
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -148,11 +150,36 @@ export class Viewer {
   setStep(n: number) { this.step = n; this.removed = removedAfter(n); this.carried = carriedAfter(n); this.kick(160); }
   setExplode(f: number) {
     this.explode = f;
-    if (!this.userMoved) this.camGoal = this.explodedHome(f);
+    if (!this.userMoved && !this.urlPose) this.camGoal = this.explodedHome(f);
     this.kick(120);
   }
+  /**
+   * Pin a `?cam=` / `?target=` pose. Step framing, explode framing and focus must not replace it.
+   * A later pointer-drag releases the pin so the orbit controls work.
+   */
+  lockQueryCamera(pos: [number, number, number], target: [number, number, number]) {
+    this.userMoved = true;
+    this.camGoal = null;
+    this.urlPose = { pos: new THREE.Vector3(...pos), target: new THREE.Vector3(...target) };
+    this.applyUrlPose();
+    this.controls.update();
+    this.applyUrlPose();
+    this.kick();
+  }
+  private applyUrlPose() {
+    if (!this.urlPose) return;
+    this.camera.position.copy(this.urlPose.pos);
+    this.controls.target.copy(this.urlPose.target);
+    this.camera.lookAt(this.urlPose.target);
+    this.camGoal = null;
+  }
   /** Jump all animations to their end state (used for deep links / screenshots). */
-  snap() { this.update(10); if (this.camGoal) { this.camera.position.copy(this.camGoal.pos); this.controls.target.copy(this.camGoal.target); this.camGoal = null; } this.kick(); }
+  snap() {
+    this.update(10);
+    if (this.urlPose) { this.applyUrlPose(); this.kick(); return; }
+    if (this.camGoal) { this.camera.position.copy(this.camGoal.pos); this.controls.target.copy(this.camGoal.target); this.camGoal = null; }
+    this.kick();
+  }
   toggleHidden(id: string) { if (this.hidden.has(id)) this.hidden.delete(id); else this.hidden.add(id); this.kick(); }
   isolate(id: string | null) { this.isolated = id; this.kick(); }
   select(id: string | null) {
@@ -191,6 +218,7 @@ export class Viewer {
     return pose;
   }
   focus(id: string) {
+    if (this.urlPose) { this.kick(); return; }
     this.userMoved = true;
     const n = this.nodes.get(id); if (!n) return;
     const box = new THREE.Box3().setFromObject(n.root);
@@ -256,6 +284,9 @@ export class Viewer {
       this.needsFrames--;
       this.update(dt);
       this.controls.update();
+      // OrbitControls rewrites the camera from its own spherical state. Put the URL pose back
+      // so a teardown step's framing (or the damped control) cannot drift it.
+      if (this.urlPose) this.applyUrlPose();
       this.renderer.render(this.scene, this.camera);
     };
     tick();
@@ -284,7 +315,8 @@ export class Viewer {
         m.opacity = n.opacity;
       }
     }
-    if (this.camGoal) {
+    if (this.urlPose) this.camGoal = null;
+    else if (this.camGoal) {
       this.camera.position.lerp(this.camGoal.pos, k);
       this.controls.target.lerp(this.camGoal.target, k);
       if (this.camera.position.distanceTo(this.camGoal.pos) < 1) this.camGoal = null; else moving = true;

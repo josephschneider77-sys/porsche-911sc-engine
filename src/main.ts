@@ -1,5 +1,6 @@
 import './style.css';
 import { Viewer } from './app/viewer';
+import { cameraFromQuery } from './app/queryCamera';
 import { PARTS, PART_BY_ID } from './data/parts';
 import { TEARDOWN, stepIndexOf } from './data/teardown';
 import { SYSTEMS, SystemKey, design911Url, ILLUSTRATIONS } from './data/catalog';
@@ -120,13 +121,13 @@ viewer.load(import.meta.env.BASE_URL, (f) => { $('load-text').textContent = `Loa
       for (const id of viewer.nodes.keys()) if (!keep.has(id)) viewer.hidden.add(id);
     }
     viewer.snap();
-    // shareable camera: ?cam=x,y,z&target=x,y,z (engine mm)
-    const v3 = (k: string) => (q.get(k) ?? '').split(',').map(Number);
-    if (q.has('cam') && v3('cam').length === 3 && v3('cam').every(Number.isFinite)) {
-      const vv = viewer as any; vv.camera.position.set(...v3('cam'));
-      if (q.has('target') && v3('target').length === 3) vv.controls.target.set(...v3('target'));
-      vv.controls.update(); vv.kick?.();
-    }
+    // ?cam= / ?target= win over step, explode and focus framing (including teardown step 27).
+    const stepPose = {
+      pos: viewer.camera.position.toArray() as [number, number, number],
+      target: viewer.controls.target.toArray() as [number, number, number],
+    };
+    const pose = cameraFromQuery({ cam: q.get('cam'), target: q.get('target') }, stepPose);
+    if (q.has('cam') && pose !== stepPose) viewer.lockQueryCamera(pose.pos, pose.target);
     (window as any).__ready = true;
   })
   .catch((e) => { $('load-text').textContent = `Failed to load: ${e}`; console.error(e); });

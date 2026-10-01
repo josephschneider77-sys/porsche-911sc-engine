@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
-  polyShape, hull, circlePts, gearShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, woodruffGeom,
+  polyShape, hull, circlePts, gearShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, woodruffGeom, cutGroup,
 } from './util';
 import {
   SPEC, SPARK_Z, CYL_Z, MAIN_Z, THROW_DEG, DECK_X, CYL_TOP_X, HEAD_OUT_X, CAM_X, CAM_HOUSING_OUT_X, INT_SHAFT_Y, CASE_Z, NOSE_BEARING_Z,
@@ -370,103 +370,201 @@ export function mainBearings() {
 // ---------------------------------------------------------------- crankshaft (102-00 #1)
 /** Crank nose (pulley end): timing gear #8 on Woodruff key #7, intermediate ring #9, distributor drive wheel #10, circlip #11. */
 export const CRANK_NOSE = { seatR: 28, key: { D: 19, h: 7.5, b: 5, proud: 2.6, z: 199 }, gear: [192, 206] as [number, number], ring: [206, 211] as [number, number], drive: [211, 223] as [number, number], groove: [223.2, 224.9] as [number, number], pinR: 19 };
+/** Keep the half-plane nx·p ≤ d. Convex, order preserved. */
+function clipHalfPlane(poly: [number, number][], nx: number, ny: number, d: number): [number, number][] {
+  const out: [number, number][] = [];
+  const n = poly.length;
+  const side = (pt: [number, number]) => nx * pt[0] + ny * pt[1] - d;
+  for (let i = 0; i < n; i++) {
+    const a = poly[i], b = poly[(i + 1) % n];
+    const sa = side(a), sb = side(b);
+    if (sa <= 1e-6) out.push(a);
+    if ((sa < -1e-6 && sb > 1e-6) || (sa > 1e-6 && sb < -1e-6)) {
+      const t = sa / (sa - sb);
+      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    }
+  }
+  return out;
+}
+/**
+ * Cheek opposite the crankpin. `lobe` is how far the counterweight centre sits from the main axis.
+ * Lobes that point down are shortened so they stay above the case sump floor (y −56).
+ */
+function lobeReach(a: number, lobe: number) {
+  const yDir = -Math.sin(a);
+  return yDir < -0.25 ? Math.min(lobe, 50 / -yDir) : lobe;
+}
+type CheekKind = 'pear' | 'round';
+interface CheekSpec { k: CheekKind; lobe: number; flat?: number }
+/**
+ * Twelve cheeks, not one repeated racetrack. Pulley-side (`p`) and flywheel-side (`m`) differ.
+ * Most carry a pear counterweight opposite the pin; the main-journal cheeks are nearer round,
+ * some with a flat chord. Read off the assy-5 / assy-10 / pt3-12 stack: thick, varied, compact.
+ */
+const CHEEK: Record<number, { p: CheekSpec; m: CheekSpec }> = {
+  1: { p: { k: 'round', lobe: 6, flat: 40 }, m: { k: 'pear', lobe: 34 } },
+  4: { p: { k: 'pear', lobe: 40 }, m: { k: 'pear', lobe: 26, flat: 44 } },
+  2: { p: { k: 'pear', lobe: 36 }, m: { k: 'round', lobe: 8, flat: 36 } },
+  5: { p: { k: 'pear', lobe: 38 }, m: { k: 'pear', lobe: 30 } },
+  3: { p: { k: 'round', lobe: 10, flat: 38 }, m: { k: 'pear', lobe: 42 } },
+  6: { p: { k: 'pear', lobe: 32 }, m: { k: 'round', lobe: 8, flat: 34 } },
+};
+function cheekOutline(px: number, py: number, a: number, spec: CheekSpec): [number, number][] {
+  const ux = Math.cos(a), uy = Math.sin(a);
+  const reach = lobeReach(a, spec.lobe);
+  const mainR = spec.k === 'round' ? 50 : 44;
+  const pinBoss = spec.k === 'round' ? 24 : 31;
+  const blob = spec.k === 'round' ? 16 : 23;
+  let pts = hull([
+    ...circlePts(0, 0, mainR, 40),
+    ...circlePts(px, py, pinBoss, 28),
+    ...circlePts(-ux * reach, -uy * reach, blob, 22),
+  ]);
+  if (spec.flat != null) pts = clipHalfPlane(pts, -uy, ux, spec.flat);
+  return pts;
+}
 export function crankshaft() {
   const p = new Part();
   const rMain = SPEC.mainJournalD / 2, rPin = SPEC.rodJournalD / 2, r = SPEC.crankRadius;
-  const mainW = 18, pinW = 21;
+  const mainW = 16, pinW = 20.4;
   for (const z of MAIN_Z) {
-    p.add(yToZ(lathe([[rMain - 3, -mainW / 2], [rMain, -mainW / 2 + 1.5], [rMain, mainW / 2 - 1.5], [rMain - 3, mainW / 2]], 48)), 'polishedSteel', [0, 0, z]);
+    // short polished main: the shells are ±7.4, and the cheeks come up to the fillet
+    p.add(yToZ(lathe([
+      [rMain - 5, -mainW / 2], [rMain - 1.5, -mainW / 2 + 2.4], [rMain, -mainW / 2 + 4],
+      [rMain, mainW / 2 - 4], [rMain - 1.5, mainW / 2 - 2.4], [rMain - 5, mainW / 2],
+    ], 48)), 'polishedSteel', [0, 0, z]);
     p.add(yToX(cyl(3, 0.6, 10)), 'bore', [rMain + 0.05, 0, z]); // oil hole
   }
   const throws = Object.entries(CYL_Z).map(([c, z]) => ({ c: +c, z, a: THROW_DEG[+c] * DEG }));
+  const cheekT = 12.6;
+  // centre of the gap between the pin flank and the main-journal flank (mains are 29.5 from each pin)
+  const cheekOff = (pinW / 2 + (29.5 - mainW / 2)) / 2;
   for (const t of throws) {
     const px = r * Math.cos(t.a), py = r * Math.sin(t.a);
-    p.add(yToZ(lathe([[rPin - 2, -pinW / 2], [rPin, -pinW / 2 + 1.5], [rPin, pinW / 2 - 1.5], [rPin - 2, pinW / 2]], 44)), 'polishedSteel', [px, py, t.z]);
+    p.add(yToZ(lathe([
+      [rPin - 3.5, -pinW / 2], [rPin - 0.8, -pinW / 2 + 2.2], [rPin, -pinW / 2 + 3.6],
+      [rPin, pinW / 2 - 3.6], [rPin - 0.8, pinW / 2 - 2.2], [rPin - 3.5, pinW / 2],
+    ], 40)), 'polishedSteel', [px, py, t.z]);
     p.add(yToX(cyl(2.6, 0.6, 10)).rotateZ(t.a), 'bore', [px + (rPin + 0.05) * Math.cos(t.a), py + (rPin + 0.05) * Math.sin(t.a), t.z]);
-    // webs either side: hull of main boss + pin boss (the 930/03 crank is not counterweighted)
-    for (const side of [-1, 1]) {
-      const zw = t.z + side * (pinW / 2 + 5);
-      // 911 webs are nearly round "discs" enclosing main + pin, with a short tail opposite the throw
-      const ux = Math.cos(t.a), uy = Math.sin(t.a);
-      const pts = hull([...circlePts(0, 0, rMain + 9, 32), ...circlePts(px, py, rPin + 10, 32), ...circlePts(-ux * 18, -uy * 18, rMain - 2, 24)]);
-      const sh = polyShape(pts);
-      p.add(extrudeC(sh, 10, 1.6, 8), 'forgedDark', [0, 0, zw]);
-      p.add(yToZ(cyl(4, 10.4, 10)), 'bore', [px * 0.4, py * 0.4, zw]); // oil drilling plug
+    const pair = CHEEK[t.c];
+    for (const side of [-1, 1] as const) {
+      const spec = side > 0 ? pair.p : pair.m;
+      const zw = t.z + side * cheekOff;
+      const pts = cheekOutline(px, py, t.a, spec);
+      p.add(extrudeC(polyShape(pts), cheekT, 1.15, 4), 'forgedDark', [0, 0, zw]);
+      p.add(yToZ(cyl(3.6, cheekT + 0.4, 8)), 'bore', [px * 0.42, py * 0.42, zw]);
     }
   }
-  // flywheel flange with 9 bolt holes (102-00 #6 pan-head screws x9)
-  const fl = circleShape(52);
-  for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; fl.holes.push(circlePath(4.2, 36 * Math.cos(a), 36 * Math.sin(a)) as THREE.Path); } // tapped M10x1
+  // flywheel flange: 9 bolt holes, dowel, pilot bore (102-00 #6). Face stays at FLY_Z so the flywheel and bolts seat.
+  const fl = circleShape(54);
+  for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; fl.holes.push(circlePath(4.2, 36 * Math.cos(a), 36 * Math.sin(a)) as THREE.Path); }
   fl.holes.push(circlePath(10) as THREE.Path);
+  fl.holes.push(circlePath(3.1, 46 * Math.cos(0.35), 46 * Math.sin(0.35)) as THREE.Path);
   p.add(extrude(fl, 12, 1), 'forgedDark', [0, 0, CASE_Z.flywheel - 8]);
-  p.add(yToZ(cyl(rMain, 24, 32)), 'polishedSteel', [0, 0, -196]);
-  // nose: timing gear seat, distributor drive seat, bearing 8 journal, pulley snout
+  p.add(yToZ(cyl(3, 9, 12)), 'steel', [46 * Math.cos(0.35), 46 * Math.sin(0.35), CASE_Z.flywheel - 8 - 3.2]);
+  p.add(yToZ(cyl(rMain, 24, 32)), 'polishedSteel', [0, 0, -196]); // rear seal journal
+  // nose, outward from the last (round) cheek: main 7 is already at z 177, then gear seat, ring, drive, circlip, main 8, pulley spigot
   const nose = yToZ(lathe([[rMain, 186], [CRANK_NOSE.seatR, 186], [CRANK_NOSE.seatR, CRANK_NOSE.groove[0]], [CRANK_NOSE.seatR - 1.2, CRANK_NOSE.groove[0]], [CRANK_NOSE.seatR - 1.2, CRANK_NOSE.groove[1]],
     [CRANK_NOSE.seatR, CRANK_NOSE.groove[1]], [CRANK_NOSE.seatR, 228], [27, 228], [27, 256], [20, 256], [20, 318], [8, 320]], 48));
   const K = CRANK_NOSE.key;
   const pocket = woodruffGeom(K.D + 0.1, K.h + 0.05, K.b + 0.1).rotateY(-Math.PI / 2).translate(0, CRANK_NOSE.seatR + K.proud, K.z);
   p.add(csgSub(nose, pocket), 'polishedSteel');
-  p.add(extrude(ringShape(8.5, 5), 4, 0, 24), 'polishedSteel', [0, 0, 316]); // nose end with the tapped M12x1.5 pulley-bolt hole
+  p.add(extrude(ringShape(8.5, 5), 4, 0, 24), 'polishedSteel', [0, 0, 316]); // tapped M12x1.5 pulley-bolt hole
   return p.g;
 }
 
-/** Crank timing gear (102-00 #8) + distributor drive wheel (102-00 #10). */
+/** Helical tooth stack. The bore stays round so a fixed hub can carry the keyway (slices rotate). */
+function addHelix(p: Part, teeth: number, rRoot: number, rTip: number, holeR: number, z0: number, z1: number, twist: number, mat: MatKey, at: V3, slices = 10) {
+  const dz = (z1 - z0) / slices;
+  for (let i = 0; i < slices; i++) {
+    const s = gearShape(teeth, rRoot, rTip, holeR);
+    const ang = twist * ((i + 0.5) / slices - 0.5);
+    p.add(extrude(s, dz + 0.04, 0, 1).rotateZ(ang), mat, [at[0], at[1], at[2] + z0 + i * dz]);
+  }
+}
+/** Crank timing gear (102-00 #8, 36 T helical) + distributor drive wheel (102-00 #10, smaller brass helical). */
 export function crankGears() {
   const p = new Part();
   const N = CRANK_NOSE, kb = N.key.b / 2 + 0.05;
   const keyedBore = () => { const h = new THREE.Path(); const a = Math.asin(kb / (N.seatR + 0.05)); h.absarc(0, 0, N.seatR + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false); h.lineTo(kb, N.seatR + N.key.proud + 0.4); h.lineTo(-kb, N.seatR + N.key.proud + 0.4); h.closePath(); return h; };
-  const tg = gearShape(CRANK_GEAR_T, 34.5, 38.5, 0); tg.holes.push(keyedBore()); // 36 T, m 2 (meshes the 48 T int. gear at 84 mm)
-  p.add(extrude(tg, N.gear[1] - N.gear[0], 0.4), 'steel', [0, 0, N.gear[0]]);
-  // helical-looking distributor drive wheel (keyed on the same key line, E): stacked twisted slices
-  const dz = (N.drive[1] - N.drive[0]) / 4;
-  for (let i = 0; i < 4; i++) {
-    const g = gearShape(26, 32, 35.5, 0); g.holes.push(circlePath(N.seatR + 0.05) as THREE.Path);
-    p.add(extrude(g, dz).rotateZ(i * 2.2 * DEG), 'bronze', [0, 0, N.drive[0] + i * dz]);
-  }
+  const z0 = N.gear[0], z1 = N.gear[1];
+  // solid keyed hub; teeth are a helix around it (opposite hand to the intermediate gear)
+  const hub = circleShape(33.4); hub.holes.push(keyedBore());
+  p.add(extrude(hub, z1 - z0), 'steel', [0, 0, z0]);
+  // ψ ≈ 30°: twist = tan(ψ) * width / pitch radius
+  const twist = Math.tan(30 * DEG) * (z1 - z0) / 36;
+  addHelix(p, CRANK_GEAR_T, 34.2, 38.6, 32.6, z0, z1, twist, 'steel', [0, 0, 0], 11);
+  // smaller-OD brass distributor gear, same hand, narrow face
+  const d0 = N.drive[0], d1 = N.drive[1];
+  const dTwist = Math.tan(28 * DEG) * (d1 - d0) / 31;
+  p.add(extrude(ringShape(30.2, N.seatR + 0.05), d1 - d0), 'bronze', [0, 0, d0]);
+  addHelix(p, 22, 29.4, 32.4, 28.6, d0, d1, dTwist, 'bronze', [0, 0, 0], 8);
   return p.g;
 }
 
 // ---------------------------------------------------------------- connecting rod (102-00 #16), local: big end at 0, small end +X
-/** Forged H/I-section rod: big end with blended shoulders, bolted cap with 2 bolts + nuts, tapered beam, bronze bush. */
+/** Half of a big-end outline (convex hull clipped to one side of the split) closed by the journal arc. */
+function bigEndHalf(outer: [number, number][], side: 1 | -1, ri: number) {
+  const clip = clipHalfPlane(outer, -side, 0, 0.4);
+  let iLo = 0, iHi = 0;
+  clip.forEach((pt, i) => { if (pt[1] < clip[iLo][1]) iLo = i; if (pt[1] > clip[iHi][1]) iHi = i; });
+  const walk = (from: number, to: number) => {
+    const w: [number, number][] = [];
+    for (let k = 0; k < clip.length; k++) {
+      const i = (from + k) % clip.length;
+      w.push(clip[i]);
+      if (i === to) break;
+    }
+    return w;
+  };
+  // the outside path is the one that reaches further onto this side of the split
+  let path = walk(iLo, iHi);
+  const back = walk(iHi, iLo);
+  if (Math.max(...back.map((pt) => pt[0] * side)) > Math.max(...path.map((pt) => pt[0] * side))) path = back.slice().reverse();
+  const shp = new THREE.Shape();
+  shp.moveTo(path[0][0], path[0][1]);
+  for (const pt of path.slice(1)) shp.lineTo(pt[0], pt[1]);
+  // bore back along this half: rod (+X) clockwise through angle 0, cap (−X) counterclockwise through angle π
+  shp.absarc(0, 0, ri, Math.PI / 2, side > 0 ? -Math.PI / 2 : Math.PI * 1.5, side > 0);
+  shp.closePath();
+  return shp;
+}
+/** Forged I-beam rod: shoulders into two bolt bosses, separate cap, bronze small-end bush. Centre distance stays rodLength. */
 export function conrod() {
   const p = new Part();
-  const L = SPEC.rodLength, t = 21;
+  const L = SPEC.rodLength, t = 20;
   const ri = SPEC.rodJournalD / 2 + 2;
-  // rod-side big end: hull of the eye + bolt bosses + beam root, minus the journal half
-  const rodSide = hull([...circlePts(0, 0, 40, 40).filter(([x]) => x >= -0.5), ...circlePts(4, 34, 9, 12), ...circlePts(4, -34, 9, 12), [44, 18], [44, -18]]);
-  const outline = rodSide.map(([x, y]) => [Math.max(x, 0), y] as [number, number]).sort((a, b) => Math.atan2(a[1], a[0] - 10) - Math.atan2(b[1], b[0] - 10));
-  const shp = new THREE.Shape();
-  // start at (0,-40) go around the right side to (0,40), then back down along the journal arc
-  const right = outline.filter(([x]) => x > 0.2);
-  shp.moveTo(0, -40.5);
-  for (const [x, y] of right) shp.lineTo(x, y);
-  shp.lineTo(0, 40.5); shp.lineTo(0, ri);
-  shp.absarc(0, 0, ri, Math.PI / 2, -Math.PI / 2, true);
-  shp.lineTo(0, -40.5);
-  p.add(extrudeC(shp, t, 0.8, 24), 'forgedDark');
-  // cap
-  const cap = new THREE.Shape(); cap.moveTo(0, -42); cap.lineTo(-6, -42); cap.absarc(-2, 0, 41, -Math.PI / 2 - 0.15, -1.5 * Math.PI + 0.15, true);
-  cap.lineTo(-6, 42); cap.lineTo(0, 42); cap.lineTo(0, ri); cap.absarc(0, 0, ri, Math.PI / 2, 1.5 * Math.PI, false); cap.lineTo(0, -42);
-  p.add(extrudeC(cap, t, 0.8, 24), 'forgedDark', [-0.6, 0, 0]);
-  // bolts & nuts (#18/#19)
-  for (const y of [-34, 34]) {
-    p.add(yToX(cyl(4.5, 52, 12)), 'steel', [0, y, 0]);
-    p.add(yToX(cyl(8, 6, 6)), 'darkSteel', [24, y, 0]);
-    p.add(yToX(hexNut(13, 9)), 'darkSteel', [-26, y, 0]);
+  const rodOuter = hull([
+    ...circlePts(0, 0, 38, 36),
+    ...circlePts(14, 30, 11.5, 16),
+    ...circlePts(14, -30, 11.5, 16),
+    [46, 16], [46, -16],
+  ]);
+  const capOuter = hull([
+    ...circlePts(0, 0, 35.5, 32),
+    ...circlePts(-8, 28, 10, 14),
+    ...circlePts(-8, -28, 10, 14),
+  ]);
+  p.add(extrudeC(bigEndHalf(rodOuter, 1, ri), t, 0.7, 8), 'forgedDark');
+  p.add(extrudeC(bigEndHalf(capOuter, -1, ri), t - 1.2, 0.6, 8), 'forgedDark', [-0.7, 0, 0]);
+  // stock bolt + nut: nuts proud of the cap (faces visible), heads on the beam shoulder
+  for (const y of [-30, 30]) {
+    p.add(yToX(cyl(4.4, 58, 12)), 'steel', [-6, y, 0]);
+    p.add(yToX(hexNut(12, 7)), 'darkSteel', [24, y, 0]);
+    p.add(yToX(hexNut(13, 8)), 'darkSteel', [-38, y, 0]);
   }
-  // I-beam: web + flanges, tapering toward the small end
-  const x0 = 38, x1 = L - 15;
-  p.add(extrudeC(polyShape([[x0, -18], [x1, -9.5], [x1, 9.5], [x0, 18]]), 6.5), 'forgedDark');
-  for (const sgn of [-1, 1]) {
-    p.add(extrudeC(polyShape(sgn > 0 ? [[x0 - 4, 13], [x1, 5.5], [x1, 10.5], [x0 - 4, 20]] : [[x0 - 4, -20], [x1, -10.5], [x1, -5.5], [x0 - 4, -13]]), t - 3, 0.7), 'forgedDark');
-  }
-  // small end with bronze bush (#17)
-  p.add(extrudeC(ringShape(17.5, 12), t - 3, 0.6), 'forgedDark', [L, 0, 0]);
-  p.add(extrudeC(polyShape([[L - 22, -11], [L - 8, -15], [L - 8, 15], [L - 22, 11]]), t - 3, 0.5), 'forgedDark');
-  p.add(extrudeC(ringShape(12, 11), t - 1), 'bronze', [L, 0, 0]);
-  p.add(yToZ(cyl(1.8, 30, 8)).rotateZ(Math.PI / 2), 'darkSteel', [L + 12, 0, 0]); // oil hole hint
-  // rod bearing shells (#20)
-  for (const ph of [0.02, Math.PI + 0.02]) p.add(yToZ(lathe([[SPEC.rodJournalD / 2, -9], [SPEC.rodJournalD / 2 + 2, -9], [SPEC.rodJournalD / 2 + 2, 9], [SPEC.rodJournalD / 2, 9]], 16, ph, Math.PI - 0.04)), 'bronze');
+  // I-beam: thin recessed web, raised edge flanges, widening into the shoulders
+  const x0 = 44, x1 = L - 20;
+  p.add(extrudeC(polyShape([[x0, -6.5], [x1, -3.6], [x1, 3.6], [x0, 6.5]]), 6.2), 'forgedDark');
+  p.add(extrudeC(polyShape([[x0 - 2, 7], [x1, 4.2], [x1, 10.5], [x0 - 2, 17]]), t - 1.5, 0.45), 'forgedDark');
+  p.add(extrudeC(polyShape([[x0 - 2, -17], [x1, -10.5], [x1, -4.2], [x0 - 2, -7]]), t - 1.5, 0.45), 'forgedDark');
+  // small end, pressed bronze bush, oil hole on the crown
+  p.add(extrudeC(polyShape([[x1 - 6, -11], [L - 10, -16], [L - 10, 16], [x1 - 6, 11]]), t - 2, 0.4), 'forgedDark');
+  p.add(extrudeC(ringShape(18, 12.1), t - 2, 0.5), 'forgedDark', [L, 0, 0]);
+  p.add(extrudeC(ringShape(12.1, 11), t - 3), 'bronze', [L, 0, 0]);
+  p.add(yToX(cyl(1.5, 6, 8)), 'bore', [L + 15.5, 0, 0]);
+  // rod bearing shells (#20), copper-coloured edge
+  for (const ph of [0.02, Math.PI + 0.02]) p.add(yToZ(lathe([[SPEC.rodJournalD / 2, -8.6], [SPEC.rodJournalD / 2 + 1.7, -8.6], [SPEC.rodJournalD / 2 + 1.7, 8.6], [SPEC.rodJournalD / 2, 8.6]], 16, ph, Math.PI - 0.04)), 'bronze');
   return p.g;
 }
 
@@ -1313,19 +1411,78 @@ export function chainWellProfile(s: 1 | -1) {
   return { yTop: Math.max(...o), yBot: Math.min(...o), z1: HOUSING_Z1 };
 }
 
-/** Intermediate shaft (103-15 #43): 48 T crank-driven gear + two 21 T duplex chain sprockets; drives the oil pump at the flywheel end. */
+/**
+ * Intermediate shaft (103-15 #43): 48 T helical gear + two 18 T duplex sprockets.
+ * Sprocket planes stay at CHAIN_Z and the gear stays on the crank-gear plane (z 192–206): the photo's
+ * sprocket|gear|sprocket stack would move a chain or the mesh, so the gear remains inboard of both sprockets.
+ * The long flywheel-end run is the oil-pump connecting shaft, drawn as its own dark tube in this asset.
+ */
 export const INT_GEAR = { teeth: 48, module: 2 };
 export function intermediateShaft() {
   const p = new Part();
-  const z0 = -100, z1 = CHAIN_Z[1] + 14;
-  p.add(yToZ(cyl(9, z1 - z0, 20)), 'steel', [0, INT_SHAFT_Y, (z0 + z1) / 2]);
-  for (const z of [-60, 150]) p.add(yToZ(cyl(13, 16, 24)), 'polishedSteel', [0, INT_SHAFT_Y, z]);
-  const pr = (INT_GEAR.teeth * INT_GEAR.module) / 2;
-  p.add(extrudeC(gearShape(INT_GEAR.teeth, pr - 3, pr + 1.5, 14), 14, 0.4), 'castAlu', [0, INT_SHAFT_Y, 199]); // matches v2 mesh (45 / 49.5)
-  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; p.add(yToZ(cyl(5, 15, 12)), 'darkSteel', [28 * Math.cos(a), INT_SHAFT_Y + 28 * Math.sin(a), 199]); }
-  for (const s of [1, -1] as const) duplexSprocket(p, INT_T, INT_SPROCKET_R, [0, INT_SHAFT_Y, CHAIN_Z[s]], 9, 'steel', toothPhase(s, 0, INT_SHAFT_Y, INT_SPROCKET_R, INT_T));
-  p.add(yToZ(hexNut(18, 7)), 'darkSteel', [0, INT_SHAFT_Y, z1 + 3]);
-  // splined coupling end for the oil-pump connecting shaft (flywheel end)
-  p.add(yToZ(cyl(11, 12, 16)), 'darkSteel', [0, INT_SHAFT_Y, z0 - 2]);
+  const y = INT_SHAFT_Y;
+  const seg = (r: number, z0: number, z1: number, mat: MatKey, segs = 24) => {
+    if (z1 - z0 < 0.4) return;
+    p.add(yToZ(cyl(r, z1 - z0, segs)), mat, [0, y, (z0 + z1) / 2]);
+  };
+  // oil-pump connecting shaft (104-00 #6): dark tube, spline where it meets the intermediate shaft
+  seg(6.6, -118, -74, 'darkSteel', 16);
+  for (let i = 0; i < 8; i++) {
+    const g = boxMM([-1.15, 4.2, -5], [1.15, 9.4, 5]);
+    g.rotateZ((i / 8) * Math.PI * 2);
+    g.translate(0, y, -80);
+    p.add(g, 'darkSteel');
+  }
+  // rear journal (j0 = −60). Circlips sit just outside it on the Ø18 land; bearing ID is 26.1.
+  seg(9, -74, -69.4, 'steel');
+  seg(8.15, -69.4, -68.2, 'steel');
+  seg(13, -68, -52, 'polishedSteel');
+  seg(8.15, -51.8, -50.6, 'steel');
+  seg(9, -50.6, -46, 'steel');
+  // stout span between the two case journals (webs are bored Ø32, so r 12 clears)
+  seg(12, -46, 136, 'steel', 20);
+  // pulley-end journal (j1 = 150) + thrust shoulder. Thrust washers and circlips seat on the Ø18 lands.
+  seg(9, 136, 138.4, 'steel');
+  seg(8.15, 138.4, 140.4, 'steel');
+  seg(9, 140.4, 142, 'steel');
+  seg(13, 142, 158, 'polishedSteel');
+  seg(9, 158, 161.6, 'steel'); // thrust washer (z 159) and circlip (z 160.8) sit on this land
+  seg(15.2, 161.6, 165.2, 'steel'); // thrust collar; the z 177 web bore is Ø32, so r 15.2 still clears it
+  seg(11, 165.2, 188, 'steel');
+  // bolted flange + 48 T helical gear, centred on the crank gear (z 192–206), opposite hand
+  seg(16, 188, 192, 'steel');
+  const pr = (INT_GEAR.teeth * INT_GEAR.module) / 2; // 48
+  const g0 = 192, g1 = 206;
+  const hub = circleShape(36);
+  hub.holes.push(circlePath(10) as THREE.Path);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.18;
+    hub.holes.push(circlePath(3.5, 28 * Math.cos(a), 28 * Math.sin(a)) as THREE.Path);
+  }
+  p.add(extrude(hub, g1 - g0 + 2), 'steel', [0, y, g0 - 1]);
+  const twist = -Math.tan(30 * DEG) * (g1 - g0) / pr; // opposite hand to the crank gear
+  addHelix(p, INT_GEAR.teeth, pr - 3.2, pr + 1.6, 34, g0, g1, twist, 'steel', [0, y, 0], 12);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.18;
+    const x = 28 * Math.cos(a), yy = y + 28 * Math.sin(a);
+    p.add(yToZ(cyl(3.3, g1 - g0 + 4, 10)), 'steel', [x, yy, (g0 + g1) / 2]);
+    p.add(yToZ(hexNut(8, 3)), 'darkSteel', [x, yy, g1 + 1.2]);
+  }
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.18;
+    const tab = boxMM([-13, -3.2, -0.7], [13, 3.2, 0.7]);
+    tab.translate(0, 28, 0);
+    tab.rotateZ(a + Math.PI / 6);
+    tab.translate(0, y, g1 + 1.4);
+    p.add(tab, 'darkSteel');
+  }
+  // short spacer, then the two duplex sprockets on their existing planes (left 235, right 258)
+  seg(13, 208, 226, 'steel');
+  for (const s of [1, -1] as const) duplexSprocket(p, INT_T, INT_SPROCKET_R, [0, y, CHAIN_Z[s]], 9, 'steel', toothPhase(s, 0, y, INT_SPROCKET_R, INT_T));
+  seg(12, 250.2, 257.6, 'steel'); // land between the almost-touching sprocket rows
+  seg(11, 266, 276, 'polishedSteel');
+  p.add(yToZ(hexNut(16, 6)), 'darkSteel', [0, y, 280]);
+  // The 48 T tip circle passes through a case perimeter nut at (-18, -136, 190). Shave only that corner.
+  cutGroup(p.g, boxMM([-32, -134, 188], [-4, -126, 210]));
   return p.g;
 }

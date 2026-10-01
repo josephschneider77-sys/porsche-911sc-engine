@@ -25,7 +25,7 @@ This is the brief the procedural model in `src/geo/` is built from. All geometry
 ### Dimensions used for modelling (mm)
 Known dimensions are marked **K**. Values estimated from the catalogue illustrations' proportions and the known dimensions are marked *E*.
 
-- Bore 95.0 **K**; stroke 70.4 **K** (crank radius 35.2); con-rod centre distance 127 *E*; piston compression height 38 *E*.
+- Bore 95.0 **K**; stroke 70.4 **K** (crank radius 35.2); con-rod centre distance 127 *E* (127.8 mm is often cited; the model keeps 127 so the pistons do not move); piston compression height 38 *E*.
 - Main journal Ø60 *E* (SC "larger mains"); rod journal Ø53 *E*; conrod weight groups 633-714 g **K** (102-00 #16).
 - Bore spacing within a bank 118 *E*; bank offset 59 *E* (each throw between two mains; throw order from the pulley end 1-4-2-5-3-6).
 - Crank throw phases (deg): 1:0, 6:60, 2:120, 4:180, 3:240, 5:300. With right-bank TDC at +X and left-bank TDC at −X, this gives firing TDCs every 120° in the order 1-6-2-4-3-5 (checked in `tests/layout.test.ts`).
@@ -156,7 +156,7 @@ The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild 
 
 **Top end and cam drive (PR 2):**
 - Duplex timing chains: two roller rows, inner and outer plates with a shared centre plate, pins.
-- Duplex cam sprockets (36 T) with a lightening-hole web, flange, dowel and big nut. The intermediate shaft carries two duplex 24 T sprockets.
+- Duplex cam sprockets (36 T) with a lightening-hole web, flange, dowel and big nut. The intermediate shaft carries two duplex 18 T sprockets (the v2 note of 24 T was wrong; the chain geometry is 18 T).
 - Chain tensioner rebuilt as a layout: forged idler arm on a shaft, duplex 15 T idler sprocket on the slack run, a hydraulic adjuster below with a bolted flange and plunger, and plastic guide ramps on aluminium carriers.
 - Chain housing and lid: outline traced from end-view photos (int-shaft lobe, cam boss, tensioner pocket). Perimeter bolt bosses with studs, washers and nuts; outer flange lip; external ribs; raised cam-sprocket dome with a machined plug; lid ribs; idler-shaft cap.
 - Cam housings: continuous cam tunnel, rocker-shaft towers with machined faces, cover-seat rails with stud bosses, end bores, tunnel cover, oil-feed bosses.
@@ -339,4 +339,15 @@ Joe's request: "every detail, every part". For example, the half-moon (Woodruff)
 - **Estimated positions:** the intermediate-shaft stopper and circlips, the cam-housing plug and the second chain-lid plug.
 - **Left valve cover:** 30 mm longer at the flywheel end (`VC_EXT`). It overhangs the housing to cover its studs.
 - **Oil-cooler feet:** partly buried in the hollow case top inherited from PR #8.
+
+## 11. Batch 2 — rotating assembly
+
+Photo pass on the crank, rods, crank gears, intermediate shaft, crank pulley and pulley bolt. Layout constants (`crankRadius`, `rodLength`, `THROW_DEG`, `CYL_Z`, `MAIN_Z`, chain planes) are unchanged.
+
+- **Crankshaft.** Twelve thick forged cheeks, not one repeated thin racetrack. Cheeks beside the mains are nearer round (some with a flat chord); the others are pear-shaped with a counterweight lobe opposite the crankpin. Mains 1–7 stay Ø60 **K** on the existing stations, with a short polished land and a fillet into the cheek. Rod journals stay Ø53. Main 8 (nose) stays Ø54 *E* (r 27) inside the existing nose sleeve, then the pulley spigot. The flywheel flange keeps the 9-bolt pattern, pilot bore and adds a dowel. Counterweight lobes that point downward are kept above the sump floor (y −56).
+- **Conrods.** Forged I-beam: recessed web, raised flanges, big-end shoulders with two bolt bosses, a slightly narrower cap, and nuts proud of the cap. Centre distance stays 127 mm *E* (127.8 mm is the figure many rebuilders quote; changing it would move the pistons).
+- **Crank gears.** 36 T steel helical timing gear (wide face, keyed hub) and a smaller-OD brass helical distributor gear. Module 2 and the 84 mm centres are unchanged, so the 36:48 ratio is unchanged. The intermediate gear is the opposite hand.
+- **Intermediate shaft.** Sprocket centres stay at z 235 and z 258, 18 T, same pitch diameter, and the 48 T gear stays on the crank-gear plane (z 192–206). The photo order (sprocket, then gear, then sprocket) cannot be met without moving a chain or the mesh, so the gear remains inboard of both sprockets. The gear is helical, bolted to a flange with a lock-plate, and the flywheel-end extension is drawn as a separate dark connecting-shaft tube in the same asset. Journals stay where `ishaft-bearings`, thrust washers, circlips and the stopper seat.
+- **Crank pulley.** Single groove, pressed-steel dish, yellow zinc, Z1 notch, bolt recessed in the hub. The catalogue OD of a 930 102 028 09 is about 134 mm, but the fan belt is generated at pitch radius 73 (`FAN.rCrankPulley` 78, `FAN.zBelt` 303). The groove stays on that line so the belt still wraps; the lip is about Ø162 rather than Ø134.
+- **Pulley bolt.** M12×1.5×22, zinc, washer radius 12.5 mm (was a 24 mm-radius disc) and 3.4 mm thick.
 - **GLB total:** 5,238,860 B in 229 files (v4: 3,544,164 B / 89 files).
