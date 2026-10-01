@@ -409,6 +409,13 @@ export function crankcaseHalf(s: 1 | -1) {
     // Low enough that the cap stays inside the fan-shroud collar. Matches THERMO in aux.ts.
     p.add(cyl(24, 22, 28), CAST, [96, 99, 176]);
     p.add(cyl(20, 2.2, 32), 'machinedAlu', [96, 108.9, 176]);
+    // Oil-cooler cheek, above the right-cylinder fins and clear of the sender stalks
+    // (those reach about x 76). Face stops 0.2 mm behind OIL_COOLER.faceX (102).
+    // Spot faces and port lands are added after the interior cut. Galleries are boxes
+    // so the port drillings and the crank-bay cut open them in one pass.
+    // Numbers match OIL_COOLER in aux.ts (core must not import aux).
+    p.add(boxMM([84, 74, 26], [101.8, 142, 132]), CAST);
+    for (const z of [60, 96]) p.add(boxMM([34, 48, z - 9], [86, 116, z + 9]), CAST);
   } else {
     p.add(boxMM([-76, 108, 108], [-30, 122, 190]), CAST);
     p.add(boxMM([-80, 56, 118], [-36, 108, 188]), CAST);
@@ -418,10 +425,9 @@ export function crankcaseHalf(s: 1 | -1) {
     // warm-up regulator flange underside is y = 116.2 (WUR.flangeTop - 5). Screws thread down into this pad.
     p.add(boxMM([-72, 114.8, -198], [-48, 116.2, -142]), 'machinedAlu');
     p.add(boxMM([-76, 46, -202], [-44, 114.8, -138]), CAST);
-    // distributor clamp spacer bottoms at y = 107 (DIST.caseY). Stay inboard of the cooler feet (x >= -81).
+    // distributor clamp spacer bottoms at y = 107 (DIST.caseY).
     p.add(boxMM([-80.2, 105.4, 99], [-64, 107, 115]), 'machinedAlu');
     p.add(boxMM([-80.2, 52, 99], [-64, 105.4, 115]), CAST);
-    // Cooler pads are added after the interior cut. The distributor bore (r 36 at z 146) reaches the z 112 stud.
   }
   // round sump boss (strainer cover seats here)
   p.add(yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), CAST, [0, -126, -10]);
@@ -505,6 +511,16 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
     // Pickup stays in the sump, inboard of the cyl-3 spigot (x < 70). Same bend as oilPump().
     const path: [number, number, number][] = [[32, -86, -147], [46, -98, -147], [48, -112, -155], [24, -118, -148]];
     for (let i = 0; i + 1 < path.length; i++) cuts.push(cylBetween(path[i], path[i + 1], 11, 12));
+    // Cooler (OIL_COOLER in aux.ts). Studs [y, z], ports [y, z], face x 102.
+    // Recess the cheek so only the r 3.8 spot, added after this cut, stands at x 102.
+    for (const [y, z] of [[128, 44], [128, 112], [88, 44], [88, 112]] as const) {
+      cuts.push(yToX(cyl(10, 8, 16)).translate(98, y, z));
+    }
+    // Horizontal drilling through the cheek, then a drop that the bay cut opens.
+    for (const z of [60, 96]) {
+      cuts.push(yToX(cyl(6.5, 80, 16)).translate(64, 104, z));
+      cuts.push(cyl(6.5, 60, 14).translate(42, 74, z));
+    }
   }
   // Cylinder register: skirt OD 51.5, bore 54 leaves 2.5 mm. Deck face outside r 54 stays as the seat.
   for (const zc of bankZ(s)) {
@@ -545,13 +561,16 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
     p.add(yToX(cyl(CASE_LUG.r, CASE_LUG.x, 16)), CASE_CAST, [s * CASE_LUG.x / 2, y, z]);
     p.add(yToX(cyl(CASE_LUG.r - 0.8, 1.2, 14)), 'machinedAlu', [s * (CASE_LUG.x - 0.6), y, z]);
   }
-  if (s < 0) {
-    // Foot underside is y 95. The supporting pad stops 0.2 mm under it (a coplanar rim counts as a hit).
-    // The bright spot the stud ray sees is r 3.8, inside the foot's r 4.5 hole, and its top is exactly y 95.
-    for (const sz of [36, 62, 88, 112]) {
-      p.add(cyl(5.5, 1.2, 24), 'machinedAlu', [-89, 94.2, sz]);
-      p.add(cyl(3.8, 0.4, 16), 'machinedAlu', [-89, 94.8, sz]);
-      p.add(boxMM([-94.2, 50, sz - 6], [-83, 93.8, sz + 6]), CASE_CAST);
+  if (s > 0) {
+    // Cooler studs. Surrounding cheek stops at x 101.8; the r 3.8 spot is exactly x 102,
+    // inside the flange hole (r 4.5). Port land is a ring so the r 6.5 drilling stays open.
+    for (const [y, z] of [[128, 44], [128, 112], [88, 44], [88, 112]] as const) {
+      p.add(yToX(cyl(3.8, 0.8, 16)), 'machinedAlu', [101.6, y, z]);
+    }
+    for (const z of [60, 96]) {
+      const ring = circleShape(13.2);
+      ring.holes.push(circlePath(7.4) as THREE.Path);
+      p.add(extrudeC(ring, 1.6).rotateY(Math.PI / 2), 'machinedAlu', [101, 104, z]);
     }
   }
 }

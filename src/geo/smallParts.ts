@@ -11,7 +11,7 @@ import { partPose, seat, probe } from './probe';
 import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
 import { LIP_Z, chainLidStations } from './stations';
-import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD, airCleanerLayout } from './aux';
+import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
 import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, TEE_AIR_INJ, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -237,7 +237,7 @@ def('oil-return-tubes', () => { const p = new Part(); const L = 150; p.add(cyl(7
   () => [1, -1].flatMap((s) => [s > 0 ? [CYL_Z[1], CYL_Z[2]] : [CYL_Z[4], CYL_Z[5]], s > 0 ? [CYL_Z[2], CYL_Z[3]] : [CYL_Z[5], CYL_Z[6]]].map(([a, b2]) => M(V(s * (DECK_X + 6), -78, (a + b2) / 2), V(s, 0, 0)))));
 def('oil-pump-seals', () => oring(9, 1.5), () => OIL_PUMP.seals.map(([x, y, z], i) => M(V(x, y, z), i < 2 ? Y : Z)));
 
-def('oil-cooler-seals', () => oring(5, 1), () => [[-84, 49], [-84, 75]].map(([x, z]) => M(V(x, 101.05, z), Y)));
+def('oil-cooler-seals', () => oring(11.25, 1.75), () => OIL_COOLER.ports.map(([y, z]) => M(V(OIL_COOLER.faceX - 1.7, y, z), X)));
 
 // ===== cylinders / heads =====
 def('cyl-base-gaskets', () => washer(48.6, 52, 0.25, 'gasket'), () => CYLS.map((c) => posed(`cylinder-${c}`, [0.05, 0, 0], [1, 0, 0])));

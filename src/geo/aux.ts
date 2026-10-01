@@ -475,28 +475,60 @@ function swapSkirt(sk: THREE.Shape, t: number, s: 1 | -1, bx: number) {
   return g;
 }
 
-// ---------------------------------------------------------------- 104-00 / 101 lubrication bits
+// ---------------------------------------------------------------- 104-00 lubrication: crankcase oil cooler
+/**
+ * 911 107 041 00, bolted to the right crankcase in the fan stream (Stomski /
+ * Pelican: shroud wraps over it; two upper M8 nuts and the lower nuts, reached
+ * from the right rear wheel). Published core 195 × 140 × 80 mm for 911 107 041
+ * 02 / 00. The stack here is trimmed to the space above the right-cylinder fins
+ * and under the shroud wing: 96 mm along Z, 62 mm tall, 70 mm outboard of the
+ * case face. Horizontal fins at 1.25 mm pitch (no published fin count; the
+ * full 140 mm core height would not fit under the shroud). Studs and
+ * ports are [y, z]; the case bores in core.ts use the same numbers.
+ * One cut stub on the outboard tank is the engine end of the tank-to-cooler
+ * hose. The hose, the wheel-well thermostat and the front-fender cooler are
+ * off the engine and are not drawn.
+ */
+export const OIL_COOLER = {
+  /** Case spot face, and the flange's inboard face. 0.2 mm off the surrounding cheek. */
+  faceX: 102,
+  /** Flange thickness along +X. Nut face is faceX + foot. */
+  foot: 8,
+  y0: 76, y1: 138,
+  z0: 30, z1: 126,
+  /** Outboard face of the end tank. */
+  x1: 172,
+  /** Two upper, two lower. [y, z]. */
+  studs: [[128, 44], [128, 112], [88, 44], [88, 112]] as [number, number][],
+  /** 36 mm apart so the Ø26 rings (999 704 173 50) do not meet. [y, z]. */
+  ports: [[104, 60], [104, 96]] as [number, number][],
+  finPitch: 1.25,
+};
 export function oilCooler() {
   const p = new Part();
-  const x0 = -199, x1 = -95, y0 = 74, y1 = 124, z0 = 30, z1 = 148;
-  p.add(boxMM([x0, y0, z0], [x0 + 6, y1, z1]), 'castAlu');
-  p.add(boxMM([x1 - 6, y0, z0], [x1, y1, z1]), 'castAlu');
-  for (let z = z0 + 3; z < z1 - 2; z += 3.2) p.add(boxMM([x0 + 6, y0 + 3, z], [x1 - 6, y1 - 3, z + 0.9]), 'machinedAlu');
-  for (const y of [y0 + 10, (y0 + y1) / 2, y1 - 10]) p.add(cylBetween([x0 + 6, y, (z0 + z1) / 2], [x1 - 6, y, (z0 + z1) / 2], 4, 10), 'castAlu');
-  // oil ports: short spigots from the end tank to the case-top passages (O-rings: smallParts oil-cooler-seals)
-  for (const z of [49, 75]) { p.add(cylBetween([x1, 97, z], [-84, 97, z], 4, 12), 'castAlu'); p.add(cylBetween([-84, 97, z], [-84, 92, z], 4, 12), 'castAlu'); }
-  // four mounting feet on the case top (nuts: fasteners.ts oil-cooler-nuts)
-  // v5: the end tank corner is relieved round the distributor base instead of overlapping it (feet added after the cut)
-  cutGroup(p.g, distRelief(70, 100));
-  for (const [x, z] of OIL_COOLER.studs) {
-    const sh = polyShape(hull([...circlePts(x, z, 8, 12), ...circlePts(x1 + 2, z, 8, 12)]));
-    sh.holes.push(circlePath(4.5, x, z) as THREE.Path); // stud (r 3.84) passes through; the foot stays clear of the case stud
-    p.add(extrudeC(sh, OIL_COOLER.foot).rotateX(Math.PI / 2), 'castAlu', [0, OIL_COOLER.footTop - OIL_COOLER.foot / 2, 0]);
+  const C = OIL_COOLER;
+  const yMid = (C.y0 + C.y1) / 2, zMid = (C.z0 + C.z1) / 2;
+  const plate = roundRect(C.z1 - C.z0, C.y1 - C.y0, 5);
+  // rotateY(+90) sends shape +X to world −Z, so a hole's shape-x is zMid − worldZ.
+  for (const [y, z] of C.studs) plate.holes.push(circlePath(4.5, zMid - z, y - yMid) as THREE.Path);
+  for (const [y, z] of C.ports) plate.holes.push(circlePath(7.2, zMid - z, y - yMid) as THREE.Path);
+  p.add(extrudeC(plate, C.foot).rotateY(Math.PI / 2), 'castAlu', [C.faceX + C.foot / 2, yMid, zMid]);
+  // Header and end tank. Fins stay between the nut rows so the M8 nuts stay reachable.
+  const yA = 98, yB = 118, zA = 36, zB = 120;
+  p.add(boxMM([C.faceX + C.foot, yA - 2, zA], [C.faceX + C.foot + 10, yB + 2, zB]), 'castAlu');
+  p.add(boxMM([C.x1 - 14, yA - 4, zA - 2], [C.x1, yB + 4, zB + 2]), 'castAlu');
+  for (let y = yA; y < yB; y += C.finPitch) {
+    p.add(boxMM([C.faceX + C.foot + 10, y, zA + 2], [C.x1 - 14, y + 0.55, zB - 2]), 'machinedAlu');
   }
+  for (const z of [52, 78, 104]) {
+    p.add(cylBetween([C.faceX + C.foot + 10, (yA + yB) / 2, z], [C.x1 - 14, (yA + yB) / 2, z], 2.6, 10), 'castAlu');
+  }
+  // Cut stub: tank-to-cooler hose, stopped at the fitting. Off-engine past the hex.
+  const sy = (yA + yB) / 2, sz = zB - 16;
+  p.add(yToX(lathe([[3.2, 0], [5.5, 0], [5.5, 18], [3.2, 18]], 16)), 'castAlu', [C.x1, sy, sz]);
+  p.add(yToX(hexNut(17, 5)), 'yellowZinc', [C.x1 + 11, sy, sz]);
   return p.g;
 }
-/** Oil-cooler feet: 4 studs in the left case top (case surface y 95 at x -90). */
-export const OIL_COOLER = { foot: 6, footTop: 101, studs: [[-89, 36], [-89, 62], [-89, 88], [-89, 112]] as [number, number][] };
 /**
  * Oil thermostat on TOP of the right case half at the pulley end.
  * seatY is the nut face (top of the flange). The case pad is at seatY − grip.

@@ -60,7 +60,7 @@ export const SMALL_SPECS: SmallSpec[] = [
   S('case-through-orings', 'Through-bolt O-rings', 24, 'split', 'crankcase-left', ['crankcase-right', 'crankcase-left', 'case-through-bolts', 'case-through-nuts', 'case-through-stud-nut'], 'O-ring', 'O-rings under the through-bolt washers (101-05 #24, 101-10 #26).'),
   S('oil-return-tubes', 'Oil return tubes with O-rings', 4, 'cylinders', 'cylinder-2', ['crankcase-right', 'crankcase-left', 'cylinder-1', 'cylinder-2', 'cylinder-3', 'cylinder-4', 'cylinder-5', 'cylinder-6', 'head-1', 'head-2', 'head-3', 'head-4', 'head-5', 'head-6', 'cam-housing-right', 'cam-housing-left'], 'Tube + 2 O-rings', 'Oil return tubes (101-05 #16) from the cam housings to the case, each with two round seals (#17).'),
   S('oil-pump-seals', 'Oil-pump sealing rings', 7, 'int-shaft', 'oil-pump', ['oil-pump', 'crankcase-right', 'crankcase-left', 'intermediate-shaft'], 'O-rings', 'Sealing rings on the pump outlets (104-00 #2 x2, #3 x4; 101-10 #24).'),
-  S('oil-cooler-seals', 'Oil-cooler seals', 2, 'shroud', 'oil-cooler', ['oil-cooler', 'crankcase-left'], 'O-ring', 'Seals between the oil cooler feet and the case.'),
+  S('oil-cooler-seals', 'Oil-cooler seals', 2, 'externals', 'crankcase-right', ['oil-cooler', 'crankcase-right'], '19.5 × 26 mm', 'Two 999 704 173 50 sealing rings (OD 26, ID 19) on the right-case cooler ports. Stoddard lists that ring as the oil-cooler and oil-pump seal. PET 104-00 #2 qty 2 stays on the pump; these two are the same ring at the cooler.'),
   // --- cylinders / heads / intake / exhaust
   S('cyl-base-gaskets', 'Cylinder base gaskets', 6, 'cylinders', 'cylinder-2', ['crankcase-right', 'crankcase-left', 'cylinder-1', 'cylinder-2', 'cylinder-3', 'cylinder-4', 'cylinder-5', 'cylinder-6'], '0.25 mm', 'Base gaskets (102-05 #5).'),
   S('head-seals', 'Head sealing rings (Ce-seal)', 6, 'cylinders', 'cylinder-2', ['cylinder-1', 'cylinder-2', 'cylinder-3', 'cylinder-4', 'cylinder-5', 'cylinder-6', 'head-1', 'head-2', 'head-3', 'head-4', 'head-5', 'head-6'], 'Ce-seal', 'Sealing ring (102-05 #6) on the cylinder top spigot; no head gasket.'),
@@ -117,7 +117,7 @@ export function smallRef(id: string): [string, string] {
     'spray-jets': ['101-05', '-'], 'relief-plugs': ['101-05', '30'], 'relief-pistons': ['101-05', '27'], 'case-oil-fittings': ['101-05', '31'], 'case-connection': ['101-05', '18'],
     'oil-temp-sensor': ['101-10', '28'], 'oil-pressure-sender': ['101-10', '45'], 'oil-pressure-switch': ['101-10', '47'], 'oil-pressure-fitting': ['101-10', '48'],
     'thermostat-oring': ['101-10', '38'], 'sump-drain-ring': ['101-05', '42'], 'case-through-orings': ['101-05', '24'], 'oil-return-tubes': ['101-05', '16'],
-    'oil-pump-seals': ['104-00', '2'], 'oil-cooler-seals': ['104-00', '8'], 'cyl-base-gaskets': ['102-05', '5'], 'head-seals': ['102-05', '6'], 'head-dowels': ['103-00', '8'],
+    'oil-pump-seals': ['104-00', '2'], 'oil-cooler-seals': ['104-00', '2'], 'cyl-base-gaskets': ['102-05', '5'], 'head-seals': ['102-05', '6'], 'head-dowels': ['103-00', '8'],
     'exhaust-gaskets': ['202-00', '31'], 'intake-gaskets': ['106-00', '7'], 'intake-boots': ['106-00', '10'], 'intake-boot-clamps': ['106-00', '11'],
     'injector-orings-a': ['106-00', '29'], 'injector-orings-b': ['106-00', '30'], 'injector-orings-c': ['107-10', '22'], 'distributor-oring': ['901-00', '4'],
     'ignition-lead-holders': ['901-00', '22'], 'shroud-speed-nuts': ['105-05', '2'], 'shroud-cover-plate': ['105-05', '6'], 'shroud-stopper': ['105-05', '9'],

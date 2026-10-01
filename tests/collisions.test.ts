@@ -76,16 +76,16 @@ describe('assembled-pose interference', () => {
       });
 
   const coolerPair = (id: string) => hits.some((h) => (h.a === 'oil-cooler' && h.b === id) || (h.b === 'oil-cooler' && h.a === id));
-  it('oil-cooler mounting feet meet the left-case bosses flush and do not interpenetrate', () => {
+  it('oil-cooler flange meets the right-case cheek and does not interpenetrate', () => {
     expect(coolerPair('crankcase-left')).toBe(false);
     expect(coolerPair('crankcase-right')).toBe(false);
-    const seatY = OIL_COOLER.footTop - OIL_COOLER.foot;
-    for (const [x, z] of OIL_COOLER.studs) {
-      const hit = rayHit('crankcase-left', new THREE.Vector3(x, seatY + 2, z), new THREE.Vector3(0, -1, 0), 8);
-      expect(hit, `cooler stud (${x}, ${z})`).toBeTruthy();
-      expect(hit!.distance, `seat under (${x}, ${z})`).toBeCloseTo(2, 1);
-      expect(hit!.normal.y, `seat normal (${x}, ${z})`).toBeGreaterThan(0.99);
+    const faceX = OIL_COOLER.faceX;
+    for (const [y, z] of OIL_COOLER.studs) {
+      const hit = rayHit('crankcase-right', new THREE.Vector3(faceX + 2, y, z), new THREE.Vector3(-1, 0, 0), 8);
+      expect(hit, `cooler stud (${y}, ${z})`).toBeTruthy();
+      expect(hit!.distance, `seat at (${y}, ${z})`).toBeCloseTo(2, 1);
+      expect(hit!.normal.x, `seat normal (${y}, ${z})`).toBeGreaterThan(0.99);
     }
-    expect(clearance('oil-cooler', 'crankcase-left')).toBeLessThan(0.6);
+    expect(clearance('oil-cooler', 'crankcase-right')).toBeLessThan(0.6);
   });
 });
