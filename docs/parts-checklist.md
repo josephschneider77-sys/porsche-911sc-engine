@@ -1111,3 +1111,26 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 9 | N 011 132 2 | Hexagon nut | 1 | N/A | starter motor and its cap / nut / lock ring: mounted on the transmission bellhousing, not the engine |
 | 10 | 900 027 015 02 | Lock ring | 1 | N/A | starter motor and its cap / nut / lock ring: mounted on the transmission bellhousing, not the engine |
 | 10 | 900 027 015 03 | Lock ring | 1 | alt | alternative to 902-05 #10 |
+
+## Top-end dimensions (batch 1)
+
+These are the sizes the cam housings, camshafts, rockers and valves are built to. A size marked unverified has not been checked against Wayne Dempsey, *How to Rebuild and Modify Porsche 911 Engines 1965–1989*.
+
+| Item | Value | Source | Dempsey |
+|---|---|---|---|
+| Lash, cold, in and ex | 0.10 mm at the adjuster ball; pad on the base circle | Wayne Dempsey, “911 Valve Adjustment” | verified |
+| Intake / exhaust head | Ø49 mm / Ø41.5 mm | Catalogue 930.105.409 / 930.105.419; previous model | not re-measured |
+| Valve angle | 28° in / 32° ex | Previous model | unverified |
+| Valve length | 112 mm | Previous model | unverified |
+| Stem | Ø9 mm, three keeper grooves | Stem size is the common 911 figure; three beads are the 901.105.417.00 photo | unverified |
+| Installed spring height | 34.5 mm | Bentley 911 SC spec 34.5 ± 0.3 mm (DDK quotation). Not Dempsey | unverified |
+| Spring diameters | outer centre Ø20.4 mm, inner Ø14.2 mm | Scaled to clear the cam-housing stud nuts. The spring photo shows a larger outer coil | unverified |
+| Cam journal / housing bore | Ø46.7 mm / Ø47.1 mm, four webs | Audit photos read about Ø47. Peak lobe radius 22.4 mm is under the journal so the cam slides in from the chain end | unverified |
+| Lobe | base radius 16 mm, lift 6.4 mm | Built as base circle, flank and nose. Peak timing is conventional, not a measured cam card | unverified |
+| Cam shank | Ø28 mm | About 0.6 × the journal on the FVD photo | unverified |
+| Cam nose | r 11 mm, Woodruff key, external M22 | Key, washer and nut still use `CAM_NOSE`. Flange OD 62 mm so the dowel holes clear the hub | key / nut unchanged |
+| Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket, tail in the flange hole | 900 243 001 00, Stoddard 6 × 14. Existing `cam-pin-*`, circle radius 24 mm | parts listing |
+| Valve covers | both banks match the cam-housing seat | Left cover no longer overhangs the flywheel end by 30 mm. Nuts stay on the ear bosses | — |
+| Rocker shaft | Ø18 × 50 mm, hollow, two grooves, slotted | Photo of 901.105.342.04 | unverified |
+| Shaft screw / nut | M6 socket head 999.067.008.00; conical nut 901.105.376.02 | Photos. Same fastener sets, reshaped (the catalogue calls the screw a pan head) | shape from photos |
+| Rocker ratio | ~1.13 in / ~1.21 ex at this layout | Follows from the pad-on-base-circle placement. Not taken from a published ratio | unverified |

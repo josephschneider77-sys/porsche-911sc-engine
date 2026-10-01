@@ -288,7 +288,7 @@ Other fixes in this pass:
 - Breather-lid nut positions are estimated.
 - Not modelled as separate hardware: distributor clamp, fan-housing strap and alternator bolts, oil-cooler nuts, air-guide screws, main-bearing studs (inside the case), oil-pump internal bolts. The SC has no engine-mounted oil-filter console (the filter is on the body), so none is modelled.
 - Conrod bolts, cam-sprocket bolt, idler and adjuster-ear nuts are part of their host meshes and are not checked by the fastener test.
-- The valve-spring stack passes through the cam-housing nut stations (simplified springs).
+- The valve-spring stack passes through the cam-housing nut stations (simplified springs). Fixed in the top-end batch: the stack clears those nuts (see §11).
 - The 46° adjuster angle remains a compromise; the photos show about 60°.
 
 
@@ -337,10 +337,47 @@ Joe's request: "every detail, every part". For example, the half-moon (Woodruff)
 - **Stud lengths:** these are allocated across catalogue lines by pool (`POOLS`), not stud by stud.
 - **Features asserted per part:** rings, bushes, plugs and similar features baked into a part's mesh are counted from `FEATURES` rather than measured from the geometry.
 - **Estimated positions:** the intermediate-shaft stopper and circlips, the cam-housing plug and the second chain-lid plug.
-- **Left valve cover:** 30 mm longer at the flywheel end (`VC_EXT`). It overhangs the housing to cover its studs.
 - **Oil-cooler feet:** partly buried in the hollow case top inherited from PR #8.
 
-## 11. Batch 2 — rotating assembly
+## 11. Top end batch 1 (cam housings, cams, rockers, valves)
+
+Geometry is in `src/geo/valvetrain.ts`. Chief of Staff parts are reshaped, not duplicated: the cam Woodruff key, flange, shim, thrust washer and M22 nut still use `CAM_NOSE`; the keeper halves and stem seals stay inside the valve mesh; the rocker-shaft screw and nut sets are the existing `rocker-shaft-screws-*` / `rocker-shaft-nuts-*`.
+
+The external full-length oil line on the old housing is gone. Photos of the housing do not show one. The splash tube (`930.105.362.00`) and the banjo stay; the tube is moved off the journal centreline.
+
+### Dimensions
+
+| Item | Value used | Source | vs Dempsey |
+|---|---|---|---|
+| Valve lash, cold, intake and exhaust | 0.10 mm between the adjuster ball and the stem tip; the pad is on the base circle | Wayne Dempsey, “911 Valve Adjustment” (same author as the rebuild book) | verified |
+| Intake / exhaust head Ø | 49 mm / 41.5 mm | Catalogue 930.105.409.13 / 930.105.419.51; kept from the previous model | not re-measured in the book for this pass |
+| Included angle | 28° intake / 32° exhaust | Previous model. Not found as a quoted figure in the sources used here | unverified |
+| Overall valve length | 112 mm | Previous model | unverified |
+| Stem Ø | 9 mm | Common 911 stem size; not quoted from Dempsey here | unverified |
+| Keeper grooves | 3 beads, two half-cones (901.105.417.00) | Photo of 901.105.417.00 | unverified as a measured width |
+| Installed spring height | 34.5 mm | Bentley 911 SC specification 34.5 ± 0.3 mm, quoted on a DDK forum thread. Not Dempsey | unverified against the book |
+| Spring wire / coil Ø | outer centre Ø20.4 mm, inner Ø14.2 mm | Scaled so the stack clears the cam-housing stud nuts. Photo shows a larger outer coil | unverified |
+| Cam journal Ø | 46.7 mm | Chosen just under a Ø47 bore. The audit photos read “about Ø47” | unverified |
+| Cam bore Ø | 47.1 mm, four webs, open from the chain end | Same audit. Four journals are visible on the FVD cam photo; the old “3 plain bearings” note was wrong | unverified |
+| Lobe base radius / lift / peak radius | 16 mm / 6.4 mm / 22.4 mm | Profile is base circle + flank + nose. Peak is held under the journal so the cam slides in. Peak crank angles (intake 450°, exhaust 270° after firing TDC) are a conventional shape, not a measured SC cam card | unverified |
+| Shank Ø | 28 mm (~0.6 × journal) | Proportion on the FVD cam photo | unverified |
+| Cam nose | r 11 mm, Woodruff 4 × 5 × 10, M22 external thread | Key, washer and nut still use `CAM_NOSE`. Flange OD is 62 mm so the dowel holes clear the hub | key / nut interface unchanged |
+| Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket web, tail in the flange hole | 900 243 001 00. Stoddard lists the pin as 6 × 14. Same `cam-pin-*` part; circle radius 24 mm, outside the M22 nut | length from the parts listing |
+| Valve covers | seat length `CH_Z1 − CH_Z0 − 8` on both banks | Left cover used to overhang the flywheel end by 30 mm (`VC_EXT`). It now matches the cam-housing rails, same as the right cover. Nuts stay on `VC_EARS` | unverified |
+| Rocker shaft | Ø18 × 50 mm, hollow, two O-ring grooves, slotted ends | Photo of 901.105.342.04. Length is the span between the spot faces | unverified |
+| Rocker-shaft screw | M6 socket head, 999.067.008.00 | Photo; the catalogue text says pan head. Same part set, reshaped | head shape from the photo |
+| Rocker-shaft nut | Conical flange, internal hex, 901.105.376.02 | Photo of 901.105.376.03 (catalogue lists .02) | shape from the photo |
+| Rocker ratio | about 1.13 intake / 1.21 exhaust at this layout (7.2 / 7.7 mm valve lift from 6.4 mm cam lift) | Consequence of putting the pad on the base circle and the ball on the stem. Published ratios near 1.4 were not used | unverified |
+| Firing order | 1-6-2-4-3-5, cams at half crank speed | Standard 911. Opposite cylinders are 360° apart on the 720° cycle | verified as the engine’s order, not as a page citation |
+
+Closed valves meet the 45° seat with no gap. At the assembled crank (cylinder 1 at firing TDC) cylinder 4 is on overlap and both of its valves are off the seat. Each cylinder has its own valve asset for that reason.
+
+### Tests
+
+`tests/valvetrain.test.ts` checks lash, nose opening, lobe-peak versus journal radius on the mesh, the open bore from the chain end, the left/right mirror, the left valve cover against the cam-housing seat, and the cam dowel (proud of the sprocket, seated in the flange). The collision allowlist did not gain a new SIMPLIFIED entry. The old “springs through the cam-housing nuts” pair stays off the list and the stack clears those nuts. Cover-to-rocker SIMPLIFIED entries are unchanged: the hollow covers are still shallower than the rocker gear.
+
+
+## 12. Batch 2 — rotating assembly
 
 Photo pass on the crank, rods, crank gears, intermediate shaft, crank pulley and pulley bolt. Layout constants (`crankRadius`, `rodLength`, `THROW_DEG`, `CYL_Z`, `MAIN_Z`, chain planes) are unchanged.
 
@@ -350,4 +387,4 @@ Photo pass on the crank, rods, crank gears, intermediate shaft, crank pulley and
 - **Intermediate shaft.** Sprocket centres stay at z 235 and z 258, 18 T, same pitch diameter, and the 48 T gear stays on the crank-gear plane (z 192–206). The photo order (sprocket, then gear, then sprocket) cannot be met without moving a chain or the mesh, so the gear remains inboard of both sprockets. The gear is helical, bolted to a flange with a lock-plate, and the flywheel-end extension is drawn as a separate dark connecting-shaft tube in the same asset. One tooth sector is shaved so the tip circle clears a case-perimeter nut. Journals stay where `ishaft-bearings`, thrust washers, circlips and the stopper seat. Gear tip radius is about 1.6× the sprocket tip (pitch geometry is fixed; the photos are closer to 1.9×).
 - **Crank pulley.** Single groove, pressed-steel dish, yellow zinc, Z1 notch, bolt recessed in the hub. The catalogue OD of a 930 102 028 09 is about 134 mm, but the fan belt is generated at pitch radius 73 (`FAN.rCrankPulley` 78, `FAN.zBelt` 303). The groove stays on that line so the belt still wraps; the lip is about Ø162 rather than Ø134.
 - **Pulley bolt.** M12×1.5×22, zinc, washer radius 12.5 mm (was a 24 mm-radius disc) and 3.4 mm thick.
-- **GLB total:** 5,457,504 B in 229 files.
+- **GLB total:** 6,100,624 B in 234 files.

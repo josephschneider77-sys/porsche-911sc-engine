@@ -97,12 +97,12 @@ export const FASTENER_SPECS: FastenerSpec[] = [
   { id: 'breather-nuts', name: 'Breather cover nuts', count: 2, step: 'externals', follows: 'breather-lid', size: 'M6 nut + spring washer',
     catalog: [{ ill: '101-10', pos: '36', pn: '900 076 010 02', qty: 2, note: 'Spring washers #35 x2 (assignment to the breather cover estimated)' }], description: 'Two nuts on the breather cover studs.' },
   ...b2((b) => ({
-    id: `rocker-shaft-screws-${b}`, name: `Rocker-shaft screws, ${b}`, count: 6, step: 'rockers', follows: `rockers-${b}`, size: 'Pan-head screw',
-    catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '45', pn: '999 067 008 00', qty: 12, note: 'Expanding-shaft screw' }], description: 'Screw through each expanding rocker shaft; slackening it releases the shaft.',
+    id: `rocker-shaft-screws-${b}`, name: `Rocker-shaft screws, ${b}`, count: 6, step: 'rockers', follows: `rockers-${b}`, size: 'M6 socket-head screw',
+    catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '45', pn: '999 067 008 00', qty: 12, note: 'Expanding-shaft screw' }], description: 'Socket-head screw (999.067.008.00) through each hollow rocker shaft, head on the +Z spot face. Tightening it with the conical nut expands the slotted shaft in the housing bore.',
   })),
   ...b2((b) => ({
-    id: `rocker-shaft-nuts-${b}`, name: `Rocker-shaft nuts, ${b}`, count: 6, step: 'rockers', follows: `rockers-${b}`, size: 'Nut',
-    catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '47', pn: '901 105 376 02', qty: 12 }], description: 'Nut on the other end of each rocker-shaft screw, on the opposite tower face.',
+    id: `rocker-shaft-nuts-${b}`, name: `Rocker-shaft nuts, ${b}`, count: 6, step: 'rockers', follows: `rockers-${b}`, size: 'Conical nut',
+    catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '47', pn: '901 105 376 02', qty: 12 }], description: 'Conical internal-hex nut (901.105.376.02) on the −Z spot face. The cone enters the shaft bore; the flange bears on the spot face.',
   })),
   ...b2((b) => ({ id: `cam-nut-${b}`, name: `Camshaft sprocket nut, ${b}`, count: 1, step: 'cam-nuts', follows: `cam-sprocket-${b}`, size: 'M22x1.5 nut + spring washer',
     catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '40/41', pn: '900 024 007 02 / 930 105 236 00', qty: 1, note: 'Spring washer / nut' }],

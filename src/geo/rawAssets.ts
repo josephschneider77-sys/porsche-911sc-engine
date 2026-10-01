@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as C from './core';
 import * as A from './aux';
 import * as SP from './smallParts';
+import * as V from './valvetrain';
 
 /** Raw part builders (no fastener hardware); see assets.ts for the exported set. */
 export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
@@ -14,17 +15,22 @@ export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
   piston: C.piston,
   cylinder: C.cylinder,
   'cylinder-head': C.cylinderHead,
-  'valve-set': C.valveSet,
-  'cam-housing-right': () => C.camHousing(1),
-  'cam-housing-left': () => C.camHousing(-1),
+  'valve-set-1': () => V.valveSet(1),
+  'valve-set-2': () => V.valveSet(2),
+  'valve-set-3': () => V.valveSet(3),
+  'valve-set-4': () => V.valveSet(4),
+  'valve-set-5': () => V.valveSet(5),
+  'valve-set-6': () => V.valveSet(6),
+  'cam-housing-right': () => V.camHousing(1),
+  'cam-housing-left': () => V.camHousing(-1),
   'valve-cover-upper-right': () => C.valveCover(1, true),
   'valve-cover-lower-right': () => C.valveCover(1, false),
   'valve-cover-upper-left': () => C.valveCover(-1, true),
   'valve-cover-lower-left': () => C.valveCover(-1, false),
-  'camshaft-right': () => C.camshaft(1),
-  'camshaft-left': () => C.camshaft(-1),
-  'rockers-right': () => C.rockers(1),
-  'rockers-left': () => C.rockers(-1),
+  'camshaft-right': () => V.camshaft(1),
+  'camshaft-left': () => V.camshaft(-1),
+  'rockers-right': () => V.rockers(1),
+  'rockers-left': () => V.rockers(-1),
   'timing-chain-right': () => C.timingChain(1),
   'timing-chain-left': () => C.timingChain(-1),
   'cam-sprocket-right': () => C.camSprocket(1),

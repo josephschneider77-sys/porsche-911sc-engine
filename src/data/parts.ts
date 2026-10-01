@@ -69,12 +69,12 @@ function perCylinder(): PartDef[] {
       specs: { Valves: '2 (1 in / 1 ex)', 'Intake valve': 'Ø49 mm', 'Exhaust valve': 'Ø41.5 mm', 'Valve angle': '~28° in / ~32° ex (est.)' },
     });
     out.push({
-      id: `valves-${c}`, name: `Valves & springs, cyl. ${c}`, system: 'valvetrain', asset: 'valve-set',
+      id: `valves-${c}`, name: `Valves & springs, cyl. ${c}`, system: 'valvetrain', asset: `valve-set-${c}`,
       position: [CYL_TOP_X * s, 0, z], rotation: bankRot(c), explode: [s * 470, 0, 0],
       catalog: [{ ill: '103-00', pos: '9', pn: '930 105 409 01', note: 'Intake valve' }, { ill: '103-00', pos: '10', pn: '930 105 419 08', note: 'Exhaust valve (sodium filled)' },
         { ill: '103-00', pos: '13-15', pn: '901 105 901 50 / 901 105 421 03 / 901 105 417 00', note: 'Spring set / retainer / collets' }],
-      description: 'Intake and exhaust valve with dual valve springs, spring seat, retainer and split collets. Clearance is set at the rocker adjusting screw (0.10 mm cold).',
-      specs: { 'Valve clearance': '0.10 mm cold', Springs: 'Dual', 'Stem Ø': '9 mm' },
+      description: 'Intake (Ø49 mm) and exhaust (Ø41.5 mm) valves with a directional outer spring, inner spring, stepped retainer and two three-bead keeper halves. The stem seal and keepers are the existing catalogue parts, reshaped. Clearance is the 0.10 mm gap at the rocker screw, cold. The mesh is built at the assembled crank, so a cylinder on overlap is off its seat.',
+      specs: { 'Valve clearance': '0.10 mm cold', Springs: 'Dual, outer damper coils at the head', 'Stem Ø': '9 mm', 'Installed height': '34.5 mm (Bentley SC, not Dempsey)', 'Keeper grooves': '3' },
     });
     const zRot: Vec3 = s === 1 ? [0, 0, -20 * (R / 180)] : [0, R, -20 * (R / 180)];
     out.push({
@@ -112,8 +112,8 @@ function perBank(): PartDef[] {
     out.push({
       id: `cam-housing-${b}`, name: `Camshaft housing, ${b} (cyl. ${cyls})`, system: 'heads', asset: `cam-housing-${b}`, explode: [s * 520, 0, 0],
       catalog: [{ ill: '103-05', pos: '13', pn: '930 105 021 00', qty: 2 }],
-      description: 'Cast aluminium cam tower bolted across the three heads of one bank. Carries the camshaft in three plain bearings (in the base metal) and the rocker shafts; closed by upper and lower valve covers.',
-      specs: { Material: 'Cast Al', 'Cam bearings': '3, plain', 'Rocker shafts': '6' },
+      description: 'Cast aluminium cam tower bolted across the three heads of one bank. One body, line-bored for the cam through four webs, with a rocker-shaft bore and spot face each side of every cylinder. Closed by upper and lower valve covers. The left housing is the mirror of the right.',
+      specs: { Material: 'Cast Al', 'Cam bore': 'Ø47.1 mm, 4 webs (unverified)', 'Rocker bores': 'Ø18 mm × 6 (unverified)', 'Rocker shafts': '6' },
     });
     for (const up of [true, false]) {
       out.push({
@@ -127,14 +127,14 @@ function perBank(): PartDef[] {
     out.push({
       id: `camshaft-${b}`, name: `Camshaft, ${b}`, system: 'camdrive', asset: `camshaft-${b}`, explode: [s * 640, 60, 0],
       catalog: [{ ill, pos: '42', pn: s === 1 ? '930 105 148 08' : '930 105 147 08', qty: 1, note: 'SC grind, -81' }],
-      description: 'Chilled cast-iron/steel camshaft with one intake and one exhaust lobe per cylinder, driven at half crank speed by duplex chain from the intermediate shaft.',
-      specs: { Speed: '½ crank', Lobes: '6', Bearings: '3 + end' },
+      description: 'Chilled cast-iron camshaft with one intake and one exhaust lobe per cylinder, ground journals in the four housing webs, and a keyed nose for the existing Woodruff key, flange, thrust washer and M22 nut. Every lobe peak is under the journal radius so the cam slides in from the chain end. Driven at half crank speed.',
+      specs: { Speed: '½ crank', Lobes: '6 (base circle + flank + nose)', Journals: '4 × Ø46.7 mm (unverified)', 'Lobe peak': 'Ø44.8 mm, under the journal (unverified)' },
     });
     out.push({
       id: `rockers-${b}`, name: `Rocker arms & shafts, ${b}`, system: 'valvetrain', asset: `rockers-${b}`, explode: [s * 600, 30, 60],
       catalog: [{ ill, pos: '48', pn: '930 105 043 00', qty: 12, note: 'Rocker arm' }, { ill, pos: '44', pn: '901 105 342 04', qty: 12, note: 'Rocker shaft (expanding)' }, { ill, pos: '49/50', pn: '901 105 370 02 / 999 034 005 00', note: 'Adjusting screw / nut' }],
-      description: 'Forged rocker arms on clamp-type expanding shafts; each transfers cam lift to its valve and carries the clearance-adjusting screw.',
-      specs: { Count: '6 per bank', Ratio: '~1.2 (est.)' },
+      description: 'Forged rocker arms on hollow slotted expanding shafts. The pad sits on the cam base circle; clearance is the 0.10 mm gap between the adjuster ball and the valve stem (cold). Intake and exhaust arms mirror across the cam.',
+      specs: { Count: '6 per bank', 'Shaft': 'Ø18 mm hollow, 2 grooves (unverified)', Ratio: '~1.1 at this layout (unverified)', Lash: '0.10 mm cold at the screw' },
     });
     out.push({
       id: `timing-chain-${b}`, name: `Timing chain, ${b}`, system: 'camdrive', asset: `timing-chain-${b}`, explode: [s * 380, -40, 240],

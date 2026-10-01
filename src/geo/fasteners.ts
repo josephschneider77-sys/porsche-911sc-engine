@@ -13,7 +13,8 @@ import { HEAD_HW, CASE_TB, CASE_LUG } from './hwLayout';
 export { HEAD_HW, CASE_TB, CASE_LUG };
 import { seat, probe } from './probe';
 import { adjusterCover } from './smallParts';
-import { END_PAD, railBolts, tensionerLayout, coverMatrix, VC_EARS, VC_EDGE, chainCoverBolts, chainHousingStuds, HOUSING_Z1, HOUSING_Z0, bankZ, ROCKER_TOWER, CHAIN_LID, CHAIN_Z, CAM_NOSE } from './core';
+import { END_PAD, railBolts, tensionerLayout, coverMatrix, VC_EARS, VC_EDGE, chainCoverBolts, chainHousingStuds, HOUSING_Z1, HOUSING_Z0, CHAIN_LID, CHAIN_Z, CAM_NOSE } from './core';
+import { rockerStations, SHAFT } from './valvetrain';
 import { chainEndStations, chainLidStations, VC_SPECIAL, shroudScrews } from './stations';
 import { EXH_PORT, FAN, FLY_Z, SUMP, THERMO, BREATHER, OIL_PUMP, OIL_COOLER, DIST, AIRBOX_STRUTS, WUR } from './aux';
 
@@ -83,13 +84,12 @@ export function fastenerSets(): FSet[] {
     for (const [id, kind, d] of [[`exhaust-nuts-${b}`, 'nut', 1], [`exhaust-socket-nuts-${b}`, 'socket', -1]] as const)
       set(id, kind, 8, { mat: 'brass', grip: 7.2, embed: 12 }, cyls.map((c) =>
         ({ p: headW(c, ex, EXH_PORT.y - 6.6, d * ez), n: V(0, -1, 0), seat: `heat-exchanger-${b}`, into: `head-${c}`, stud: true })));
-    // rocker shafts: screw head on the +z tower face, nut on the -z face
-    const T = ROCKER_TOWER;
-    const zs = bankZ(s);
-    set(`rocker-shaft-screws-${b}`, 'pan', 6, { len: 2 * T.face + 2, mat: 'darkSteel' }, zs.flatMap((zc) => [T.y, -T.y].map((y) =>
-      ({ p: V(s * T.x, y, zc + T.face), n: V(0, 0, 1), seat: `cam-housing-${b}`, into: `rockers-${b}` }))));
-    set(`rocker-shaft-nuts-${b}`, 'nut', 6, { mat: 'darkSteel' }, zs.flatMap((zc) => [T.y, -T.y].map((y) =>
-      ({ p: V(s * T.x, y, zc - T.face), n: V(0, 0, -1), seat: `cam-housing-${b}`, into: `rockers-${b}` }))));
+    // rocker shafts: socket-head screw on the +z spot face, conical nut on the -z face, axis parallel to the cam
+    const stations = rockerStations(s);
+    set(`rocker-shaft-screws-${b}`, 'pan', 6, { len: SHAFT.half * 2 - 8, mat: 'darkSteel' }, stations.map((st) =>
+      ({ p: V(st.x, st.y, st.z + st.half), n: V(0, 0, 1), seat: `cam-housing-${b}`, into: `rockers-${b}` })));
+    set(`rocker-shaft-nuts-${b}`, 'nut', 6, { mat: 'darkSteel' }, stations.map((st) =>
+      ({ p: V(st.x, st.y, st.z - st.half), n: V(0, 0, -1), seat: `cam-housing-${b}`, into: `rockers-${b}` })));
   }
   // crankcase through-bolts across the main webs: heads right, cap nuts left; the 12th position is a stud with 2 cap nuts
   const TB = CASE_TB;
@@ -185,6 +185,8 @@ export function studSetGeometry(st: StudSet, it: { p: THREE.Vector3; n: THREE.Ve
 }
 /** Height of the hardware above its seat face (washer + head/nut), mm. */
 export function headHeight(f: FSet) {
+  if (f.id.startsWith('rocker-shaft-screws')) return 6;
+  if (f.id.startsWith('rocker-shaft-nuts')) return 5.5;
   const d = DIM[f.M]; const wt = (f.washer || f.tab ? d.wt : 0) + (f.spring ? springT(f) : 0);
   switch (f.kind) {
     case 'barrel': return wt + 13;
@@ -200,6 +202,8 @@ export function headHeight(f: FSet) {
 export const springT = (f: FSet) => Math.max(1, 0.22 * f.M);
 /** Bearing radius of the head/nut/washer on the seat face. */
 export function bearingR(f: FSet) {
+  if (f.id.startsWith('rocker-shaft-screws')) return 5;
+  if (f.id.startsWith('rocker-shaft-nuts')) return 7.2;
   const d = DIM[f.M];
   if (f.washer) return f.washer;
   if (f.tab) return d.wr;
@@ -218,6 +222,23 @@ function prototype(f: FSet): Part {
   }
   if (f.spring) { const t = springT(f), ro = 0.5 * d.af * 0.85; p.add(lathe([[M / 2 + 0.3, 0], [ro, 0], [ro, t], [M / 2 + 0.3, t]], 16, 0.15, Math.PI * 2 - 0.3), 'darkSteel', [0, y, 0]); y += t; }
   const hexAt = (h: number, y0: number, af = d.af) => { const g = hexNut(af, h); g.translate(0, y0 + h / 2, 0); return g; };
+  // Reshape the existing rocker-shaft sets to the photos. Other pan heads and nuts are unchanged.
+  if (f.id.startsWith('rocker-shaft-screws')) {
+    const hh = 6, hr = 5;
+    // socket cap (photo 6): bearing face at y = 0, hex socket in the top
+    p.add(lathe([[0.2, 0], [hr, 0], [hr, hh - 0.35], [hr - 0.2, hh], [2.45, hh], [2.45, hh - 3.1], [0.2, hh - 3.1]], 20), f.mat, [0, y, 0]);
+    if (f.len > 0) { const g = cyl(M / 2, f.len, 12); g.translate(0, -f.len / 2, 0); p.add(g, 'steel'); }
+    return p;
+  }
+  if (f.id.startsWith('rocker-shaft-nuts')) {
+    const fr = 7.2, hh = 5.5;
+    // conical flange nut (photo 7): flange on the seat, cone into the shaft, internal hex in the outer face
+    p.add(lathe([
+      [2.2, -5.6], [5.4, -0.3], [fr, 0], [fr, 1.5],
+      [5.0, 1.7], [5.0, hh], [2.4, hh], [2.4, 2.2], [0.9, 2.2],
+    ], 20), f.mat, [0, y, 0]);
+    return p;
+  }
   switch (f.kind) {
     case 'nut': p.add(hexAt(d.h, y), f.mat); break;
     case 'lock': p.add(hexAt(d.h, y), f.mat); p.add(lathe([[d.af * 0.45, 0], [d.af * 0.45, d.h * 0.3], [M * 0.55, d.h * 0.3], [M * 0.55, 0]], 16), 'blackPlastic', [0, y + d.h, 0]); break;
