@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PART_BY_ID } from '../src/data/parts';
-import { BOX, SLEEVE, FUEL_LINES, FUEL_BANJOS, BANJO, serviceHoses, bootFrames, SLEEVE_IN_X, STUB_TIP_X, RUNNER_TIP_X } from '../src/geo/induction';
+import { BOX, SLEEVE, FUEL_LINES, FUEL_BANJOS, BANJO, serviceHoses, bootFrames, SLEEVE_IN_X, STUB_TIP_X, RUNNER_TIP_X, injectorFace, injectorAxis } from '../src/geo/induction';
 import { AIRBOX } from '../src/geo/aux';
 import { HEATER_HOSE_ENDS } from '../src/geo/smallParts';
 
@@ -133,6 +133,21 @@ describe('1978 CIS fuel lines', () => {
         });
         if (!hit) bad.push(`${b.id} washer ${i}: no copper ring of Ø${BANJO.washerRo * 2} around the bolt`);
       });
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('injector lines stop at the tube nut instead of flaring out along the injector axis', () => {
+    const bad: string[] = [];
+    for (const c of [1, 2, 3, 4, 5, 6]) {
+      const face = new THREE.Vector3(...injectorFace(c));
+      const axis = new THREE.Vector3(...injectorAxis(c)).normalize();
+      const verts = lineVertices('fuel-lines', `inj-${c}`);
+      if (!verts.length) { bad.push(`inj-${c}: no mesh`); continue; }
+      let past = 0;
+      for (const q of verts) past = Math.max(past, q.clone().sub(face).dot(axis));
+      // 8 mm nut, then a 10 mm bend. The old 30 mm lead put steel out near x ±297.
+      if (past > 23) bad.push(`inj-${c}: steel ${past.toFixed(1)} mm past the nipple`);
     }
     expect(bad).toEqual([]);
   });

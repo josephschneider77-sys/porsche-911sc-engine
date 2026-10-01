@@ -9,7 +9,7 @@ import {
   polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
 } from './util';
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
-import { buildPlenumBox, AIR_NECK, BOX, WUR_FACES, runnerTunnelCutters, DIST_VAC } from './induction';
+import { buildPlenumBox, AIR_NECK, BOX, LID_Y, WUR_FACES, runnerTunnelCutters, DIST_VAC } from './induction';
 export { INTAKE_PORT, INJ };
 export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './induction';
 
@@ -739,6 +739,23 @@ function faceNormals(g: THREE.BufferGeometry) {
   ng.computeVertexNormals();
   return ng;
 }
+/**
+ * Vertices on the equator keep a horizontal normal. The neighbouring band's face normal tilts,
+ * and a 1 mm erosion would walk that edge into the other half.
+ */
+function levelSeam(g: THREE.BufferGeometry) {
+  const ng = faceNormals(g);
+  const P = ng.attributes.position, N = ng.attributes.normal;
+  const y0 = AIRBOX.yMid;
+  // The first band of the ellipse sits about 9 mm off the equator. Level that whole band.
+  for (let i = 0; i < P.count; i++) {
+    if (Math.abs(P.getY(i) - y0) > 14) continue;
+    const x = N.getX(i), z = N.getZ(i);
+    const L = Math.hypot(x, z) || 1;
+    N.setXYZ(i, x / L, 0, z / L);
+  }
+  return ng;
+}
 /** Point on an ellipse in the shape XY plane (shape X → world Z, shape Y → world Y). */
 function ell(a: number, b: number, t: number): [number, number] {
   return [a * Math.cos(t), b * Math.sin(t)];
@@ -787,7 +804,7 @@ function ovalSkin(upper: boolean, outer: boolean) {
   const A = AIRBOX;
   const a = outer ? A.a + A.wall : A.a;
   const b = outer ? A.b + A.wall : A.b;
-  const lift = upper ? 0.7 : 0;
+  const lift = 0;
   const t0 = upper ? 0 : Math.PI;
   const nu = 24, nv = 16;
   const grid: V3[] = [];
@@ -811,18 +828,16 @@ function ovalSkin(upper: boolean, outer: boolean) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(idx);
-  return faceNormals(g);
+  return levelSeam(g);
 }
 function ovalCap(upper: boolean, xSign: number) {
   const A = AIRBOX;
   const a = A.a + A.wall, b = A.b + A.wall;
   const x0 = xSign > 0 ? A.half : -A.half - A.wall;
   // Rim only, so the equator is a short edge rather than a fan of large triangles.
-  const rim = alongCan(halfRing(a, b, Math.max(1, a - A.wall), Math.max(1, b - A.wall), upper), x0, A.wall);
-  if (upper) rim.translate(0, 0.7, 0);
-  // Closing plate, pulled off the seam so it cannot meet the other half.
-  const plate = alongCan(halfDisk(a - A.wall - 1, b - A.wall - 1, upper), x0, A.wall);
-  plate.translate(0, upper ? 1.6 : -1.6, 0);
+  const rim = levelSeam(alongCan(halfRing(a, b, Math.max(1, a - A.wall), Math.max(1, b - A.wall), upper), x0, A.wall));
+  // Closing plate meets the rim. Its diameter lies on the equator; levelSeam keeps that edge from crossing.
+  const plate = levelSeam(alongCan(halfDisk(a - A.wall - 1, b - A.wall - 1, upper), x0, A.wall));
   return { rim, plate };
 }
 /** Outer-shell bottom at this Z (straight section). */
@@ -844,14 +859,13 @@ export function plenum() {
     p.add(cap.rim, 'blackPlastic');
     p.add(cap.plate, 'blackPlastic');
   }
-  // Lip whose top face is the seam. Upper lip is inset so the vertical edges do not meet.
+  // Lip whose top face is the seam. Same footprint as the lid lip, so the two faces meet.
   const aO = A.a + A.wall;
   for (const side of [-1, 1] as const) {
-    // Clear of the shell (z starts outside the cheek) and 0.15 mm under the lid lip.
     const z0 = A.z + side * (aO + 1.2), z1 = A.z + side * (aO + A.lip);
     for (let k = 0; k < 8; k++) {
       const xa = -A.half + (2 * A.half * k) / 8, xb = -A.half + (2 * A.half * (k + 1)) / 8;
-      p.add(boxMM([xa, A.yMid - A.lipT, Math.min(z0, z1)], [xb, A.yMid - 0.15, Math.max(z0, z1)]), 'blackPlastic');
+      p.add(faceNormals(boxMM([xa, A.yMid - A.lipT, Math.min(z0, z1)], [xb, A.yMid, Math.max(z0, z1)])), 'blackPlastic');
     }
   }
   // Neck tube up to the shell, flange seated on the outer bottom (same part; the bore clears the tube).
@@ -884,7 +898,7 @@ export function airFilter() {
   return p.g;
 }
 export function airCleanerLid() {
-  // Upper oval half. The shell wall stops 0.2 mm above the equator; the lip faces are the joint.
+  // Upper oval half. The wall and the lip meet the lower half on the equator.
   const p = new Part();
   const A = AIRBOX;
   p.add(ovalSkin(true, true), 'blackPlastic');
@@ -896,14 +910,10 @@ export function airCleanerLid() {
   }
   const aO = A.a + A.wall;
   for (const side of [-1, 1] as const) {
-    const z0 = A.z + side * (aO + 2.2), z1 = A.z + side * (aO + A.lip - 0.8);
+    const z0 = A.z + side * (aO + 1.2), z1 = A.z + side * (aO + A.lip);
     for (let k = 0; k < 8; k++) {
-      const span = 2 * A.half - 4;
-      const xa = -A.half + 2 + span * ((k + 0.5) / 8);
-      const xb = -A.half + 2 + span * ((k + 1.5) / 8);
-      if (xb < -A.half + 2 || xa > A.half - 2) continue;
-      const xLo = Math.max(xa, -A.half + 2), xHi = Math.min(xb, A.half - 2);
-      p.add(boxMM([xLo, A.yMid, Math.min(z0, z1)], [xHi, A.yMid + A.lipT, Math.max(z0, z1)]), 'blackPlastic');
+      const xa = -A.half + (2 * A.half * k) / 8, xb = -A.half + (2 * A.half * (k + 1)) / 8;
+      p.add(faceNormals(boxMM([xa, A.yMid, Math.min(z0, z1)], [xb, A.yMid + A.lipT, Math.max(z0, z1)])), 'blackPlastic');
     }
   }
   for (const x of [-150, -50, 50, 150]) for (const side of [-1, 1] as const) {
@@ -938,14 +948,14 @@ export function airboxStruts() {
     const inward = x > 0 ? -1 : 1;
     const ux = x + inward * 12;
     const xLo = Math.min(x, ux) - 8, xHi = Math.max(x, ux) + 8;
-    // Foot 1 mm above the box lid. The stud (on the plenum) passes through the hole.
-    const foot = boxMM([xLo, 253, z - 8], [xHi, y, z + 8]);
+    // Foot sits on the lid face. The stud (on the plenum) passes through the hole.
+    const foot = boxMM([xLo, LID_Y, z - 8], [xHi, y, z + 8]);
     const cut = csgSub(foot, cylBetween([x, 251, z], [x, y + 2, z], 5, 12));
     const sole = cut.index ? cut.toNonIndexed() : cut;
     sole.computeVertexNormals();
     p.add(sole, 'zincPlate');
-    // Pad top stops 0.05 mm short of the curved shell so the rim is not shared.
-    const top = Math.min(shellBottom(z - 6), shellBottom(z), shellBottom(z + 6)) - 0.05;
+    // Pad top meets the shell at its lowest point over the disk. The shell rises away from that point.
+    const top = Math.min(shellBottom(z - 6), shellBottom(z), shellBottom(z + 6));
     p.add(boxMM([ux - 2.2, y, z - 2.2], [ux + 2.2, top - 16, z + 2.2]), 'zincPlate');
     p.add(cylBetween([ux, y + 1, z], [ux, top - 8, z], 6, 16), 'rubber');
     const disk = extrude(circleShape(6), 3.2, 0, 8);
