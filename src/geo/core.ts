@@ -316,11 +316,12 @@ export function crankcaseHalf(s: 1 | -1) {
       p.add(cyl(10, 12, 20), CAST, [30, 119, bz]);
       p.add(cyl(16, 46, 16, 10), CAST, [30, 90, bz]);
     }
-    // oil-thermostat pad under the right half (flange face y -128, 3 studs)
-    p.add(cyl(30, 12, 32), CAST, [58, -122, 118]);
-    p.add(cyl(30, 22, 24, 20), CAST, [58, -105, 118]);
+    // oil-thermostat pad on TOP of the right half at the pulley end (flange underside y 110).
+    // Low enough that the cap stays inside the fan-shroud collar. Matches THERMO in aux.ts.
+    p.add(cyl(24, 22, 28), CAST, [96, 99, 176]);
+    p.add(cyl(20, 2.2, 32), 'machinedAlu', [96, 108.9, 176]);
   } else {
-    p.add(boxMM([-76, 108, 120], [-30, 122, 185]), CAST);
+    p.add(boxMM([-76, 108, 108], [-30, 122, 190]), CAST);
     p.add(boxMM([-80, 56, 118], [-26, 108, 188]), CAST);
     // spot-faced pad under the left half for the 101-05 #22/#23 M10 stud nut (E position)
     p.add(cyl(10, 8, 20), CAST, [-40, -127, -186]);
