@@ -114,6 +114,11 @@ viewer.load(import.meta.env.BASE_URL, (f) => { $('load-text').textContent = `Loa
     if (q.has('step')) { viewer.setStep(Math.max(0, Math.min(N, +q.get('step')!))); renderStep(); }
     if (q.has('part')) showInfo(q.get('part'));
     if (q.has('isolate')) { viewer.isolate(q.get('isolate')); viewer.focus(q.get('isolate')!); }
+    // ?only=id,id hides every other part (assembled case-pair shots)
+    if (q.has('only')) {
+      const keep = new Set(q.get('only')!.split(',').map((s) => s.trim()).filter(Boolean));
+      for (const id of viewer.nodes.keys()) if (!keep.has(id)) viewer.hidden.add(id);
+    }
     viewer.snap();
     // shareable camera: ?cam=x,y,z&target=x,y,z (engine mm)
     const v3 = (k: string) => (q.get(k) ?? '').split(',').map(Number);

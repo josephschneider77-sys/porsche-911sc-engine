@@ -87,7 +87,7 @@ export function fastenerSets(): FSet[] {
   const TB = CASE_TB;
   const tb = TB.z.flatMap((z) => TB.y.map((y) => ({ y, z })));
   const studAt = tb.length - 1;
-  set('case-through-bolts', 'bolt', 10, { washer: DIM[10].wr, len: 2 * TB.x + 8, mat: 'darkSteel' }, tb.filter((_, i) => i !== studAt).map(({ y, z }) =>
+  set('case-through-bolts', 'bolt', 10, { washer: 11, len: 2 * TB.x + 8, mat: 'darkSteel' }, tb.filter((_, i) => i !== studAt).map(({ y, z }) =>
     ({ p: V(TB.x, y, z), n: V(1, 0, 0), seat: 'crankcase-right', into: 'crankcase-left' })));
   set('case-through-nuts', 'cap', 10, { washer: DIM[10].wr, grip: 2 * TB.x, embed: 0, mat: 'darkSteel' }, [
     ...tb.map(({ y, z }) => ({ p: V(-TB.x, y, z), n: V(-1, 0, 0), seat: 'crankcase-left', into: 'crankcase-right' })),
@@ -121,7 +121,7 @@ export function headHeight(f: FSet) {
     case 'barrel': return wt + 13;
     case 'lock': return wt + d.h * 1.3;
     case 'cap': return wt + 0.7 * d.h + 0.22 * d.af;
-    case 'bolt': return wt + 0.7 * f.M;
+    case 'bolt': return wt + (f.M === 10 ? 10 : 0.7 * f.M);
     case 'pan': return wt + 0.6 * f.M;
     default: return wt + d.h;
   }
@@ -144,7 +144,13 @@ function prototype(f: FSet): Part {
     case 'lock': p.add(hexAt(d.h, y), f.mat); p.add(lathe([[d.af * 0.45, 0], [d.af * 0.45, d.h * 0.3], [M * 0.55, d.h * 0.3], [M * 0.55, 0]], 16), 'blackPlastic', [0, y + d.h, 0]); break;
     case 'barrel': p.add(lathe([[0.1, 0], [d.af * 0.5, 0], [d.af * 0.5, 9], [d.af * 0.42, 13], [0.1, 13]], 12), f.mat, [0, y, 0]); break;
     case 'cap': p.add(hexAt(0.7 * d.h, y), f.mat); p.add(lathe([[0.1, d.af * 0.22], [d.af * 0.2, d.af * 0.19], [d.af * 0.38, d.af * 0.08], [d.af * 0.45, 0]], 14), f.mat, [0, y + 0.7 * d.h, 0]); break;
-    case 'bolt': p.add(hexAt(0.7 * M, y, M === 10 ? 17 : d.af), f.mat); break;
+    case 'bolt': {
+      // M10 case through-bolts: full hex head (AF 17) so the head reads as a bolt, not a plain rod
+      const af = M === 10 ? 17 : d.af, hh = M === 10 ? 10 : 0.7 * M;
+      p.add(hexAt(hh, y, af), f.mat);
+      p.add(lathe([[M / 2 + 0.3, 0], [af * 0.46, 0], [af * 0.5, 1.1], [M / 2 + 0.3, 1.1]], 6), f.mat, [0, y, 0]);
+      break;
+    }
     case 'pan': p.add(lathe([[0.1, 0.6 * M], [0.6 * M, 0.6 * M], [0.9 * M, 0.25 * M], [0.95 * M, 0], [0.1, 0]], 18), f.mat, [0, y, 0]); break;
   }
   if (f.len > 0) { const g = cyl(M / 2, f.len, 10); g.translate(0, -f.len / 2, 0); p.add(g, 'steel'); }

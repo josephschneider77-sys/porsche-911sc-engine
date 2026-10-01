@@ -147,7 +147,7 @@ The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild 
 **Compression:** `scripts/export-glb.ts` writes GLBs with gltf-transform `dedup`, `weld` and meshopt compression (`--raw` turns this off). The viewer decodes them with `MeshoptDecoder`.
 
 **Bottom end (PR 1):**
-- Crankcase halves: split-line flanges with stud and nut bosses, transverse ribs and gussets, through-bolt bosses and nuts, external oil gallery, ribbed flywheel bell with gearbox studs, machined pulley-end rim, and engine-number pad.
+- Crankcase halves: hollow crank bay (not a constant-section slab) with seven main saddles plus the nose saddle in the pulley-end chain well. Each saddle is a web with a machined half-bore, a locating notch and two stud pads; the intermediate shaft has its own bore in every web. Cylinder spigots are open bores in the deck with four head-stud bosses. Through-bolt bosses, perimeter lugs, oil-gallery plugs, ribs, flywheel bell and the part-number pad are on the cast exterior. Main shells are steel-backed halves with locating tabs (bearing 1 thrust); bearing 8 is a steel nose bushing.
 - Cylinders: rounded-square fin pack (16 fins, stud notches at the corners) in satin black, with a bare machined skirt and spigot.
 - Heads: fins stacked along the cylinder axis, combustion chamber, spring-well cam face, and port bosses.
 - Pistons: ring belt, recessed skirt, and a domed crown with valve reliefs.
