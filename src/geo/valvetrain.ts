@@ -1199,6 +1199,17 @@ export function camHousing(s: 1 | -1) {
   // pulley-end pad for the chain-housing end studs (y ≈ 62). Kept above the cam bore so the shaft can enter from this end.
   p.add(boxMM([X(250), 40, CH_Z1 - 16], [X(330), 78, CH_Z1]), 'castAlu');
   // no full-length external oil line — the photos don't show one; the splash tube and banjo are CoS parts
-  cutGroup(p.g, ...camSpringCutters(s));
+  // The flywheel journal and the inter-journal ribs land on the end shaft seats.
+  // Clear a column just proud of each spot face so the screw head / nut and the
+  // seat probe (r ≈ 5.2) see the face, not the casting behind it.
+  const shaftClear: THREE.BufferGeometry[] = [];
+  for (const st of rockerStations(s)) for (const end of [-1, 1] as const) {
+    const zFace = st.z + end * st.half;
+    const len = 14;
+    const g = yToZ(cyl(8, len, 16));
+    g.translate(st.x, st.y, zFace + end * (0.25 + len / 2));
+    shaftClear.push(g);
+  }
+  cutGroup(p.g, ...camSpringCutters(s), ...shaftClear);
   return p.g;
 }

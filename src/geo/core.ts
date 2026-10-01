@@ -995,7 +995,6 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   // Cavity reaches above the adjuster (cover-local z ≈ 30) so the pan roof, not a solid cap, clears the rockers.
   const cavity = new THREE.ExtrudeGeometry(band(VC_SEAT_CAM, VC_SEAT_HEAD, 1), { depth: 56, bevelEnabled: true, bevelThickness: 4, bevelSize: 1.2, bevelSegments: 1, curveSegments: 6 });
   cavity.translate(0, 0, -20);
-  const earCut = cavity.clone();
   const below = boxMM([-80, -len, -40], [80, len, 0.01]);
   // Stepped seat flange: thin outer lip, then a raised land the pan walls leave from.
   const lip = extrude(coverOutline(s, upper, VC_CAM_HALF, VC_HEAD_HALF, len + ext, 7, cy), 1.15, 0.25, 6);
@@ -1014,10 +1013,18 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   const earBoss = yToZ(lathe([
     [16.4, 0], [14.8, 1.4], [12.4, 3.0], [10.2, 4.8], [8.8, 6.3], [8.8, 7], [0.4, 7],
   ], 24));
+  // The rocker cavity and the gallery-plug notch run through the ear centres. Keep the
+  // nut face (z = 7, out to r 8.8) so an M8 washer probe at r 6.8 still lands on the disc.
+  const faceKeeps: THREE.BufferGeometry[] = [];
+  for (const yy of VC_EARS(upper)) for (const side of [1, -1] as const) {
+    faceKeeps.push(yToZ(cyl(9.2, 1.8, 24)).translate(coverEdgeX(s, upper, side), yy, 6.7));
+  }
+  const earCut = csgSub(cavity.clone(), ...faceKeeps);
+  const earNotch = upper ? csgSub(plugNotch.clone(), ...faceKeeps) : null;
   for (const yy of VC_EARS(upper)) {
     for (const side of [1, -1] as const) {
       const xx = coverEdgeX(s, upper, side);
-      loc.add(csgSub(earBoss.clone().translate(xx, yy, 0), earCut, ...(upper ? [plugNotch] : [])), 'castAlu');
+      loc.add(csgSub(earBoss.clone().translate(xx, yy, 0), earCut, ...(earNotch ? [earNotch] : [])), 'castAlu');
       // Wide at the pan wall, narrowing into the tower, and kept below the nut face.
       const sign = xx > 0 ? 1 : -1;
       const wall = xx - sign * 17;
