@@ -191,8 +191,8 @@ Joe's v2 review: the chain cover collided with the exhaust and the chain covers 
 Inboard of x = 118 the chains run in a hollow cast **chain well** on the case face. It has top and bottom walls and a front plate flush with the covers, plus the bearing-8 boss. The well opens sideways into the bolted-on chain box. The heat exchanger's fresh-air inlet is now a forward stub low on the outboard side of its pulley-end cap, instead of a tube rising into the chain box.
 
 **Interference test** (`tests/collisions.test.ts`, helper `tests/collide.ts`, CLI `npx tsx scripts/collisions.ts [tol]`):
-1. Every registry part is built at its assembled pose and eroded 1 mm along its normals, so seated faces don't count.
-2. Every pair with overlapping bounds is checked triangle-vs-triangle with three-mesh-bvh. Coincident coplanar faces are ignored.
+1. Every registry part is built at its assembled pose and eroded 1 mm along its normals, so seated faces don't count. A sheet thinner than 0.55 mm is eroded by only 0.4 of its thickness, so 0.5 mm paper does not turn inside out.
+2. Every pair with overlapping bounds is checked triangle-vs-triangle with three-mesh-bvh. Coincident coplanar faces are ignored, and so is an intersection that lies on one edge of each triangle (a shared seam). A segment that crosses a triangle is a real overlap; `tests/collisions.test.ts` checks that a 1 mm block overlap fails, a shared face does not, and two triangles that only share an edge do not.
 3. The test fails on any intersecting pair not in the `MATING` allowlist. The allowlist has **JOINT** entries (real bolted, seated or meshing hardware; cam-drive joints are same-bank only) and explicitly listed **SIMPLIFIED** pre-v3 shortcuts such as the solid case interior, solid valve covers, shroud cut-outs and piston valve reliefs.
 4. Extra assertions:
    - No cam-drive part ever touches the exhaust.
@@ -490,7 +490,7 @@ K = published figure. E = estimated from the JE / FVD photographs in `photo-ref/
 | Port OD | 44 mm | E | Scaled off the sleeve in reassembly-19 |
 | Sleeve OD | 47 mm | E | FVD 911 110 885 02 and reassembly-19 (the sleeve is the fat band on each stub) |
 | Sleeve length | 50 mm | E | Same photo; two worm-drive clamps, screws up |
-| Sleeve ID | 44.6 mm | E | 0.3 mm radial air on the 44 mm stub so the rubber does not interpenetrate |
+| Sleeve ID | 44 mm | E | Same as the stub and the runner spigot; the rubber is stretched on |
 | Metal gap inside the sleeve | 8 mm | E | Each end covered by 21 mm of rubber |
 | Box width across the stub faces | 155 mm | E | reassembly-19, scaled off the 47 mm sleeves (three sleeves per side, nearly touching) |
 | Stub pitch along the crank | 50 mm | E | reassembly-19: the three stubs are adjacent |
@@ -503,7 +503,7 @@ The 1978 car has no cold-start spider. The cold-start valve sprays into the lowe
 
 Each runner is its own mesh (`intake-runner-1`…`6`) because the head pitch is 118 mm and the stub pitch is 50 mm, so the Z bend differs per cylinder. Stub order follows the crank: the pulley-end cylinder of each bank (1 and 4) takes the pulley-end stub (z +50), so the pipes converge and do not cross. The spigot is coaxial with its stub and the sleeve. Left-bank injectors lean outboard (−X); the pose is a +57° roll, the mirror of the right bank's −57°.
 
-The paper flange gasket is drawn 2.2 mm thick (real paper is about 0.5 mm) so the 1 mm collision erosion does not turn the sheet inside out, and it stands 0.45 mm off the head face. Its outline is 42 × 72, 2 mm inside the 46 × 76 flange, with the port hole at Ø36 and the stud holes at Ø10.4. The head flange and the stud pattern did not need to change.
+The paper flange gasket is 0.5 mm thick and sits on the head face (local y 0..0.5). The runner flange (top still at local y 8, the nut face) sits on the gasket. Outline 42 × 72, 2 mm inside the 46 × 76 flange, port hole Ø36, stud holes Ø10.4. The collision test caps erosion on sheets thinner than 0.55 mm so this paper does not turn inside out. The head flange and the stud pattern did not change.
 
 Fuel-line ends, and what they seat on:
 
@@ -532,14 +532,14 @@ The Ø160 × 440 mm open drum is replaced by a flat oval canister, the black hou
 | Canister centre Z | 36 mm | E | +Z cheek stays clear of the alternator slip-ring face (z ≈ 164) |
 | Outlet neck | Ø32 tube, opening Ø44, flange Ø60 | E | Seated on the outer bottom; the opening is left out of the skin |
 
-The curved wall stops 0.7 mm short of the equator and the lip stands 0.15 mm apart. A shared edge on this ellipse fails the 1 mm erosion test: the wall normal tilts, so the two edges move into each other. The lip is the joint the clips close over. The outlet neck ends on the outer bottom with its flange on that surface; the skin leaves a Ø44 opening so the tube is not a dead end. The element is centred on the equator.
+The two oval halves meet on the equator: wall, end-cap diameter and lip faces are in contact. Equator vertices keep a horizontal normal so the 1 mm erosion does not walk the edge into the other half, and the triangle test treats an intersection that lies on a shared boundary edge as contact. The outlet neck ends on the outer bottom with its flange on that surface; the skin leaves a Ø44 opening so the tube is not a dead end. The element is centred on the equator.
 
-Fuel lines no longer loop out to the shroud skirt. The six injector lines are a ribbon at x −134, 8 mm apart in height, running along Z beside the distributor and then dropping onto the injector axis. Right-bank lines cross at y 264, just above the plenum; the cylinder-3 line crosses at z −136 so it misses the banjo nuts. The two warm-up-regulator lines drop through the cylinder-6 shroud window (x ≤ −208, z −162/−174, clear of the z −185 wing rib and the hot-air socket screws) and come back inboard under the wing. The cold-start feed, the inlet and the return are short runs off their fittings. The injection-line bracket is the vertical clip just outboard of the ribbon.
+The six injector lines leave the distributor as a ribbon at x −134, 8 mm apart, held by the clip there. They follow the runner about 4 mm off the cast tube. Over the Ø44 spigot the line rises clear of the worm-clamp screws, then a 10 mm centreline bend turns into an 8 mm tube nut. The steel stops at that nut; it does not run on out to x ±297. Right-bank lines cross at y 260, just above the plenum lid; cylinder 3 crosses at z −136 so it misses the banjo nuts. The two warm-up-regulator lines drop through the cylinder-6 shroud window (x ≤ −208, z −162/−174, clear of the z −185 wing rib and the hot-air socket screws) and come back inboard under the wing. The cold-start feed, the inlet and the return are short runs off their fittings.
 
 The head flange and the bottom end are unchanged. The distributor recess and the ignition-lead paths over the shroud edge are not moved. The canister stays above the alternator (measured clearance about 24 mm); the plenum throttle face (z 128) does not reach the alternator (z ≈ 164).
 
 ### Auxiliary air, vacuum, cold-start seat
 
-The black rubber tube that left the air-meter and stopped near the right-front runner was not the throttle boot (it was Ø15, and it met no spigot). On the K-Jetronic layout that takeoff is metered air for the auxiliary air regulator: after the sensor plate, through the regulator, back into the manifold downstream of the throttle. The meter now has a brass barb. One hose runs to the regulator's upper barb; the lower barb feeds a brass pipe on the plenum's flywheel face, clear of the regulator body and of the shroud roof (y 153.5). The cold-start valve is centred on its boss (y 206, the spray hole) with the O-ring 0.2 mm off the face, a flange, and two pan-head screws with spring washers. The shanks stop 0.3 mm short of the casting so they are not an allowlisted stud-in-hole.
+The black rubber tube that left the air-meter and stopped near the right-front runner was not the throttle boot (it was Ø15, and it met no spigot). On the K-Jetronic layout that takeoff is metered air for the auxiliary air regulator: after the sensor plate, through the regulator, back into the manifold downstream of the throttle. The meter now has a brass barb. One hose runs to the regulator's upper barb; the lower barb feeds a brass pipe on the plenum's flywheel face, clear of the regulator body and of the shroud roof (y 153.5). The cold-start valve is centred on its boss (y 206, the spray hole). The O-ring sits on the boss face, the flange sits on the ring, and two pan-head screws with spring washers bear on the flange. Their shanks run into Ø5 holes in the boss (shank Ø4.8). The air-meter flange and the distributor bracket sit on the plenum lid face (y 253.2, the bevel above the 252 mm profile). The airbox strut feet sit on that same face, and the rubber pads meet the shell.
 
 Vacuum: a nipple on the plenum lid, the T-piece, the limiter's side barb, and a nipple on the distributor vacuum can. Three hoses join those four fittings. The breather tower's neck is the spigot for 901 107 394 00, which the checklist leaves off the engine (the oil tank is body-mounted); there is no breather hose mesh. The heater flexible pipe seats on the left adapter mouth and on a ferrule at the body end. `tests/fuel-lines.test.ts` checks every named line, including these.

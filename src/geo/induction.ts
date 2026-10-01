@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import {
-  Part, V3, lathe, boxMM, cyl, cylBetween, extrude, roundRect, circlePath, hexNut, tube, torus, mesh, cutGroup,
+  Part, V3, lathe, boxMM, cyl, cylBetween, extrude, roundRect, circlePath, hexNut, tube, torus, mesh, cutGroup, csgSub,
 } from './util';
 import { CYL_Z, INTAKE_PORT, INJ, bankOf } from '../data/layout';
 
@@ -30,12 +30,14 @@ export const BOX = {
   /** Metal stub past the face (E). */
   stubLen: 28,
 };
+/** Top face of the distributor lid. The 1.2 mm extrude bevel sits outside the profile (y1). */
+export const LID_Y = BOX.y1 + 1.2;
 /** Rubber sleeve 928 110 158 01. OD and length E from FVD 911 110 885 02 and reassembly-19. */
 export const SLEEVE = {
   od: 47,
   len: 50,
-  /** ID leaves 0.3 mm radial air on the 44 mm stub so the sleeve does not interpenetrate. */
-  id: 44.6,
+  /** ID equals the 44 mm stub and the runner spigot. The rubber is stretched on; the walls coincide. */
+  id: 44,
   /** Metal-to-metal gap inside the sleeve (E). Each end is covered by 21 mm of rubber. */
   gap: 8,
 };
@@ -375,16 +377,25 @@ function addNamed(p: Part, id: string, g: THREE.BufferGeometry, mat: 'steel' | '
   p.g.add(me);
 }
 
-/** Straight run out of each fitting, then a curve that is not allowed to hook back into the fitting. */
-function addLine(p: Part, id: string, tipA: V3, dirA: V3, tipB: V3, dirB: V3, mids: V3[], r = LINE_R) {
+/**
+ * Straight run out of each fitting, then a curve that does not hook back into the fitting.
+ * `leadB` / `aheadB` shorten the far end: an injector tube nut is 8 mm, not the 30 mm distributor lead.
+ */
+function addLine(
+  p: Part, id: string, tipA: V3, dirA: V3, tipB: V3, dirB: V3, mids: V3[], r = LINE_R,
+  fit?: { leadB?: number; aheadB?: number; fillet?: number },
+) {
   const A = norm(dirA), B = norm(dirB);
+  const leadA = 16, leadB = fit?.leadB ?? 16;
+  const aheadA = 30, aheadB = fit?.aheadB ?? 30;
+  const fillet = fit?.fillet ?? 16;
   const start = add(tipA, A, 0.4);
   const end = add(tipB, B, 0.4);
-  const a1 = add(tipA, A, 16);
-  const b1 = add(tipB, B, 16);
+  const a1 = add(tipA, A, leadA);
+  const b1 = add(tipB, B, leadB);
   addNamed(p, id, cylBetween(start, a1, r, 10));
   addNamed(p, id, cylBetween(end, b1, r, 10));
-  const pts = filleted([a1, add(tipA, A, 30), ...mids, add(tipB, B, 30), b1], 16);
+  const pts = filleted([a1, add(tipA, A, aheadA), ...mids, add(tipB, B, aheadB), b1], fillet);
   addNamed(p, id, tube(pts, r, 7, Math.max(24, pts.length * 3)));
 }
 
@@ -443,6 +454,8 @@ export function buildPlenumBox() {
     cylBetween([0, THROTTLE.y, z1 - 12], [0, THROTTLE.y, THROTTLE.zFace + 2], THROTTLE.bore, 24),
     cylBetween([0, stubY, z0 + 8], [0, stubY, -112], 7, 16),
     cylBetween([AFM_PORT.x, y0 + 20, AFM_PORT.z], [AFM_PORT.x, y1 + 8, AFM_PORT.z], AFM_PORT.r, 24),
+    // Cold-start screw holes. Shank Ø4.8, hole Ø5.0 so the thread has air and the head sits on the flange.
+    ...[-16, 16].map((x) => cylBetween([x, stubY, -112], [x, stubY, -97], 2.5, 12)),
   ];
   return cutGroup(p.g, ...cuts);
 }
@@ -460,16 +473,16 @@ export function intakeRunner(c: number) {
   p.add(tube(local, 14, 14, 64), 'castAlu');
   const tip = local[local.length - 1], approach = local[local.length - 2];
   p.add(cylBetween(approach, tip, BOX.portOd / 2, 24), 'machinedAlu');
-  // Flange top stays at local y 8 (nut face). A 2.2 mm gasket occupies y 0..2.2; the flange starts 0.15 mm above it.
+  // Flange top stays at local y 8 (nut face). The 0.5 mm paper gasket occupies y 0..0.5; the flange sits on it.
   const fl = roundRect(46, 76, 12);
   fl.holes.push(circlePath(18) as THREE.Path);
   for (const sz of [28, -28]) fl.holes.push(circlePath(5, 0, sz) as THREE.Path);
-  const fg = new THREE.ExtrudeGeometry(fl, { depth: 5.05, bevelEnabled: false, curveSegments: 8 });
+  const fg = new THREE.ExtrudeGeometry(fl, { depth: 7.5, bevelEnabled: false, curveSegments: 8 });
   fg.rotateX(Math.PI / 2);
   fg.translate(0, 8, 0);
   p.add(fg, 'castAlu');
-  // port liner inside the flange hole, above the gasket (gasket tops at local y 2.65)
-  p.add(cylBetween([0, 2.85, 0], [0, 36, 0], 13, 20), 'castAlu');
+  // port liner inside the flange hole, starting where the gasket ends
+  p.add(cylBetween([0, 0.5, 0], [0, 36, 0], 13, 20), 'castAlu');
   // injector holder in this runner's local frame (left-bank parts are rotated 180° about Y)
   const { pos, axis } = injectorPose(c);
   const origin = v(...worldToRunner(c, pos.toArray() as V3));
@@ -485,12 +498,18 @@ export function intakeRunner(c: number) {
 
 export function injector() {
   const p = new Part();
-  // body Ø12 so the 106-00 / 107-10 O-rings (torus R 7.6, minor 1.4, inner Ø12.4) clear it by 0.2 mm
+  // body Ø12. The sealing rings (torus R 7.4, minor 1.4) sit on that diameter.
   p.add(lathe([
     [0.1, 0], [3.2, 0], [4.8, 5], [6.0, 7], [6.0, 33],
     [3.4, 35], [3.4, INJ_FACE], [0.1, INJ_FACE],
   ], 20), 'steel');
   p.add(hexNut(13, 5).translate(0, 38.5, 0), 'brass');
+  // Tube nut bears on the copper ring (ring ends 1.2 mm along the nipple) and stops at 8 mm.
+  // Bore Ø5.2 leaves 0.45 mm radial air on the Ø4.3 line, so the steel can turn as it leaves the face.
+  const nutH = 6.8;
+  const nutY = INJ_FACE + 1.2 + nutH / 2;
+  const nut = csgSub(hexNut(14, nutH).translate(0, nutY, 0), cyl(2.6, nutH + 1.6, 12).translate(0, nutY, 0));
+  p.add(nut, 'zincPlate');
   return p.g;
 }
 
@@ -505,19 +524,90 @@ export function fuelLines() {
   blockAt(p, RETURN_BLOCK, RETURN_BLOCK_AXIS);
   for (const line of FUEL_LINES.filter((l) => l.part === 'fuel-lines')) {
     const mids = routeMids(line.id);
-    addLine(p, line.id, line.a.point, line.a.axis, line.b.point, line.b.axis, mids);
+    const fit = line.id.startsWith('inj-') ? { leadB: 8, aheadB: 8, fillet: 6 } : undefined;
+    addLine(p, line.id, line.a.point, line.a.axis, line.b.point, line.b.axis, mids, LINE_R, fit);
   }
   return p.g;
 }
 
 /**
  * Injector lines leave the distributor as one vertical ribbon just outboard of the body,
- * each on its own height (8 mm) so the Ø4.3 tubes never share a point. They run along Z
- * to that cylinder, then a short drop onto the injector axis. Right-bank lines cross at
- * y 264, just above the plenum lid, clear of the outlet neck (x 36, z −8).
+ * each on its own height (8 mm) so the Ø4.3 tubes never share a point. They follow the
+ * runner (clear of the Ø44 spigot), then a 10 mm bend into an 8 mm tube nut.
  */
 function bundle(i: number, z: number): V3 {
   return [-134, 274 + i * 8, z];
+}
+
+/** Point on the runner centreline, u = 0 at the head and 1 at the plenum spigot. */
+function runnerAt(c: number, u: number): { p: THREE.Vector3; tan: THREE.Vector3 } {
+  const pts = runnerWorldPoints(c).map((q) => v(...q));
+  const n = pts.length - 1;
+  const f = Math.min(0.999, Math.max(0, u)) * n;
+  const i = Math.min(n - 1, Math.floor(f));
+  const t = f - i;
+  const p = pts[i].clone().lerp(pts[i + 1], t);
+  const tan = pts[Math.min(n, i + 1)].clone().sub(pts[Math.max(0, i)]).normalize();
+  return { p, tan };
+}
+
+/** Cast pipe is r 14. The machined spigot (Ø44) occupies the last horizontal run, so the line clears that. */
+function pipeR(u: number): number {
+  if (u <= 0.72) return 14;
+  if (u >= 0.9) return 22;
+  return 14 + 8 * ((u - 0.72) / 0.18);
+}
+
+/**
+ * Air between the line wall and the pipe wall. The sleeve clamps stand on top of the spigot
+ * (screw housing up to about y 238), so the line hops over that run.
+ */
+function lineGap(u: number): number {
+  if (u >= 0.8) return 14;
+  if (u >= 0.66) return 8;
+  return 4;
+}
+
+/** Line centre above the runner, or outboard where the pipe is vertical. */
+function besideRunner(c: number, u: number): V3 {
+  const { p, tan } = runnerAt(c, u);
+  const s = bankOf(c) as 1 | -1;
+  let n = Math.abs(tan.y) > 0.75 ? v(s, 0.35, 0) : v(0, 1, 0);
+  n.addScaledVector(tan, -n.dot(tan));
+  if (n.lengthSq() < 1e-8) n = v(s, 0, 0);
+  n.normalize();
+  const off = pipeR(u) + LINE_R + lineGap(u);
+  return [p.x + n.x * off, p.y + n.y * off, p.z + n.z * off];
+}
+
+/** Inboard and up, perpendicular to the injector axis. The bend leaves the nut on this side. */
+function injectorOut(c: number): THREE.Vector3 {
+  const s = bankOf(c) as 1 | -1;
+  const ax = v(...injectorAxis(c));
+  const raw = v(-s, 0.7, 0);
+  const u = raw.clone().addScaledVector(ax, -raw.dot(ax));
+  if (u.lengthSq() < 1e-6) return v(0, 0, 1);
+  return u.normalize();
+}
+
+/**
+ * Centreline of the bend that enters the tube nut. Radius 10 mm, beginning at the nut face
+ * (8 mm past the nipple) and turning inboard. Ordered from the loom toward the nut.
+ * addLine places the last, on-axis point.
+ */
+function injectorBend(c: number): V3[] {
+  const face = v(...injectorFace(c));
+  const ax = v(...injectorAxis(c));
+  const u = injectorOut(c);
+  const B = face.clone().addScaledVector(ax, 8);
+  const R = 10;
+  const pts: V3[] = [];
+  for (let deg = 150; deg >= 8; deg -= 8) {
+    const phi = (deg * Math.PI) / 180;
+    const p = B.clone().addScaledVector(ax, R * Math.sin(phi)).addScaledVector(u, R * (1 - Math.cos(phi)));
+    pts.push([p.x, p.y, p.z]);
+  }
+  return pts;
 }
 
 function routeMids(id: string): V3[] {
@@ -528,13 +618,30 @@ function routeMids(id: string): V3[] {
     const zC = CYL_Z[c];
     const mids: V3[] = [bundle(i, FDZ[i]), bundle(i, zC)];
     if (s > 0) {
-      // Cross just above the plenum lid (y 252). Cylinder 3's z sits under the banjo
-      // nuts, so that line crosses behind the distributor (z −136) and comes back.
+      // Under the distributor, just above the plenum lid. Cylinder 3 crosses behind the banjo nuts.
       const zCross = zC > -125 && zC < -35 ? -136 : zC;
-      mids.push([-134, 264, zCross], [150, 264, zCross]);
-      if (zCross !== zC) mids.push([168, 230, zC]);
-      mids.push([230, 190, zC]);
-    } else mids.push([-210, 220, zC]);
+      mids.push([-90, 262, zCross], [70, 260, zCross]);
+      if (zCross !== zC) mids.push([96, 248, zC]);
+    } else mids.push([-120, 258, zC]);
+    for (let u = 0.97; u >= 0.32; u -= 0.03) mids.push(besideRunner(c, u));
+    // The drop from the runner to the bend stays off the injector boss (r 15) and the nut.
+    const bend = injectorBend(c);
+    const tail = v(...mids[mids.length - 1]);
+    const head = v(...bend[0]);
+    const ax = v(...injectorAxis(c));
+    const face = v(...injectorFace(c));
+    const outward = injectorOut(c);
+    for (let k = 1; k <= 5; k++) {
+      const p = tail.clone().lerp(head, k / 6);
+      const along = p.clone().sub(face).dot(ax);
+      const radial = p.clone().sub(face).addScaledVector(ax, -along);
+      const rd = radial.length();
+      if (along < 16 && rd < 22) {
+        const fixed = face.clone().addScaledVector(ax, along).addScaledVector(outward, 22);
+        mids.push([fixed.x, fixed.y, fixed.z]);
+      } else mids.push([p.x, p.y, p.z]);
+    }
+    mids.push(...bend);
     return mids;
   }
   // Feed drops below the warm-up stubs (y 286 / 304 at z −139) and stops on the filter union.
@@ -585,23 +692,26 @@ export function csvPortLocalGeometry(p: Part) {
 export function mixtureControlUnit() {
   const p = new Part();
   const { x, z, r } = AFM_PORT;
-  // venturi / air-flow meter on the plenum port. Base sits 0.3 mm above the box so the parts do not interpenetrate.
-  const base = BOX.y1 + 0.3;
+  // Venturi base and the distributor bracket sit on the lid face (the bevel, not the profile).
+  const base = LID_Y;
   p.add(lathe([
     [r + 2, 0], [r + 6, 0], [r + 4, 6], [r - 2, 14], [r + 8, 36], [r + 10, 44], [r + 4, 44], [r - 4, 20], [r - 6, 8],
   ], 36).translate(x, base, z), 'blackPaint');
   p.add(lathe([[0.2, 0], [r - 4, 0], [r - 4, 1.4], [0.2, 1.4]], 28).translate(x, base + 16, z), 'brass');
   p.add(cyl(3.2, 5, 10).translate(x, base + 18, z), 'steel');
-  // fuel distributor, zinc, on a bracket just clear of the box top
+  // fuel distributor, zinc, on a bracket seated on the lid face
   p.add(boxMM([FD.x0, FD.y0, FD.z0], [FD.x1, FD.y1, FD.z1]), 'zincPlate');
-  p.add(boxMM([FD.x1, base + 0.4, z - 8], [x - r - 4, base + 8, z + 8]), 'zincPlate');
+  const bracket = boxMM([FD.x1, base, z - 8], [x - r - 4, base + 8, z + 8]);
+  const flat = bracket.index ? bracket.toNonIndexed() : bracket;
+  flat.deleteAttribute('normal');
+  flat.computeVertexNormals();
+  p.add(flat, 'zincPlate');
   placeBanjo(p, FEED_BANJO);
   placeBanjo(p, CSV_FD_BANJO);
-  // bosses stop 0.2 mm short of the banjo face so the washer (a separate part on the WUR lines) is not penetrated
-  const shy = (face: V3, axis: V3): V3 => add(face, axis, -0.2);
-  p.add(cylBetween([FD.x0, FEED_BANJO.face[1], FEED_BANJO.face[2]], shy(FEED_BANJO.face, FEED_BANJO.axis), 6.2, 14), 'zincPlate');
-  p.add(cylBetween([FD.x1, CSV_FD_BANJO.face[1], CSV_FD_BANJO.face[2]], shy(CSV_FD_BANJO.face, CSV_FD_BANJO.axis), 6.2, 14), 'zincPlate');
-  for (const b of WUR_FD) p.add(cylBetween([b.face[0], b.face[1], FD.z0], shy(b.face, b.axis), 6.2, 14), 'zincPlate');
+  // Boss ends on the banjo face. The copper washer is on the far side of that face.
+  p.add(cylBetween([FD.x0, FEED_BANJO.face[1], FEED_BANJO.face[2]], FEED_BANJO.face, 6.2, 14), 'zincPlate');
+  p.add(cylBetween([FD.x1, CSV_FD_BANJO.face[1], CSV_FD_BANJO.face[2]], CSV_FD_BANJO.face, 6.2, 14), 'zincPlate');
+  for (const b of WUR_FD) p.add(cylBetween([b.face[0], b.face[1], FD.z0], b.face, 6.2, 14), 'zincPlate');
   // M14×1.5 return union (Bosch K-Jet test-point / return note). Copper ring sits on this face.
   unionFace(p, RETURN_FACE, RETURN_AXIS, 7, 21);
   // Metered-air barb for the auxiliary air valve. The hose itself is aux-air-plumbing.

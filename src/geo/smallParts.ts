@@ -245,17 +245,14 @@ def('head-seals', () => washer(48, 50.5, 1.2, 'copper'), () => CYLS.map((c) => p
 def('head-dowels', () => pin(4, 12), () => CYLS.flatMap((c) => [-40, 40].map((z) => posed(`head-${c}`, [HEAD_OUT_X - CYL_TOP_X - 6, 0, z], [1, 0, 0]))));
 def('exhaust-gaskets', () => gasketRing(circ(22), 5, 0.8), () => CYLS.map((c) => posed(`head-${c}`, [EXH_PORT.x - CYL_TOP_X, EXH_PORT.y - 0.8, 0], [0, -1, 0])));
 def('intake-gaskets', () => {
-  // 2.2 mm so the 1 mm collision erosion cannot turn the sheet inside out. Real paper is ~0.5 mm; see spec §16.
+  // Real paper, 0.5 mm, sitting on the head face (local y 0). The collision test caps erosion on sheets this thin.
   const sh = roundRect(42, 72, 10);
   sh.holes.push(circlePath(18) as THREE.Path);
   for (const sz of [28, -28]) sh.holes.push(circlePath(5.2, 0, sz) as THREE.Path);
-  // Stood off the head by 0.45 mm. Outline is 2 mm inside the 46×76 flange.
-  const g = extrudeC(sh, 2.2); g.rotateX(Math.PI / 2); g.translate(0, 1.55, 0);
-  const flat = g.toNonIndexed(); flat.computeVertexNormals();
-  // Nudge each face along its normal so instancing cannot weld the cap to the edge and tilt the rim.
-  const P = flat.attributes.position, Nrm = flat.attributes.normal;
-  for (let i = 0; i < P.count; i++) P.setXYZ(i, P.getX(i) + Nrm.getX(i) * 0.02, P.getY(i) + Nrm.getY(i) * 0.02, P.getZ(i) + Nrm.getZ(i) * 0.02);
+  const g = extrudeC(sh, 0.5); g.rotateX(Math.PI / 2); g.translate(0, 0.25, 0);
+  const flat = g.toNonIndexed(); flat.deleteAttribute('normal'); flat.computeVertexNormals();
   // Extrude leaves zero-area cap triangles; those false-positive against the intake studs.
+  const P = flat.attributes.position;
   const kept: number[] = [];
   const va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3();
   for (let i = 0; i < P.count; i += 3) {
@@ -270,9 +267,9 @@ def('intake-gaskets', () => {
   return new Part().add(clean, 'gasket');
 }, () => CYLS.map((c) => posed(`intake-runner-${c}`, [0, 0, 0], [0, 1, 0])));
 def('intake-boots', () => { const ri = SLEEVE.id / 2, ro = SLEEVE.od / 2; const p = new Part(); p.add(lathe([[ri, 0], [ro, 0], [ro, SLEEVE.len], [ri, SLEEVE.len]], 32), 'rubber'); return p; }, () => bootFrames().map((b) => frame(V(...b.origin), V(...b.axis), Y)));
-def('intake-boot-clamps', () => hoseClamp(SLEEVE.od / 2 + 0.2, 8), () => clampFrames().map((c) => frame(V(...c.origin), V(...c.axis), Y)));
+def('intake-boot-clamps', () => hoseClamp(SLEEVE.od / 2, 8), () => clampFrames().map((c) => frame(V(...c.origin), V(...c.axis), Y)));
 // injector O-rings: 106-00 #29 (insert), #30 (injector body), 107-10 #22 (insulator)
-for (const [id, y, R] of [['injector-orings-a', 8, 7.6], ['injector-orings-b', 13, 7.6], ['injector-orings-c', 30, 7.6]] as const)
+for (const [id, y, R] of [['injector-orings-a', 8, 7.4], ['injector-orings-b', 13, 7.4], ['injector-orings-c', 30, 7.4]] as const)
   def(id, () => oring(R, 1.4), () => CYLS.map((c) => posed(`injector-${c}`, [0, y, 0], [0, 1, 0])));
 
 // ===== ignition / cooling =====
@@ -293,19 +290,20 @@ def('alternator-strap', () => {
 // ===== induction / exhaust composites =====
 def('cold-start-valve', () => {
   const p = new Part();
-  // O-ring 0.2 mm off the boss face, centred on the spray hole. Flange and pan-head screws (107-10 #34/#35) sit on it.
-  p.add(lathe([[7.2, 0.2], [14, 0.2], [14, 2.2], [7.2, 2.2]], 24), 'gasket');
-  p.add(box(44, 3.2, 14).translate(0, 3.8, 0), 'castAlu');
-  p.add(lathe([[0.1, 2.2], [12, 2.2], [12, 8], [0.1, 8]], 24), 'castAlu');
+  // O-ring on the boss face. Flange sits on the ring. Pan heads (107-10 #34/#35) bear on the flange;
+  // the shanks run into the holes cut in the plenum boss.
+  p.add(lathe([[7.2, 0], [14, 0], [14, 2], [7.2, 2]], 24), 'gasket');
+  p.add(box(44, 3.2, 14).translate(0, 3.6, 0), 'castAlu');
+  p.add(lathe([[0.1, 2], [12, 2], [12, 8], [0.1, 8]], 24), 'castAlu');
   p.add(torus(11, 1.3, 6, 24).rotateX(Math.PI / 2).translate(0, 8.5, 0), 'rubber');
   p.add(lathe([[0.1, 9], [12, 9], [12, 42], [8, 46], [0.1, 46]], 24), 'zincPlate');
   p.add(box(14, 10, 12).translate(0, 50, 0), 'blackPlastic');
   for (const k of [-1, 1]) {
     const x = k * 16;
-    // Shank stops 0.3 mm short of the boss so it does not enter the casting.
-    p.add(cyl(2.4, 6.4, 10).translate(x, 3.5, 0), 'darkSteel');
-    p.add(lathe([[2.6, 6.6], [5.2, 6.6], [5.2, 7.6], [2.6, 7.6]], 12).translate(x, 0, 0), 'darkSteel');
-    p.add(lathe([[0.1, 7.6], [4.6, 7.6], [4.6, 9.4], [3.2, 10.2], [0.1, 10.2]], 16).translate(x, 0, 0), 'zincPlate');
+    // Shank from 8 mm inside the boss (local −Y) up to the flange top at y 5.2.
+    p.add(cyl(2.4, 13.2, 10).translate(x, -1.4, 0), 'darkSteel');
+    p.add(lathe([[2.6, 5.2], [5.2, 5.2], [5.2, 6.2], [2.6, 6.2]], 12).translate(x, 0, 0), 'darkSteel');
+    p.add(lathe([[0.1, 6.2], [4.6, 6.2], [4.6, 8.0], [3.2, 8.8], [0.1, 8.8]], 16).translate(x, 0, 0), 'zincPlate');
   }
   csvPortLocalGeometry(p);
   return p;

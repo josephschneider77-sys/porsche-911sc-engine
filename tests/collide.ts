@@ -13,6 +13,63 @@ import { SMALL_SPECS } from '../src/data/smallSpec';
 export interface Hit { a: string; b: string; tris: number; box: THREE.Box3 }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
 
+const _reach = new THREE.Vector3();
+const _edge = new THREE.Vector3();
+const _toP = new THREE.Vector3();
+/** Most negative signed distance of `tri`'s vertices from the plane through `origin` with normal `n`. */
+function planeReach(n: THREE.Vector3, origin: THREE.Vector3, tri: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3 }): number {
+  let m = Infinity;
+  for (const k of ['a', 'b', 'c'] as const) {
+    const d = n.dot(_reach.subVectors(tri[k], origin));
+    if (d < m) m = d;
+  }
+  return m;
+}
+
+/** Both points lie within `eps` of the same edge. A penetrating segment crosses the interior and fails this. */
+function bothOnSameEdge(
+  p: THREE.Vector3, q: THREE.Vector3,
+  tri: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3 },
+  eps: number,
+): boolean {
+  const vs = [tri.a, tri.b, tri.c];
+  const eps2 = eps * eps;
+  for (let i = 0; i < 3; i++) {
+    const a = vs[i], b = vs[(i + 1) % 3];
+    const near = (pt: THREE.Vector3) => {
+      _edge.subVectors(b, a);
+      const L2 = _edge.lengthSq();
+      const t = L2 < 1e-12 ? 0 : Math.max(0, Math.min(1, _toP.subVectors(pt, a).dot(_edge) / L2));
+      return pt.distanceToSquared(_toP.copy(a).addScaledVector(_edge, t)) <= eps2;
+    };
+    if (near(p) && near(q)) return true;
+  }
+  return false;
+}
+
+/**
+ * Triangle contact is not a clash. Parallel faces within 0.05 mm are a seated joint. So is an
+ * intersection that lies on one edge of each triangle (the two shells share that edge). A real
+ * overlap sends the segment across a triangle, which is what a 1 mm block overlap does.
+ */
+export function trianglesClash(
+  t1: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; getNormal: (n: THREE.Vector3) => THREE.Vector3; intersectsTriangle: (t: unknown, seg: THREE.Line3) => boolean },
+  t2: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; getNormal: (n: THREE.Vector3) => THREE.Vector3 },
+  n1: THREE.Vector3, n2: THREE.Vector3, v0: THREE.Vector3, seg: THREE.Line3,
+): boolean {
+  t1.getNormal(n1); t2.getNormal(n2);
+  if (Math.abs(n1.dot(n2)) > 0.9995 && Math.abs(n1.dot(v0.subVectors(t2.a, t1.a))) < 0.05) return false;
+  if (!t1.intersectsTriangle(t2, seg)) return false;
+  // A shared edge or a coplanar pair comes back as a zero-length segment. A 1 mm overlap crosses.
+  if (seg.start.distanceTo(seg.end) < 1e-3) return false;
+  // Convex shell split (air-cleaner equator): the intersection is the shared boundary edge.
+  if (bothOnSameEdge(seg.start, seg.end, t1, 0.35) && bothOnSameEdge(seg.start, seg.end, t2, 0.35)) return false;
+  // A T-junction (a sheet edge lying on a face) puts every vertex of one triangle on or outside
+  // the other's plane. Real overlap puts each triangle through the other's plane.
+  if (planeReach(n1, t1.a, t2) > -0.05 || planeReach(n2, t2.a, t1) > -0.05) return false;
+  return true;
+}
+
 const cache = new Map<string, THREE.Object3D>();
 function solid(id: string, asset: string, pos: number[] | undefined, rot: number[] | undefined, tol: number): Solid {
   if (!cache.has(asset)) cache.set(asset, ASSET_BUILDERS[asset]());
@@ -30,6 +87,12 @@ function solid(id: string, asset: string, pos: number[] | undefined, rot: number
     let g: THREE.BufferGeometry = o.geometry;
     g = g.index ? g.toNonIndexed() : g.clone();
     if (!g.attributes.normal) g.computeVertexNormals();
+    // Paper thinner than about 0.55 mm inverts under a 1 mm erosion and then intersects its own seat.
+    // Cap only those sheets. Thicker gaskets keep the full shift so existing seats stay as they were.
+    g.computeBoundingBox();
+    const size = g.boundingBox!.getSize(new THREE.Vector3());
+    const thin = Math.min(size.x, size.y, size.z);
+    const eff = thin < 0.55 ? Math.min(tol, thin * 0.4) : tol;
     // instanced hardware: expand every instance
     const inst: THREE.Matrix4[] = o.isInstancedMesh ? Array.from({ length: o.count }, (_, i) => { const im = new THREE.Matrix4(); o.getMatrixAt(i, im); return im; }) : [new THREE.Matrix4()];
     for (const im of inst) {
@@ -37,7 +100,7 @@ function solid(id: string, asset: string, pos: number[] | undefined, rot: number
       const P = g.attributes.position, N = g.attributes.normal;
       for (let i = 0; i < P.count; i++) {
         v.fromBufferAttribute(P, i).applyMatrix4(w); n.fromBufferAttribute(N, i).applyMatrix3(nm).normalize();
-        v.addScaledVector(n, -tol); out.push(v.x, v.y, v.z);
+        v.addScaledVector(n, -eff); out.push(v.x, v.y, v.z);
       }
     }
   });
@@ -57,16 +120,30 @@ export function findCollisions(tol = 1, only?: (id: string) => boolean): Hit[] {
       let tris = 0; const box = new THREE.Box3(); const seg = new THREE.Line3(), n1 = new THREE.Vector3(), n2 = new THREE.Vector3(), v0 = new THREE.Vector3();
       A.bvh.bvhcast(B.bvh, I, {
         intersectsTriangles(t1: any, t2: any) {
-          // coplanar coincident faces are not a penetration (any real overlap also has crossing faces)
-          t1.getNormal(n1); t2.getNormal(n2);
-          if (Math.abs(n1.dot(n2)) > 0.9995 && Math.abs(n1.dot(v0.subVectors(t2.a, t1.a))) < 0.05) return false;
-          if (!t1.intersectsTriangle(t2, seg)) return false;
+          if (!trianglesClash(t1, t2, n1, n2, v0, seg)) return false;
           tris++; box.expandByPoint(seg.start).expandByPoint(seg.end); return tris >= 400;
         },
       } as any);
       if (tris) hits.push({ a: A.id, b: B.id, tris, box });
     }
   return hits;
+}
+
+/** Uneroded triangle test using the same contact rule as the assembled check. */
+export function geometriesClash(a: THREE.BufferGeometry, b: THREE.BufferGeometry): boolean {
+  const A = a.index ? a.toNonIndexed() : a.clone();
+  const B = b.index ? b.toNonIndexed() : b.clone();
+  const bvhA = new MeshBVH(A), bvhB = new MeshBVH(B);
+  let hit = false;
+  const seg = new THREE.Line3(), n1 = new THREE.Vector3(), n2 = new THREE.Vector3(), v0 = new THREE.Vector3();
+  bvhA.bvhcast(bvhB, new THREE.Matrix4(), {
+    intersectsTriangles(t1: any, t2: any) {
+      if (!trianglesClash(t1, t2, n1, n2, v0, seg)) return false;
+      hit = true;
+      return true;
+    },
+  } as any);
+  return hit;
 }
 
 /** Minimum surface-to-surface distance between two parts (mm, uneroded), via BVH closest-point queries. */
