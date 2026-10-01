@@ -41,6 +41,12 @@ function partBVH(id: string, skipLines: boolean) {
   return new MeshBVH(geom);
 }
 
+function qMaxAbsX(verts: THREE.Vector3[]) {
+  let m = 0;
+  for (const q of verts) m = Math.max(m, Math.abs(q.x));
+  return m;
+}
+
 function lineVertices(partId: string, lineId: string) {
   const root = ASSET_BUILDERS[PART_BY_ID[partId].asset]();
   root.updateMatrixWorld(true);
@@ -146,10 +152,22 @@ describe('1978 CIS fuel lines', () => {
       if (!verts.length) { bad.push(`inj-${c}: no mesh`); continue; }
       let past = 0;
       for (const q of verts) past = Math.max(past, q.clone().sub(face).dot(axis));
-      // 8 mm nut, then a 10 mm bend. The old 30 mm lead put steel out near x ±297.
-      if (past > 23) bad.push(`inj-${c}: steel ${past.toFixed(1)} mm past the nipple`);
+      // 8 mm nut, then a 6 mm bend. A 10 mm bend reached about x ±289; a 30 mm lead reached x ±297.
+      if (past > 18) bad.push(`inj-${c}: steel ${past.toFixed(1)} mm past the nipple`);
+      const reach = qMaxAbsX(verts);
+      if (reach > 286) bad.push(`inj-${c}: steel reaches |x| ${reach.toFixed(1)}`);
     }
     expect(bad).toEqual([]);
+  });
+
+  it('distributor outlet eyes are 17 mm apart and the stubs fan outboard', () => {
+    const faces = FUEL_BANJOS.filter((b) => b.id.startsWith('inj-')).map((b) => b.face);
+    const zs = faces.map((f) => f[2]).sort((a, b) => a - b);
+    for (let i = 1; i < zs.length; i++) expect(zs[i] - zs[i - 1]).toBeCloseTo(17, 5);
+    const stubs = FUEL_LINES.filter((l) => l.id.startsWith('inj-')).map((l) => l.a.axis);
+    for (const s of stubs) expect(s[0]).toBeLessThan(-0.9);
+    const yaw = stubs.map((s) => s[2]);
+    expect(Math.max(...yaw) - Math.min(...yaw)).toBeGreaterThan(0.45);
   });
 
   it('intake sleeves sit on the stub and the runner, not in free air', () => {

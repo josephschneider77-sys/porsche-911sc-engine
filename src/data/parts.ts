@@ -266,7 +266,7 @@ const single: PartDef[] = [
     description: 'Upper half of the oval air cleaner: elliptical shell, lip, four wire clips and the yellow label. The intake snout leaves the left end of the lower half.', specs: {} },
   { id: 'mixture-control-unit', name: 'Mixture control unit (air-flow meter + fuel distributor)', system: 'induction', asset: 'mixture-control-unit', explode: [-320, 600, 0],
     catalog: [{ ill: '107-00', pos: '1', pn: '911 110 967 00', note: 'Fuel distributor (930.03)' }, { ill: '107-00', pos: '2', pn: '911 110 965 00', note: 'Air flow meter' }, { ill: '107-00', pos: '9', pn: '911 110 943 00', note: 'Sensor plate' }],
-    description: 'Bosch K-Jetronic mixture unit on the 1978 distributor: the air-flow meter sits on the plenum venturi, with a barbed takeoff for the auxiliary-air hose. The fuel distributor carries the feed banjo, the cold-start feed, the M14 return union (copper ring) and six injector outlets.',
+    description: 'Bosch K-Jetronic mixture unit on the 1978 distributor: the air-flow meter sits on the plenum venturi, with a barbed takeoff for the auxiliary-air hose. The fuel distributor carries the feed banjo, the cold-start feed, the M14 return union (copper ring) and six injector outlets on 17 mm centres.',
     specs: { System: 'Bosch CIS K-Jetronic', 'System pressure': '~4.5-5.2 bar (typ.)' } },
   { id: 'fuel-lines', name: 'Injection lines & warm-up regulator', system: 'induction', asset: 'fuel-lines', explode: [-160, 560, 0],
     catalog: [{ ill: '107-10', pos: '23', pn: '911 110 093 11 / 12', note: 'Injection lines cyl 1-3 / 4-6' }, { ill: '107-10', pos: '54', pn: '911 606 105 09', note: 'Warm-up valve (control pressure regulator)' }],
