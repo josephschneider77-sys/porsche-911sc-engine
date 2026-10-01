@@ -210,7 +210,12 @@ def('ignition-lead-holders', () => { const p = new Part(); p.add(box(14, 10, 20)
 def('shroud-speed-nuts', () => { const p = new Part(); p.add(box(18, 1, 22).translate(0, 0.5, 0), 'darkSteel'); return p; }, () => LIP_Z.right.map((z) => M(V(SHROUD.bx - SHROUD.lipW / 2, SHROUD.skirtY, z), V(0, -1, 0))));
 def('shroud-cover-plate', () => { const p = new Part(); const g = extrudeC(roundRect(60, 40, 5), 1.5); g.rotateX(Math.PI / 2); g.translate(0, 0.75, 0); p.add(g, 'satinBlack'); return p; }, () => [onSurf('upper-air-guide', V(50, 400, -120), V(0, -1, 0))]);
 def('shroud-stopper', () => { const p = new Part(); p.add(lathe([[0.1, -3], [9, -3], [9, 0], [11, 0], [11, 2], [0.1, 2]], 18), 'rubber'); return p; }, () => [onSurf('upper-air-guide', V(-50, 400, -125), V(0, -1, 0))]);
-def('alternator-strap', () => { const p = new Part(); p.add(tube([[0, 0, 0], [0, 0, 20], [0, -30, 50], [0, -60, 60]], 2.5, 8, 24), 'copper'); return p; }, () => [M(V(-70, FAN.y - 40, 300), Y, X)]);
+def('alternator-strap', () => {
+  const p = new Part();
+  // From the bottom slip-ring stud, under the plenum, onto the housing barrel. Identity pose: points are world mm.
+  p.add(tube([[8, 199, 156], [34, 176, 174], [66, 160, 196], [90, 154, 218]], 2.2, 8, 18), 'copper');
+  return p;
+}, () => [M(V(0, 0, 0), Y, X)]);
 
 // ===== induction / exhaust composites =====
 const plenTop = (x: number, z: number) => onSurf('plenum', V(x, 600, z), V(0, -1, 0));

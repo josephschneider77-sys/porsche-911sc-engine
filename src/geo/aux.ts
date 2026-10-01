@@ -11,7 +11,8 @@ import {
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
 export { INTAKE_PORT, INJ };
 
-export const FAN = { y: 255, zHousing0: 205, zHousing1: 290, zFan: 262, zBelt: 303, rCrankPulley: 65, rFanPulley: 56 };
+/** Fan axis stays at y 255. rFanPulley 41 is the 82 mm OD (pitch r 36). Belt pitch length at this height is ~814 mm, not the real 725 — see the spec. */
+export const FAN = { y: 255, zHousing0: 205, zHousing1: 296, zFan: 262, zBelt: 303, rCrankPulley: 65, rFanPulley: 41 };
 export const PLENUM = { y0: 205, y1: 262, x: 110, z0: -165, z1: 172 };
 /** Round air-cleaner canister lying across the engine (SC), axis along X. */
 export const AIRBOX = { y: 362, z: 40, r: 80, len: 440 };
@@ -19,96 +20,172 @@ export const AIRBOX = { y: 362, z: 40, r: 80, len: 440 };
 export const EXH_PORT = { x: CYL_TOP_X + 34, y: -64.1 };
 
 // ---------------------------------------------------------------- 105-00 cooling
+/** Box centred at radius r from the fan axis (0, FAN.y), then spun by a about that axis. X is radial. */
+function fanBox(sx: number, sy: number, sz: number, r: number, z: number, a: number) {
+  const g = new THREE.BoxGeometry(sx, sy, sz);
+  g.translate(r, 0, z);
+  g.rotateZ(a);
+  g.translate(0, FAN.y, 0);
+  return g;
+}
 export function fanHousing() {
-  // Photo-matched (photo-ref/fan-housing, FVD 930.106.031): cast magnesium drum, painted black on the car, with
-  // rolled intake bell, three raised circumferential bands, alternator strap and two cast feet to the shroud.
+  // 930 106 005 00: unpainted dull-grey magnesium drum. Deep barrel, five grooves, five broad stator vanes,
+  // solid alternator cradle. No feet, no rod spokes. Throat clears the 226 mm fan by ~4 mm.
   const p = new Part();
-  const z0 = FAN.zHousing0, z1 = FAN.zHousing1;
-  const prof: [number, number][] = [[129, z0], [135, z0], [137, z0 + 3], [137, 268], [139, 276], [144, 283], [152, z1 - 1], [154, z1 + 2], [150, z1 + 4], [142, z1], [133, 282], [129, 272]];
-  p.add(yToZ(lathe(prof, 96)), 'blackPaint', [0, FAN.y, 0]);
-  for (const z of [216, 236, 256]) p.add(yToZ(lathe([[136.5, -3], [140, -2], [140, 2], [136.5, 3]], 96)), 'blackPaint', [0, FAN.y, z]);
-  // axial stiffening ribs on the drum (front half) and the clamp lugs
-  for (let a = 15; a < 360; a += 30) {
-    const r = 137, x = r * Math.cos(a * DEG), y = r * Math.sin(a * DEG);
-    const rib = boxMM([-1.8, -1, z0 + 2], [1.8, 4, 266]); rib.rotateZ((a - 90) * DEG);
-    p.add(rib, 'blackPaint', [x, FAN.y + y, 0]);
+  // Flange starts at z 208 so the shroud collar tabs (end z 204.9) stay clear of the drum face.
+  const z0 = 208;
+  const prof: [number, number][] = [
+    [124, z0], [117, 218], [117, 280], [128, 288], [146, 294], [154, 296],
+    [154, 293], [144, 286], [138, 276], [136, 264],
+  ];
+  let gz = 256;
+  for (let i = 0; i < 5; i++) {
+    prof.push([136, gz], [132.2, gz - 1.5], [132.2, gz - 4.8], [136, gz - 6.3]);
+    gz -= 8.4;
   }
-  // lower feet onto the air guide / case
-  for (const x of [-95, 95]) {
-    const ft = hull([...circlePts(0, 0, 14, 12), ...circlePts(0, 40, 18, 12)]);
-    const g = extrudeC(polyShape(ft), 34, 1.5); g.rotateZ(x > 0 ? 0.6 : -0.6);
-    p.add(g, 'blackPaint', [x, 128, 222]);
+  prof.push([136, z0 + 4], [124, z0]);
+  p.add(yToZ(lathe(prof, 80)), 'magCast', [0, FAN.y, 0]);
+  for (let i = 0; i < 12; i++) p.add(fanBox(5.2, 3.2, 48, 134.4, 232, (i / 12) * Math.PI * 2 + 0.08), 'magCast');
+  // five broad stator vanes, curved from the cradle out to the drum
+  for (let i = 0; i < 5; i++) {
+    const a0 = -0.55 + (i / 5) * Math.PI * 2;
+    const vane = (side: number) => paramSurface((u, v) => {
+      const r = 74 + 42 * u;
+      const ang = a0 + 0.34 * (u - 0.15) + side * (3.1 / r);
+      const zz = 216 + 42 * v;
+      return [r * Math.cos(ang), FAN.y + r * Math.sin(ang), zz];
+    }, 6, 2);
+    p.add(vane(1), 'magCast'); p.add(vane(-1), 'magCast');
   }
-  // alternator strap (#2) + clamp bolt (#2A)
-  p.add(yToZ(lathe([[62, -8], [66, -8], [66, 8], [62, 8]], 48)), 'steel', [0, FAN.y, 214]);
-  p.add(boxMM([-8, FAN.y + 64, 206], [8, FAN.y + 78, 222]), 'steel');
-  p.add(yToX(cyl(4, 30, 8)), 'zincPlate', [0, FAN.y + 72, 214]);
-  // stator spokes tying the alternator to the housing
-  for (const a of [30, 150, 270]) {
-    const c = Math.cos(a * DEG), sn = Math.sin(a * DEG);
-    p.add(cylBetween([66 * c, FAN.y + 66 * sn, 214], [130 * c, FAN.y + 130 * sn, 214], 4.5, 8), 'blackPaint');
+  // solid cradle ring, six holes on the engine-side face
+  const cradle = ringShape(72, 63);
+  for (let i = 0; i < 6; i++) {
+    const a = 0.15 + (i / 6) * Math.PI * 2;
+    cradle.holes.push(circlePath(3.3, 67.4 * Math.cos(a), 67.4 * Math.sin(a)) as THREE.Path);
+  }
+  p.add(extrude(cradle, 38), 'magCast', [0, FAN.y, 214]);
+  // alternator strap inside the cradle bore (105-00 #2) and its clamp bolt
+  p.add(yToZ(lathe([[58.6, 220], [63.2, 220], [63.2, 234], [58.6, 234]], 48)), 'steel', [0, FAN.y, 0]);
+  p.add(boxMM([-8, FAN.y + 60, 218], [8, FAN.y + 76, 236]), 'steel');
+  p.add(yToX(cyl(3.4, 24, 8)), 'zincPlate', [0, FAN.y + 70, 227]);
+  // yellow-zinc band clamp on the barrel, just pulley-side of the shroud collar (105-05 clamp, two nuts, two washers)
+  p.add(yToZ(lathe([[134.6, 238], [143.5, 238], [143.5, 250], [134.6, 250]], 72)), 'yellowZinc', [0, FAN.y, 0]);
+  p.add(boxMM([-11, FAN.y + 140, 236], [11, FAN.y + 154, 252]), 'yellowZinc');
+  p.add(yToX(cyl(3.4, 26, 8)), 'zincPlate', [0, FAN.y + 147, 244]);
+  for (const s of [-1, 1] as const) {
+    p.add(yToX(lathe([[3.6, 0], [7.2, 0], [7.2, 1.5], [3.6, 1.5]], 16)), 'zincPlate', [s * 7, FAN.y + 147, 244]);
+    const nut = yToX(hexNut(10, 5));
+    p.add(nut, 'zincPlate', [s * 12, FAN.y + 147, 244]);
   }
   return p.g;
 }
 export function fanImpeller() {
-  // Photo-matched (photo-ref/fan-impeller): 11 broad, flat, twisted paddle blades (930 106 012), silver-grey cast
-  // magnesium, riveted to a pressed hub with a ring of holes.
+  // 930 106 011 01, 1978–79: Ø226, 11 broad twisted blades, large cast hub dish. A touch lighter than the housing.
+  // The dish rim is the forward face; blade roots start under it so the pulley-end view shows the bowl, not the roots.
   const p = new Part();
-  const z = FAN.zFan;
-  p.add(yToZ(lathe([[24, -6], [60, -6], [64, -3], [64, 4], [58, 6], [24, 6]], 64)), 'magnesium', [0, FAN.y, z]);
-  const hub = circleShape(52); hub.holes.push(circlePath(13) as THREE.Path);
-  for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + (i / 6) * Math.PI * 2; hub.holes.push(circlePath(3.4, 34 * Math.cos(a), 34 * Math.sin(a)) as THREE.Path); }
-  p.add(extrudeC(hub, 2, 0, 24), 'zincPlate', [0, FAN.y, z + 7]);
-  p.add(yToZ(lathe([[10, -8], [22, -8], [22, 12], [10, 12]], 24)), 'steel', [0, FAN.y, z]);
-  for (let i = 0; i < 11; i++) {
-    const a0 = (i / 11) * Math.PI * 2;
-    const r0 = 62, r1 = 124;
-    const g = paramSurface((u, v) => {
-      const r = r0 + (r1 - r0) * u;
-      const halfChord = 17 + 9 * u; // broader at the tip
-      const pitch = (40 - 14 * u) * DEG; // twist root -> tip
-      const c = (v - 0.5) * 2 * halfChord;
-      const ang = a0 + (c * Math.cos(pitch)) / r;
-      return [r * Math.cos(ang), FAN.y + r * Math.sin(ang), z + 2 + c * Math.sin(pitch)];
-    }, 10, 6);
-    p.add(g, 'magnesium');
-    // tip edge thickness strip
-  }
-  for (let i = 0; i < 11; i++) { const a = (i / 11) * Math.PI * 2; p.add(yToZ(cyl(2.4, 5, 8)), 'steel', [56 * Math.cos(a), FAN.y + 56 * Math.sin(a), z + 6]); }
+  const dish: [number, number][] = [
+    [12, 246], [28, 250], [44, 256], [52, 262], [60, 266.5], [66, 268],
+    [66, 269.2], [58, 269.2], [50, 265], [42, 258], [24, 252], [12, 248],
+  ];
+  p.add(yToZ(lathe(dish, 64)), 'magnesium', [0, FAN.y, 0]);
+  const blade = (i: number, side: number) => paramSurface((u, v) => {
+    const r = 63 + (113 - 63) * u;
+    const halfChord = 30 - 4 * u;
+    const pitch = (50 - 26 * u) * DEG;
+    const c = (v - 0.5) * 2 * halfChord;
+    // Forward edge sits just behind the dish rim and rakes toward the pulley as the blade twists.
+    const zFront = 266.2 + 9 * u;
+    const z0 = zFront - halfChord * Math.sin(pitch);
+    const ang = (i / 11) * Math.PI * 2 + (c * Math.cos(pitch)) / r;
+    const tn = -Math.sin(pitch), zn = Math.cos(pitch);
+    const th = (2.3 - 0.8 * u) * side;
+    const ang2 = ang + (th * tn) / r;
+    return [r * Math.cos(ang2), FAN.y + r * Math.sin(ang2), z0 + c * Math.sin(pitch) + th * zn];
+  }, 14, 6);
+  for (let i = 0; i < 11; i++) { p.add(blade(i, 1), 'magnesium'); p.add(blade(i, -1), 'magnesium'); }
   return p.g;
 }
 export function alternator() {
+  // Bosch 14 V (911 603 120 02): two cast end shields with open windows, laminated stator,
+  // copper windings in the windows, rectifier on the slip-ring end. Coaxial on the fan.
+  // Shaft stops at z 312 so the pulley nut stays proud.
   const p = new Part();
-  const zc = 205, L = 52;
-  p.add(yToZ(lathe([[20, -L], [56, -L], [60, -L + 6], [60, L - 6], [56, L], [22, L]], 64)), 'castAlu', [0, FAN.y, zc]);
-  // cooling slots / ribs
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    const b = boxMM([-1.4, 58, zc - L + 10], [1.4, 62, zc + L - 10]); b.rotateZ(a);
-    p.add(b, 'castAlu', [0, FAN.y, 0]);
+  const y = FAN.y;
+  const at = (r: number, a: number, z: number): V3 => [r * Math.cos(a), y + r * Math.sin(a), z];
+  const worldLathe = (prof: [number, number][], segs = 48) => { const g = yToZ(lathe(prof, segs)); g.translate(0, y, 0); return g; };
+  const windows = (zc: number, ang0: number) => {
+    const cuts: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 4; i++) cuts.push(fanBox(30, 22, 16, 43, zc, ang0 + (i / 4) * Math.PI * 2));
+    return cuts;
+  };
+  // slip-ring shield (engine side) and drive shield, each with four windows between the through-bolts
+  const boltAng = 0.6;
+  p.add(csgSub(worldLathe([[22, 168], [56, 168], [57, 172], [57, 196], [52, 198], [22, 198], [22, 174], [16, 170], [16, 168]], 56), ...windows(184, boltAng + Math.PI / 4)), 'castAlu');
+  p.add(csgSub(worldLathe([[20, 234], [52, 234], [57, 238], [57, 256], [52, 258], [24, 258], [18, 262], [14, 262], [14, 248], [20, 244], [20, 234]], 56), ...windows(247, boltAng + Math.PI / 4)), 'castAlu');
+  // laminated stator band, darker than the shields
+  const st: [number, number][] = [[50, 198]];
+  for (let z = 200; z <= 230; z += 2.4) st.push([57.2, z], [57.2, z + 0.45], [55.6, z + 0.7], [55.6, z + 1.9]);
+  st.push([50, 234], [50, 198]);
+  p.add(yToZ(lathe(st, 72)), 'darkSteel', [0, y, 0]);
+  // windings fill the shield windows (radially inside the remaining wall)
+  p.add(yToZ(lathe([[30, 176], [42, 180], [46, 188], [46, 248], [40, 254], [30, 254], [28, 220], [30, 176]], 40)), 'copper', [0, y, 0]);
+  // rectifier: two flat horseshoe diode plates on the slip-ring face, buttons, brush block, studs
+  const horse = (a0: number) => {
+    const R = 34, ri = 15, sweep = 2.15;
+    const a1 = a0 + sweep;
+    const sh = new THREE.Shape();
+    sh.moveTo(R * Math.cos(a0), R * Math.sin(a0));
+    sh.absarc(0, 0, R, a0, a1, false);
+    sh.lineTo(ri * Math.cos(a1), ri * Math.sin(a1));
+    sh.absarc(0, 0, ri, a1, a0, true);
+    sh.closePath();
+    const g = extrude(sh, 4.2);
+    g.translate(0, y, 159.2);
+    return g;
+  };
+  p.add(horse(-2.55), 'zincPlate');
+  p.add(horse(0.55), 'zincPlate');
+  for (const a0 of [-2.55, 0.55]) {
+    for (let k = 0; k < 3; k++) {
+      const a = a0 + 0.45 + k * 0.6;
+      p.add(yToZ(cyl(2.6, 3.4, 12)), 'darkSteel', at(25, a, 156.4));
+    }
   }
-  p.add(yToZ(cyl(12, 60, 16)), 'steel', [0, FAN.y, zc + L + 25]);
-  // rear terminal cover / regulator
-  p.add(boxMM([-20, FAN.y - 70, zc - 40], [20, FAN.y - 56, zc - 6]), 'blackPlastic');
-  for (const a of [45, 135, 225, 315]) p.add(yToZ(cyl(4.5, 8, 8)), 'zincPlate', [48 * Math.cos(a * DEG), FAN.y + 48 * Math.sin(a * DEG), zc - L - 3]);
+  p.add(boxMM([-12, y - 13, 152], [12, y + 13, 168.4]), 'blackPlastic');
+  p.add(yToZ(cyl(9, 7, 16)), 'blackPlastic', [0, y, 155.5]);
+  // stud the ground strap leaves from, on the lower slip-ring face (below the plenum), plus two neighbours
+  p.add(yToZ(cyl(3.2, 9, 10)), 'brass', [8, 199, 158]);
+  p.add(yToZ(cyl(2.4, 8, 8)), 'brass', [-18, y - 28, 160]);
+  p.add(yToZ(cyl(2.4, 8, 8)), 'brass', [20, y - 26, 160]);
+  // four through-bolts, heads on both ends
+  for (const a of [boltAng, boltAng + Math.PI / 2, boltAng + Math.PI, boltAng + 1.5 * Math.PI]) {
+    p.add(yToZ(cyl(2.6, 92, 8)), 'steel', at(50, a, 213));
+    p.add(yToZ(hexNut(8, 4)), 'zincPlate', at(50, a, 165));
+    p.add(yToZ(hexNut(8, 4)), 'zincPlate', at(50, a, 260));
+  }
+  // keyed shaft: includes z 289 (nut thread) and ends at 312, short of the nut face at 313
+  p.add(yToZ(cyl(11, 64, 20)), 'steel', [0, y, 280]);
   return p.g;
 }
-function vPulley(r: number, grooves: number, width: number) {
-  const prof: [number, number][] = [[6, 0], [r, 0]];
-  for (let g = 0; g < grooves; g++) {
-    const y0 = g * width;
-    prof.push([r, y0 + 1.5], [r - 10, y0 + width / 2 - 1], [r - 10, y0 + width / 2 + 1], [r, y0 + width - 1.5]);
-  }
-  prof.push([r, grooves * width], [r - 14, grooves * width], [r - 22, grooves * width - 6], [26, grooves * width - 6], [20, grooves * width], [6, grooves * width]);
-  return lathe(prof, 64);
-}
 export function fanPulley() {
+  // Removable OUTER half of the 82 mm split pulley, five 0.5 mm shims between the halves, one outside, cupped cap.
+  // The inner flank lives on fan-hub. Valley of the V is at z 303. Nut face is the cap at z 313.
   const p = new Part();
-  const g = yToZ(vPulley(FAN.rFanPulley, 1, 16));
-  p.add(g, 'yellowZinc', [0, FAN.y, FAN.zBelt - 8]);
-  // belt-adjusting shims stack + 3 hub bolts, central nut
-  p.add(yToZ(lathe([[14, 0], [30, 0], [30, 4], [14, 4]], 36)), 'yellowZinc', [0, FAN.y, FAN.zBelt + 6]);
-  // M16x1 pulley nut: fasteners.ts (fan-pulley-nut)
+  const y = FAN.y;
+  const outer: [number, number][] = [
+    [33, 299.4], [36, 303], [41, 307.6], [41, 311], [34, 311], [33, 306.5], [33, 299.4],
+  ];
+  p.add(yToZ(lathe(outer, 48)), 'yellowZinc', [0, y, 0]);
+  for (let i = 0; i < 5; i++) {
+    const z = 296.25 + i * 0.55;
+    p.add(yToZ(lathe([[16, z], [27, z], [27, z + 0.5], [16, z + 0.5]], 28)), 'yellowZinc', [0, y, 0]);
+  }
+  p.add(yToZ(lathe([[15, 311.2], [23, 311.2], [23, 311.7], [15, 311.7]], 24)), 'yellowZinc', [0, y, 0]);
+  // cupped cap: flat nut face exactly at z 313 out past the M16 washer (rho 17), nothing proud of it
+  const cap: [number, number][] = [
+    [8, 311.9], [16, 311.5], [21, 311.9], [21, 313], [8, 313],
+  ];
+  p.add(yToZ(lathe(cap, 32)), 'yellowZinc', [0, y, 0]);
   return p.g;
 }
 export function crankPulley() {
@@ -170,8 +247,10 @@ export function fanBelt() {
 /**
  * Upper air guide (105-05 #1): roof over the case and the two sloped wings ending inboard of the cam housings
  * (the cam housings and valve covers stay outside the shroud, as on the car), outer skirts with injector holes and a
- * screw lip, flywheel-end plate beyond cylinders 3/6, cut-out round the distributor and breather, collar under the fan.
+ * screw lip, flywheel-end plate beyond cylinders 3/6, cut-out round the distributor and breather, and a round collar
+ * that wraps the engine side of the fan housing.
  */
+/** Stadium outline in a shape's XY plane (rounded rectangle). */
 /** Collar bolt tabs (bolts into the fan-housing front lip at r 132). */
 export const SHROUD_TAB = { z0: 197, z1: 204.9, a: [-Math.PI / 2 - 0.3, -Math.PI / 2 + 0.3, -Math.PI / 2 + 0.95, -Math.PI / 2 + 1.12] };
 export const SHROUD = { zA: -200, zB: 192, t: 3.5, ax: 95, ay: 150, bx: 252, by: 130, skirtY: 102, lipW: 12 };
@@ -186,39 +265,71 @@ export function upperAirGuide() {
   const rg = extrude(roof, t); rg.rotateX(Math.PI / 2); rg.translate(0, ay + t, (zA + zB) / 2);
   // v5 cut-outs: distributor cap opening (roof + left wing), breather neck, air-distributor foot slot
   const distCut = boxMM([-137, 138, 120], [-60, 170, 180]), brCut = boxMM([-70, 142, 168], [-40, 176, 200]);
-  p.add(csgSub(rg, distCut, brCut, boxMM([-94, 140, -157], [94, 165, -143])), 'satinBlack');
+  p.add(csgSub(rg, distCut, brCut, boxMM([-94, 140, -157], [94, 165, -143])), 'shroudRed');
   const slopeLen = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax);
   for (const s of [1, -1] as const) {
     const zs = s > 0 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]];
     const wing = new THREE.Shape();
     wing.moveTo(0, zA); wing.lineTo(slopeLen, zA); wing.lineTo(slopeLen, zB - 20); wing.lineTo(0, zB); wing.closePath();
     const sAt = (INTAKE_PORT.x - ax) / Math.cos(ang);
-    for (const zc of zs) { const h = new THREE.Path(); h.absellipse(sAt, zc, 34, 34, 0, Math.PI * 2, true, 0); wing.holes.push(h); }
+    // Elongated rounded openings. absellipse stays valid where a polyline hole would cross the wing edge.
+    for (const zc of zs) {
+      const h = new THREE.Path();
+      h.absellipse(sAt, zc, 34, 34, 0, Math.PI * 2, true, 0);
+      wing.holes.push(h);
+    }
     const wg = extrude(wing, t);
     const u = new THREE.Vector3(Math.cos(ang) * s, Math.sin(ang), 0), e = new THREE.Vector3(0, 0, 1), n = new THREE.Vector3().crossVectors(u, e);
     wg.applyMatrix4(new THREE.Matrix4().makeBasis(u, e, n).setPosition(ax * s, ay, 0));
-    // injector clearance bores along each injector axis (wing + skirt)
+    // injector clearance bores along each injector axis (wing + skirt + window rims)
     const injCuts = zs.map((zc) => { const P = new THREE.Vector3(s * (INTAKE_PORT.x + INJ.dx), INTAKE_PORT.y + INJ.dy, zc), d = new THREE.Vector3(s * INJ.ux, INJ.uy, 0); return cylBetween(P.clone().addScaledVector(d, -10).toArray() as V3, P.clone().addScaledVector(d, 140).toArray() as V3, 13, 20); });
-    p.add(csgSub(wg, ...(s < 0 ? [distCut] : []), ...injCuts), 'satinBlack');
+    const up = n.clone().negate();
+    for (const zc of zs) {
+      const outer = new THREE.Shape();
+      outer.absellipse(sAt, zc, 39, 43, 0, Math.PI * 2, false, 0);
+      const inner = new THREE.Path();
+      inner.absellipse(sAt, zc, 35, 39, 0, Math.PI * 2, true, 0);
+      outer.holes.push(inner);
+      const rim = extrude(outer, 2.2);
+      rim.applyMatrix4(new THREE.Matrix4().makeBasis(u, e, up).setPosition(ax * s, ay, 0));
+      p.add(csgSub(rim, ...injCuts), 'shroudRed');
+    }
+    // Lengthen each round hole into a stadium: a slot along Z through the wing, narrower than the hole so the ends stay round.
+    const slots = zs.map((zc) => {
+      const c = new THREE.Vector3(s * INTAKE_PORT.x, ay + sAt * Math.sin(ang), zc);
+      const g = new THREE.BoxGeometry(52, 28, 72);
+      g.applyMatrix4(new THREE.Matrix4().makeBasis(u, n, e).setPosition(c.x, c.y, c.z));
+      return g;
+    });
+    p.add(csgSub(wg, ...(s < 0 ? [distCut] : []), ...injCuts, ...slots), 'shroudRed');
     // outer skirt (YZ plate at x = bx) with a hole round each injector, inward screw lip at the bottom
     const sk = new THREE.Shape(); sk.moveTo(skirtY, zA); sk.lineTo(by + 1, zA); sk.lineTo(by + 1, zB - 20); sk.lineTo(skirtY, zB - 20); sk.closePath();
     const injY = INTAKE_PORT.y + INJ.dy + ((bx - (INTAKE_PORT.x + INJ.dx)) / INJ.ux) * INJ.uy;
     for (const zc of zs) sk.holes.push(circlePath(13, injY, zc) as THREE.Path);
-    p.add(csgSub(swapSkirt(sk, t, s, bx), ...injCuts, ...zs.map((zc) => boxMM([s > 0 ? bx - 10 : -bx - 2, skirtY - 1, zc - 18], [s > 0 ? bx + 2 : -bx + 10, skirtY + 12, zc + 18]))), 'satinBlack');
+    p.add(csgSub(swapSkirt(sk, t, s, bx), ...injCuts, ...zs.map((zc) => boxMM([s > 0 ? bx - 10 : -bx - 2, skirtY - 1, zc - 18], [s > 0 ? bx + 2 : -bx + 10, skirtY + 12, zc + 18]))), 'shroudRed');
     // screw lip, notched round each intake runner
     const lipCuts = zs.map((zc) => boxMM([s > 0 ? bx - lipW - 1 : -bx - 1, skirtY - 1, zc - 18], [s > 0 ? bx + 1 : -bx + lipW + 1, skirtY + t + 1, zc + 18]));
-    p.add(csgSub(boxMM([s > 0 ? bx - lipW : -bx, skirtY, zA], [s > 0 ? bx : -bx + lipW, skirtY + t, zB - 20]), ...lipCuts), 'satinBlack');
-    for (const zr of s > 0 ? [-150, -30, 90] : [-185, -90, 30]) p.add(cylBetween([(ax + 10) * s, ay + 4, zr], [(bx - 10) * s, by + 4 + 2, zr], 2.2, 6), 'satinBlack');
+    p.add(csgSub(boxMM([s > 0 ? bx - lipW : -bx, skirtY, zA], [s > 0 ? bx : -bx + lipW, skirtY + t, zB - 20]), ...lipCuts), 'shroudRed');
+    for (const zr of s > 0 ? [-150, -30, 90] : [-185, -90, 30]) p.add(cylBetween([(ax + 10) * s, ay + 4, zr], [(bx - 10) * s, by + 4 + 2, zr], 2.2, 6), 'shroudRed');
   }
   // flywheel-end plate beyond the last cylinders
   const fp = polyShape([[-bx, skirtY], [-110, skirtY], [-110, 132], [110, 132], [110, skirtY], [bx, skirtY], [bx, by + 2], [ax, ay + t], [-ax, ay + t], [-bx, by + 2]]);
-  p.add(extrude(fp, t), 'satinBlack', [0, 0, zA - t]);
-  const collar = yToZ(new THREE.CylinderGeometry(141, 141, 26, 48, 1, true, -0.33, Math.PI * 0.38 + 0.33)); // stops short of the distributor
-  p.add(collar, 'satinBlack', [0, FAN.y, zB - 6]);
-  for (const a of SHROUD_TAB.a) p.add(yToZ(cyl(9, SHROUD_TAB.z1 - SHROUD_TAB.z0, 16)), 'satinBlack', [132 * Math.cos(a), FAN.y + 132 * Math.sin(a), (SHROUD_TAB.z0 + SHROUD_TAB.z1) / 2]);
+  p.add(extrude(fp, t), 'shroudRed', [0, 0, zA - t]);
+  // Full collar around the engine-side barrel (inner r 139.5, ~3 mm off the Ø272 drum). Local fan axis is y = 0 until the mesh is placed.
+  const collarProf: [number, number][] = [[141, 210], [141, 230], [149, 232], [149, 208], [145, 208], [141, 210]];
+  let collar = yToZ(lathe(collarProf, 72));
+  const uCut = boxMM([-26, 144, 198], [26, 162, 216]);
+  collar = csgSub(collar, uCut);
+  p.add(collar, 'shroudRed', [0, FAN.y, 0]);
+  // Upper funnel from the roof's fan end up into the collar. phi π/2..3π/2 is the top half after yToZ.
+  const funnel: [number, number][] = [[112, 192], [130, 198], [146, 204], [149, 208], [144, 206], [126, 200], [108, 194], [112, 192]];
+  p.add(yToZ(lathe(funnel, 40, Math.PI / 2, Math.PI)), 'shroudRed', [0, FAN.y, 0]);
+  for (const a of SHROUD_TAB.a) p.add(yToZ(cyl(9, SHROUD_TAB.z1 - SHROUD_TAB.z0, 16)), 'shroudRed', [132 * Math.cos(a), FAN.y + 132 * Math.sin(a), (SHROUD_TAB.z0 + SHROUD_TAB.z1) / 2]);
+  // raised centre boss on the roof
+  p.add(lathe([[0.1, 0], [16, 0], [24, 3.5], [24, 8], [18, 10.5], [0.1, 10.5]], 28), 'shroudRed', [0, 153.5, -22]);
   // hot air outlet socket (#4) on the end plate, left, with its flange
-  p.add(yToZ(lathe([[30, 0], [34, 0], [34, 40], [30, 40]], 32)), 'satinBlack', [-170, 118, zA - t - 40]);
-  p.add(yToZ(lathe([[30, 0], [44, 0], [44, 2], [30, 2]], 32)), 'satinBlack', [-170, 118, zA - t - 2]);
+  p.add(yToZ(lathe([[30, 0], [34, 0], [34, 40], [30, 40]], 32)), 'shroudRed', [-170, 118, zA - t - 40]);
+  p.add(yToZ(lathe([[30, 0], [44, 0], [44, 2], [30, 2]], 32)), 'shroudRed', [-170, 118, zA - t - 2]);
   return p.g;
 }
 function swapSkirt(sk: THREE.Shape, t: number, s: 1 | -1, bx: number) {
@@ -669,10 +780,34 @@ export function distributorClamp() {
   p.add(lathe([[4.2, DIST.caseY], [9, DIST.caseY], [9, DIST.clampY], [4.2, DIST.clampY]], 16), 'castAlu', [DIST.stud[0], 0, DIST.stud[1]]); // spacer boss
   return p.g;
 }
-/** Fan hub extension (105-00 #10) between the alternator shaft and the impeller. */
+/** Fan hub (105-00 #10): yellow-zinc face plate riveted to the fan, with the inner pulley half, 16-hole ring and boss. */
 export function fanHub() {
   const p = new Part();
-  p.add(yToZ(lathe([[10, -10], [22, -10], [22, 2], [44, 2], [44, 7], [10, 7]], 32)), 'steel', [0, FAN.y, FAN.zFan - 2]);
+  const y = FAN.y;
+  // steel sleeve on the alternator shaft, under the plate
+  p.add(yToZ(lathe([[11.6, 250], [16, 250], [16, 268], [11.6, 268]], 24)), 'steel', [0, y, 0]);
+  // Ø122 face plate. +Z face exactly at z 270 for the six fan nuts (r 52). Centre open so the 16-hole web shows.
+  const plate = circleShape(61);
+  plate.holes.push(circlePath(33) as THREE.Path);
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 6 + (i / 6) * Math.PI * 2;
+    plate.holes.push(circlePath(3.1, 52 * Math.cos(a), 52 * Math.sin(a)) as THREE.Path);
+  }
+  p.add(extrude(plate, 4), 'yellowZinc', [0, y, 266]);
+  // web with 16 holes and the conical inner flank. Lip stops at z 296, clear of the belt (z ≥ ~298).
+  const web = circleShape(30);
+  web.holes.push(circlePath(13) as THREE.Path);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2 + 0.05;
+    web.holes.push(circlePath(2.15, 25 * Math.cos(a), 25 * Math.sin(a)) as THREE.Path);
+  }
+  p.add(extrude(web, 3.2), 'yellowZinc', [0, y, 270]);
+  const inner: [number, number][] = [
+    [14, 273], [28, 274], [41, 286], [41, 292], [37, 296], [33, 296], [26, 278], [14, 274],
+  ];
+  p.add(yToZ(lathe(inner, 48)), 'yellowZinc', [0, y, 0]);
+  // keyed boss in the bore
+  p.add(boxMM([10, y - 3.2, 272], [16, y + 3.2, 278]), 'yellowZinc');
   return p.g;
 }
 export function distributor() {

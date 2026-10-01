@@ -32,7 +32,7 @@ Known dimensions are marked **K**. Values estimated from the catalogue illustrat
 - Cylinder: base-flange Ø116, fin OD 115, height 98 *E*. Head: 61 thick *E*. Cam axis 292 from the crank centreline *E*.
 - Valves: intake Ø49, exhaust Ø41.5, stem Ø9 *E*; valve angles ~28° / ~32° *E*.
 - Flywheel OD ~268 with 130-tooth ring gear *E*; clutch 225 *E*.
-- Fan ~245 *E*; belt 9.5 × 725 **K** (105-00 #12).
+- Fan Ø226 **K** for 1978–79 (Pelican forum 428673; catalogue 930 106 011 01 is the -79 impeller and does not state 245 mm). Later cars are ~245 *E*. Belt 9.5 × 725 **K** (105-00 #12).
 - Timing chain pitch 3/8" (9.525) *E*. Cam drive (v3, see §8): crank gear 36 T : intermediate gear 48 T (module 2, 84 mm centres), intermediate sprockets 18 T, cam sprockets 27 T (pitch Ø82), idler 15 T — cam at ½ crank *E*.
 
 ## 2. Coordinate frame
@@ -137,7 +137,7 @@ Stoddard and Rose Passion catalogue pages cross-check the same part numbers, e.g
 - Cam chains are duplex 3/8" roller chains on duplex sprockets. Since v4 the slack run is wrapped round the idler sprocket (§9); the deflection is set by the model's geometry and is not a measured value. Chain-box size and shape are scaled from rebuild photos by chain-pitch counting (§8), not measured; wall draft and internal webs are simplified.
 - The oil pump sits inside the case at the flywheel end (cyl. 6 bay), driven off the back of the intermediate shaft by the connecting shaft (factory side-section [W1], Klassik ATS). Its exact position and shape are simplified.
 - The air-injection pump (108-00), engine carrier (109-00), oil lines and tank, heater blower (108-10), plug leads and wiring are not modelled.
-- 1978 air guide: the catalogue lists the -78 part 930 106 041 00 as red. The model shows the later black part, as requested.
+- 1978 air guide: the catalogue lists the -78 part 930 106 041 00 as red. The model shows that orange-red part. The later black replacement is PCG 106 041 04.
 
 ## 7. Visual fidelity pass (v2, photo-referenced)
 The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild series, FVD, Design911 and Heritage product shots) and remodelled to match. The photos are reference only and are not shipped with the app.
@@ -164,13 +164,13 @@ The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild 
 - Camshaft: polished lobes and journals on a dark shaft.
 
 **Cooling, induction, exhaust and clutch (PR 3):**
-- Fan housing: black-painted magnesium drum with a rolled intake bell, three raised bands, axial ribs, cast feet and stator spokes.
-- Fan: 11 broad, twisted paddle blades on a pressed hub with a ring of holes. Fan and crank pulleys are yellow zinc, with a shim stack and hub bolts.
+- Fan housing: unpainted dull-grey magnesium drum (deep barrel, circumferential grooves, five stator vanes, solid alternator cradle, yellow-zinc band clamp).
+- Fan: 11 broad twisted blades on a large hub dish, Ø226. The yellow-zinc face plate (inner pulley half) is riveted to the fan; the outer half, six shims and the cupped cap come off with the belt.
 - CIS: black moulded air distributor with one ribbed lobe per intake pipe and a cast throttle/idle housing. The air cleaner is now the SC's round drum lying across the engine (lower half on the distributor, upper half = lid with snout and straps) with a cylindrical pleated element. The air-flow meter is a black-painted funnel with a brass sensor plate; the grey fuel distributor sits beside it.
 - Heat exchangers: aluminised lofted heater box, lumpy over each primary, with a seam flange, 2-stud port flanges, entry sleeves and the heater-outlet adapter.
 - Muffler: aluminised oval drum with a slight banana curve, seam flange and dished end caps.
 - Flywheel: dark body, ground friction face, ring gear, balance drillings.
-- 1978 upper air guide: the catalogue part is red (Joe's reference engine has a red/orange shroud). It is still shown black, as requested.
+- 1978 upper air guide: orange-red GRP (about #C04A30). The collar wraps the front of the fan housing; each wing has three stadium windows.
 
 ## 8. Cam drive, chain boxes and interference test (v3)
 Joe's v2 review: the chain cover collided with the exhaust and the chain covers were far too big. The cam drive was re-sized from photos in Wayne Dempsey's *How to Rebuild and Modify Porsche 911 Engines 1965-1989*, using only public previews: the author's sample pages at 101projects.com and his Pelican Parts tech articles [S5] and *911 Carrera chain tensioners*. A public Porsche 1981 911 SC brochure / technical-data sheet on archive.org was used to cross-check the spec. Photos are reference only and are not in the repo.
@@ -404,4 +404,16 @@ Photo pass on the oil pump, sump plate, oil thermostat, breather tower and relie
 - **Oil thermostat.** Moved from under the right half to the top of the right half at the pulley end (x 88, z 176, flange top y 118), beside the oil-pressure sender and switch. The cap stays below the shroud collar and the fitting banjo. Windowed cartridge, O-ring land, dark element cup. Three ears (1978 hardware). Nut count stays **3**: 101-10 #41 is three M6 lock nuts through engine 63D; the two-bolt flange (900 075 057 02) is tagged after 63D. The old underside pad is removed. Flange ear centres are about 16–18 mm from the cap axis *E*; body about Ø31 *E*.
 - **Breather.** Cast ribbed tower with an angled hose neck. Part number stays **901 107 073 02**, the 1978 SC line (tag SC). 930 107 073 00 in this catalogue is tagged 83-/turbo. Stoddard’s cast 930 107 073 02 is the later supersession; the mesh follows the teardown photos. Nut count stays **2** (101-10 #35/#36 qty 2, assignment estimated). The photo shows four nuts and there is no qty-4 line to move them to.
 - **Relief plugs.** Hex-head screw plugs with a washer face and a copper sealing ring, seated on the case underside. The pistons are hollow cups with the spring inside the cup.
-- **Crank pulley.** Lip Ø134 (r 67). Belt pitch radius 60 at z 303, still in the single groove; the fan pulley groove stays on that same plane (`rFanPulley` 56, pitch 51). Concentric pressed rings on the dish face. Washer seat remains z 324.
+- **Crank pulley.** Lip Ø134 (r 67). Belt pitch radius 60 at z 303, still in the single groove; the fan pulley valley stays on that same plane (`rFanPulley` 41, pitch 36). Concentric pressed rings on the dish face. Washer seat remains z 324.
+
+## 14. Batch 4 — fan, shroud and alternator
+
+Photo pass on the cooling fan, fan housing, split pulley, Bosch alternator and the 1978 upper air guide. The crank pulley, belt plane and fan height are unchanged.
+
+- **Colour.** The red part on the 1978 SC is the upper air guide (930 106 041 00), orange-red GRP about #C04A30, roughness ~0.6. The later black replacement PCG 106 041 04 stays in the catalogue note. The fan housing (930 106 005 00) is natural dull-grey magnesium, about #7A7E7A, not black and not red.
+- **Fan.** Tip diameter 226 mm (r 113) **K**: Pelican 428673 says every 911 fan is 245 mm except the 1978–79 fan, which is 226 mm. 930 106 011 01 is tagged -79/SC and the catalogue JSON does not state 245 mm. Eleven broad blades, twist about 45° at the root to 25° at the tip, large hub dish. Housing throat inner radius about 117 mm (tip + 4 mm).
+- **Housing.** Deep drum, five circumferential grooves on the engine-side barrel, axial ribs, five broad stator vanes and a solid cradle with six holes on the rear face. The two box feet and the three rod spokes are gone. Yellow-zinc band clamp, with two nuts and two washers, on the barrel just pulley-side of the shroud collar. Depth of the drum is about 91 mm (z 205–296) *E*; a rennlist note puts a 70 A housing near 95 mm.
+- **Pulley.** Split. Inner half is the yellow-zinc face plate on `fan-hub` (disc about Ø122, six studs, 16-hole ring, conical flank OD 82). Outer half, six 0.5 mm shims (five between the halves, one outside) and the cupped cap are `fan-pulley`, so the belt step still lifts only those. OD 82 mm **K** (Sierra Madre / 911 106 208 00, "double 82 mm, 76–79"). Shim 930 106 564 00, 0.5 mm, six drawn **K**. Nut M16×1, 24 mm AF **K**. Pitch radius 36 on the same plane as the crank (z 303). Ratio 60/36 ≈ 1.67.
+- **Alternator.** Bosch 14 V, 911 603 120 02, about 70 A, external regulator. Two cast end shields, darker laminated stator, copper windings in the windows, slip-ring end with two horseshoe diode plates, a central brush block and three terminal studs. Body about Ø114 × 90 mm *E* (length about 0.8 × OD), seated in the cradle. The copper ground strap runs from the lower slip-ring stud to the housing barrel.
+- **Upper air guide.** One moulded shell. The collar (inner r 139.5) wraps the engine-side barrel with about 3 mm clearance and no undercut, so the housing still slides out on +Z in the fan step. Stadium windows, three per wing, with raised rims. Centre roof boss and a U notch on the collar's engine-side rim. Screw lips, end plate and hot-air socket stay where the existing screws seat.
+- **Belt length (not fixed here).** With the fan axis left at y 255, crank pitch r 60 and fan pitch r 36, the modelled pitch length is about 814 mm. The real belt is 9.5 × 725, which wants a centre distance near 205–215 mm. Moving the fan would drag the plenum, air box, distributor and shroud with it, so `FAN.y` stays 255.
