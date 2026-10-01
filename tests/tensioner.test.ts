@@ -4,9 +4,10 @@ import { CAM_X, INT_SHAFT_Y } from '../src/data/layout';
 import {
   basePath, chainPath, chainPins, tensionerLayout, ADJ, CAM_NOSE, CAM_SPROCKET_R, INT_SPROCKET_R,
   SPROCKET_HOLES, FLANGE_NOTCHES, VERNIER, CHAIN_Z, guideRails, railInner, chainTensioner,
-  CRANK_GEAR_T, INT_GEAR, INT_T, CAM_T, IDLER_T, crankGears, intermediateShaft, perimeterClashSolids, MESH_DZ,
+  CRANK_GEAR_T, INT_GEAR, INT_T, CAM_T, IDLER_T, crankGears, intermediateShaft, MESH_DZ,
 } from '../src/geo/core';
-import { convexPlanes } from '../src/geo/util';
+import { caseLugY } from '../src/geo/hwLayout';
+import { clearance } from './collide';
 import { rayHit } from './hw';
 
 describe('cam drive ratio', () => {
@@ -19,39 +20,71 @@ describe('cam drive ratio', () => {
     expect(CRANK_GEAR_T).toBe(35);
     expect(INT_GEAR.teeth).toBe(60);
   });
-  it('intermediate gear clears the lock nut and the stud at the lower lug', () => {
+  it('keeps all 60 intermediate teeth clear of the lowered z 190 stud', () => {
     const root = intermediateShaft();
     root.updateMatrixWorld(true);
-    const solids = perimeterClashSolids().map((g) => convexPlanes(g));
     const v = new THREE.Vector3();
     const mod = INT_GEAR.module;
     const pr = (INT_GEAR.teeth * mod) / 2;
     const rTip = pr + 1.6 * (mod / 2);
-    let near = 0, tips = 0;
+    const ySeat = caseLugY(190, false);
+    expect(rTip).toBeCloseTo(54.467, 3);
+    // 14 face bands across z 192–204.7. Unwind the helix at each slice so a tooth
+    // stays in one bin. Tip vertices sit at fraction 0.35 of the pitch.
+    const nBands = 14;
+    const toothZ0 = 192, toothZ1 = 204.7;
+    const bandDz = (toothZ1 - toothZ0) / nBands;
+    const pitch = (2 * Math.PI) / INT_GEAR.teeth;
+    const rate = -Math.tan((30 * Math.PI) / 180) / pr;
+    const meshPhase = Math.PI / INT_GEAR.teeth - 0.055;
+    const zRef = 192 + 12.7 / 2;
+    const maxR = Array.from({ length: nBands }, () => new Float64Array(INT_GEAR.teeth));
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       const P = mesh.geometry.getAttribute('position');
       for (let i = 0; i < P.count; i++) {
         v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
-        for (const planes of solids) {
-          let mx = -Infinity;
-          for (const p of planes) mx = Math.max(mx, p.n.dot(v) - p.c);
-          expect(mx, `inside a lug solid at ${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`).toBeGreaterThan(-0.02);
-          if (mx < 0.5) near++;
+        const rad = Math.hypot(v.x, v.y - INT_SHAFT_Y);
+        const offStud = Math.hypot(v.y - ySeat, v.z - 190);
+        // Stud r 3.84 through the lug, and the lock-nut washer (r 8) on the left seat.
+        if (v.x > -40 && v.x < 40) expect(offStud, 'stud').toBeGreaterThan(3.84 + 1);
+        if (v.x < -16 && v.x > -32) expect(offStud, 'lock-nut washer').toBeGreaterThan(8 + 1);
+        if (rad >= rTip - 0.55) {
+          expect(v.z).toBeGreaterThan(191.4);
+          if (v.z > 204.95) {
+            const inCrankBore = Math.hypot(v.x, v.y) < 37.6;
+            const inShaftBore = Math.hypot(v.x, v.y - INT_SHAFT_Y) < 17.6;
+            expect(inCrankBore || inShaftBore, `tip in the bulkhead wall z ${v.z.toFixed(2)}`).toBe(true);
+          }
         }
-        if (Math.hypot(v.x, v.y - INT_SHAFT_Y) < rTip - 0.55) continue;
-        tips++;
-        expect(v.z).toBeGreaterThan(191.4);
-        if (v.z > 204.95) {
-          const inCrankBore = Math.hypot(v.x, v.y) < 37.6;
-          const inShaftBore = Math.hypot(v.x, v.y - INT_SHAFT_Y) < 17.6;
-          expect(inCrankBore || inShaftBore, `tip in the bulkhead wall z ${v.z.toFixed(2)}`).toBe(true);
-        }
+        if (v.z < toothZ0 - 1e-3 || v.z > toothZ1 + 1e-3) continue;
+        let band = Math.floor((v.z - toothZ0) / bandDz);
+        if (band < 0) band = 0;
+        if (band >= nBands) band = nBands - 1;
+        let slice = Math.floor((v.z - toothZ0) / MESH_DZ);
+        if (slice < 0) slice = 0;
+        if (slice > 63) slice = 63;
+        const sz0 = toothZ0 + slice * MESH_DZ;
+        const sz1 = Math.min(toothZ1, sz0 + MESH_DZ);
+        const ang = meshPhase + rate * ((sz0 + sz1) / 2 - zRef);
+        let u = Math.atan2(v.y - INT_SHAFT_Y, v.x) - ang;
+        u = u / pitch - 0.35;
+        let tooth = Math.round(u);
+        tooth = ((tooth % 60) + 60) % 60;
+        if (rad > maxR[band][tooth]) maxR[band][tooth] = rad;
       }
     });
-    expect(near, 'cut follows the real solids').toBeGreaterThan(20);
-    expect(tips).toBeGreaterThan(20);
+    const short = new Set<number>();
+    for (let b = 0; b < nBands; b++) {
+      for (let t = 0; t < INT_GEAR.teeth; t++) {
+        if (maxR[b][t] < rTip - 0.3) short.add(t);
+      }
+    }
+    expect(short.size, 'bottom teeth whole').toBe(0);
+  });
+  it('clears the perimeter lock nuts by more than 1 mm', () => {
+    expect(clearance('case-perimeter-nuts', 'intermediate-shaft')).toBeGreaterThan(1);
   });
   it('crank and intermediate gear sections do not overlap across the face', () => {
     const crank = crankGears();

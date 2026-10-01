@@ -104,7 +104,17 @@ function solid(id: string, asset: string, pos: number[] | undefined, rot: number
       }
     }
   });
-  const geom = new THREE.BufferGeometry(); geom.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+  // CSG and helical extrudes leave zero-area slivers. They are not metal, and intersectsTriangle
+  // reports them as hits against any triangle their collapsed edge numerically touches.
+  const clean: number[] = [];
+  for (let i = 0; i < out.length; i += 9) {
+    const abx = out[i + 3] - out[i], aby = out[i + 4] - out[i + 1], abz = out[i + 5] - out[i + 2];
+    const acx = out[i + 6] - out[i], acy = out[i + 7] - out[i + 1], acz = out[i + 8] - out[i + 2];
+    const cx = aby * acz - abz * acy, cy = abz * acx - abx * acz, cz = abx * acy - aby * acx;
+    if (cx * cx + cy * cy + cz * cz < 1e-4) continue;
+    for (let k = 0; k < 9; k++) clean.push(out[i + k]);
+  }
+  const geom = new THREE.BufferGeometry(); geom.setAttribute('position', new THREE.Float32BufferAttribute(clean, 3));
   const bvh = new MeshBVH(geom); geom.boundsTree = bvh as any; geom.computeBoundingBox();
   return { id, geom, bvh, box: geom.boundingBox!.clone() };
 }
@@ -278,49 +288,52 @@ const sameSide = (a: string, b: string, why: string): [RegExp, RegExp, string][]
   ['right', 'left'].map((sd) => [new RegExp(`^(${a})-${sd}$`), new RegExp(`^(${b})-${sd}$`), why] as [RegExp, RegExp, string]);
 
 /**
- * Allowlist of pairs whose interpenetration (beyond the erosion tolerance) is expected. Everything else fails the
- * test. Two kinds, kept apart on purpose:
- *  - JOINT: real mating / seated / nested hardware (bolted faces, shafts in bores, gears in mesh, chain on sprockets).
- *  - SIMPLIFIED: pre-v3 modelling shortcuts where one part passes through a solid that is hollow / relieved on the
- *    real engine (case interior, valve guides, shroud cut-outs, piston valve reliefs). Listed explicitly so a new clash
- *    anywhere else — and any cam-drive vs exhaust contact — fails.
+ * Allowlist of pairs whose interpenetration (beyond the erosion tolerance) is expected.
+ * Bottom end and ancillaries stay only when the overlap is a real joint, and the comment names it
+ * (threaded, pressed or seated). Head, cylinder, cam, valvetrain, cover and chain-drive lines are
+ * left as the top-end work wrote them, including the skirt and valve-relief shortcuts that work owns.
  */
 export const MATING: [RegExp, RegExp, string][] = [
-  // ---- JOINT: bottom end
-  pair('crankcase-right', 'crankcase-left', 'JOINT case split flange'),
-  pair('crankcase-right|crankcase-left', 'main-bearings|crankshaft|cylinder|oil-pump|oil-thermostat|sump-plate|breather-lid|distributor|fan-housing|upper-air-guide', 'JOINT seated in / bolted to the case'),
-  ...sameSide('crankcase', 'chain-housing', 'JOINT chain box bolted to the case face / chain-well flange'),
-  pair('crankshaft', 'main-bearings|conrod|crank-gears|crank-pulley|flywheel|pressure-plate', 'JOINT on the crank (journals, nose, flange)'),
-  pair('conrod', 'piston', 'JOINT wrist pin'),
+  // ---- bottom end and ancillaries: real joints
+  pair('crankcase-right', 'crankcase-left', 'seated: crankcase split-flange faces'),
+  pair('crankcase-right|crankcase-left', 'main-bearings', 'pressed: main-bearing shell in the saddle bore'),
+  pair('crankcase-right|crankcase-left', 'cylinder', 'seated: cylinder spigot on the deck register'),
+  ...sameSide('crankcase', 'chain-housing', 'seated: chain-box gasket face on the chain-well flange'),
+  pair('crankshaft', 'main-bearings', 'pressed: crank journal in the main-bearing shell'),
+  pair('crankshaft', 'conrod', 'pressed: rod journal in the big-end bearing'),
+  pair('crankshaft', 'crank-gears', 'pressed: timing gear and distributor drive wheel on the crank nose'),
+  pair('crankshaft', 'crank-pulley', 'pressed: crank pulley on the nose'),
+  pair('crankshaft', 'flywheel', 'seated: flywheel on the crank flange'),
+  pair('conrod', 'piston', 'pressed: wrist pin through the rod and piston'),
+  pair('flywheel', 'clutch-disc|pressure-plate', 'seated: clutch disc and pressure plate on the flywheel face'),
+  pair('clutch-disc', 'pressure-plate', 'seated: clutch disc against the pressure plate'),
+  pair('intermediate-shaft', 'oil-pump', 'pressed: splined coupling in the oil pump'),
+  pair('muffler', 'heat-exchanger', 'seated: muffler inlet stub over the heat-exchanger outlet'),
+  pair('alternator', 'fan-pulley|fan-impeller', 'pressed: impeller and pulley on the alternator shaft'),
+  pair('fan-housing', 'fan-impeller', 'seated: impeller running inside the fan housing'),
+  pair('fan-belt', 'fan-pulley|crank-pulley', 'seated: belt in the pulley grooves'),
+  pair('distributor-clamp', 'distributor|crankcase-left', 'seated: clamp around the distributor shank and on its case pad'),
+  pair('fan-hub', 'fan-impeller|alternator', 'pressed: fan hub on the alternator shaft and the impeller on the hub'),
+  pair('warm-up-regulator', 'crankcase-left', 'JOINT regulator flange on the case pad'),
+  pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),
+  pair('ignition-leads', 'spark-plug', 'seated: lead boot on the plug terminal'),
+  pair('ignition-leads', 'ignition-lead-holders', 'seated: lead clipped in the shroud holder'),
+  // ---- top end (heads, cylinders, cams, valvetrain, covers, chain drive) — not rewritten here
+
   pair('piston', 'cylinder', 'JOINT piston in bore'),
-  pair('flywheel', 'clutch-disc|pressure-plate', 'JOINT clutch stack'), pair('clutch-disc', 'pressure-plate', 'JOINT clutch stack'),
-  // ---- JOINT: top end
   pair('cylinder', 'head', 'JOINT cylinder/head sealing joint'),
   pair('head', 'valves|spark-plug', 'JOINT guides/seats, plug thread'),
   pair('cam-housing', 'head|camshaft|rockers|valves|valve-cover-upper|valve-cover-lower', 'JOINT cam housing on heads, bearings, rocker shafts, cover flanges'),
   pair('camshaft', 'rockers', 'JOINT lobes on rocker pads'), pair('rockers', 'valves', 'JOINT rocker tips on stems'),
-  // ---- JOINT: cam drive (same bank only)
   ...sameSide('cam-housing', 'chain-housing', 'JOINT cam-housing end face gasketed into the chain box'),
   ...sameSide('camshaft', 'cam-sprocket', 'JOINT sprocket on cam nose'),
   ...sameSide('timing-chain', 'cam-sprocket|chain-tensioner', 'JOINT chain on cam sprocket / idler / guide ramps'),
   ...sameSide('chain-tensioner', 'chain-housing', 'JOINT idler shaft and adjuster seated in housing bosses'),
   ...sameSide('chain-housing', 'chain-housing-lid', 'JOINT cover on housing studs'),
   pair('intermediate-shaft', 'timing-chain', 'JOINT chain seated on the intermediate sprockets'),
-  pair('intermediate-shaft', 'oil-pump', 'JOINT splined pump coupling seated on the shaft'),
-  // ---- JOINT: exhaust, induction, fan
   pair('heat-exchanger', 'head', 'JOINT primaries in the exhaust ports'),
-  pair('muffler', 'heat-exchanger', 'JOINT muffler inlet stubs over the HE outlets'),
-  pair('alternator', 'fan-pulley|fan-housing|fan-impeller', 'JOINT alternator in the fan housing, impeller on its shaft'),
-  pair('fan-housing', 'fan-impeller', 'JOINT impeller in housing'), pair('fan-belt', 'fan-pulley|crank-pulley', 'JOINT belt in grooves'),
-  // ---- JOINT: v5 parts
   ...sameSide('cam-flange', 'camshaft|cam-sprocket', 'JOINT keyed flange on the cam nose, dowel into the sprocket'),
   ...sameSide('adjuster-cover', 'chain-housing-lid', 'JOINT cover gasketed onto the lid'),
-  pair('distributor-clamp', 'distributor|crankcase-left', 'JOINT clamp round the distributor shank, spacer on the case'),
-  pair('fan-hub', 'fan-impeller|alternator', 'JOINT hub extension on the alternator shaft, fan wheel on the hub'),
-  pair('warm-up-regulator', 'crankcase-left', 'JOINT regulator flange on the case pad'),
-  pair('ignition-leads', 'distributor|spark-plug', 'JOINT leads in the cap towers / plug connectors'),
-  // ---- SIMPLIFIED (pre-v3, not cam drive / exhaust)
-  pair('crankcase-right|crankcase-left', 'conrod|piston|head|flywheel|pressure-plate', 'SIMPLIFIED case interior / head studs / rear seal boss not relieved'),
   pair('conrod', 'cylinder', 'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)'),
   pair('piston', 'head|valves', 'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut'),
   pair('cylinder', 'valves', 'SIMPLIFIED valve heads at the barrel top'),
@@ -328,12 +341,37 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('cam-housing-plug', 'cam-splash-tube', 'JOINT gallery screw plug shank reaches the splash-tube bore it closes (E position)'),
   pair('cam-key', 'cam-shim', 'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)'),
   pair('valve-cover-upper|valve-cover-lower', 'rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED a few rocker-shaft screw/nut heads tuck under the inner edge of an ear boss (bosses kept full so the cover-nut seats stay solid)'),
-  pair('crankcase-left', 'oil-pump-nuts', 'SIMPLIFIED one pump-cover nut corner grazes the hollow-case inner wall (PR #8 casting, 2 triangles)'),
   pair('valve-cover-gasket-upper|valve-cover-gasket-lower', 'rockers|valves', 'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)'),
-  pair('ignition-leads', '.*', 'SIMPLIFIED flexible ignition leads drawn on an approximate path (they drape over other parts)'),
   pair('rockers', 'valve-cover-nuts-upper|valve-cover-nuts-lower', 'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear'),
- 
 ];
+
+/** Why-strings owned by the top-end / chain-drive work. Bottom-end entries are not in this set. */
+export const TOP_END_WHY = new Set<string>([
+  'JOINT piston in bore',
+  'JOINT cylinder/head sealing joint',
+  'JOINT guides/seats, plug thread',
+  'JOINT cam housing on heads, bearings, rocker shafts, cover flanges',
+  'JOINT lobes on rocker pads',
+  'JOINT rocker tips on stems',
+  'JOINT cam-housing end face gasketed into the chain box',
+  'JOINT sprocket on cam nose',
+  'JOINT chain on cam sprocket / idler / guide ramps',
+  'JOINT idler shaft and adjuster seated in housing bosses',
+  'JOINT cover on housing studs',
+  'JOINT primaries in the exhaust ports',
+  'JOINT keyed flange on the cam nose, dowel into the sprocket',
+  'JOINT cover gasketed onto the lid',
+  'JOINT regulator flange on the case pad',
+  'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)',
+  'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut',
+  'SIMPLIFIED valve heads at the barrel top',
+  'SIMPLIFIED hollow covers (v5): rocker-arm tips / valve-spring retainers cross the seat line at the long edges (modelled rocker gear ~5 mm wider than the cover seat)',
+  'JOINT gallery screw plug shank reaches the splash-tube bore it closes (E position)',
+  'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)',
+  'SIMPLIFIED a few rocker-shaft screw/nut heads tuck under the inner edge of an ear boss (bosses kept full so the cover-nut seats stay solid)',
+  'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)',
+  'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear',
+]);
 /**
  * Fastener joints (JOINT, generated): each hardware set may overlap the part it seats on and the part it threads
  * into (shank / stud in its hole); a stud may pass through the part its nut clamps. Nothing else is allowed, so a nut
