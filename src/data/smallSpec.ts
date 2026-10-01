@@ -1,0 +1,128 @@
+/**
+ * Small-part sets (keys, pins, shims, gaskets, O-rings, circlips, plugs, senders, clamps, fittings) as removable
+ * hardware parts. Geometry: src/geo/smallParts.ts (same ids). `hosts` are the parts each piece sits in or on
+ * (keyway, bore, groove, gasket face); tests/collide.ts treats those contacts as joints. Quantities against the
+ * catalogue are claimed in src/data/checklist.ts.
+ */
+export interface SmallSpec { id: string; name: string; count: number; step: string; follows: string; hosts: string[]; size: string; description: string }
+const S = (id: string, name: string, count: number, step: string, follows: string, hosts: string[], size: string, description: string): SmallSpec => ({ id, name, count, step, follows, hosts, size, description });
+const B = (fn: (b: 'right' | 'left', B: 'R' | 'L') => SmallSpec) => [fn('right', 'R'), fn('left', 'L')];
+
+export const SMALL_SPECS: SmallSpec[] = [
+  // --- cam nose (103-10/15 #34-#41): nut -> sprocket (+ pin, shim) -> flange (+ Woodruff key, thrust washer)
+  ...B((b) => S(`cam-key-${b}`, `Camshaft Woodruff key (half-moon), ${b}`, 1, 'cam-keys', `camshaft-${b}`, [`camshaft-${b}`, `cam-flange-${b}`], '4 x 5 x 10 mm Woodruff', 'Half-moon key sitting in the keyway milled into the cam nose; it locates the sprocket flange. It can only come out once the nut, sprocket and flange are off.')),
+  ...B((b) => S(`cam-pin-${b}`, `Sprocket dowel pin, ${b}`, 1, 'cam-sprockets', `cam-sprocket-${b}`, [`cam-flange-${b}`, `cam-sprocket-${b}`], 'Ø6 x 13.5 straight pin', 'Straight pin (#39) through one of the three vernier holes: it couples the sprocket to the keyed flange and sets cam timing. It comes off with the sprocket.')),
+  ...B((b) => S(`cam-shim-${b}`, `Sprocket alignment shim, ${b}`, 1, 'cam-sprockets', `cam-sprocket-${b}`, [`camshaft-${b}`, `cam-flange-${b}`, `cam-sprocket-${b}`], '0.6 mm shim', 'Alignment shim(s) (#35, as required) between the flange and the sprocket hub, chosen to line the sprocket up with the crank timing gear.')),
+  ...B((b) => S(`cam-thrust-washer-${b}`, `Camshaft thrust washer, ${b}`, 1, 'cam-keys', `camshaft-${b}`, [`camshaft-${b}`, `cam-flange-${b}`], 'Thrust washer', 'Thrust washer (#34) behind the sprocket flange on the cam nose.')),
+  // --- chain drive
+  ...B((b) => S(`idler-circlip-${b}`, `Idler-arm circlip, ${b}`, 1, 'tensioners', `chain-tensioner-${b}`, [`chain-tensioner-${b}`, `chain-housing-${b}`], '15 x 1 circlip', 'Circlip (#9) retaining the idler arm on its shaft.')),
+  ...B((b) => S(`idler-sleeve-${b}`, `Idler-arm tensioning sleeve, ${b}`, 1, 'tensioners', `chain-tensioner-${b}`, [`chain-tensioner-${b}`], '3 x 22 roll pin', 'Tensioning sleeve (#8) locating the idler-arm shaft in the chain housing.')),
+  ...B((b) => S(`chain-housing-gasket-${b}`, `Chain-housing gasket, ${b}`, 1, 'chain-housings', `chain-housing-${b}`, [`chain-housing-${b}`, `crankcase-right`, `crankcase-left`, `cam-housing-${b}`, `chain-housing-nuts-${b}`, `chain-end-nuts-${b}`], '0.5 mm gasket', 'Gasket (#5) between the chain housing and the crankcase face.')),
+  ...B((b) => S(`chain-lid-gasket-${b}`, `Chain-housing lid gasket, ${b}`, 1, 'chain-covers', `chain-housing-lid-${b}`, [`chain-housing-${b}`, `chain-housing-lid-${b}`, `chain-cover-nuts-${b}`, `chain-lid-nuts-${b}`], '0.5 mm gasket', 'Lid gasket (#8 left / #9 right).')),
+  ...B((b) => S(`chain-lid-plug-${b}`, `Chain-housing lid screw plug, ${b}`, 1, 'chain-covers', `chain-housing-lid-${b}`, [`chain-housing-lid-${b}`], 'M16 screw plug + sealing ring', 'Inspection screw plug with sealing ring in the lid.')),
+  ...B((b) => S(`chain-lid-plug2-${b}`, `Chain-housing lid screw plug (small), ${b}`, 1, 'chain-covers', `chain-housing-lid-${b}`, [`chain-housing-lid-${b}`], 'Screw plug', 'Second, smaller screw plug in the chain-housing lid (103-05 "-" N 016 155 4).')),
+  ...B((b) => S(`cam-housing-plug-${b}`, `Cam-housing screw plug, ${b}`, 1, 'camshafts', `camshaft-${b}`, [`cam-housing-${b}`], 'Screw plug + sealing ring', 'Oil-gallery screw plug (103-05 #26) in the outer flank of the cam housing (E position).')),
+  ...B((b) => S(`chain-case-plug-${b}`, `Chain-housing expansion plug, ${b}`, 1, 'chain-housings', `chain-housing-${b}`, [`chain-housing-${b}`], 'Ø15 expansion plug', 'Expansion plug (#10) in the chain-housing casting.')),
+  ...(['upper', 'lower'] as const).flatMap((u) => B((b) => S(`valve-cover-gasket-${u}-${b}`, `Valve-cover gasket, ${u} ${b}`, 1, 'valve-covers', `valve-cover-${u}-${b}`, [`valve-cover-${u}-${b}`, `cam-housing-${b}`, `valve-cover-nuts-${u}-${b}`, ...(u === 'lower' ? [`valve-cover-special-${b}`] : [])], 'Cork/rubber gasket', `Gasket under the ${u} valve cover (#${u === 'upper' ? 18 : 20}).`))),
+  ...B((b) => S(`cam-end-cover-${b}`, `Cam-housing end cover, ${b}`, 1, 'camshafts', `camshaft-${b}`, [`cam-housing-${b}`], 'Pressed lid', 'Lid (#16) closing the flywheel end of the cam bore.')),
+  ...B((b) => S(`cam-splash-tube-${b}`, `Oil splash tube, ${b}`, 1, 'camshafts', `camshaft-${b}`, [`cam-housing-${b}`, `rockers-${b}`, `camshaft-${b}`, `valves-${b === 'right' ? 1 : 4}`], 'Perforated tube', 'Oil splash tube spraying the cam lobes and rockers.')),
+  ...B((b) => S(`cam-housing-stoppers-${b}`, `Cam-housing stoppers, ${b}`, 2, 'camshafts', `camshaft-${b}`, [`cam-housing-${b}`], 'Press-in plug', 'Gallery stoppers in the cam-housing end face.')),
+  ...B((b) => S(`cam-oil-banjo-${b}`, `Cam-housing oil feed (banjo bolt, intermediate piece, plug), ${b}`, 1, 'camshafts', `camshaft-${b}`, [`cam-housing-${b}`], 'Banjo bolt + 4 sealing rings', 'Oil feed into the cam housing: banjo bolt (#29), intermediate piece (#27), screw plug (#26) and four sealing rings (#28).')),
+  S('cam-temp-switch', 'Temperature switch (left cam housing)', 1, 'camshafts', 'camshaft-left', ['cam-housing-left'], 'Switch + sealing ring', 'Temperature switch (#30) with sealing ring (#31).'),
+  // --- intermediate shaft (103-15 #44-#49)
+  S('ishaft-bearings', 'Intermediate-shaft bearings', 2, 'int-shaft', 'intermediate-shaft', ['intermediate-shaft', 'crankcase-right', 'crankcase-left'], 'Plain bearing', 'Plain bearings (#47) at the two intermediate-shaft journals, in the case saddles.'),
+  S('ishaft-thrust', 'Intermediate-shaft thrust bearings', 2, 'int-shaft', 'intermediate-shaft', ['intermediate-shaft', 'crankcase-right', 'crankcase-left', 'ishaft-bearings'], 'Thrust washer', 'Thrust bearings (#46) either side of the pulley-end journal.'),
+  S('ishaft-circlips', 'Intermediate-shaft circlips', 4, 'int-shaft', 'intermediate-shaft', ['intermediate-shaft', 'ishaft-bearings', 'ishaft-thrust', 'crankcase-right', 'crankcase-left'], 'Circlip', 'Circlips (#44 x2, #45, #49) locating the bearings and thrust washers on the shaft (E positions).'),
+  S('ishaft-stopper', 'Intermediate-shaft stopper', 1, 'int-shaft', 'intermediate-shaft', ['crankcase-right', 'crankcase-left', 'ishaft-thrust'], 'Pin', 'Stopper (#48) locating the thrust bearing in the case (E position).'),
+  // --- crank nose / flywheel end
+  S('crank-key', 'Crankshaft Woodruff key', 1, 'crank-key', 'crankshaft', ['crankshaft', 'crank-gears', 'crankcase-right', 'crankcase-left'], '5 x 7.5 x 19 Woodruff', 'Half-moon key (#7) in the crank-nose keyway driving the timing gear.'),
+  S('crank-gear-ring', 'Intermediate ring', 1, 'crank-nose', 'crankshaft', ['crankshaft', 'crank-gears', 'crank-key', 'crankcase-right', 'crankcase-left'], 'Spacer ring', 'Intermediate ring (#9) between the timing gear and the distributor drive wheel.'),
+  S('crank-circlip', 'Crank-nose circlip', 1, 'crank-nose', 'crankshaft', ['crankshaft'], 'Circlip', 'Circlip (#11) in the groove ahead of the distributor drive wheel. It comes off first.'),
+  S('pulley-pin', 'Pulley locating pin', 1, 'pulley', 'crank-pulley', ['crankshaft', 'crank-pulley'], 'Straight pin', 'Straight pin (#25) locating the pulley on the crank nose.'),
+  S('crank-pilot-bush', 'Pilot bush', 1, 'crank', 'crankshaft', ['crankshaft', 'crankcase-right', 'crankcase-left'], 'Bronze bush', 'Gearbox input-shaft pilot bush (#3) in the crank flange.'),
+  S('flywheel-seal', 'Flywheel radial seal', 1, 'flywheel', 'flywheel', ['flywheel'], '30 x 50 x 10', 'Radial sealing ring (#27) in the flywheel centre bore.'),
+  S('flywheel-oring', 'Flywheel O-ring', 1, 'flywheel', 'flywheel', ['flywheel', 'crankshaft'], '51 x 4.5 O-ring', 'O-ring (#26) between the crank flange spigot and the flywheel.'),
+  S('crank-seal-rear', 'Crankshaft seal, flywheel end', 1, 'crank', 'crankshaft', ['crankcase-right', 'crankcase-left', 'crankshaft', 'main-bearings'], 'Radial seal', 'Radial sealing ring (101-10 #17) in the case at the flywheel end.'),
+  // --- crankcase
+  S('case-dowels', 'Crankcase dowel sleeves', 4, 'split', 'crankcase-left', ['crankcase-right', 'crankcase-left'], 'Dowel sleeve', 'Dowel sleeves (101-05 #15, 101-10 #19) locating the case halves.'),
+  S('case-roll-pin', 'Crankcase roll pin', 1, 'split', 'crankcase-left', ['crankcase-right', 'crankcase-left'], '8 x 16 roll pin', 'Roll pin (101-10 #18).'),
+  S('spray-jets', 'Piston-cooling spray jets', 6, 'bearings', 'main-bearings', ['crankcase-right', 'crankcase-left'], 'Spray jet', 'Oil spray jets (3 per half) aimed at the piston crowns.'),
+  S('relief-plugs', 'Pressure-relief valve screw plugs', 2, 'externals', 'sump-plate', ['crankcase-right', 'crankcase-left'], 'Screw plug + sealing ring', 'Screw plugs with sealing rings closing the pressure-relief and safety valve bores (L #29/#30, R #31/#32).'),
+  S('relief-pistons', 'Pressure-relief valve pistons and springs', 2, 'externals', 'sump-plate', ['crankcase-right', 'crankcase-left', 'relief-plugs'], 'Piston + spring', 'Valve pistons and compression springs (L #27/#28, R #29/#30), inside their bores.'),
+  S('case-oil-fittings', 'Oil-line fittings on the case', 2, 'externals', 'sump-plate', ['crankcase-right', 'crankcase-left'], 'Screw socket / cutting ring / union nut', 'Oil-line connections on the case (L #31-#33, R #33/#34).'),
+  S('case-connection-left', 'Connection piece, left case', 1, 'externals', 'sump-plate', ['crankcase-left'], 'Connection + sealing ring', 'Connection piece with sealing ring (101-05 #18/#19).'),
+  S('oil-temp-sensor', 'Oil temperature sender', 1, 'externals', 'sump-plate', ['crankcase-right'], 'M14 sender + ring', 'Remote temperature sensor (101-10 #28) with sealing ring (#22).'),
+  S('oil-pressure-sender', 'Oil pressure transmitter', 1, 'externals', 'breather-lid', ['crankcase-right'], 'Transmitter + reducing socket', 'Pressure transmitter (#45) on its reducing socket (#44) with sealing rings (#43, #46).'),
+  S('oil-pressure-switch', 'Oil pressure switch', 1, 'externals', 'breather-lid', ['crankcase-right'], 'Switch', 'Oil pressure warning switch (#47).'),
+  S('oil-pressure-fitting', 'Oil connection piece and screw socket', 1, 'externals', 'breather-lid', ['crankcase-right'], 'Connection + 2 rings', 'Connection piece (#48), sealing rings (#49) and screw socket (#50).'),
+  S('thermostat-oring', 'Oil thermostat O-ring', 1, 'externals', 'oil-thermostat', ['oil-thermostat', 'crankcase-right'], 'O-ring', 'O-ring (101-10 #38) under the thermostat.'),
+  S('sump-drain-ring', 'Drain plug sealing ring', 1, 'externals', 'sump-plate', ['sump-plate'], 'A14 ring', 'Sealing ring (101-05 #42) under the drain plug.'),
+  S('case-through-orings', 'Through-bolt O-rings', 24, 'split', 'crankcase-left', ['crankcase-right', 'crankcase-left', 'case-through-bolts', 'case-through-nuts', 'case-through-stud-nut'], 'O-ring', 'O-rings under the through-bolt washers (101-05 #24, 101-10 #26).'),
+  S('oil-return-tubes', 'Oil return tubes with O-rings', 4, 'cylinders', 'cylinder-2', ['crankcase-right', 'crankcase-left', 'cylinder-1', 'cylinder-2', 'cylinder-3', 'cylinder-4', 'cylinder-5', 'cylinder-6', 'head-1', 'head-2', 'head-3', 'head-4', 'head-5', 'head-6', 'cam-housing-right', 'cam-housing-left'], 'Tube + 2 O-rings', 'Oil return tubes (101-05 #16) from the cam housings to the case, each with two round seals (#17).'),
+  S('oil-pump-seals', 'Oil-pump sealing rings', 7, 'int-shaft', 'oil-pump', ['oil-pump', 'crankcase-right', 'crankcase-left', 'intermediate-shaft'], 'O-rings', 'Sealing rings on the pump outlets (104-00 #2 x2, #3 x4; 101-10 #24).'),
+  S('oil-cooler-seals', 'Oil-cooler seals', 2, 'shroud', 'oil-cooler', ['oil-cooler', 'crankcase-left'], 'O-ring', 'Seals between the oil cooler feet and the case.'),
+  // --- cylinders / heads / intake / exhaust
+  S('cyl-base-gaskets', 'Cylinder base gaskets', 6, 'cylinders', 'cylinder-2', ['crankcase-right', 'crankcase-left', 'cylinder-1', 'cylinder-2', 'cylinder-3', 'cylinder-4', 'cylinder-5', 'cylinder-6'], '0.25 mm', 'Base gaskets (102-05 #5).'),
+  S('head-seals', 'Head sealing rings (Ce-seal)', 6, 'cylinders', 'cylinder-2', ['cylinder-1', 'cylinder-2', 'cylinder-3', 'cylinder-4', 'cylinder-5', 'cylinder-6', 'head-1', 'head-2', 'head-3', 'head-4', 'head-5', 'head-6'], 'Ce-seal', 'Sealing ring (102-05 #6) on the cylinder top spigot; no head gasket.'),
+  S('head-dowels', 'Head to cam-housing dowel pins', 12, 'heads', 'cam-housing-right', ['head-1', 'head-2', 'head-3', 'head-4', 'head-5', 'head-6', 'cam-housing-right', 'cam-housing-left'], 'Straight pin', 'Straight pins (103-00 #8) locating each head on the cam housing.'),
+  S('exhaust-gaskets', 'Exhaust port gaskets', 6, 'heat-exchangers', 'heat-exchanger-right', ['head-1', 'head-2', 'head-3', 'head-4', 'head-5', 'head-6', 'heat-exchanger-right', 'heat-exchanger-left'], 'Port gasket', 'Gaskets (202-00 #31) at each exhaust port.'),
+  S('intake-gaskets', 'Intake flange gaskets', 6, 'intake', 'plenum', ['head-1', 'head-2', 'head-3', 'head-4', 'head-5', 'head-6', 'intake-runner-1', 'intake-runner-2', 'intake-runner-3', 'intake-runner-4', 'intake-runner-5', 'intake-runner-6', 'intake-nuts-right', 'intake-nuts-left'], 'Flange gasket', 'Gaskets (106-00 #7) under the intake pipes.'),
+  S('intake-boots', 'Intake rubber sleeves', 6, 'intake', 'plenum', ['intake-runner-1', 'intake-runner-2', 'intake-runner-3', 'intake-runner-4', 'intake-runner-5', 'intake-runner-6', 'plenum', 'mixture-control-unit'], 'Rubber sleeve', 'Rubber sleeves (106-00 #10) joining the intake pipes to the air distributor.'),
+  S('intake-boot-clamps', 'Intake sleeve hose clamps', 12, 'intake', 'plenum', ['intake-boots', 'mixture-control-unit', 'intake-runner-1', 'intake-runner-2', 'intake-runner-3', 'intake-runner-4', 'intake-runner-5', 'intake-runner-6', 'plenum'], 'Hose clamp', 'Hose clamps (106-00 #11), two per sleeve.'),
+  ...(['a', 'b', 'c'] as const).map((k) => S(`injector-orings-${k}`, `Injector O-rings (${k === 'a' ? '106-00 #29' : k === 'b' ? '106-00 #30' : '107-10 #22'})`, 6, 'cis', 'injector-1', ['injector-1', 'injector-2', 'injector-3', 'injector-4', 'injector-5', 'injector-6', 'intake-runner-1', 'intake-runner-2', 'intake-runner-3', 'intake-runner-4', 'intake-runner-5', 'intake-runner-6'], 'O-ring', 'Injector sealing O-rings, one per injector.')),
+  // --- ignition / cooling
+  S('distributor-oring', 'Distributor O-ring', 1, 'distributor', 'distributor', ['distributor', 'distributor-clamp', 'crankcase-left'], 'O-ring', 'O-ring (901-00 #4) on the distributor shank.'),
+  S('ignition-lead-holders', 'Ignition cable holders', 4, 'distributor', 'distributor', ['upper-air-guide'], 'Cable holder', 'Cable holders (901-00 #22) for the ignition leads on the shroud.'),
+  S('shroud-speed-nuts', 'Shroud speed nuts', 5, 'shroud', 'upper-air-guide', ['upper-air-guide', 'shroud-screws'], 'Speed nut', 'Speed nuts (105-05 #2) under the right-hand shroud lip screws.'),
+  S('shroud-cover-plate', 'Shroud cover plate', 1, 'shroud', 'upper-air-guide', ['upper-air-guide'], 'Cover plate', 'Cover plate (105-05 #6) over the shroud roof opening.'),
+  S('shroud-stopper', 'Shroud stopper', 1, 'shroud', 'upper-air-guide', ['upper-air-guide'], 'Rubber stopper', 'Rubber stopper (105-05 #9) plugging a spare hole in the shroud roof.'),
+  S('alternator-strap', 'Alternator ground strap', 1, 'fan', 'alternator', ['alternator', 'fan-housing'], 'Braided strap', 'Ground strap from the alternator to the fan housing (902-05).'),
+  // --- induction / exhaust composites
+  S('cold-start-valve', 'Cold-start valve', 1, 'intake', 'plenum', ['plenum'], 'Start valve + intermediate piece + 2 O-rings + 2 screws', 'Cold-start valve (107-10 #30-#35) on the air distributor.'),
+  S('aux-air-valve', 'Auxiliary air regulator', 1, 'intake', 'plenum', ['plenum'], 'Regulator + bracket', 'Auxiliary air regulator (107-10 #36-#38, #40/#41).'),
+  S('aux-air-plumbing', 'Auxiliary air hoses and pipes', 1, 'intake', 'plenum', ['plenum', 'aux-air-valve'], 'Hose line, pipeline, connecting pipe, 7 clamps', 'Hose line (#43), pipeline (#46), connecting pipe (#47) and clamps (#44, #45, #48).'),
+  S('vacuum-limiter', 'Vacuum limiter', 1, 'intake', 'plenum', ['plenum'], 'Limiter + sleeve + bolt', 'Vacuum limiter (107-10 #7-#10).'),
+  S('vacuum-fittings', 'Vacuum T-piece and clamps', 1, 'intake', 'plenum', ['plenum'], 'T-piece, reducing socket, clamps', 'T-piece (#14), reducing socket (#17) and hose clamps (#12 x4, #15).'),
+  S('airbox-clamps', 'Air-cleaner hose clamps', 2, 'air-cleaner', 'air-cleaner-lid', ['air-cleaner-lid', 'air-filter', 'plenum', 'mixture-control-unit'], 'S131 / S85', 'Hose clamps (107-10 #19/#20).'),
+  S('injection-banjos', 'Injection-line banjo bolts', 6, 'cis', 'mixture-control-unit', ['mixture-control-unit', 'fuel-lines'], 'Banjo bolt', 'Banjo bolts (107-10 #25) at the fuel distributor.'),
+  S('injection-line-rings', 'Injection-line sealing rings', 8, 'cis', 'mixture-control-unit', ['injector-1', 'injector-2', 'injector-3', 'injector-4', 'injector-5', 'injector-6', 'fuel-lines', 'warm-up-regulator', 'wur-lines'], 'A8 sealing ring', 'Sealing rings (107-10 #24).'),
+  S('injection-line-bracket', 'Injection-line bracket and clamp', 1, 'cis', 'mixture-control-unit', ['plenum', 'fuel-lines'], 'Bracket, clamp, nut, spring washer', 'Bracket (#26), pipe clamp (#27), nut (#28) and spring washer (#29).'),
+  S('wur-lines', 'Warm-up regulator lines and banjos', 1, 'cis', 'warm-up-regulator', ['warm-up-regulator', 'fuel-lines', 'crankcase-left', 'crankcase-right'], '3 lines, 3 banjos, 6 rings, socket', 'Fuel lines (#51, #61-#63), banjo bolts (#59), sealing rings (#50, #53, #60), screw socket (#49) and connection piece (#52).'),
+  S('throttle-linkage', 'Throttle linkage', 1, 'intake', 'plenum', ['plenum'], 'Bracket, levers, pull rod, spring', 'Bracket (#64), bearing sleeves (#65), levers (#66/#68), washer (#67), spring washers and nuts (#69/#70), pull rod (#72) and return spring (#73).'),
+  S('airbox-straps', 'Air-cleaner restraining straps', 2, 'air-cleaner', 'air-cleaner-lid', ['air-cleaner-lid', 'plenum'], 'Strap + support + screw', 'Restraining straps (106-00 #15), supports (#16), tapping screws (#17).'),
+  S('airbox-fittings', 'Air-cleaner gasket, plug and hose fittings', 1, 'air-cleaner', 'air-cleaner-lid', ['air-cleaner-lid', 'plenum'], 'Gasket, stopper, plug, union, hose connection', 'Gasket (106-00 #26), stopper (#28), screw plug and sealing ring (#31/#32), union (#33), hose connection (#34), hose clamps (#36), spring washer (#23).'),
+  S('muffler-hardware', 'Silencer gasket, screws and clamps', 1, 'muffler', 'muffler', ['muffler', 'pre-muffler'], 'Gasket, 3 screws + lock nuts, 2 clamps', 'Gasket (202-00 #2), screws and lock nuts (#3/#4), clamps (#5).'),
+  S('heater-adapters', 'Heat-exchanger heater adapters', 2, 'heat-exchangers', 'heat-exchanger-right', ['heat-exchanger-right', 'heat-exchanger-left', 'heater-hose'], 'Adapter + clamp + bolt', 'Adapters (202-00 #27) with clamps (#28) and bolts.'),
+  S('heater-hose', 'Heater flexible pipe', 1, 'heat-exchangers', 'heat-exchanger-left', ['heater-adapters', 'heat-exchanger-left', 'pre-muffler'], 'Flexible pipe + 2 hose clamps', 'Flexible pipe (#29) with hose clamps (#30).'),
+  S('muffler-bracket', 'Silencer bracket', 1, 'muffler', 'muffler', ['muffler', 'pre-muffler'], 'Bracket, 2 bolts, nuts, washers', 'Bracket (202-00 #34) with bolts (#38), nuts (#35), spring washers (#36) and washers (#37).'),
+  S('pre-muffler', 'Front muffler (pre-silencer) with crossover', 1, 'muffler', 'muffler', ['muffler', 'muffler-hardware', 'muffler-bracket', 'heat-exchanger-right', 'heat-exchanger-left'], 'Front muffler, exhaust line, compensating socket, gaskets, clamps', 'Front muffler (202-00 #6) with exhaust line (#17), compensating socket (#18), gaskets (#13, #14, #23), screws/lock nuts (#15/#16), clamps (#19), bolts/lock nuts (#20/#21) and support washer (#22).'),
+];
+export const SMALL_BY_ID = Object.fromEntries(SMALL_SPECS.map((s) => [s.id, s]));
+
+/** Main catalogue line per set (ill, pos) for the part card; full quantity claims are in data/checklist.ts. */
+const LR = (b: string) => (b === 'left' ? '103-10' : '103-15');
+export function smallRef(id: string): [string, string] {
+  const b = id.endsWith('-left') ? 'left' : 'right'; const k = id.replace(/-(left|right)$/, '').replace(/-(upper|lower)$/, '');
+  const T: Record<string, [string, string]> = {
+    'cam-key': [LR(b), '37'], 'cam-pin': [LR(b), '39'], 'cam-shim': [LR(b), '35'], 'cam-thrust-washer': [LR(b), '34'], 'rail-bolt-seals': [LR(b), '4'],
+    'idler-circlip': [LR(b), '9'], 'chain-lid-plug2': ['103-05', '-'], 'cam-housing-plug': ['103-05', '26'], 'ishaft-bearings': ['103-15', '47'], 'ishaft-thrust': ['103-15', '46'], 'ishaft-circlips': ['103-15', '44'], 'ishaft-stopper': ['103-15', '48'], 'idler-sleeve': [LR(b), '8'], 'chain-housing-gasket': ['103-05', '5'], 'chain-lid-gasket': ['103-05', b === 'left' ? '8' : '9'],
+    'chain-lid-plug': ['103-05', '-'], 'chain-case-plug': ['103-05', '10'], 'valve-cover-gasket': ['103-05', id.includes('upper') ? '18' : '20'], 'cam-end-cover': ['103-05', '16'],
+    'cam-splash-tube': ['103-05', '-'], 'cam-housing-stoppers': ['103-05', '-'], 'cam-oil-banjo': ['103-05', '29'], 'cam-temp-switch': ['103-05', '30'],
+    'crank-key': ['102-00', '7'], 'crank-gear-ring': ['102-00', '9'], 'crank-circlip': ['102-00', '11'], 'pulley-pin': ['102-00', '25'], 'crank-pilot-bush': ['102-00', '3'],
+    'flywheel-seal': ['102-00', '27'], 'flywheel-oring': ['102-00', '26'], 'crank-seal-rear': ['101-10', '17'], 'case-dowels': ['101-05', '15'], 'case-roll-pin': ['101-10', '18'],
+    'spray-jets': ['101-05', '-'], 'relief-plugs': ['101-05', '30'], 'relief-pistons': ['101-05', '27'], 'case-oil-fittings': ['101-05', '31'], 'case-connection': ['101-05', '18'],
+    'oil-temp-sensor': ['101-10', '28'], 'oil-pressure-sender': ['101-10', '45'], 'oil-pressure-switch': ['101-10', '47'], 'oil-pressure-fitting': ['101-10', '48'],
+    'thermostat-oring': ['101-10', '38'], 'sump-drain-ring': ['101-05', '42'], 'case-through-orings': ['101-05', '24'], 'oil-return-tubes': ['101-05', '16'],
+    'oil-pump-seals': ['104-00', '2'], 'oil-cooler-seals': ['104-00', '8'], 'cyl-base-gaskets': ['102-05', '5'], 'head-seals': ['102-05', '6'], 'head-dowels': ['103-00', '8'],
+    'exhaust-gaskets': ['202-00', '31'], 'intake-gaskets': ['106-00', '7'], 'intake-boots': ['106-00', '10'], 'intake-boot-clamps': ['106-00', '11'],
+    'injector-orings-a': ['106-00', '29'], 'injector-orings-b': ['106-00', '30'], 'injector-orings-c': ['107-10', '22'], 'distributor-oring': ['901-00', '4'],
+    'ignition-lead-holders': ['901-00', '22'], 'shroud-speed-nuts': ['105-05', '2'], 'shroud-cover-plate': ['105-05', '6'], 'shroud-stopper': ['105-05', '9'],
+    'alternator-strap': ['902-05', '-'], 'cold-start-valve': ['107-10', '30'], 'aux-air-valve': ['107-10', '36'], 'aux-air-plumbing': ['107-10', '43'], 'vacuum-limiter': ['107-10', '7'],
+    'vacuum-fittings': ['107-10', '14'], 'airbox-clamps': ['107-10', '19'], 'injection-banjos': ['107-10', '25'], 'injection-line-rings': ['107-10', '24'],
+    'injection-line-bracket': ['107-10', '26'], 'wur-lines': ['107-10', '59'], 'throttle-linkage': ['107-10', '64'], 'airbox-straps': ['106-00', '15'], 'airbox-fittings': ['106-00', '26'],
+    'muffler-hardware': ['202-00', '2'], 'heater-adapters': ['202-00', '27'], 'heater-hose': ['202-00', '29'], 'muffler-bracket': ['202-00', '34'], 'pre-muffler': ['202-00', '6'],
+  };
+  const r = T[k] ?? T[k.replace(/-left$|-right$/, '')];
+  if (!r) throw new Error(`smallRef: ${id}`);
+  return r;
+}

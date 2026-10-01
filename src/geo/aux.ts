@@ -3,9 +3,10 @@
  * lubrication (104), clutch/flywheel (102/301). Shapes traced from the Porsche parts-catalogue illustrations.
  */
 import * as THREE from 'three';
+import { partPose } from './probe';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
-  polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts,
+  polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
 } from './util';
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
 export { INTAKE_PORT, INJ };
@@ -56,7 +57,7 @@ export function fanImpeller() {
   const z = FAN.zFan;
   p.add(yToZ(lathe([[24, -6], [60, -6], [64, -3], [64, 4], [58, 6], [24, 6]], 64)), 'magnesium', [0, FAN.y, z]);
   const hub = circleShape(52); hub.holes.push(circlePath(13) as THREE.Path);
-  for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; hub.holes.push(circlePath(4.2, 34 * Math.cos(a), 34 * Math.sin(a)) as THREE.Path); }
+  for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + (i / 6) * Math.PI * 2; hub.holes.push(circlePath(3.4, 34 * Math.cos(a), 34 * Math.sin(a)) as THREE.Path); }
   p.add(extrudeC(hub, 2, 0, 24), 'zincPlate', [0, FAN.y, z + 7]);
   p.add(yToZ(lathe([[10, -8], [22, -8], [22, 12], [10, 12]], 24)), 'steel', [0, FAN.y, z]);
   for (let i = 0; i < 11; i++) {
@@ -137,69 +138,86 @@ export function fanBelt() {
 }
 
 // ---------------------------------------------------------------- 105-05 air guide (upper shroud)
+/**
+ * Upper air guide (105-05 #1): roof over the case and the two sloped wings ending inboard of the cam housings
+ * (the cam housings and valve covers stay outside the shroud, as on the car), outer skirts with injector holes and a
+ * screw lip, flywheel-end plate beyond cylinders 3/6, cut-out round the distributor and breather, collar under the fan.
+ */
+/** Collar bolt tabs (bolts into the fan-housing front lip at r 132). */
+export const SHROUD_TAB = { z0: 197, z1: 204.9, a: [-Math.PI / 2 - 0.3, -Math.PI / 2 + 0.3, -Math.PI / 2 + 0.95, -Math.PI / 2 + 1.12] };
+export const SHROUD = { zA: -200, zB: 192, t: 3.5, ax: 95, ay: 150, bx: 252, by: 130, skirtY: 102, lipW: 12 };
 export function upperAirGuide() {
   const p = new Part();
-  const zA = -172, zB = 192, len = zB - zA, t = 3.5;
-  // central roof (horizontal, y=150) with hole for distributor
+  const { zA, zB, t, ax, ay, bx, by, skirtY, lipW } = SHROUD; const len = zB - zA;
   const roof = roundRect(190, len, 6);
-  roof.holes.push(circlePath(40, -75, -(150)) as THREE.Path);
-  const rg = extrude(roof, t); rg.rotateX(Math.PI / 2); // shape y -> world -z ; extrude +z -> world -y... rotate: (x,y,z)->(x,-z,y)
-  rg.translate(0, 150 + t, (zA + zB) / 2);
-  p.add(rg, 'satinBlack');
-  // sloped wings with runner holes
-  const ax = 95, ay = 150, bx = 290, by = 78;
+  const cut = new THREE.Path(); // distributor + breather opening
+  const zc0 = (zA + zB) / 2, zCut0 = 100 - zc0, zCut1 = Math.min(205, zB - 3) - zc0; // shape y = engine z - zc0
+  cut.moveTo(-95 + 0.5, zCut0); cut.lineTo(-20, zCut0); cut.lineTo(-20, zCut1); cut.lineTo(-95 + 0.5, zCut1); cut.closePath();
+  roof.holes.push(cut);
+  const rg = extrude(roof, t); rg.rotateX(Math.PI / 2); rg.translate(0, ay + t, (zA + zB) / 2);
+  // v5 cut-outs: distributor cap opening (roof + left wing), breather neck, air-distributor foot slot
+  const distCut = boxMM([-137, 138, 120], [-60, 170, 180]), brCut = boxMM([-65, 138, 183], [-39, 170, 196]);
+  p.add(csgSub(rg, distCut, brCut, boxMM([-94, 140, -157], [94, 165, -143])), 'satinBlack');
   const slopeLen = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax);
   for (const s of [1, -1] as const) {
     const zs = s > 0 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]];
     const wing = new THREE.Shape();
     wing.moveTo(0, zA); wing.lineTo(slopeLen, zA); wing.lineTo(slopeLen, zB - 20); wing.lineTo(0, zB); wing.closePath();
     const sAt = (INTAKE_PORT.x - ax) / Math.cos(ang);
-    for (const zc of zs) {
-      const h = new THREE.Path(); h.absellipse(sAt, zc, 30, 27, 0, Math.PI * 2, true, 0); wing.holes.push(h);
-    }
-    const wg = extrude(wing, t); // x along slope, y = engine z, z = thickness
-    const m = new THREE.Matrix4();
-    const u = new THREE.Vector3(Math.cos(ang) * s, Math.sin(ang), 0);
-    const e = new THREE.Vector3(0, 0, 1);
-    const n = new THREE.Vector3().crossVectors(u, e);
-    m.makeBasis(u, e, n); m.setPosition(ax * s, ay, 0);
-    wg.applyMatrix4(m);
-    p.add(wg, 'satinBlack');
-    // outer skirt down over the cam housing
-    p.add(boxMM([s > 0 ? bx - 2 : -bx - 2, 44, zA], [s > 0 ? bx + 2 : -bx + 2, by + 2, zB - 20]), 'satinBlack');
-    // moulded stiffening ribs
-    for (const zr of [zA + 40, (zA + zB) / 2, zB - 60]) {
-      const r = cylBetween([(ax + 10) * s, ay + 4, zr], [(bx - 10) * s, by + 4 + 2, zr], 2.2, 6);
-      p.add(r, 'satinBlack');
-    }
+    for (const zc of zs) { const h = new THREE.Path(); h.absellipse(sAt, zc, 34, 34, 0, Math.PI * 2, true, 0); wing.holes.push(h); }
+    const wg = extrude(wing, t);
+    const u = new THREE.Vector3(Math.cos(ang) * s, Math.sin(ang), 0), e = new THREE.Vector3(0, 0, 1), n = new THREE.Vector3().crossVectors(u, e);
+    wg.applyMatrix4(new THREE.Matrix4().makeBasis(u, e, n).setPosition(ax * s, ay, 0));
+    // injector clearance bores along each injector axis (wing + skirt)
+    const injCuts = zs.map((zc) => { const P = new THREE.Vector3(s * (INTAKE_PORT.x + INJ.dx), INTAKE_PORT.y + INJ.dy, zc), d = new THREE.Vector3(s * INJ.ux, INJ.uy, 0); return cylBetween(P.clone().addScaledVector(d, -10).toArray() as V3, P.clone().addScaledVector(d, 140).toArray() as V3, 13, 20); });
+    p.add(csgSub(wg, ...(s < 0 ? [distCut] : []), ...injCuts), 'satinBlack');
+    // outer skirt (YZ plate at x = bx) with a hole round each injector, inward screw lip at the bottom
+    const sk = new THREE.Shape(); sk.moveTo(skirtY, zA); sk.lineTo(by + 1, zA); sk.lineTo(by + 1, zB - 20); sk.lineTo(skirtY, zB - 20); sk.closePath();
+    const injY = INTAKE_PORT.y + INJ.dy + ((bx - (INTAKE_PORT.x + INJ.dx)) / INJ.ux) * INJ.uy;
+    for (const zc of zs) sk.holes.push(circlePath(13, injY, zc) as THREE.Path);
+    p.add(csgSub(swapSkirt(sk, t, s, bx), ...injCuts, ...zs.map((zc) => boxMM([s > 0 ? bx - 10 : -bx - 2, skirtY - 1, zc - 18], [s > 0 ? bx + 2 : -bx + 10, skirtY + 12, zc + 18]))), 'satinBlack');
+    // screw lip, notched round each intake runner
+    const lipCuts = zs.map((zc) => boxMM([s > 0 ? bx - lipW - 1 : -bx - 1, skirtY - 1, zc - 18], [s > 0 ? bx + 1 : -bx + lipW + 1, skirtY + t + 1, zc + 18]));
+    p.add(csgSub(boxMM([s > 0 ? bx - lipW : -bx, skirtY, zA], [s > 0 ? bx : -bx + lipW, skirtY + t, zB - 20]), ...lipCuts), 'satinBlack');
+    for (const zr of s > 0 ? [-150, -30, 90] : [-185, -90, 30]) p.add(cylBetween([(ax + 10) * s, ay + 4, zr], [(bx - 10) * s, by + 4 + 2, zr], 2.2, 6), 'satinBlack');
   }
-  // front end plate (flywheel side) closes the tunnel
-  const fp = polyShape([[-290, 44], [290, 44], [290, 80], [95, 152], [-95, 152], [-290, 80]]);
-  fp.holes.push(circlePath(0.01, 0, 0) as THREE.Path);
-  fp.holes.pop();
-  const hole = new THREE.Path(); hole.moveTo(-105, 60); hole.lineTo(105, 60); hole.lineTo(105, 120); hole.lineTo(-105, 120); hole.closePath(); fp.holes.push(hole);
+  // flywheel-end plate beyond the last cylinders
+  const fp = polyShape([[-bx, skirtY], [-110, skirtY], [-110, 132], [110, 132], [110, skirtY], [bx, skirtY], [bx, by + 2], [ax, ay + t], [-ax, ay + t], [-bx, by + 2]]);
   p.add(extrude(fp, t), 'satinBlack', [0, 0, zA - t]);
-  // rear collar cradling the fan housing (partial ring under the fan axis).
-  // CylinderGeometry puts theta=0 at +Z; after yToZ that maps to -Y, so centre the arc on theta=0 to sit below the housing.
-  const collar = yToZ(new THREE.CylinderGeometry(141, 141, 26, 48, 1, true, -Math.PI * 0.38, Math.PI * 0.76));
+  const collar = yToZ(new THREE.CylinderGeometry(141, 141, 26, 48, 1, true, -0.33, Math.PI * 0.38 + 0.33)); // stops short of the distributor
   p.add(collar, 'satinBlack', [0, FAN.y, zB - 6]);
-  // hot air outlet socket (#4) at the flywheel end, left
-  p.add(yToZ(lathe([[30, 0], [34, 0], [34, 40], [30, 40]], 32)), 'satinBlack', [-160, 118, zA - 40]);
+  for (const a of SHROUD_TAB.a) p.add(yToZ(cyl(9, SHROUD_TAB.z1 - SHROUD_TAB.z0, 16)), 'satinBlack', [132 * Math.cos(a), FAN.y + 132 * Math.sin(a), (SHROUD_TAB.z0 + SHROUD_TAB.z1) / 2]);
+  // hot air outlet socket (#4) on the end plate, left, with its flange
+  p.add(yToZ(lathe([[30, 0], [34, 0], [34, 40], [30, 40]], 32)), 'satinBlack', [-170, 118, zA - t - 40]);
+  p.add(yToZ(lathe([[30, 0], [44, 0], [44, 2], [30, 2]], 32)), 'satinBlack', [-170, 118, zA - t - 2]);
   return p.g;
+}
+function swapSkirt(sk: THREE.Shape, t: number, s: 1 | -1, bx: number) {
+  // shape (u = engine y, v = engine z) extruded along engine x
+  const g = extrude(sk, t);
+  g.applyMatrix4(new THREE.Matrix4().set(0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
+  g.translate(s > 0 ? bx - t : -bx, 0, 0);
+  return g;
 }
 
 // ---------------------------------------------------------------- 104-00 / 101 lubrication bits
 export function oilCooler() {
   const p = new Part();
-  const x0 = -205, x1 = -95, y0 = 74, y1 = 124, z0 = 30, z1 = 148;
+  const x0 = -199, x1 = -95, y0 = 74, y1 = 124, z0 = 30, z1 = 148;
   p.add(boxMM([x0, y0, z0], [x0 + 6, y1, z1]), 'castAlu');
   p.add(boxMM([x1 - 6, y0, z0], [x1, y1, z1]), 'castAlu');
   for (let z = z0 + 3; z < z1 - 2; z += 3.2) p.add(boxMM([x0 + 6, y0 + 3, z], [x1 - 6, y1 - 3, z + 0.9]), 'machinedAlu');
   for (const y of [y0 + 10, (y0 + y1) / 2, y1 - 10]) p.add(cylBetween([x0 + 6, y, (z0 + z1) / 2], [x1 - 6, y, (z0 + z1) / 2], 4, 10), 'castAlu');
-  p.add(cylBetween([x1, 98, 60], [-60, 104, 60], 7, 12), 'castAlu');
-  p.add(cylBetween([x1, 98, 120], [-60, 104, 120], 7, 12), 'castAlu');
+  // oil ports: short spigots from the end tank to the case-top passages (O-rings: smallParts oil-cooler-seals)
+  for (const z of [49, 75]) { p.add(cylBetween([x1, 97, z], [-84, 97, z], 4, 12), 'castAlu'); p.add(cylBetween([-84, 97, z], [-84, 92, z], 4, 12), 'castAlu'); }
+  // four mounting feet on the case top (nuts: fasteners.ts oil-cooler-nuts)
+  // v5: the end tank corner is relieved round the distributor base instead of overlapping it (feet added after the cut)
+  cutGroup(p.g, distRelief(70, 100));
+  for (const [x, z] of OIL_COOLER.studs) p.add(extrudeC(polyShape(hull([...circlePts(x, z, 8, 12), ...circlePts(x1 + 2, z, 8, 12)])), OIL_COOLER.foot).rotateX(Math.PI / 2), 'castAlu', [0, OIL_COOLER.footTop - OIL_COOLER.foot / 2, 0]);
   return p.g;
 }
+/** Oil-cooler feet: 4 studs in the left case top (case surface y 95 at x -90). */
+export const OIL_COOLER = { foot: 6, footTop: 101, studs: [[-89, 36], [-89, 62], [-89, 88], [-89, 112]] as [number, number][] };
 /** Oil thermostat under the right half: flange (y -133..-128) on a cast pad, 3 nuts (fasteners.ts). */
 export const THERMO = { x: 58, z: 118, seatY: -133, grip: 5 };
 export function oilThermostat() {
@@ -210,13 +228,18 @@ export function oilThermostat() {
 }
 /** Breather cover on the left half: plate y 122..132 at x -52, two M6 nuts (fasteners.ts). */
 export const BREATHER = { x: -52, seatY: 132, grip: 10, studs: [[-38, 128], [-38, 176]] as [number, number][] };
+/** Clearance prism round the distributor base + clamp (plan hull), height h centred at y. */
+function distRelief(h: number, y: number) { return extrudeC(polyShape(hull([...circlePts(DIST.x, DIST.z, 31, 32), ...circlePts(DIST.stud[0], DIST.stud[1], 11, 12)])), h).rotateX(Math.PI / 2).translate(0, y, 0); }
 export function breatherLid() {
   const p = new Part();
   const sh = roundRect(46, 70, 16);
-  const g = extrude(sh, 6, 2); g.rotateX(-Math.PI / 2);
-  p.add(g, 'castAlu', [BREATHER.x, 124, 152]);
-  p.add(cylBetween([BREATHER.x, 132, 152], [BREATHER.x, 154, 152], 11, 20), 'castAlu');
-  p.add(cylBetween([BREATHER.x, 154, 152], [BREATHER.x, 154, 190], 9, 16), 'castAlu');
+  const g = extrude(sh, 6, 2); g.rotateX(-Math.PI / 2); g.translate(BREATHER.x, 124, 152);
+  // v5: the casting is relieved round the distributor base (clamp + O-ring) instead of overlapping it
+  const relief = distRelief(60, 140);
+  p.add(csgSub(g, relief), 'castAlu');
+  const nx = BREATHER.x + 20;
+  p.add(cylBetween([nx, 132, 152], [nx, 154, 152], 9, 20), 'castAlu');
+  p.add(cylBetween([nx, 154, 152], [nx, 154, 185], 8, 16), 'castAlu');
   return p.g;
 }
 /** Sump (strainer) cover: top face y -130 under the gasket/strainer stack, flat 4 mm flange; 12 nuts at r 74. */
@@ -230,6 +253,8 @@ export function sumpPlate() {
   p.add(hexNut(19, 8), 'darkSteel', [0, y - 16, -10]);
   // strainer (#38) sits inside, sandwiched by gaskets (#39)
   p.add(lathe([[0.1, 0], [72, 0], [72, 2], [0.1, 2]], 64), 'gasket', [0, y, -10]);
+  p.add(lathe([[60, 2], [70, 2], [70, 2.9], [60, 2.9]], 64), 'gasket', [0, y, -10]); // second strainer gasket (#39)
+  p.add(lathe([[72.3, 0], [80, 0], [80, 0.8], [72.3, 0.8]], 64), 'gasket', [0, y, -10]); // lid gasket to the case (#36)
   const scr = lathe([[0.1, 0], [68, 0], [68, 18], [60, 22], [0.1, 22]], 64);
   p.add(scr, 'zincPlate', [0, y + 3, -10]);
   for (let r = 12; r < 68; r += 8) p.add(torus(r, 0.8, 4, 48).rotateX(Math.PI / 2), 'darkSteel', [0, y + 25.5, -10]);
@@ -285,7 +310,8 @@ export function plenum() {
   airboxHalf(p, -1);
   // struts (#18/#19)
   for (const s of [1, -1]) p.add(cylBetween([s * 100, 212, -140], [s * 88, 150, -150], 4, 8), 'zincPlate');
-  return p.g;
+  // v5: recess in the underside over the distributor cap
+  return cutGroup(p.g, cyl(36, 30, 40).translate(DIST.x, 200, DIST.z));
 }
 /** Half (sign: +1 upper / -1 lower) of the cylindrical air-cleaner canister: shell, dished end caps, seam lip. */
 function airboxHalf(p: Part, sign: 1 | -1) {
@@ -380,8 +406,6 @@ export function mixtureControlUnit() {
     p.add(hexNut(11, 6), 'brass', [fd[0] + 28 * Math.cos(a), fd[1] + 28, fd[2] + 28 * Math.sin(a)]);
   }
   for (const a of [0.5, 3.6]) p.add(yToX(cyl(6, 20, 10)), 'brass', [fd[0] + 34 * Math.cos(a), fd[1] - 5, fd[2] + 34 * Math.sin(a)]);
-  // cold-start valve (#30)
-  p.add(yToZ(cyl(12, 40, 16)), 'darkSteel', [-120, 250, 140]);
   // boot from the meter outlet to the throttle housing / distributor
   p.add(tube([[c[0], c[1] - 40, c[2]], [c[0] + 10, c[1] - 55, c[2]], [-110, 232, c[2]]], 34, 20, 20), 'rubber');
   return p.g;
@@ -398,13 +422,47 @@ export function fuelLines() {
     const mid: V3 = [s * 140 + (s < 0 ? -20 : 0), 300, zc * 0.8 + 10];
     p.add(tube([start, [start[0], start[1] + 18, start[2]], mid, [end[0], end[1] + 30, end[2]], end], 2.4, 6, 48), 'steel');
   }
-  // warm-up regulator (#54) on the crankcase
-  p.add(boxMM([-60, 122, -190], [-20, 150, -140]), 'zincPlate');
-  p.add(cyl(14, 26, 20), 'zincPlate', [-40, 160, -165]);
+  return p.g;
+}
+/** Warm-up regulator (107-10 #54) on the left case top near the flywheel end: flange, body, vacuum can, two screws. */
+export const WUR = { flangeTop: 121.2, screws: [[-60, -188], [-60, -152]] as [number, number][] };
+export function warmUpRegulator() {
+  const p = new Part();
+  p.add(boxMM([-70, WUR.flangeTop - 5, -195], [-50, WUR.flangeTop, -145]), 'zincPlate');
+  p.add(boxMM([-74, WUR.flangeTop, -182], [-46, 139, -158]), 'zincPlate');
+  p.add(cyl(11, 8, 20), 'zincPlate', [-60, 143, -170]);
+  for (const z of [-178, -162]) { p.add(yToX(cyl(4, 10, 10)), 'brass', [-79, 131, z]); p.add(yToX(lathe([[4.1, 0], [7, 0], [7, 1.2], [4.1, 1.2]], 16)), 'copper', [-74, 131, z]); } // fuel connection pieces (#57) + sealing rings (#58)
+  return p.g;
+}
+/** Air-cleaner struts (106-00 #18/#19) with bonded rubber buffers (#20), on the air distributor top. */
+export const AIRBOX_STRUTS = [[-72, 266, 30], [-48, 266, 30], [48, 266, 30], [72, 266, 30]] as V3[];
+export function airboxStruts() {
+  const p = new Part();
+  for (const x of [-60, 60]) {
+    p.add(boxMM([x - 20, 262, 22], [x + 20, 266, 38]), 'zincPlate'); // foot
+    p.add(boxMM([x - 4, 266, 26], [x + 4, 276, 34]), 'zincPlate');
+    p.add(cyl(9, 6, 16), 'rubber', [x, 279, 30]); // rubber buffer
+  }
   return p.g;
 }
 
 // ---------------------------------------------------------------- 901-00 ignition
+/** Distributor hold-down clamp (stud in the left case top at z 116; cast spacer up to the clamp tab). */
+export const DIST = { x: -75, z: 150, clampY: 122, clampT: 5, clampTop: 127, stud: [-72, 107] as [number, number], caseY: 107 };
+export function distributorClamp() {
+  const p = new Part();
+  const sh = polyShape(hull([...circlePts(DIST.x, DIST.z, 29.5, 32), ...circlePts(DIST.stud[0], DIST.stud[1], 9, 12)]));
+  sh.holes.push(circlePath(26.8, DIST.x, DIST.z) as THREE.Path); sh.holes.push(circlePath(4.2, DIST.stud[0], DIST.stud[1]) as THREE.Path);
+  p.add(extrude(sh, DIST.clampT).rotateX(Math.PI / 2), 'steel', [0, DIST.clampTop, 0]);
+  p.add(lathe([[4.2, DIST.caseY], [9, DIST.caseY], [9, DIST.clampY], [4.2, DIST.clampY]], 16), 'castAlu', [DIST.stud[0], 0, DIST.stud[1]]); // spacer boss
+  return p.g;
+}
+/** Fan hub extension (105-00 #10) between the alternator shaft and the impeller. */
+export function fanHub() {
+  const p = new Part();
+  p.add(yToZ(lathe([[10, -10], [22, -10], [22, 2], [44, 2], [44, 7], [10, 7]], 32)), 'steel', [0, FAN.y, FAN.zFan - 2]);
+  return p.g;
+}
 export function distributor() {
   const p = new Part();
   const x = -75, z = 150;
@@ -413,10 +471,32 @@ export function distributor() {
   p.add(lathe([[0.1, 168], [36, 168], [37, 180], [30, 196], [0.1, 198]], 36), 'blackPlastic', [x, 0, z]);
   for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; p.add(cyl(6, 14, 12), 'blackPlastic', [x + 22 * Math.cos(a), 196, z + 22 * Math.sin(a)]); }
   p.add(cyl(6, 16, 12), 'blackPlastic', [x, 204, z]);
-  // clamps
-  for (const a of [0.7, 3.8]) p.add(boxMM([-2, 160, -2], [2, 178, 2]), 'steel', [x + 36 * Math.cos(a), 0, z + 36 * Math.sin(a)]);
   // vacuum unit
   p.add(yToX(cyl(20, 26, 24)), 'zincPlate', [x - 44, 150, z]);
+  return p.g;
+}
+/** Ignition lead set (901-00 #17): cap towers -> above the plenum -> down outside the cam housings -> plug connectors. */
+export function ignitionLeads() {
+  const p = new Part();
+  const order = [1, 6, 2, 4, 3, 5];
+  order.forEach((c, i) => {
+    const a = (i / 6) * Math.PI * 2, s = c <= 3 ? 1 : -1, z = CYL_Z[c];
+    const tw: V3 = [DIST.x + 22 * Math.cos(a), 203, DIST.z + 22 * Math.sin(a)];
+    const end = new THREE.Vector3(0, -92, 0).applyMatrix4(partPose(`spark-plug-${c}`));
+    const out = new THREE.Vector3(0, -1, 0).transformDirection(partPose(`spark-plug-${c}`));
+    const e2 = end.clone().addScaledVector(out, 30);
+    const yTop = 272 + i * 1.6, xs = s * (362 + i * 3);
+    const pts: V3[] = [tw, [tw[0], yTop - 8, tw[2]], [tw[0] * 0.5 + s * 40, yTop, (tw[2] + z) / 2], [s * 300, yTop, z], [xs, yTop - 40, z], [xs, 0, z], [xs, e2.y + 20, z], [e2.x, e2.y, e2.z], [end.x, end.y, end.z]];
+    p.add(tube(pts.map((q) => q as V3), 3.6, 8, 120), 'blackPlastic');
+  });
+  // coil lead (901-00 #18) from the centre tower toward the body-mounted coil, ending in its cable plug (#19)
+  const cl: V3[] = [[DIST.x, 212, DIST.z], [DIST.x, 290, DIST.z], [DIST.x - 60, 300, DIST.z + 60], [DIST.x - 160, 300, DIST.z + 120]];
+  p.add(tube(cl, 3.6, 8, 60), 'blackPlastic');
+  p.add(cylBetween([DIST.x - 160, 300, DIST.z + 120], [DIST.x - 185, 300, DIST.z + 135], 6, 12), 'blackPlastic');
+  // primary electric line (#9) from the distributor body to the CD unit, with its plug
+  const el: V3[] = [[DIST.x - 20, 150, DIST.z + 18], [DIST.x - 40, 175, DIST.z + 50], [DIST.x - 150, 290, DIST.z + 115]];
+  p.add(tube(el, 1.8, 6, 40), 'blackPlastic');
+  p.add(cylBetween([DIST.x - 150, 290, DIST.z + 115], [DIST.x - 166, 290, DIST.z + 124], 4, 10), 'blackPlastic');
   return p.g;
 }
 export function sparkPlug() {
@@ -534,7 +614,7 @@ export function flywheel() {
   // starter ring gear, 9 bolts on a centre boss, dowels on the rim.
   const p = new Part();
   const z = FLY_Z;
-  const prof: [number, number][] = [[20, 0], [55, 0], [60, -4], [110, -4], [128, -2], [134, 0], [134, -28], [128, -30], [60, -30], [55, -14], [20, -14]];
+  const prof: [number, number][] = [[25.2, 0], [55, 0], [60, -4], [110, -4], [128, -2], [134, 0], [134, -28], [128, -30], [60, -30], [55, -14], [25.2, -14]];
   p.add(yToZ(lathe(prof, 96)), 'darkSteel', [0, 0, z]);
   p.add(yToZ(lathe([[78, -30.2], [127, -30.2], [127, -30.6], [78, -30.6]], 96)), 'polishedSteel', [0, 0, z]);
   p.add(extrude(gearShape(130, 136, 142, 133), 12, 0, 4), 'forgedSteel', [0, 0, z - 14]);

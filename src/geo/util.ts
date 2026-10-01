@@ -126,6 +126,19 @@ export class Part {
   addObj(o: THREE.Object3D) { this.g.add(o); return this; }
 }
 
+/** Cut every (non-instanced) mesh of a group whose bounds meet a cutter: transforms are baked first. */
+export function cutGroup(root: THREE.Object3D, ...cutters: THREE.BufferGeometry[]) {
+  root.updateMatrixWorld(true);
+  const boxes = cutters.map((c) => { c.computeBoundingBox(); return c.boundingBox!.clone(); });
+  root.traverse((o: any) => {
+    if (!o.isMesh || o.isInstancedMesh) return;
+    const g: THREE.BufferGeometry = o.geometry.clone().applyMatrix4(o.matrixWorld); g.computeBoundingBox();
+    const hit = cutters.filter((_, i) => boxes[i].intersectsBox(g.boundingBox!));
+    if (!hit.length) return;
+    o.geometry = csgSub(g, ...hit); o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); o.updateMatrix();
+  });
+  return root;
+}
 /** Merge all meshes of a group per material into a compact object (no uvs). */
 export function consolidate(root: THREE.Object3D, name: string): THREE.Group {
   root.updateMatrixWorld(true);
@@ -185,4 +198,25 @@ export function plate(w: number, h: number, r: number, t: number, holes: [number
 /** Triangular gusset plate in the XY plane (points a,b,c), thickness t along Z centred on z. */
 export function gusset(a: [number, number], b: [number, number], c: [number, number], t: number, z: number) {
   const g = extrudeC(polyShape([a, b, c]), t); g.translate(0, 0, z); return g;
+}
+
+// ---------------------------------------------------------------- CSG (asset-build time only)
+import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
+const csgEval = new Evaluator(); csgEval.attributes = ['position', 'normal'];
+/** base minus cutters (geometries already in the same frame). Returns position/normal geometry. */
+export function csgSub(base: THREE.BufferGeometry, ...cutters: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const clean = (g: THREE.BufferGeometry) => { let q = g.index ? g.toNonIndexed() : g.clone(); for (const k of Object.keys(q.attributes)) if (k !== 'position' && k !== 'normal') q.deleteAttribute(k); if (!q.attributes.normal) q.computeVertexNormals(); return q; };
+  let b = new Brush(clean(base)); b.updateMatrixWorld();
+  for (const c of cutters) { const cb = new Brush(clean(c)); cb.updateMatrixWorld(); b = csgEval.evaluate(b, cb, SUBTRACTION) as Brush; }
+  return b.geometry;
+}
+/** Woodruff key outline (half-moon): chord of length 2*sqrt(h(D-h)) on y = 0, arc down to y = -h; extruded `b` thick (centred on z). */
+export function woodruffGeom(D: number, h: number, b: number) {
+  const R = D / 2, cy = R - h; // circle centre (y): chord at y = 0
+  const half = Math.sqrt(R * R - cy * cy);
+  const s = new THREE.Shape(); s.moveTo(-half, 0); s.lineTo(half, 0);
+  const a0 = Math.atan2(-cy, half), a1 = Math.atan2(-cy, -half);
+  s.absarc(0, cy, R, a0, a1 + (a1 > a0 ? -2 * Math.PI : 0), true);
+  s.closePath();
+  return new THREE.ExtrudeGeometry(s, { depth: b, bevelEnabled: false, curveSegments: 24 }).translate(0, 0, -b / 2);
 }

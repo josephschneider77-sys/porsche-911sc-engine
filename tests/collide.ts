@@ -8,6 +8,7 @@ import { MeshBVH } from 'three-mesh-bvh';
 import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PARTS } from '../src/data/parts';
 import { fastenerSets } from '../src/geo/fasteners';
+import { SMALL_SPECS } from '../src/data/smallSpec';
 
 export interface Hit { a: string; b: string; tris: number; box: THREE.Box3 }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
@@ -120,18 +121,28 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('air-filter', 'air-cleaner-lid|fuel-lines', 'JOINT air-cleaner drum'), pair('mixture-control-unit', 'fuel-lines|intake-runner', 'JOINT MCU lines'),
   pair('alternator', 'fan-pulley|fan-housing|fan-impeller|plenum', 'JOINT alternator in the fan housing, impeller on its shaft'),
   pair('fan-housing', 'fan-impeller', 'JOINT impeller in housing'), pair('fan-belt', 'fan-pulley|crank-pulley', 'JOINT belt in grooves'),
+  // ---- JOINT: v5 parts
+  ...sameSide('cam-flange', 'camshaft|cam-sprocket', 'JOINT keyed flange on the cam nose, dowel into the sprocket'),
+  ...sameSide('adjuster-cover', 'chain-housing-lid', 'JOINT cover gasketed onto the lid'),
+  pair('distributor-clamp', 'distributor|crankcase-left', 'JOINT clamp round the distributor shank, spacer on the case'),
+  pair('fan-hub', 'fan-impeller|alternator', 'JOINT hub extension on the alternator shaft, fan wheel on the hub'),
+  pair('airbox-struts', 'plenum|air-cleaner-lid|air-filter', 'JOINT struts between air distributor and air-cleaner housing'),
+  pair('warm-up-regulator', 'crankcase-left|fuel-lines', 'JOINT regulator on the case pad, lines into it'),
+  pair('ignition-leads', 'distributor|spark-plug', 'JOINT leads in the cap towers / plug connectors'),
   // ---- SIMPLIFIED (pre-v3, not cam drive / exhaust)
   pair('crankcase-right|crankcase-left', 'conrod|piston|head|flywheel|pressure-plate', 'SIMPLIFIED case interior / head studs / rear seal boss not relieved'),
   pair('conrod', 'cylinder', 'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)'),
   pair('piston', 'head|valves', 'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut'),
   pair('cylinder', 'valves', 'SIMPLIFIED valve heads at the barrel top'),
-  pair('valve-cover-upper|valve-cover-lower', 'rockers|valves|camshaft|rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED covers are solid shells (rocker-shaft screw heads inside them)'),
+  pair('valve-cover-upper|valve-cover-lower', 'rockers|valves', 'SIMPLIFIED hollow covers (v5): rocker-arm tips / valve-spring retainers cross the seat line at the long edges (modelled rocker gear ~5 mm wider than the cover seat)'),
+  pair('cam-housing-plug', 'cam-splash-tube', 'JOINT gallery screw plug shank reaches the splash-tube bore it closes (E position)'),
+  pair('cam-key', 'cam-shim', 'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)'),
+  pair('valve-cover-upper|valve-cover-lower', 'rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED a few rocker-shaft screw/nut heads tuck under the inner edge of an ear boss (bosses kept full so the cover-nut seats stay solid)'),
+  pair('crankcase-left', 'oil-pump-nuts', 'SIMPLIFIED one pump-cover nut corner grazes the hollow-case inner wall (PR #8 casting, 2 triangles)'),
+  pair('valve-cover-gasket-upper|valve-cover-gasket-lower', 'rockers|valves', 'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)'),
+  pair('ignition-leads', '.*', 'SIMPLIFIED flexible ignition leads drawn on an approximate path (they drape over other parts)'),
   pair('rockers', 'valve-cover-nuts-upper|valve-cover-nuts-lower', 'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear'),
-  pair('upper-air-guide', 'cam-housing|cylinder|head|intake-runner|injector|plenum|rockers|valves|valve-cover-upper|distributor|fuel-lines|valve-cover-nuts-upper|intake-nuts|breather-nuts', 'SIMPLIFIED shroud cut-outs not modelled'),
-  pair('fuel-lines', 'case-perimeter-nuts|crankcase-right|crankcase-left', 'SIMPLIFIED injection-line routing over the split-flange lugs is approximate'),
-  pair('valves', 'cam-housing-nuts', 'SIMPLIFIED modelled valve springs/retainers sit too high (long tilted valves) and pass the cam-housing nut stations, as they pass the base plate'),
-  pair('oil-cooler', 'distributor|intake-runner|upper-air-guide', 'SIMPLIFIED cooler block envelope'),
-  pair('breather-lid', 'distributor|upper-air-guide', 'SIMPLIFIED'), pair('plenum', 'distributor', 'SIMPLIFIED'),
+ 
 ];
 /**
  * Fastener joints (JOINT, generated): each hardware set may overlap the part it seats on and the part it threads
@@ -144,7 +155,8 @@ for (const f of fastenerSets()) for (const it of f.items) {
   if (it.stud) FASTENER_JOINTS.add(`${it.into}|${it.seat}`);
 }
 // screw + nut pairs (thread engagement)
-for (const [a, b] of [['case-through-bolts', 'case-through-nuts'], ['rocker-shaft-screws-right', 'rocker-shaft-nuts-right'], ['rocker-shaft-screws-left', 'rocker-shaft-nuts-left']]) FASTENER_JOINTS.add(`${a}|${b}`);
+for (const sp of SMALL_SPECS) for (const h of sp.hosts) FASTENER_JOINTS.add(`${sp.id}|${h}`);
+for (const [a, b] of [['case-through-bolts', 'case-through-stud-nut'], ['case-through-bolts', 'case-through-nuts'], ['rocker-shaft-screws-right', 'rocker-shaft-nuts-right'], ['rocker-shaft-screws-left', 'rocker-shaft-nuts-left']]) FASTENER_JOINTS.add(`${a}|${b}`);
 export const isFastenerJoint = (a: string, b: string) => FASTENER_JOINTS.has(`${a}|${b}`) || FASTENER_JOINTS.has(`${b}|${a}`);
 export const isMating = (a: string, b: string) =>
   isFastenerJoint(a, b) || MATING.some(([x, y]) => (x.test(a) && y.test(b)) || (x.test(b) && y.test(a)));

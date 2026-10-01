@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 /** PBR material library. Material `name` survives GLB export and is used by the app to re-tune. */
 export type MatKey =
-  | 'castAlu' | 'machinedAlu' | 'magnesium' | 'nikasil' | 'forgedSteel' | 'steel' | 'darkSteel'
+  | 'copper' | 'castAlu' | 'machinedAlu' | 'magnesium' | 'nikasil' | 'forgedSteel' | 'steel' | 'darkSteel'
   | 'chrome' | 'blackPlastic' | 'satinBlack' | 'rubber' | 'gasket' | 'ceramic' | 'brass'
   | 'heatSteel' | 'zincPlate' | 'friction' | 'redPaint' | 'bore' | 'filterPaper' | 'bronze'
   | 'finBlack' | 'forgedDark' | 'yellowZinc' | 'blackPaint' | 'aluminized' | 'polishedSteel';
@@ -29,6 +29,7 @@ const DEF: Record<MatKey, { color: number; metalness: number; roughness: number 
   bore: { color: 0x2a2b2d, metalness: 0.6, roughness: 0.6 },
   filterPaper: { color: 0xd9c89a, metalness: 0.0, roughness: 0.95 },
   bronze: { color: 0xb07a45, metalness: 1.0, roughness: 0.35 },
+  copper: { color: 0xb8673e, metalness: 1.0, roughness: 0.3 },
   finBlack: { color: 0x2b2c2e, metalness: 0.25, roughness: 0.6 }, // satin-black painted cylinder fins (Mahle)
   forgedDark: { color: 0x4a4b4d, metalness: 0.75, roughness: 0.55 }, // as-forged crank webs / rods
   yellowZinc: { color: 0xc4ad5e, metalness: 0.85, roughness: 0.38 }, // yellow-passivated pulleys

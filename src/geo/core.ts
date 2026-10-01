@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
-  polyShape, hull, circlePts, gearShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset,
+  polyShape, hull, circlePts, gearShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, woodruffGeom,
 } from './util';
 import {
   SPEC, SPARK_Z, CYL_Z, MAIN_Z, THROW_DEG, DECK_X, CYL_TOP_X, HEAD_OUT_X, CAM_X, CAM_HOUSING_OUT_X, INT_SHAFT_Y, CASE_Z, NOSE_BEARING_Z,
@@ -187,14 +187,19 @@ export function crankcaseHalf(s: 1 | -1) {
   }
   for (const q of chainHousingStuds(s)) p.add(yToX(cyl(7.5, CHAIN_BOX_INNER_X - 104, 14)), 'castAlu', [X((CHAIN_BOX_INNER_X + 104) / 2), q.y, q.z]);
   if (s > 0) {
-    // oil-pressure sender, raised part-number pad, thermostat pad
-    p.add(cyl(11, 22, 16), 'castAlu', [40, 124, 170]);
-    p.add(cyl(15, 30, 24), 'darkSteel', [40, 146, 170]);
+    // raised part-number pad + bosses for the oil pressure transmitter, warning switch and connection piece
+    // (101-10 #43-#50: small-part sets seat on the boss tops)
     p.add(boxMM([58, 104, 102], [92, 112, 168]), 'castAlu');
     p.add(boxMM([62, 111, 110], [88, 113.5, 160]), 'machinedAlu');
+    for (const [bx, bz] of [[40, 150], [64, 120], [64, 160]]) p.add(cyl(11, 10, 16), 'castAlu', [bx, 118, bz]);
+    // spot-faced pads for the odd 101-10 #11 bolt and #20/#21 stud nut (E positions)
+    for (const bz of [-95, 55]) p.add(cyl(10, 12, 20), 'castAlu', [30, 119, bz]);
+    // oil-thermostat pad under the right half (flange face y -128, 3 studs)
     p.add(cyl(30, 12, 32), 'castAlu', [58, -122, 118]);
   } else {
     p.add(boxMM([-76, 108, 120], [-30, 122, 185]), 'castAlu');
+    // spot-faced pad under the left half for the 101-05 #22/#23 M10 stud nut (E position)
+    p.add(cyl(10, 8, 20), 'castAlu', [-40, -127, -186]);
   }
   // round sump boss (strainer cover seats here)
   p.add(yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), 'castAlu', [0, -126, -10]);
@@ -224,6 +229,8 @@ export function mainBearings() {
 }
 
 // ---------------------------------------------------------------- crankshaft (102-00 #1)
+/** Crank nose (pulley end): timing gear #8 on Woodruff key #7, intermediate ring #9, distributor drive wheel #10, circlip #11. */
+export const CRANK_NOSE = { seatR: 28, key: { D: 19, h: 7.5, b: 5, proud: 2.6, z: 199 }, gear: [192, 206] as [number, number], ring: [206, 211] as [number, number], drive: [211, 223] as [number, number], groove: [223.2, 224.9] as [number, number], pinR: 19 };
 export function crankshaft() {
   const p = new Part();
   const rMain = SPEC.mainJournalD / 2, rPin = SPEC.rodJournalD / 2, r = SPEC.crankRadius;
@@ -255,7 +262,11 @@ export function crankshaft() {
   p.add(extrude(fl, 12, 1), 'forgedDark', [0, 0, CASE_Z.flywheel - 8]);
   p.add(yToZ(cyl(rMain, 24, 32)), 'polishedSteel', [0, 0, -196]);
   // nose: timing gear seat, distributor drive seat, bearing 8 journal, pulley snout
-  p.add(yToZ(lathe([[rMain, 186], [34, 186], [34, 226], [27, 226], [27, 256], [20, 256], [20, 318], [8, 320]], 48)), 'polishedSteel');
+  const nose = yToZ(lathe([[rMain, 186], [CRANK_NOSE.seatR, 186], [CRANK_NOSE.seatR, CRANK_NOSE.groove[0]], [CRANK_NOSE.seatR - 1.2, CRANK_NOSE.groove[0]], [CRANK_NOSE.seatR - 1.2, CRANK_NOSE.groove[1]],
+    [CRANK_NOSE.seatR, CRANK_NOSE.groove[1]], [CRANK_NOSE.seatR, 228], [27, 228], [27, 256], [20, 256], [20, 318], [8, 320]], 48));
+  const K = CRANK_NOSE.key;
+  const pocket = woodruffGeom(K.D + 0.1, K.h + 0.05, K.b + 0.1).rotateY(-Math.PI / 2).translate(0, CRANK_NOSE.seatR + K.proud, K.z);
+  p.add(csgSub(nose, pocket), 'polishedSteel');
   p.add(extrude(ringShape(8.5, 5), 4, 0, 24), 'polishedSteel', [0, 0, 316]); // nose end with the tapped M12x1.5 pulley-bolt hole
   return p.g;
 }
@@ -263,13 +274,16 @@ export function crankshaft() {
 /** Crank timing gear (102-00 #8) + distributor drive wheel (102-00 #10). */
 export function crankGears() {
   const p = new Part();
-  p.add(extrudeC(gearShape(CRANK_GEAR_T, 34.5, 38.5, 22), 14, 0.4), 'steel', [0, 0, 199]); // 36 T, m 2 (meshes the 48 T int. gear at 84 mm)
-  // helical-looking distributor drive wheel: stacked twisted slices
+  const N = CRANK_NOSE, kb = N.key.b / 2 + 0.05;
+  const keyedBore = () => { const h = new THREE.Path(); const a = Math.asin(kb / (N.seatR + 0.05)); h.absarc(0, 0, N.seatR + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false); h.lineTo(kb, N.seatR + N.key.proud + 0.4); h.lineTo(-kb, N.seatR + N.key.proud + 0.4); h.closePath(); return h; };
+  const tg = gearShape(CRANK_GEAR_T, 34.5, 38.5, 0); tg.holes.push(keyedBore()); // 36 T, m 2 (meshes the 48 T int. gear at 84 mm)
+  p.add(extrude(tg, N.gear[1] - N.gear[0], 0.4), 'steel', [0, 0, N.gear[0]]);
+  // helical-looking distributor drive wheel (keyed on the same key line, E): stacked twisted slices
+  const dz = (N.drive[1] - N.drive[0]) / 4;
   for (let i = 0; i < 4; i++) {
-    const g = extrudeC(gearShape(24, 30, 33, 22), 3); g.rotateZ(i * 2.2 * DEG);
-    p.add(g, 'bronze', [0, 0, 213 + i * 3]);
+    const g = gearShape(26, 32, 35.5, 0); g.holes.push(circlePath(N.seatR + 0.05) as THREE.Path);
+    p.add(extrude(g, dz).rotateZ(i * 2.2 * DEG), 'bronze', [0, 0, N.drive[0] + i * dz]);
   }
-  p.add(yToZ(cyl(24, 3, 32)), 'darkSteel', [0, 0, 208]);
   return p.g;
 }
 
@@ -313,7 +327,7 @@ export function conrod() {
   p.add(extrudeC(ringShape(12, 11), t - 1), 'bronze', [L, 0, 0]);
   p.add(yToZ(cyl(1.8, 30, 8)).rotateZ(Math.PI / 2), 'darkSteel', [L + 12, 0, 0]); // oil hole hint
   // rod bearing shells (#20)
-  p.add(yToZ(lathe([[SPEC.rodJournalD / 2, -9], [SPEC.rodJournalD / 2 + 2, -9], [SPEC.rodJournalD / 2 + 2, 9], [SPEC.rodJournalD / 2, 9]], 32)), 'bronze');
+  for (const ph of [0.02, Math.PI + 0.02]) p.add(yToZ(lathe([[SPEC.rodJournalD / 2, -9], [SPEC.rodJournalD / 2 + 2, -9], [SPEC.rodJournalD / 2 + 2, 9], [SPEC.rodJournalD / 2, 9]], 16, ph, Math.PI - 0.04)), 'bronze');
   return p.g;
 }
 
@@ -468,12 +482,17 @@ export function valveSet() {
     const L = VALVE_LEN;
     const v = new Part();
     v.add(lathe([[0.1, 0], [dia / 2, 0], [dia / 2, 1.8], [dia / 2 - 3, 4], [5.5, 14], [4.5, 22], [4.5, L - 6], [4.2, L - 5], [4.5, L - 4], [4.5, L], [0.1, L]], 32), sign > 0 ? 'steel' : 'heatSteel');
-    // spring seat, double springs (#13), retainer (#14), collets (#15)
-    v.add(lathe([[5, L - 52], [17, L - 52], [17, L - 50], [5, L - 50]], 24), 'steel');
+    // seat ring #3/#4 (in the head), guide #2, stem seal #18, spring shim #11, spring seat ring #12, double springs #13,
+    // retainer (concave washer) #14, two collet halves #15
+    v.add(lathe([[dia / 2 - 2.5, 0.4], [dia / 2 + 3.5, 0.4], [dia / 2 + 3.5, 6.5], [dia / 2 - 1, 6.5]], 32), 'darkSteel');
+    v.add(lathe([[4.6, L - 92], [7.2, L - 92], [7.2, L - 60], [4.6, L - 60]], 16), 'bronze');
+    v.add(lathe([[4.6, L - 60], [7.6, L - 60], [7.6, L - 56], [6.2, L - 54], [4.6, L - 54]], 16), 'rubber');
+    v.add(lathe([[7.8, L - 53], [17, L - 53], [17, L - 52.4], [7.8, L - 52.4]], 24), 'polishedSteel');
+    v.add(lathe([[7.8, L - 52.4], [17, L - 52.4], [17, L - 50], [7.8, L - 50]], 24), 'steel');
     v.add(spring(15, 1.9, L - 50, L - 14, 5.5), 'darkSteel');
     v.add(spring(10.5, 1.4, L - 50, L - 14, 6.5), 'darkSteel');
     v.add(lathe([[5, L - 14], [16.5, L - 14], [16.5, L - 11], [6, L - 8], [5, L - 8]], 24), 'steel');
-    v.add(new THREE.CylinderGeometry(5, 6.2, 7, 12).translate(0, L - 10, 0), 'steel');
+    for (const ph of [0.06, Math.PI + 0.06]) v.add(new THREE.CylinderGeometry(5.6, 6.2, 7, 8, 1, false, ph, Math.PI - 0.12).translate(0, L - 10, 0), 'steel');
     g.add(v.g);
     // orient: valve axis from chamber toward outside & up (intake) / down (exhaust)
     g.rotation.z = -Math.PI / 2 + sign * ang;
@@ -491,7 +510,7 @@ export function valveSet() {
  * outer spine, four bearing webs, tall rocker-shaft towers either side of each cylinder, cover-seat rails with
  * cast stud bosses, round tunnel bores at both ends and the external cam oil feed line.
  */
-const CH_Z0 = -168, CH_Z1 = CASE_Z.pulley;
+export const CH_Z0 = -168, CH_Z1 = CASE_Z.pulley;
 /** Valve-cover ear positions along engine Z (relative to housing centre). */
 const VC_EAR_F = (upper: boolean) => (upper ? [-0.39, -0.13, 0.13, 0.39] : [-0.42, -0.252, -0.084, 0.084, 0.252, 0.42]);
 /** Valve-cover ear stations along engine Z, relative to the housing centre (mm): 4 per edge upper, 6 lower (103-05: 40 nuts). */
@@ -509,7 +528,7 @@ export function camHousing(s: 1 | -1) {
   };
   const L = CH_Z1 - CH_Z0, zc = (CH_Z0 + CH_Z1) / 2;
   // base plate against heads with machined skirt
-  bx(HEAD_OUT_X, HEAD_OUT_X + 10, -70, 72, CH_Z0 - 5, CH_Z1); // extended at the flywheel end under the cyl. 6 nuts
+  bx(HEAD_OUT_X, HEAD_OUT_X + 10, -70, 72, CH_Z0 - (s < 0 ? 17 : 5), CH_Z1); // extended at the flywheel end under the cyl. 6 nuts (v5 stud spread z +-28)
   bx(HEAD_OUT_X, HEAD_OUT_X + 2, -73, 75, CH_Z0 + 2, CH_Z1 - 2, 'machinedAlu');
   // cam tunnel: thick sector shell around the cam axis on the outer side (open toward the rockers)
   const tun = new THREE.Shape();
@@ -589,32 +608,41 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
  * FVD genuine 901.105.115.11): flat-topped cast pan with chamfered sides on a thin seat flange, rounded bolt ears
  * (3 upper / 5 lower per edge), two machined round bosses on the upper cover, raised lettering band.
  */
+/** Valve-cover cavity: half-width at the seat (w0 + 8 bevel = 26) and how much the v5 hollow pan top rose (z 13.5 -> 22). */
+export const VC_CAV = { w0: 18 }, VC_RAISE = 8.5;
+/** Extra cover length at the flywheel end (local -y), per bank. */
+export const VC_EXT = (s: 1 | -1) => (s < 0 ? 30 : 0);
 export function valveCover(s: 1 | -1, upper: boolean) {
   const loc = new Part();
   const len = CH_Z1 - CH_Z0 - 8, w = 58;
   const L = CH_Z1 - CH_Z0;
-  // seat flange
-  loc.add(extrude(roundRect(w, len, 7), 3, 0.6, 6), 'castAlu');
-  // chamfered pan body (single-segment bevel = straight draft)
-  const pan = new THREE.ExtrudeGeometry(roundRect(w - 22, len - 22, 6), { depth: 1, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
-  pan.translate(0, 0, 3.5);
-  loc.add(pan, 'castAlu');
-  // ears with nuts and washers (both long edges)
+  // hollow cast pan (v5): drafted outer shell 2.5-3 mm thick over a matching cavity that clears the rocker gear,
+  // on a seat flange ring; everything below the seat plane is trimmed off.
+  // the left bank's cylinder 6 rocker gear sits past the housing centre line: that cover is 30 mm longer at the flywheel end (E: overhangs the housing end)
+  const ext = VC_EXT(s), cy = -ext / 2;
+  const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
+  cavity.translate(0, cy, -20);
+  const below = boxMM([-w, -len, -40], [w, len, 0.01]);
+  loc.add(csgSub(extrude(roundRect(w, len + ext, 7), 3, 0.6, 6).translate(0, cy, 0), cavity), 'castAlu');
+  const pan = new THREE.ExtrudeGeometry(roundRect(w - 17, len - 22 + ext, 6), { depth: 12, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
+  loc.add(csgSub(pan.translate(0, cy, 0), cavity, below), 'castAlu');
+  // ears (both long edges): bosses trimmed to a slightly narrower cavity so the full nut seat stays solid, nut seat at z 7
+  const earCut = new THREE.ExtrudeGeometry(roundRect(31, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 }).translate(0, cy, -20);
   for (const yy of VC_EARS(upper)) {
-    for (const xx of [-VC_EDGE, VC_EDGE]) loc.add(yToZ(cyl(8.5, 7, 16)), 'castAlu', [xx, yy, 3.5]); // ear, nut seat at z 7
+    for (const xx of [-VC_EDGE, VC_EDGE]) loc.add(csgSub(yToZ(cyl(8.5, 7, 16)).translate(xx, yy, 3.5), earCut), 'castAlu');
   }
   if (upper) {
     // two machined round bosses
     for (const yy of [-len * 0.2, len * 0.2]) {
-      loc.add(yToZ(lathe([[0, 0], [12, 0], [12, 2], [15, 3], [18, 5], [18, 0]].reverse().map(([r, z]) => [r, z] as [number, number]), 36)), 'castAlu', [0, yy, 13.5]);
-      loc.add(yToZ(lathe([[0, 0], [16.5, 0], [16.5, 0.8], [12, 0.8], [11.5, -2], [0, -2]], 36)), 'machinedAlu', [0, yy, 18.6]);
+      loc.add(yToZ(lathe([[0, 0], [12, 0], [12, 2], [15, 3], [18, 5], [18, 0]].reverse().map(([r, z]) => [r, z] as [number, number]), 36)), 'castAlu', [0, yy, 13.5 + VC_RAISE]);
+      loc.add(yToZ(lathe([[0, 0], [16.5, 0], [16.5, 0.8], [12, 0.8], [11.5, -2], [0, -2]], 36)), 'machinedAlu', [0, yy, 18.6 + VC_RAISE]);
     }
     // raised cast PORSCHE lettering along the flat top
     // reads correctly from each bank's own side (letter-up toward +Y, advance toward the viewer's right)
-    raisedText(loc, 'PORSCHE', s > 0 ? 1 : 13.6, 0, 2.1, 13.2, 1.3, 1.5, s, -s);
+    raisedText(loc, 'PORSCHE', s > 0 ? 1 : 13.6, 0, 2.1, 13.2 + VC_RAISE, 1.3, 1.5, s, -s);
   } else {
     // lower covers: low longitudinal stiffening ribs
-    for (const dx of [-8, 8]) loc.add(boxMM([dx - 1.2, -len / 2 + 20, 13], [dx + 1.2, len / 2 - 20, 15.5]), 'castAlu');
+    for (const dx of [-8, 8]) loc.add(boxMM([dx - 1.2, -len / 2 + 20, 13 + VC_RAISE], [dx + 1.2, len / 2 - 20, 15.5 + VC_RAISE]), 'castAlu');
   }
   loc.g.applyMatrix4(coverMatrix(s, upper));
   const out = new Part(); out.addObj(loc.g); return out.g;
@@ -635,20 +663,34 @@ export function coverMatrix(s: 1 | -1, upper: boolean) {
 }
 
 // ---------------------------------------------------------------- camshaft (103-10/-15 #42)
+/**
+ * Cam nose stack (103-10/-15), measured along engine Z from the chain plane z = CHAIN_Z[s]:
+ * thrust washer #34 (z-18.5..-16) | sprocket flange #36 on the Woodruff key #37 (z-16..-6) | alignment shim #35
+ * (z-6..-5.4) | sprocket #38 hub (z-5.4..+13), dowelled to the flange by straight pin #39 | spring washer #40 +
+ * nut #41 (fasteners.ts cam-nut-*) on the M22x1.5 thread (E) at the nose end.
+ */
+export const CAM_NOSE = { r: 11, key: { D: 9.6, h: 4.8, b: 4, proud: 1.8, dz: -11 }, flange: [-16, -6] as [number, number], shim: 0.6, hubFace: 10, end: 23, pin: { r: 3, rad: 16, a: 0.5 } };
 export function camshaft(s: 1 | -1) {
   const p = new Part();
-  const X = CAM_X * s;
-  const zN = CHAIN_Z[s] + 10; // nose carries the sprocket
+  const X = CAM_X * s, zc = CHAIN_Z[s], N = CAM_NOSE;
+  const zN = zc + N.end;
   p.add(yToZ(cyl(15, CH_Z1 - CH_Z0, 24)), 'darkSteel', [X, 0, (CH_Z0 + CH_Z1) / 2]);
-  p.add(yToZ(cyl(11, zN - CH_Z1 + 1, 20)), 'darkSteel', [X, 0, (CH_Z1 - 1 + zN) / 2]);
+  // nose: plain journal under flange/sprocket with the Woodruff pocket cut in (half-moon, chord along the axis)
+  const zt = zc + N.hubFace; // thread starts at the sprocket hub face
+  const nose = yToZ(cyl(N.r, zt - CH_Z1 + 1, 28)).translate(X, 0, (CH_Z1 - 1 + zt) / 2);
+  const k = N.key, kTop = N.r + k.proud;
+  const pocket = woodruffGeom(k.D + 0.1, k.h + 0.05, k.b + 0.1).rotateY(-Math.PI / 2).translate(X, kTop, zc + k.dz);
+  p.add(csgSub(nose, pocket), 'darkSteel');
+  // M22 thread (E): slightly smaller core + thread rings
+  p.add(yToZ(cyl(N.r - 0.4, zN - zt, 24)), 'darkSteel', [X, 0, (zt + zN) / 2]);
+  for (let z = zt + 1; z < zN - 0.5; z += 1.5) p.add(yToZ(lathe([[N.r - 0.4, -0.4], [N.r, 0], [N.r - 0.4, 0.4]], 24)), 'darkSteel', [X, 0, z]);
   const zs = bankZ(s).slice().sort((a, b) => a - b);
   const webs = [CH_Z0 + 6, (zs[0] + zs[1]) / 2, (zs[1] + zs[2]) / 2, CH_Z1 - 6];
   for (const zw of webs) p.add(yToZ(cyl(23.5, 12, 32)), 'polishedSteel', [X, 0, zw]);
   const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
   cyls.forEach((c) => {
-    const zc = CYL_Z[c];
+    const zc2 = CYL_Z[c];
     for (const [dz, ph] of [[-9, 0], [9, 110]] as const) {
-      // egg-shaped lobe outline
       const pts: [number, number][] = [];
       for (let i = 0; i < 48; i++) {
         const a = (i / 48) * Math.PI * 2;
@@ -657,14 +699,25 @@ export function camshaft(s: 1 | -1) {
       }
       const g = extrudeC(polyShape(pts), 13);
       g.rotateZ(((THROW_DEG[c] / 2) + ph) * DEG);
-      p.add(g, 'polishedSteel', [X, 0, zc + dz]);
+      p.add(g, 'polishedSteel', [X, 0, zc2 + dz]);
     }
   });
-  // sprocket flange (#36) at chain end
-  p.add(yToZ(cyl(19, 6, 32)), 'steel', [X, 0, CH_Z1 + 4]);
   return p.g;
 }
-
+/** Sprocket flange (#36): keyed hub disc on the cam nose, carries the sprocket via the dowel pin #39. */
+export function camFlange(s: 1 | -1) {
+  const p = new Part();
+  const X = CAM_X * s, zc = CHAIN_Z[s], N = CAM_NOSE;
+  const sh = circleShape(24);
+  const bore = new THREE.Path(); // bore with the key slot at +Y
+  const kb = N.key.b / 2 + 0.05, a = Math.asin(kb / (N.r + 0.05));
+  bore.absarc(0, 0, N.r + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false);
+  bore.lineTo(kb, N.r + N.key.proud + 0.4); bore.lineTo(-kb, N.r + N.key.proud + 0.4); bore.closePath();
+  sh.holes.push(bore);
+  for (let i = 0; i < 3; i++) { const q = N.pin.a + (i * 2 * Math.PI) / 3; sh.holes.push(circlePath(N.pin.r + 0.05, N.pin.rad * Math.cos(q) * s, N.pin.rad * Math.sin(q)) as THREE.Path); }
+  p.add(extrude(sh, N.flange[1] - N.flange[0], 0.5, 24), 'darkSteel', [X, 0, zc + N.flange[0]]);
+  return p.g;
+}
 /** Rocker arms + shafts for one bank (103-10/-15 #44-#50). */
 export function rockers(s: 1 | -1) {
   const p = new Part();
@@ -677,6 +730,8 @@ export function rockers(s: 1 | -1) {
       const pts = hull([...circlePts(pivot[0], pivot[1], 10, 16), ...circlePts(camC[0], camC[1], 6, 12), ...circlePts(tip[0], tip[1], 6, 12)]);
       p.add(extrudeC(polyShape(s > 0 ? pts : pts.map(([x, y]) => [-x, y] as [number, number]).reverse()), 16, 0.8), 'forgedSteel', [0, 0, zc + dz]);
       p.add(yToZ(cyl(8.5, 40, 16)), 'steel', [pivot[0] * s, pivot[1], zc]);
+      // rocker-arm bush (#46), bronze, pressed into the arm eye on the shaft
+      p.add(yToZ(lathe([[8.55, -8.3], [9.9, -8.3], [9.9, 8.3], [8.55, 8.3]], 20)), 'bronze', [pivot[0] * s, pivot[1], zc + dz]);
       // adjusting screw (#49) & nut (#50)
       p.add(cylBetween([tip[0] * s, up * 52, zc + dz], [tip[0] * s, up * 70, zc + dz], 3.8, 10), 'steel');
       p.add(hexNut(11, 5).translate(tip[0] * s, up * 66, zc + dz), 'darkSteel');
@@ -844,24 +899,20 @@ export function timingChain(s: 1 | -1) {
 }
 export function camSprocket(s: 1 | -1) {
   const p = new Part();
-  const X = CAM_X * s, z = CHAIN_Z[s];
+  const X = CAM_X * s, z = CHAIN_Z[s], N = CAM_NOSE;
   const rr = CAM_SPROCKET_R - 3.6, rt = CAM_SPROCKET_R + 3.4;
   for (const dz of [-ROW, ROW]) {
     const ring = gearShape(CAM_T, rr, rt, 0, true); ring.holes.push(circlePath(rr - 5) as THREE.Path);
     p.add(extrudeC(ring, 5.2, 0.4, 2).rotateZ(toothPhase(s, X, 0, CAM_SPROCKET_R, CAM_T)), 'steel', [X, 0, z + dz]);
   }
-  // web with 6 lightening holes (Porsche vernier: dowel + holes) and hub
+  // web: 6 lightening holes + the 3 vernier dowel holes (one carries the pin #39), hub on the cam nose
   const web = circleShape(rr - 4);
-  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; web.holes.push(circlePath(5.5, 25 * Math.cos(a), 25 * Math.sin(a)) as THREE.Path); }
-  web.holes.push(circlePath(11) as THREE.Path);
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; web.holes.push(circlePath(5.5, 28 * Math.cos(a), 28 * Math.sin(a)) as THREE.Path); }
+  for (let i = 0; i < 3; i++) { const q = N.pin.a + (i * 2 * Math.PI) / 3; web.holes.push(circlePath(N.pin.r + 0.05, N.pin.rad * Math.cos(q) * s, N.pin.rad * Math.sin(q)) as THREE.Path); }
+  web.holes.push(circlePath(N.r + 8.2) as THREE.Path);
   p.add(extrudeC(web, 6, 0.6, 24), 'steel', [X, 0, z]);
-  p.add(yToZ(lathe([[11, -8], [18, -8], [18, -3], [16, 0], [16, 7], [11, 7]], 32)), 'steel', [X, 0, z + 6]);
-  // sprocket flange behind (#36), seated on the cam nose
-  p.add(yToZ(lathe([[11, -5], [21, -5], [21, 0], [11, 0]], 32)), 'darkSteel', [X, 0, z - 6]);
-  // nut + thrust washer (#38/#39)
-  p.add(yToZ(cyl(15, 2.5, 32)), 'polishedSteel', [X, 0, z + 14.5]);
-  p.add(yToZ(hexNut(22, 9)), 'darkSteel', [X, 0, z + 20]);
-  p.add(yToZ(cyl(3.5, 5, 10)), 'brass', [X + 14 * s, 8, z + 8]); // dowel
+  const z0 = N.flange[1] + N.shim; // hub back face on the shim
+  p.add(yToZ(lathe([[N.r + 0.15, z0], [N.r + 8.5, z0], [N.r + 8.5, z0 + 2.2], [N.r + 8.2, z0 + 2.2], [N.r + 8.2, 7], [N.r + 5, N.hubFace], [N.r + 0.15, N.hubFace]], 32)), 'steel', [X, 0, z]);
   return p.g;
 }
 /**
@@ -870,6 +921,22 @@ export function camSprocket(s: 1 | -1) {
  * adjuster (#10) whose plunger dome bears on the pad; adjuster held by its mounting ear on a housing stud + M8 nut
  * (103-10 #27/#28); plastic guide rails (#2) on the tight run and under the slack run.
  */
+/** Plastic guide rails (103-10/15 #2): left 3, right 2 (E); each is a ramp `off` mm outside the chain run between fractions f0..f1. */
+export function guideRails(s: 1 | -1) {
+  const { up1, up2, nUp } = basePath(s); const P = chainPath(s);
+  const sa = P.slackA.pa, sb = P.slackA.pb; const dd = sb.clone().sub(sa).normalize();
+  let nn = new THREE.Vector2(dd.y, -dd.x); if (nn.y > 0) nn = nn.negate(); // outside of the loop = below the slack run
+  const out = [{ a: up1, b: up2, n: nUp, f0: 0.53, f1: 0.82 }, { a: sa, b: sb, n: nn, f0: s > 0 ? 0.55 : 0.2, f1: s > 0 ? 0.8 : 0.45 }];
+  if (s < 0) out.push({ a: up1, b: up2, n: nUp, f0: 0.14, f1: 0.36 });
+  return out;
+}
+/** Rail mounting tabs: bosses outboard of the rail (clear of the chain plates) that take the rail bolts. */
+export const RAIL_TAB = { off: 16.5, r: 8, z0: -16, z1: 11.1 };
+/** Rail bolts (#3, 4 per bank): one through each end of the first two rails, head on the rail front face. */
+export function railBolts(s: 1 | -1) {
+  const z = CHAIN_Z[s];
+  return guideRails(s).slice(0, 2).flatMap((r) => [r.f0 + 0.04, r.f1 - 0.04].map((f) => { const q = r.a.clone().lerp(r.b, f).add(r.n.clone().multiplyScalar(RAIL_TAB.off)); return new THREE.Vector3(q.x, q.y, z + RAIL_TAB.z1); }));
+}
 export function chainTensioner(s: 1 | -1) {
   const p = new Part();
   const z = CHAIN_Z[s];
@@ -913,11 +980,8 @@ export function chainTensioner(s: 1 | -1) {
     const c = extrudeC(roundRect(d.length() * 0.8, 5, 2), 5); c.rotateZ(an);
     p.add(c, 'castAlu', [(A.x + B.x) / 2 + n.x * 3, (A.y + B.y) / 2 + n.y * 3, z - 13.5]);
   };
-  ramp(up1, up2, nUp, 0.53, 0.82);
-  const sa = P.slackA.pa, sb = P.slackA.pb; const dd = sb.clone().sub(sa).normalize();
-  let nn = new THREE.Vector2(dd.y, -dd.x); if (nn.y > 0) nn = nn.negate(); // outside of the loop = below the slack run
-  const [f0, f1] = s > 0 ? [0.55, 0.8] : [0.2, 0.45];
-  ramp(sa, sb, nn, f0, f1);
+  for (const r of guideRails(s)) ramp(r.a, r.b, r.n, r.f0, r.f1);
+  for (const q of railBolts(s)) p.add(yToZ(cyl(RAIL_TAB.r, RAIL_TAB.z1 - RAIL_TAB.z0, 20)), 'blackPlastic', [q.x, q.y, z + (RAIL_TAB.z0 + RAIL_TAB.z1) / 2]);
   return p.g;
 }
 /** Clip a convex polygon to the half-plane x*s >= x0. */
@@ -982,7 +1046,7 @@ export function chainCoverBolts(s: 1 | -1) {
 export function chainHousingStuds(s: 1 | -1) {
   const { yTop, yBot } = chainWellProfile(s);
   const x = (CHAIN_BOX_INNER_X + 6) * s;
-  return [...[226, 247, 268].map((z) => ({ x, y: yTop - 10, z })), ...(s > 0 ? [224.5, 274] : [252, 274]).map((z) => ({ x, y: yBot + 13.5, z }))];
+  return [...[226, 247, 268].map((z) => ({ x, y: yTop - 10, z })), ...(s > 0 ? [224.5, 236, 274] : [252, 263, 274]).map((z) => ({ x, y: yBot + 13.5, z }))];
 }
 /** Chain-housing cover plate: bottom face just above the housing lip (bevel 0.8), nut seat = flat top face. */
 export const CHAIN_LID = { z0: HOUSING_Z1 + 1.1, t: 4.5, top: HOUSING_Z1 + 1.1 + 4.5 + 0.8 };
@@ -1009,6 +1073,10 @@ function boxWallPath(o: [number, number][], s: 1 | -1) {
   for (let i = 0; i <= o.length; i++) { const q = o[(k + i) % o.length]; path.push(q); if (i > 0 && onInner(q)) break; }
   return path;
 }
+/** Cam-housing end studs (2 per bank, 103-05 #4 / BM8x65): outside the chain box above it, on ears of the chain
+ * housing that lie on the cam-housing end face (found by stations.searchChainEndStations, E). */
+export const END_PAD = { z0: 216.1, z1: 220.1, r: 9.5 };
+export const END_STUDS: Record<1 | -1, [number, number][]> = { 1: [[266, 62], [282, 66]], [-1]: [[-286, 62], [-266, 62]] } as any;
 export function chainHousing(s: 1 | -1) {
   const p = new Part();
   const o = chainOutline(s, 0);
@@ -1043,6 +1111,12 @@ export function chainHousing(s: 1 | -1) {
   p.add(yToZ(cyl(12, CHAIN_Z[s] - 16 - HOUSING_Z0, 18)), 'castAlu', [T.pivot.x, T.pivot.y, (HOUSING_Z0 + CHAIN_Z[s] - 16) / 2]);
   // adjuster mounting-ear stud boss from the back wall up to the ear
   p.add(yToZ(cyl(8, T.adjZ - 3 - HOUSING_Z0, 16)), 'castAlu', [T.ear.x, T.ear.y, (HOUSING_Z0 + T.adjZ - 3) / 2]);
+  // ears for the cam-housing end studs, bridged back to the top wall
+  for (const [x, y] of END_STUDS[s]) {
+    const h = END_PAD.z1 - END_PAD.z0, zc = (END_PAD.z0 + END_PAD.z1) / 2;
+    p.add(yToZ(cyl(END_PAD.r, h, 24)), 'castAlu', [x, y, zc]);
+    p.add(boxMM([x - 7, 44, END_PAD.z0], [x + 7, y, END_PAD.z1]), 'castAlu');
+  }
   return p.g;
 }
 /** Consecutive sub-runs of a polyline whose points satisfy f. */
