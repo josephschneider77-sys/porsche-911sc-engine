@@ -5,60 +5,74 @@
 import * as THREE from 'three';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
-  polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus,
+  polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts,
 } from './util';
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
 export { INTAKE_PORT, INJ };
 
 export const FAN = { y: 255, zHousing0: 205, zHousing1: 290, zFan: 262, zBelt: 303, rCrankPulley: 78, rFanPulley: 56 };
 export const PLENUM = { y0: 205, y1: 262, x: 110, z0: -165, z1: 172 };
+/** Round air-cleaner canister lying across the engine (SC), axis along X. */
+export const AIRBOX = { y: 362, z: 40, r: 80, len: 440 };
 export const EXH_PORT = { x: CYL_TOP_X + 34, y: -68 };
 
 // ---------------------------------------------------------------- 105-00 cooling
 export function fanHousing() {
+  // Photo-matched (photo-ref/fan-housing, FVD 930.106.031): cast magnesium drum, painted black on the car, with
+  // rolled intake bell, three raised circumferential bands, alternator strap and two cast feet to the shroud.
   const p = new Part();
-  const prof: [number, number][] = [[128, FAN.zHousing0], [134, FAN.zHousing0], [134, 270], [140, 282], [152, FAN.zHousing1], [146, FAN.zHousing1], [134, 284], [128, 272]];
-  // lathe axis Y -> map (r, z)
-  p.add(yToZ(lathe(prof, 72)), 'magnesium', [0, FAN.y, 0]);
-  // outer stiffening ribs & mounting ears
-  for (let a = 0; a < 360; a += 30) {
-    const r = 136, x = r * Math.cos(a * DEG), y = r * Math.sin(a * DEG);
-    const rib = boxMM([-3, -2, FAN.zHousing0], [3, 6, 268]); rib.rotateZ((a - 90) * DEG);
-    p.add(rib, 'magnesium', [x, FAN.y + y, 0]);
+  const z0 = FAN.zHousing0, z1 = FAN.zHousing1;
+  const prof: [number, number][] = [[129, z0], [135, z0], [137, z0 + 3], [137, 268], [139, 276], [144, 283], [152, z1 - 1], [154, z1 + 2], [150, z1 + 4], [142, z1], [133, 282], [129, 272]];
+  p.add(yToZ(lathe(prof, 96)), 'blackPaint', [0, FAN.y, 0]);
+  for (const z of [216, 236, 256]) p.add(yToZ(lathe([[136.5, -3], [140, -2], [140, 2], [136.5, 3]], 96)), 'blackPaint', [0, FAN.y, z]);
+  // axial stiffening ribs on the drum (front half) and the clamp lugs
+  for (let a = 15; a < 360; a += 30) {
+    const r = 137, x = r * Math.cos(a * DEG), y = r * Math.sin(a * DEG);
+    const rib = boxMM([-1.8, -1, z0 + 2], [1.8, 4, 266]); rib.rotateZ((a - 90) * DEG);
+    p.add(rib, 'blackPaint', [x, FAN.y + y, 0]);
   }
   // lower feet onto the air guide / case
-  for (const x of [-95, 95]) p.add(boxMM([x - 14, 118, FAN.zHousing0], [x + 14, 170, 240]), 'magnesium');
+  for (const x of [-95, 95]) {
+    const ft = hull([...circlePts(0, 0, 14, 12), ...circlePts(0, 40, 18, 12)]);
+    const g = extrudeC(polyShape(ft), 34, 1.5); g.rotateZ(x > 0 ? 0.6 : -0.6);
+    p.add(g, 'blackPaint', [x, 128, 222]);
+  }
   // alternator strap (#2) + clamp bolt (#2A)
   p.add(yToZ(lathe([[62, -8], [66, -8], [66, 8], [62, 8]], 48)), 'steel', [0, FAN.y, 214]);
   p.add(boxMM([-8, FAN.y + 64, 206], [8, FAN.y + 78, 222]), 'steel');
   p.add(yToX(cyl(4, 30, 8)), 'zincPlate', [0, FAN.y + 72, 214]);
-  // strap arms tying alternator to housing
+  // stator spokes tying the alternator to the housing
   for (const a of [30, 150, 270]) {
-    const c = Math.cos(a * DEG), s = Math.sin(a * DEG);
-    p.add(cylBetween([66 * c, FAN.y + 66 * s, 214], [128 * c, FAN.y + 128 * s, 214], 4, 8), 'magnesium');
+    const c = Math.cos(a * DEG), sn = Math.sin(a * DEG);
+    p.add(cylBetween([66 * c, FAN.y + 66 * sn, 214], [130 * c, FAN.y + 130 * sn, 214], 4.5, 8), 'blackPaint');
   }
   return p.g;
 }
 export function fanImpeller() {
+  // Photo-matched (photo-ref/fan-impeller): 11 broad, flat, twisted paddle blades (930 106 012), silver-grey cast
+  // magnesium, riveted to a pressed hub with a ring of holes.
   const p = new Part();
   const z = FAN.zFan;
-  p.add(yToZ(lathe([[18, -4], [58, -4], [92, -1], [92, 1], [58, 3], [18, 3]], 64)), 'magnesium', [0, FAN.y, z]);
-  p.add(yToZ(lathe([[10, -8], [22, -8], [22, 10], [10, 10]], 24)), 'steel', [0, FAN.y, z]);
-  // 11 blades (930 106 012) -- swept, twisted plates
+  p.add(yToZ(lathe([[24, -6], [60, -6], [64, -3], [64, 4], [58, 6], [24, 6]], 64)), 'magnesium', [0, FAN.y, z]);
+  const hub = circleShape(52); hub.holes.push(circlePath(13) as THREE.Path);
+  for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; hub.holes.push(circlePath(4.2, 34 * Math.cos(a), 34 * Math.sin(a)) as THREE.Path); }
+  p.add(extrudeC(hub, 2, 0, 24), 'zincPlate', [0, FAN.y, z + 7]);
+  p.add(yToZ(lathe([[10, -8], [22, -8], [22, 12], [10, 12]], 24)), 'steel', [0, FAN.y, z]);
   for (let i = 0; i < 11; i++) {
-    const a = (i / 11) * Math.PI * 2;
-    const sh = polyShape([[54, -2], [122, 6], [122, 9], [54, 3]]);
-    const g = extrudeC(sh, 22);
-    g.rotateX(0); g.rotateY(0);
-    const blade = new THREE.Mesh(g);
-    const grp = new THREE.Group(); grp.add(blade);
-    blade.rotation.x = 32 * DEG; // pitch
-    grp.rotation.z = a;
-    grp.position.set(0, FAN.y, z + 4);
-    grp.updateMatrixWorld(true);
-    const gg = g.clone().applyMatrix4(blade.matrixWorld);
-    p.add(gg, 'magnesium');
+    const a0 = (i / 11) * Math.PI * 2;
+    const r0 = 62, r1 = 124;
+    const g = paramSurface((u, v) => {
+      const r = r0 + (r1 - r0) * u;
+      const halfChord = 17 + 9 * u; // broader at the tip
+      const pitch = (40 - 14 * u) * DEG; // twist root -> tip
+      const c = (v - 0.5) * 2 * halfChord;
+      const ang = a0 + (c * Math.cos(pitch)) / r;
+      return [r * Math.cos(ang), FAN.y + r * Math.sin(ang), z + 2 + c * Math.sin(pitch)];
+    }, 10, 6);
+    p.add(g, 'magnesium');
+    // tip edge thickness strip
   }
+  for (let i = 0; i < 11; i++) { const a = (i / 11) * Math.PI * 2; p.add(yToZ(cyl(2.4, 5, 8)), 'steel', [56 * Math.cos(a), FAN.y + 56 * Math.sin(a), z + 6]); }
   return p.g;
 }
 export function alternator() {
@@ -89,16 +103,19 @@ function vPulley(r: number, grooves: number, width: number) {
 export function fanPulley() {
   const p = new Part();
   const g = yToZ(vPulley(FAN.rFanPulley, 1, 16));
-  p.add(g, 'steel', [0, FAN.y, FAN.zBelt - 8]);
-  for (let i = 0; i < 3; i++) { const a = i * 2.09; p.add(yToZ(cyl(3, 6, 6)), 'zincPlate', [22 * Math.cos(a), FAN.y + 22 * Math.sin(a), FAN.zBelt + 10]); }
-  p.add(yToZ(hexNut(22, 10)), 'darkSteel', [0, FAN.y, FAN.zBelt + 14]);
+  p.add(g, 'yellowZinc', [0, FAN.y, FAN.zBelt - 8]);
+  // belt-adjusting shims stack + 3 hub bolts, central nut
+  p.add(yToZ(lathe([[14, 0], [30, 0], [30, 4], [14, 4]], 36)), 'yellowZinc', [0, FAN.y, FAN.zBelt + 6]);
+  for (let i = 0; i < 3; i++) { const a = i * 2.094 + 0.5; p.add(yToZ(hexNut(10, 5)), 'zincPlate', [22 * Math.cos(a), FAN.y + 22 * Math.sin(a), FAN.zBelt + 12]); }
+  p.add(yToZ(hexNut(22, 10)), 'darkSteel', [0, FAN.y, FAN.zBelt + 15]);
   return p.g;
 }
 export function crankPulley() {
   const p = new Part();
-  p.add(yToZ(vPulley(FAN.rCrankPulley, 2, 14)), 'steel', [0, 0, 290]);
-  p.add(yToZ(hexNut(19, 10)), 'darkSteel', [0, 0, 323]);
-  // timing marks
+  p.add(yToZ(vPulley(FAN.rCrankPulley, 2, 14)), 'yellowZinc', [0, 0, 290]);
+  p.add(yToZ(lathe([[18, 0], [34, 0], [34, 6], [18, 6]], 36)), 'yellowZinc', [0, 0, 318]);
+  p.add(yToZ(hexNut(19, 10)), 'darkSteel', [0, 0, 327]);
+  // timing marks (Z1 TDC notch + paint)
   p.add(boxMM([-1, FAN.rCrankPulley - 6, 316], [1, FAN.rCrankPulley, 318.5]), 'ceramic');
   return p.g;
 }
@@ -230,48 +247,94 @@ export function oilPump() {
 
 // ---------------------------------------------------------------- 106-00 / 107 induction & CIS
 export function plenum() {
+  // Photo-matched (photo-ref/plenum): black moulded-plastic air distributor with one bulbous ribbed "finger" over
+  // each intake pipe, cast-aluminium throttle housing at the rear, and the lower half of the round air-cleaner
+  // canister on top.
   const p = new Part();
   const { y0, y1, x, z0, z1 } = PLENUM;
-  const sec = roundRect(2 * x, y1 - y0, 20, 0, (y0 + y1) / 2);
-  const g = extrude(sec, z1 - z0, 3); g.translate(0, 0, z0);
-  p.add(g, 'castAlu');
-  // outlet stubs (with rubber sleeves #10)
+  const sec = roundRect(2 * x - 50, y1 - y0, 22, 0, (y0 + y1) / 2);
+  const g = extrude(sec, z1 - z0, 4); g.translate(0, 0, z0);
+  p.add(g, 'blackPlastic');
   for (const [c, zc] of Object.entries(CYL_Z)) {
     const s = +c <= 3 ? 1 : -1;
-    p.add(cylBetween([x * s - 4 * s, 232, zc], [(x + 16) * s, 232, zc], 21, 24), 'castAlu');
+    // lobe: tapered bulge from the centre body out to the outlet
+    p.add(tube([[s * 40, 238, zc], [s * 80, 236, zc], [s * (x + 2), 232, zc]], 25, 20, 10), 'blackPlastic');
+    p.add(yToX(lathe([[0.1, -4], [22, -4], [25, 6], [0.1, 6]], 20)), 'blackPlastic', [s * 40, 238, zc]);
+    // moulded ribs across the lobe crest
+    for (const dx of [55, 75, 95]) p.add(yToX(torus(26, 1.6, 4, 24)), 'blackPlastic', [s * dx, 235 + (95 - dx) * 0.05, zc]);
+    // outlet stubs with rubber sleeves (#10) + clamps
+    p.add(cylBetween([x * s - 4 * s, 232, zc], [(x + 16) * s, 232, zc], 21, 24), 'blackPlastic');
     p.add(cylBetween([(x + 14) * s, 232, zc], [(x + 34) * s, 232, zc], 23.5, 24), 'rubber');
     for (const dx of [18, 31]) p.add(yToX(torus(24, 1.2, 4, 24)), 'steel', [(x + dx) * s, 232, zc]);
   }
-  // air-cleaner lower housing (#9)
-  const lh = roundRect(300, 250, 18, 0, 20);
-  const lg = extrude(lh, 40, 2); lg.rotateX(-Math.PI / 2); lg.translate(0, y1 - 2, 0);
-  p.add(lg, 'blackPlastic');
-  // throttle body / idle air housing (#27) toward rear
-  p.add(yToZ(cyl(34, 40, 32)), 'castAlu', [0, 234, z1 + 18]);
-  p.add(yToZ(torus(34, 2, 6, 32)), 'steel', [0, 234, z1 + 36]);
+  // longitudinal ribs on the top of the centre body
+  for (const dx of [-30, 0, 30]) p.add(boxMM([dx - 1.5, y1 + 2, z0 + 10], [dx + 1.5, y1 + 7, z1 - 10]), 'blackPlastic');
+  // throttle / idle-air housing (#27), cast aluminium, toward the rear
+  p.add(yToZ(lathe([[0.1, -24], [36, -24], [36, 18], [32, 22], [0.1, 22]], 36)), 'castAlu', [0, 234, z1 + 18]);
+  p.add(yToZ(torus(34, 2, 6, 32)), 'steel', [0, 234, z1 + 38]);
+  p.add(yToX(cyl(5, 90, 10)), 'steel', [0, 234, z1 + 12]); // throttle shaft
+  p.add(boxMM([44, 220, z1], [52, 252, z1 + 24]), 'castAlu'); // throttle lever boss
+  // neck up to the canister
+  p.add(extrude(roundRect(150, 60, 24), AIRBOX.y - AIRBOX.r + 30 - y1, 2).rotateX(-Math.PI / 2).translate(0, y1, AIRBOX.z), 'blackPlastic');
+  // lower half of the round air-cleaner canister (#9)
+  airboxHalf(p, -1);
   // struts (#18/#19)
   for (const s of [1, -1]) p.add(cylBetween([s * 100, 212, -140], [s * 88, 150, -150], 4, 8), 'zincPlate');
   return p.g;
 }
+/** Half (sign: +1 upper / -1 lower) of the cylindrical air-cleaner canister: shell, dished end caps, seam lip. */
+function airboxHalf(p: Part, sign: 1 | -1) {
+  const { y, z, r, len } = AIRBOX;
+  const shell = paramSurface((u, v) => {
+    const a = Math.PI * v * sign; // 0..pi (upper) / 0..-pi (lower), measured from +Z
+    return [-len / 2 + len * u, y + r * Math.sin(a), z + r * Math.cos(a)];
+  }, 8, 36);
+  p.add(shell, 'blackPlastic');
+  // moulded hoops around the drum
+  for (const xx of [-len / 2 + 30, -len / 6, len / 6, len / 2 - 30]) {
+    const hoop = new THREE.TorusGeometry(r + 1, 2.2, 4, 36, Math.PI); hoop.rotateY(Math.PI / 2);
+    if (sign < 0) hoop.rotateX(Math.PI);
+    p.add(hoop, 'blackPlastic', [xx, y, z]);
+  }
+  // end caps (dished half discs)
+  for (const e of [-1, 1]) {
+    const cap = new THREE.CircleGeometry(r, 36, sign > 0 ? 0 : Math.PI, Math.PI); // in XY; rotate to YZ plane
+    cap.rotateY(Math.PI / 2); // circle normal -> +X; x->-z, y->y
+    p.add(cap, 'blackPlastic', [e * len / 2, y, z]);
+    const dome = lathe([[r, 0], [r - 6, 8], [r * 0.5, 12], [0.1, 13]], 36, (sign > 0) === (e > 0) ? Math.PI : 0, Math.PI);
+    dome.rotateZ(e > 0 ? -Math.PI / 2 : Math.PI / 2);
+    p.add(dome, 'blackPlastic', [e * len / 2, y, z]);
+  }
+  // seam lip along the split line
+  for (const zz of [z - r - 4, z + r + 4]) p.add(boxMM([-len / 2, y - 1.5, zz - 4], [len / 2, y + 1.5, zz + 4]), 'blackPlastic');
+}
 export function airFilter() {
+  // Round pleated paper element (SC), lying inside the canister.
   const p = new Part();
-  const y = 300;
-  p.add(boxMM([-140, y, -95], [140, y + 3, 135]), 'blackPlastic');
-  for (let x = -134; x <= 134; x += 5) p.add(boxMM([x - 1.3, y + 3, -90], [x + 1.3, y + 22, 130]), 'filterPaper');
-  p.add(boxMM([-140, y + 22, -95], [140, y + 24, 135]), 'rubber');
+  const { y, z, r, len } = AIRBOX;
+  const L = len - 40;
+  const pleats = 64;
+  const outer = paramSurface((u, v) => {
+    const a = u * Math.PI * 2; const rr = r - 14 + 7 * Math.abs(Math.sin(pleats * a / 2));
+    return [-L / 2 + L * v, y + rr * Math.sin(a), z + rr * Math.cos(a)];
+  }, pleats * 4, 1, true);
+  p.add(outer, 'filterPaper');
+  const inner = paramSurface((u, v) => { const a = u * Math.PI * 2; const rr = r - 36; return [-L / 2 + L * v, y + rr * Math.sin(a), z + rr * Math.cos(a)]; }, 36, 1, true);
+  p.add(inner, 'zincPlate');
+  for (const e of [-1, 1]) p.add(yToX(lathe([[r - 38, -5], [r - 4, -5], [r - 4, 5], [r - 38, 5]], 48)), 'rubber', [e * (L / 2), y, z]);
   return p.g;
 }
 export function airCleanerLid() {
+  // Upper half of the round canister with spring clips and the intake snout at the left end.
   const p = new Part();
-  const y = 324;
-  const lid = roundRect(300, 250, 22, 0, 20);
-  const g = extrude(lid, 22, 6); g.rotateX(-Math.PI / 2); g.translate(0, y, 0);
-  p.add(g, 'blackPlastic');
-  // raised dome + snout (#14) toward the mixture control unit
-  p.add(boxMM([-100, y + 22, -60], [100, y + 34, 110]), 'blackPlastic');
-  p.add(tube([[-120, y + 16, 60], [-160, y + 16, 60], [-190, y - 4, 60]], 38, 24, 24), 'blackPlastic');
-  // restraining straps (#15)
-  for (const x of [-150, 150]) p.add(boxMM([x - 4, y - 22, -20], [x + 4, y + 12, 0]), 'steel');
+  const { y, z, r, len } = AIRBOX;
+  airboxHalf(p, 1);
+  // spring clips / straps (#15)
+  for (const xx of [-len / 3, len / 3]) for (const zz of [z - r - 4, z + r + 4]) {
+    p.add(boxMM([xx - 6, y - 12, zz - 2], [xx + 6, y + 14, zz + 2]), 'steel', [0, 0, Math.sign(zz - z) * 2]);
+  }
+  // intake snout (#14) on the left end, pointing forward/down
+  p.add(tube([[-len / 2 + 30, y + r - 20, z - 20], [-len / 2 + 30, y + r + 10, z - 60], [-len / 2 + 30, y + 40, z - 120]], 30, 24, 16), 'blackPlastic');
   return p.g;
 }
 /** Intake pipe for one cylinder (106-00 #1-#6), local coords: port at origin z=0, right-bank orientation. */
@@ -294,33 +357,33 @@ export function injector() {
   return p.g;
 }
 export function mixtureControlUnit() {
+  // Photo-matched (photo-ref/mixture-control-unit): black-painted air-flow meter funnel (inverted cone) with the
+  // brass sensor plate in its throat, lever pivot housing, and the grey zinc-cast fuel distributor beside it.
   const p = new Part();
   const c: V3 = [-200, 250, 60];
-  // air flow meter funnel housing (#2) with venturi and sensor plate (#9)
-  p.add(lathe([[40, -40], [64, -40], [70, -10], [70, 18], [58, 30], [40, 30]], 48), 'castAlu', c);
-  p.add(cyl(38, 2, 32), 'steel', [c[0], c[1] + 6, c[2]]);
-  // lever pivot boss (#8)
-  p.add(yToX(cyl(8, 150, 12)), 'castAlu', [c[0], c[1] + 10, c[2]]);
-  // fuel distributor (#1) on top of the meter
-  const fd: V3 = [c[0] + 30, c[1] + 50, c[2]];
-  p.add(cyl(30, 34, 36), 'zincPlate', fd);
-  p.add(cyl(26, 10, 36), 'zincPlate', [fd[0], fd[1] + 20, fd[2]]);
+  p.add(lathe([[40, -40], [46, -40], [44, -20], [56, 6], [74, 26], [76, 32], [70, 32], [52, 10], [40, -16]], 48), 'blackPaint', c);
+  p.add(lathe([[0.1, 0], [39, 0], [39, 1.6], [0.1, 1.6]], 32), 'brass', [c[0], c[1] - 12, c[2]]);
+  p.add(cyl(4, 6, 10), 'steel', [c[0], c[1] - 9, c[2]]);
+  // lever housing under the funnel toward the fuel distributor
+  p.add(boxMM([c[0] - 20, c[1] - 52, c[2] - 14], [c[0] + 20, c[1] - 36, c[2] + 100]), 'blackPaint');
+  // fuel distributor (#1), grey zinc casting, beside the meter
+  const fd: V3 = [c[0], c[1] - 20, c[2] + 110];
+  p.add(lathe([[0.1, -18], [30, -18], [30, 12], [26, 16], [26, 26], [0.1, 26]], 36), 'zincPlate', fd);
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
     p.add(cylBetween([fd[0] + 20 * Math.cos(a), fd[1] + 25, fd[2] + 20 * Math.sin(a)], [fd[0] + 28 * Math.cos(a), fd[1] + 28, fd[2] + 28 * Math.sin(a)], 3.5, 8), 'brass');
     p.add(hexNut(11, 6), 'brass', [fd[0] + 28 * Math.cos(a), fd[1] + 28, fd[2] + 28 * Math.sin(a)]);
   }
-  // control pressure regulator / fuel inlet banjos
   for (const a of [0.5, 3.6]) p.add(yToX(cyl(6, 20, 10)), 'brass', [fd[0] + 34 * Math.cos(a), fd[1] - 5, fd[2] + 34 * Math.sin(a)]);
-  // cold-start valve (#30) & aux air regulator (#36)
+  // cold-start valve (#30)
   p.add(yToZ(cyl(12, 40, 16)), 'darkSteel', [-120, 250, 140]);
-  // boot to the air cleaner
+  // boot from the meter outlet to the throttle housing / distributor
   p.add(tube([[c[0], c[1] - 40, c[2]], [c[0] + 10, c[1] - 55, c[2]], [-110, 232, c[2]]], 34, 20, 20), 'rubber');
   return p.g;
 }
 export function fuelLines() {
   const p = new Part();
-  const fd: V3 = [-170, 328, 60];
+  const fd: V3 = [-200, 258, 170]; // fuel distributor head (see mixtureControlUnit)
   let i = 0;
   for (const [c, zc] of Object.entries(CYL_Z)) {
     const s = +c <= 3 ? 1 : -1;
@@ -364,52 +427,88 @@ export function sparkPlug() {
 
 // ---------------------------------------------------------------- 202-00 exhaust / heating
 export function heatExchanger(s: 1 | -1) {
+  // Photo-matched (photo-ref/heat-exchanger-right): aluminised stamped-steel heater box, lumpy over each primary,
+  // with a welded seam flange along its length, three primaries with 2-stud port flanges, the heater-air outlet
+  // at the flywheel end and the exhaust outlet to the silencer at the pulley end.
   const p = new Part();
   const zs = s > 0 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]];
   const X = (x: number) => x * s;
-  const shellY = -175, shellX = 228;
-  // outer heater shell: flattened tube along Z
-  const shell = new THREE.Shape(); shell.absellipse(0, 0, 44, 34, 0, Math.PI * 2, false, 0);
-  const sg = extrude(shell, 430, 2); sg.translate(X(shellX), shellY, -205);
-  p.add(sg, 'heatSteel');
-  // stamped ribs / seams
-  for (let z = -195; z < 222; z += 22) {
-    const rib = new THREE.Shape(); rib.absellipse(0, 0, 47, 37, 0, Math.PI * 2, false, 0);
-    const h = new THREE.Path(); h.absellipse(0, 0, 44, 34, 0, Math.PI * 2, true, 0); rib.holes.push(h);
-    p.add(extrudeC(rib, 3, 0, 24), 'heatSteel', [X(shellX), shellY, z]);
+  const shellY = -175, shellX = 228, zA = -205, zB = 222;
+  const half = (z: number) => {
+    const t = (z - zA) / (zB - zA);
+    let a = 40 + 6 * Math.sin(Math.PI * t), b = 30 + 5 * Math.sin(Math.PI * t);
+    for (const zc of zs) { const k = Math.exp(-(((z - zc - 12) / 34) ** 2)); a += 5 * k; b += 7 * k; }
+    return [a, b];
+  };
+  const se = (ang: number, a: number, b: number, n = 2.8) => {
+    const c = Math.cos(ang), sn = Math.sin(ang);
+    return [a * Math.sign(c) * Math.abs(c) ** (2 / n), b * Math.sign(sn) * Math.abs(sn) ** (2 / n)];
+  };
+  const shell = paramSurface((u, v) => {
+    const z = zA + (zB - zA) * v; const [a, b] = half(z); const [x, y] = se(u * Math.PI * 2, a, b);
+    return [X(shellX + x), shellY + y, z];
+  }, 40, 48, true);
+  p.add(shell, 'aluminized');
+  // end caps
+  for (const z of [zA, zB]) {
+    const [a, b] = half(z); const pts: [number, number][] = [];
+    for (let i = 0; i < 40; i++) { const [x, y] = se((i / 40) * Math.PI * 2, a, b); pts.push([X(shellX + x), shellY + y]); }
+    const cap = new THREE.ShapeGeometry(polyShape(s > 0 ? pts : pts.slice().reverse()), 1); cap.translate(0, 0, z);
+    p.add(cap, 'aluminized');
   }
-  // primary pipes from each exhaust port (#31 gaskets at flange)
+  // seam flange along the outer & inner flanks (mid-height)
+  for (const side of [1, -1]) {
+    p.add(paramSurface((u, v) => {
+      const z = zA + 4 + (zB - zA - 8) * u; const [a] = half(z);
+      return [X(shellX + side * (a - 1 + 8 * v)), shellY + 2, z];
+    }, 40, 1), 'aluminized');
+  }
+  // primary pipes from each exhaust port with 2-stud port flanges (#31 gaskets)
   for (const zc of zs) {
     const port: V3 = [X(EXH_PORT.x), EXH_PORT.y, zc];
-    const pts: V3[] = [port, [X(EXH_PORT.x), -100, zc], [X(EXH_PORT.x - 4), -130, zc + 6], [X(shellX), shellY + 20, zc + 16]];
-    p.add(tube(pts, 18, 16, 24), 'heatSteel');
-    const fl = roundRect(44, 34, 8); fl.holes.push(circlePath(16) as THREE.Path);
-    const fg = extrudeC(fl, 6); fg.rotateX(Math.PI / 2);
+    const pts: V3[] = [port, [X(EXH_PORT.x), -100, zc], [X(EXH_PORT.x - 4), -130, zc + 6], [X(shellX), shellY + 20, zc + 12]];
+    p.add(tube(pts, 18, 16, 24), 'aluminized');
+    const fl = polyShape(hull([...circlePts(0, 0, 22, 20), ...circlePts(-30, 0, 9, 10), ...circlePts(30, 0, 9, 10)]));
+    fl.holes.push(circlePath(16) as THREE.Path);
+    const fg = extrudeC(fl, 6, 0.6, 4); fg.rotateX(Math.PI / 2); fg.rotateY(Math.PI / 2);
     p.add(fg, 'heatSteel', [port[0], port[1] - 3, port[2]]);
-    for (const dz of [-16, 16]) p.add(hexNut(12, 7), 'brass', [port[0], port[1] - 9, port[2] + dz]);
+    for (const dz of [-30, 30]) p.add(hexNut(12, 7), 'brass', [port[0], port[1] - 9, port[2] + dz]);
+    // sleeve where the primary enters the box
+    p.add(yToZ(lathe([[19, -8], [24, -8], [24, 8], [19, 8]], 20)).rotateX(-Math.PI / 2 + 0.5), 'aluminized', [X(EXH_PORT.x - 2), -136, zc + 8]);
   }
   // outlet to silencer
-  p.add(tube([[X(shellX - 10), shellY - 5, 222], [X(shellX - 20), shellY - 8, 280], [X(150), -185, 318], [X(150), -185, 334]], 22, 16, 30), 'heatSteel');
+  p.add(tube([[X(shellX - 10), shellY - 5, zB - 10], [X(shellX - 20), shellY - 8, 280], [X(150), -185, 318], [X(150), -185, 334]], 22, 16, 30), 'aluminized');
   // heater air outlet (to cabin) at the flywheel end, with adapter (#27)
-  p.add(tube([[X(shellX), shellY + 10, -205], [X(shellX), shellY + 20, -240], [X(shellX - 20), shellY + 40, -262]], 26, 20, 16), 'heatSteel');
-  // fresh-air inlet from the blower / engine at the rear top
-  p.add(tube([[X(shellX), shellY + 30, 200], [X(shellX - 10), shellY + 70, 212]], 16, 12, 10), 'heatSteel');
+  p.add(tube([[X(shellX), shellY + 10, zA + 10], [X(shellX), shellY + 20, -240], [X(shellX - 20), shellY + 40, -262]], 26, 20, 16), 'aluminized');
+  p.add(yToZ(lathe([[25, -6], [29, -6], [29, 6], [25, 6]], 24)).rotateX(-0.7), 'heatSteel', [X(shellX - 18), shellY + 38, -258]);
+  // fresh-air inlet from the blower at the pulley end
+  p.add(tube([[X(shellX), shellY + 26, zB - 22], [X(shellX - 10), shellY + 70, 212]], 16, 12, 10), 'aluminized');
   return p.g;
 }
 export function muffler() {
+  // Photo-matched (photo-ref/muffler): aluminised oval drum with a gentle banana curve and a welded seam flange
+  // around its middle, two inlet stubs with clamps and the chrome tailpipe on the left.
   const p = new Part();
-  const sec = roundRect(118, 112, 44);
-  const g = extrudeC(sec, 540, 3);
-  g.rotateY(Math.PI / 2); // extrude along x
-  p.add(g, 'heatSteel', [0, -178, 390]);
-  // seams
-  for (const x of [-268, 268]) {
-    const seam = roundRect(124, 118, 47); seam.holes.push(roundRect(118, 112, 44) as unknown as THREE.Path);
-    const sg2 = extrudeC(seam, 4); sg2.rotateY(Math.PI / 2); p.add(sg2, 'heatSteel', [x, -178, 390]);
+  const zc = 390, half = 270, a = 58, b = 55;
+  const cy = (x: number) => -178 + 12 * (1 - (x / half) ** 2);
+  const se = (ang: number, n = 3.2) => { const c = Math.cos(ang), sn = Math.sin(ang); return [a * Math.sign(c) * Math.abs(c) ** (2 / n), b * Math.sign(sn) * Math.abs(sn) ** (2 / n)]; };
+  p.add(paramSurface((u, v) => {
+    const x = -half + 2 * half * v; const [zz, yy] = se(u * Math.PI * 2);
+    return [x, cy(x) + yy, zc + zz];
+  }, 40, 30, true), 'aluminized');
+  // dished end caps
+  for (const e of [-1, 1]) {
+    const pts: [number, number][] = []; for (let i = 0; i < 40; i++) { const [zz, yy] = se((i / 40) * Math.PI * 2); pts.push([zz, yy]); }
+    const cap = new THREE.ShapeGeometry(polyShape(pts), 1); cap.rotateY(Math.PI / 2); cap.translate(e * half, cy(e * half), zc);
+    p.add(cap, 'aluminized');
+    const lip = paramSurface((u, v) => { const [zz, yy] = se(u * Math.PI * 2); const k = 1 + 0.06 * v; return [e * (half - 2 + 4 * v), cy(e * half) + yy * k, zc + zz * k]; }, 40, 1, true);
+    p.add(lip, 'aluminized');
   }
+  // seam flange around the mid-plane (front + back + ends)
+  for (const side of [1, -1]) p.add(paramSurface((u, v) => { const x = -half + 2 + (2 * half - 4) * u; return [x, cy(x), zc + side * (a - 1 + 9 * v)]; }, 30, 1), 'aluminized');
   // inlets (#2 gaskets, #5 clamps)
   for (const s of [1, -1]) {
-    p.add(cylBetween([150 * s, -185, 325], [150 * s, -185, 340], 25, 20), 'heatSteel');
+    p.add(cylBetween([150 * s, -185, 325], [150 * s, -185, 340], 25, 20), 'aluminized');
     p.add(yToZ(torus(26, 3, 6, 24)), 'steel', [150 * s, -185, 330]);
   }
   // tailpipe (chrome), exiting rearward on the left
@@ -419,20 +518,21 @@ export function muffler() {
   p.add(boxMM([-40, -122, 360], [40, -110, 420]), 'darkSteel');
   return p.g;
 }
-
 // ---------------------------------------------------------------- 102-00 / 301 flywheel & clutch
 export const FLY_Z = CASE_Z.flywheel - 8; // crank flange face
 export function flywheel() {
+  // Photo-matched (photo-ref/flywheel): dark cast-iron/steel body, ground (polished) friction face, pressed-on
+  // starter ring gear, 9 bolts on a centre boss, dowels on the rim.
   const p = new Part();
   const z = FLY_Z;
   const prof: [number, number][] = [[20, 0], [55, 0], [60, -4], [110, -4], [128, -2], [134, 0], [134, -28], [128, -30], [60, -30], [55, -18], [20, -18]];
-  p.add(yToZ(lathe(prof, 96)), 'steel', [0, 0, z]);
-  // starter ring gear (#5 in 301-00): 130 teeth
-  p.add(extrude(gearShape(130, 136, 142, 133), 12), 'forgedSteel', [0, 0, z - 14]);
-  // bolts x9 (#6) and timing mark
+  p.add(yToZ(lathe(prof, 96)), 'darkSteel', [0, 0, z]);
+  p.add(yToZ(lathe([[78, -30.2], [127, -30.2], [127, -30.6], [78, -30.6]], 96)), 'polishedSteel', [0, 0, z]);
+  p.add(extrude(gearShape(130, 136, 142, 133), 12, 0, 4), 'forgedSteel', [0, 0, z - 14]);
   for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; p.add(yToZ(hexNut(13, 6)), 'darkSteel', [36 * Math.cos(a), 36 * Math.sin(a), z - 21]); }
-  // pressure-plate dowels / bolts on rim
   for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2 + 0.2; p.add(yToZ(cyl(4, 8, 8)), 'zincPlate', [124 * Math.cos(a), 124 * Math.sin(a), z - 33]); }
+  // lightening/balance drillings on the back face
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; p.add(yToZ(cyl(6, 1, 12)), 'bore', [92 * Math.cos(a), 92 * Math.sin(a), z - 4.6]); }
   return p.g;
 }
 export function clutchDisc() {

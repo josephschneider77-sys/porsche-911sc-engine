@@ -134,7 +134,40 @@ Stoddard and Rose Passion catalogue pages cross-check the same part numbers, e.g
 ## 6. Accuracy caveats
 - Overall proportions and the dimensions marked *E* are estimates traced from the catalogue drawings and scaled to the known bore, stroke and component sizes. They are not measured CAD data.
 - Bank offset, cam and valve angles, and gear and sprocket tooth counts are approximate.
-- The chain is modelled as a simplex roller chain (the real chain is duplex). The chain-housing outline is simplified.
+- Cam chains are now duplex 3/8" roller chains on duplex sprockets (v2). They run as straight tangent runs; the slight inward deflection at the idler sprocket is not modelled. The chain-housing outline is traced from end-view photos, but its wall draft and internal webs are simplified.
 - The oil pump is placed at the pulley end below the intermediate shaft. Its exact internal position and shape are simplified.
 - The air-injection pump (108-00), engine carrier (109-00), oil lines and tank, heater blower (108-10), plug leads and wiring are not modelled.
 - 1978 air guide: the catalogue lists the -78 part 930 106 041 00 as red. The model shows the later black part, as requested.
+
+## 7. Visual fidelity pass (v2, photo-referenced)
+The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild series, FVD, Design911 and Heritage product shots) and remodelled to match. The photos are reference only and are not shipped with the app.
+
+**Materials:** `castAlu` (raw sand-cast aluminium, 0x96989a), `magnesium`, `finBlack` (satin-black cylinder fins), `forgedDark` (as-forged crank webs and rod beams), `polishedSteel` (journals), `yellowZinc` (pulleys and fasteners), `blackPaint`, and `aluminized` (heat exchangers). At load time the viewer adds a procedural sand-cast noise to cast and painted materials. It changes albedo and roughness and is evaluated in rest-pose space, so the texture stays fixed to the part when the engine explodes.
+
+**Compression:** `scripts/export-glb.ts` writes GLBs with gltf-transform `dedup`, `weld` and meshopt compression (`--raw` turns this off). The viewer decodes them with `MeshoptDecoder`.
+
+**Bottom end (PR 1):**
+- Crankcase halves: split-line flanges with stud and nut bosses, transverse ribs and gussets, through-bolt bosses and nuts, external oil gallery, ribbed flywheel bell with gearbox studs, machined pulley-end rim, and engine-number pad.
+- Cylinders: rounded-square fin pack (16 fins, stud notches at the corners) in satin black, with a bare machined skirt and spigot.
+- Heads: fins stacked along the cylinder axis, combustion chamber, spring-well cam face, and port bosses.
+- Pistons: ring belt, recessed skirt, and a domed crown with valve reliefs.
+- Conrods: forged beam, blended big end and bolted cap.
+- Crankshaft: dark forged webs, polished journals and oil holes.
+
+**Top end and cam drive (PR 2):**
+- Duplex timing chains: two roller rows, inner and outer plates with a shared centre plate, pins.
+- Duplex cam sprockets (36 T) with a lightening-hole web, flange, dowel and big nut. The intermediate shaft carries two duplex 24 T sprockets.
+- Chain tensioner rebuilt as a layout: forged idler arm on a shaft, duplex 15 T idler sprocket on the slack run, a hydraulic adjuster below with a bolted flange and plunger, and plastic guide ramps on aluminium carriers.
+- Chain housing and lid: outline traced from end-view photos (int-shaft lobe, cam boss, tensioner pocket). Perimeter bolt bosses with studs, washers and nuts; outer flange lip; external ribs; raised cam-sprocket dome with a machined plug; lid ribs; idler-shaft cap.
+- Cam housings: continuous cam tunnel, rocker-shaft towers with machined faces, cover-seat rails with stud bosses, end bores, tunnel cover, oil-feed bosses.
+- Valve covers: chamfered pan on a seat flange with bolt ears (3 per edge on the upper cover, 5 on the lower). The upper cover has two machined round bosses and raised cast PORSCHE lettering.
+- Camshaft: polished lobes and journals on a dark shaft.
+
+**Cooling, induction, exhaust and clutch (PR 3):**
+- Fan housing: black-painted magnesium drum with a rolled intake bell, three raised bands, axial ribs, cast feet and stator spokes.
+- Fan: 11 broad, twisted paddle blades on a pressed hub with a ring of holes. Fan and crank pulleys are yellow zinc, with a shim stack and hub bolts.
+- CIS: black moulded air distributor with one ribbed lobe per intake pipe and a cast throttle/idle housing. The air cleaner is now the SC's round drum lying across the engine (lower half on the distributor, upper half = lid with snout and straps) with a cylindrical pleated element. The air-flow meter is a black-painted funnel with a brass sensor plate; the grey fuel distributor sits beside it.
+- Heat exchangers: aluminised lofted heater box, lumpy over each primary, with a seam flange, 2-stud port flanges, entry sleeves and the heater-outlet adapter.
+- Muffler: aluminised oval drum with a slight banana curve, seam flange and dished end caps.
+- Flywheel: dark body, ground friction face, ring gear, balance drillings.
+- 1978 upper air guide: the catalogue part is red (Joe's reference engine has a red/orange shroud). It is still shown black, as requested.
