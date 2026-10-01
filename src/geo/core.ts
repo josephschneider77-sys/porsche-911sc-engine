@@ -611,44 +611,10 @@ export function cylinderHead() {
   return p.g;
 }
 
-/** Valves, springs, retainers for one cylinder (103-00 #9-#18), local = head frame. */
-export const VALVE_ANGLE = { intake: 28 * DEG, exhaust: 32 * DEG };
-export const VALVE_LEN = 112;
-export function valveSet() {
-  const p = new Part();
-  const one = (dia: number, ang: number, sign: 1 | -1) => {
-    const g = new THREE.Group();
-    const L = VALVE_LEN;
-    const v = new Part();
-    v.add(lathe([[0.1, 0], [dia / 2, 0], [dia / 2, 1.8], [dia / 2 - 3, 4], [5.5, 14], [4.5, 22], [4.5, L - 6], [4.2, L - 5], [4.5, L - 4], [4.5, L], [0.1, L]], 32), sign > 0 ? 'steel' : 'heatSteel');
-    // seat ring #3/#4 (in the head), guide #2, stem seal #18, spring shim #11, spring seat ring #12, double springs #13,
-    // retainer (concave washer) #14, two collet halves #15
-    v.add(lathe([[dia / 2 - 2.5, 0.4], [dia / 2 + 3.5, 0.4], [dia / 2 + 3.5, 6.5], [dia / 2 - 1, 6.5]], 32), 'darkSteel');
-    v.add(lathe([[4.6, L - 92], [7.2, L - 92], [7.2, L - 60], [4.6, L - 60]], 16), 'bronze');
-    v.add(lathe([[4.6, L - 60], [7.6, L - 60], [7.6, L - 56], [6.2, L - 54], [4.6, L - 54]], 16), 'rubber');
-    v.add(lathe([[7.8, L - 53], [17, L - 53], [17, L - 52.4], [7.8, L - 52.4]], 24), 'polishedSteel');
-    v.add(lathe([[7.8, L - 52.4], [17, L - 52.4], [17, L - 50], [7.8, L - 50]], 24), 'steel');
-    v.add(spring(15, 1.9, L - 50, L - 14, 5.5), 'darkSteel');
-    v.add(spring(10.5, 1.4, L - 50, L - 14, 6.5), 'darkSteel');
-    v.add(lathe([[5, L - 14], [16.5, L - 14], [16.5, L - 11], [6, L - 8], [5, L - 8]], 24), 'steel');
-    for (const ph of [0.06, Math.PI + 0.06]) v.add(new THREE.CylinderGeometry(5.6, 6.2, 7, 8, 1, false, ph, Math.PI - 0.12).translate(0, L - 10, 0), 'steel');
-    g.add(v.g);
-    // orient: valve axis from chamber toward outside & up (intake) / down (exhaust)
-    g.rotation.z = -Math.PI / 2 + sign * ang;
-    g.position.set(2.5, sign * 14, 0);
-    p.addObj(g);
-  };
-  one(49, VALVE_ANGLE.intake, 1);
-  one(41.5, VALVE_ANGLE.exhaust, -1);
-  return p.g;
-}
 
 // ---------------------------------------------------------------- camshaft housing (103-05 #13), engine coords
-/**
- * Photo-matched (photo-ref/cam-housing-right): long sand-cast housing with a continuous cam tunnel along the
- * outer spine, four bearing webs, tall rocker-shaft towers either side of each cylinder, cover-seat rails with
- * cast stud bosses, round tunnel bores at both ends and the external cam oil feed line.
- */
+// The housing, camshaft and rocker meshes live in valvetrain.ts. These stations stay here because the
+// valve covers, chain housings and the keyed cam-nose hardware are built from them.
 export const CH_Z0 = -168, CH_Z1 = CASE_Z.pulley;
 /** Valve-cover ear positions along engine Z (relative to housing centre). */
 const VC_EAR_F = (upper: boolean) => (upper ? [-0.39, -0.13, 0.13, 0.39] : [-0.42, -0.252, -0.084, 0.084, 0.252, 0.42]);
@@ -656,71 +622,6 @@ const VC_EAR_F = (upper: boolean) => (upper ? [-0.39, -0.13, 0.13, 0.39] : [-0.4
 export const VC_EARS = (upper: boolean) => VC_EAR_F(upper).map((f) => f * (CH_Z1 - CH_Z0 - 30));
 /** Ear centre offset across the cover (cover-local x). */
 export const VC_EDGE = 31;
-/** Rocker-shaft towers: axis x (unsigned), y, and machined end-face offset from the cylinder centre. */
-export const ROCKER_TOWER = { x: CAM_X + 16, y: 40, face: 23 };
-export function camHousing(s: 1 | -1) {
-  const p = new Part();
-  const X = (x: number) => x * s;
-  const lo = (a: number, b: number) => [Math.min(X(a), X(b)), Math.max(X(a), X(b))];
-  const bx = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, m: MatKey = 'castAlu') => {
-    const [a, b] = lo(x0, x1); p.add(boxMM([a, y0, z0], [b, y1, z1]), m);
-  };
-  const L = CH_Z1 - CH_Z0, zc = (CH_Z0 + CH_Z1) / 2;
-  // base plate against heads with machined skirt
-  bx(HEAD_OUT_X, HEAD_OUT_X + 10, -70, 72, CH_Z0 - (s < 0 ? 17 : 5), CH_Z1); // extended at the flywheel end under the cyl. 6 nuts (v5 stud spread z +-28)
-  bx(HEAD_OUT_X, HEAD_OUT_X + 2, -73, 75, CH_Z0 + 2, CH_Z1 - 2, 'machinedAlu');
-  // cam tunnel: thick sector shell around the cam axis on the outer side (open toward the rockers)
-  const tun = new THREE.Shape();
-  const a0 = s > 0 ? -1.15 : Math.PI - 1.15, a1 = s > 0 ? 1.15 : Math.PI + 1.15;
-  tun.absarc(X(CAM_X), 0, 33, a0, a1, false); tun.absarc(X(CAM_X), 0, 26, a1, a0, true);
-  p.add(extrude(tun, L - 2, 0.8, 24), 'castAlu', [0, 0, CH_Z0 + 1]);
-  // outer spine ribs on the tunnel (cast stiffeners)
-  for (const y of [-14, 14]) bx(CAM_X + 30, CAM_HOUSING_OUT_X, y - 2.2, y + 2.2, CH_Z0 + 4, CH_Z1 - 4);
-  // cover-seat rails (upper & lower) with machined seat faces
-  for (const sg of [1, -1]) {
-    bx(HEAD_OUT_X + 6, HEAD_OUT_X + 18, sg > 0 ? 62 : -76, sg > 0 ? 76 : -62, CH_Z0, CH_Z1);
-    bx(CAM_HOUSING_OUT_X - 16, CAM_HOUSING_OUT_X - 4, sg > 0 ? 28 : -36, sg > 0 ? 36 : -28, CH_Z0, CH_Z1);
-  }
-  // bearing webs between cylinders and at the ends (with cam bore)
-  const zs = bankZ(s).slice().sort((a, b) => a - b);
-  const webs = [CH_Z0 + 6, (zs[0] + zs[1]) / 2, (zs[1] + zs[2]) / 2, CH_Z1 - 6];
-  for (const zw of webs) {
-    const sh = polyShape(s > 0
-      ? [[HEAD_OUT_X + 8, -72], [HEAD_OUT_X + 18, -74], [CAM_HOUSING_OUT_X - 8, -34], [CAM_HOUSING_OUT_X - 8, 34], [HEAD_OUT_X + 18, 74], [HEAD_OUT_X + 8, 72]]
-      : [[-(HEAD_OUT_X + 8), 72], [-(HEAD_OUT_X + 18), 74], [-(CAM_HOUSING_OUT_X - 8), 34], [-(CAM_HOUSING_OUT_X - 8), -34], [-(HEAD_OUT_X + 18), -74], [-(HEAD_OUT_X + 8), -72]]);
-    sh.holes.push(circlePath(24, X(CAM_X), 0) as THREE.Path);
-    sh.holes.push(circlePath(9, X(HEAD_OUT_X + 26), 46) as THREE.Path);
-    sh.holes.push(circlePath(9, X(HEAD_OUT_X + 26), -46) as THREE.Path);
-    p.add(extrudeC(sh, 12, 0.8, 6), 'castAlu', [0, 0, zw]);
-  }
-  // rocker-shaft towers either side of each cylinder (#44 shafts pass through), with machined end faces
-  for (const zc2 of zs) for (const y of [40, -40]) {
-    p.add(yToZ(cyl(10, 44, 18)), 'castAlu', [X(CAM_X + 16), y, zc2]);
-    for (const dz of [-22.5, 22.5]) p.add(yToZ(cyl(8.6, 1, 18)), 'machinedAlu', [X(CAM_X + 16), y, zc2 + dz]);
-    const t = boxMM([-5, -6, -18], [5, 6, 18]); t.translate(X(CAM_X + 8), y * 0.82, zc2); p.add(t, 'castAlu');
-  }
-  // cast stud bosses + studs on the rails where the valve-cover ears land
-  for (const upper of [true, false]) for (const f of VC_EARS(upper)) {
-    const z = zc + f;
-    for (const yy of upper ? [69] : [-69]) {
-      p.add(yToX(cyl(6.5, 12, 14)), 'castAlu', [X(HEAD_OUT_X + 12), yy, z]);
-    }
-    p.add(yToX(cyl(6, 10, 14)), 'castAlu', [X(CAM_HOUSING_OUT_X - 10), upper ? 32 : -32, z]);
-  }
-  // tunnel end bore bosses
-  for (const z of [CH_Z0 - 1, CH_Z1 + 1]) p.add(yToZ(lathe([[24, -3], [34, -3], [34, 3], [24, 3]], 36)), 'castAlu', [X(CAM_X), 0, z]);
-  // cam oil feed line along the outer spine (#29 banjo bolts)
-  p.add(tube([[X(CAM_HOUSING_OUT_X + 5), 20, CH_Z1 + 10], [X(CAM_HOUSING_OUT_X + 6), 22, 60], [X(CAM_HOUSING_OUT_X + 6), 22, CH_Z0 + 20]], 3.2, 8, 40), 'steel');
-  for (const z of [CH_Z1 - 20, 60, CH_Z0 + 20]) {
-    p.add(yToX(hexNut(14, 8)), 'brass', [X(CAM_HOUSING_OUT_X + 4), 20, z]);
-    p.add(yToX(cyl(8, 6, 14)), 'castAlu', [X(CAM_HOUSING_OUT_X - 1), 20, z]);
-  }
-  // flywheel-end tunnel cover (#16/#17)
-  p.add(yToZ(lathe([[0, -3], [30, -3], [30, 2], [26, 4], [0, 4]], 36)), 'castAlu', [X(CAM_X), 0, CH_Z0 - 4]);
-  for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2 + 0.5; p.add(yToZ(hexNut(9, 5)), 'zincPlate', [X(CAM_X) + 25 * Math.cos(a), 25 * Math.sin(a), CH_Z0 - 8]); }
-  // nuts to the heads (#22) on the head studs: fasteners.ts (cam-housing-nuts)
-  return p.g;
-}
 
 /** Minimal stroke font for cast lettering (4x6 grid). */
 const STROKES: Record<string, number[][]> = {
@@ -808,41 +709,8 @@ export function coverMatrix(s: 1 | -1, upper: boolean) {
  * (z-6..-5.4) | sprocket #38 hub (z-5.4..+13), dowelled to the flange by straight pin #39 | spring washer #40 +
  * nut #41 (fasteners.ts cam-nut-*) on the M22x1.5 thread (E) at the nose end.
  */
+// Camshaft mesh: valvetrain.ts camshaft(). Nose stack shared with the CoS key, flange, shim and nut.
 export const CAM_NOSE = { r: 11, key: { D: 9.6, h: 4.8, b: 4, proud: 1.8, dz: -11 }, flange: [-16, -6] as [number, number], shim: 0.6, hubFace: 10, end: 23, pin: { r: 3, rad: 16, a: 0.5 } };
-export function camshaft(s: 1 | -1) {
-  const p = new Part();
-  const X = CAM_X * s, zc = CHAIN_Z[s], N = CAM_NOSE;
-  const zN = zc + N.end;
-  p.add(yToZ(cyl(15, CH_Z1 - CH_Z0, 24)), 'darkSteel', [X, 0, (CH_Z0 + CH_Z1) / 2]);
-  // nose: plain journal under flange/sprocket with the Woodruff pocket cut in (half-moon, chord along the axis)
-  const zt = zc + N.hubFace; // thread starts at the sprocket hub face
-  const nose = yToZ(cyl(N.r, zt - CH_Z1 + 1, 28)).translate(X, 0, (CH_Z1 - 1 + zt) / 2);
-  const k = N.key, kTop = N.r + k.proud;
-  const pocket = woodruffGeom(k.D + 0.1, k.h + 0.05, k.b + 0.1).rotateY(-Math.PI / 2).translate(X, kTop, zc + k.dz);
-  p.add(csgSub(nose, pocket), 'darkSteel');
-  // M22 thread (E): slightly smaller core + thread rings
-  p.add(yToZ(cyl(N.r - 0.4, zN - zt, 24)), 'darkSteel', [X, 0, (zt + zN) / 2]);
-  for (let z = zt + 1; z < zN - 0.5; z += 1.5) p.add(yToZ(lathe([[N.r - 0.4, -0.4], [N.r, 0], [N.r - 0.4, 0.4]], 24)), 'darkSteel', [X, 0, z]);
-  const zs = bankZ(s).slice().sort((a, b) => a - b);
-  const webs = [CH_Z0 + 6, (zs[0] + zs[1]) / 2, (zs[1] + zs[2]) / 2, CH_Z1 - 6];
-  for (const zw of webs) p.add(yToZ(cyl(23.5, 12, 32)), 'polishedSteel', [X, 0, zw]);
-  const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
-  cyls.forEach((c) => {
-    const zc2 = CYL_Z[c];
-    for (const [dz, ph] of [[-9, 0], [9, 110]] as const) {
-      const pts: [number, number][] = [];
-      for (let i = 0; i < 48; i++) {
-        const a = (i / 48) * Math.PI * 2;
-        const lift = Math.max(0, Math.cos(a)) ** 2 * 10.5;
-        pts.push([(19 + lift) * Math.cos(a), (19 + lift) * Math.sin(a)]);
-      }
-      const g = extrudeC(polyShape(pts), 13);
-      g.rotateZ(((THROW_DEG[c] / 2) + ph) * DEG);
-      p.add(g, 'polishedSteel', [X, 0, zc2 + dz]);
-    }
-  });
-  return p.g;
-}
 /** Sprocket flange (#36): keyed hub disc on the cam nose, carries the sprocket via the dowel pin #39. */
 export function camFlange(s: 1 | -1) {
   const p = new Part();
@@ -855,27 +723,6 @@ export function camFlange(s: 1 | -1) {
   sh.holes.push(bore);
   for (let i = 0; i < 3; i++) { const q = N.pin.a + (i * 2 * Math.PI) / 3; sh.holes.push(circlePath(N.pin.r + 0.05, N.pin.rad * Math.cos(q) * s, N.pin.rad * Math.sin(q)) as THREE.Path); }
   p.add(extrude(sh, N.flange[1] - N.flange[0], 0.5, 24), 'darkSteel', [X, 0, zc + N.flange[0]]);
-  return p.g;
-}
-/** Rocker arms + shafts for one bank (103-10/-15 #44-#50). */
-export function rockers(s: 1 | -1) {
-  const p = new Part();
-  const zs = bankZ(s);
-  for (const zc of zs) {
-    for (const [up, dz] of [[1, -9], [-1, 9]] as const) {
-      const pivot: [number, number] = [CAM_X + 16, up * 40];
-      const camC: [number, number] = [CAM_X, up * 21];
-      const tip: [number, number] = [CAM_X + 6, up * 58];
-      const pts = hull([...circlePts(pivot[0], pivot[1], 10, 16), ...circlePts(camC[0], camC[1], 6, 12), ...circlePts(tip[0], tip[1], 6, 12)]);
-      p.add(extrudeC(polyShape(s > 0 ? pts : pts.map(([x, y]) => [-x, y] as [number, number]).reverse()), 16, 0.8), 'forgedSteel', [0, 0, zc + dz]);
-      p.add(yToZ(cyl(8.5, 40, 16)), 'steel', [pivot[0] * s, pivot[1], zc]);
-      // rocker-arm bush (#46), bronze, pressed into the arm eye on the shaft
-      p.add(yToZ(lathe([[8.55, -8.3], [9.9, -8.3], [9.9, 8.3], [8.55, 8.3]], 20)), 'bronze', [pivot[0] * s, pivot[1], zc + dz]);
-      // adjusting screw (#49) & nut (#50)
-      p.add(cylBetween([tip[0] * s, up * 52, zc + dz], [tip[0] * s, up * 70, zc + dz], 3.8, 10), 'steel');
-      p.add(hexNut(11, 5).translate(tip[0] * s, up * 66, zc + dz), 'darkSteel');
-    }
-  }
   return p.g;
 }
 
