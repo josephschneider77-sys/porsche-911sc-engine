@@ -151,8 +151,8 @@ function perBank(): PartDef[] {
     out.push({
       id: `cam-flange-${b}`, name: `Camshaft sprocket flange, ${b}`, system: 'camdrive', asset: `cam-flange-${b}`, explode: [s * 580, 50, 240],
       catalog: [{ ill, pos: '36', pn: '901 105 583 01', qty: 1 }],
-      description: 'Tall bright keyed hub on the cam nose. The Woodruff key drives it, and 16 scallops on the short sprocket-face rim take the dowel that drives the sprocket. Choosing which scallop lines up with which of the sprocket’s 17 holes gives the vernier.',
-      specs: { Location: 'Woodruff key in the cam-nose keyway', Scallops: '16 on the sprocket-face rim' },
+      description: 'Tall bright keyed hub on the cam nose. The Woodruff key drives it, and 16 round scallops on the short sprocket-face rim take the dowel that drives the sprocket. The lands between the scallops are wider than the scallops, and the bore is open. Choosing which scallop lines up with which of the sprocket’s 17 holes gives the vernier.',
+      specs: { Location: 'Woodruff key in the cam-nose keyway', Scallops: '16 on the sprocket-face rim, lands wider than the notches' },
     });
     out.push({
       id: `adjuster-cover-${b}`, name: `Chain-adjuster cover, ${b}`, system: 'camdrive', asset: `adjuster-cover-${b}`, explode: [s * 300, -60, 420],

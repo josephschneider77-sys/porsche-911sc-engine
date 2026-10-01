@@ -108,12 +108,27 @@ export function sprocketRingShape(teeth: number, rRoot: number, rTip: number, rH
 export function gearShape(teeth: number, rRoot: number, rTip: number, holeR = 0, sprocket = false) {
   const s = new THREE.Shape();
   const n = teeth;
+  const step = (Math.PI * 2) / n;
   for (let i = 0; i < n; i++) {
-    const a0 = (i / n) * Math.PI * 2, step = (Math.PI * 2) / n;
+    const a0 = i * step;
     // Sprocket gullet: root flat centred at 0.875 of the tooth pitch (toothPhase seats a roller there).
+    // Spur flanks taper and stay under half a pitch so a meshing pair has backlash.
+    // The tip arc is about a third of the circular pitch. Tooth centre stays at 0.35 of the pitch.
+    const c = 0.35;
+    const rLo = rRoot + (rTip - rRoot) * 0.35;
+    const rHi = rRoot + (rTip - rRoot) * 0.7;
     const pts: [number, number][] = sprocket
       ? [[rRoot, a0 + step * 0.02], [rTip, a0 + step * 0.14], [rTip, a0 + step * 0.30], [rRoot, a0 + step * 0.50], [rRoot, a0 + step * 0.78], [rRoot, a0 + step * 0.97]]
-      : [[rRoot, a0], [rTip, a0 + step * 0.22], [rTip, a0 + step * 0.48], [rRoot, a0 + step * 0.7]];
+      : [
+          [rRoot, a0 + step * (c - 0.20)],
+          [rLo, a0 + step * (c - 0.185)],
+          [rHi, a0 + step * (c - 0.175)],
+          [rTip, a0 + step * (c - 0.16)],
+          [rTip, a0 + step * (c + 0.16)],
+          [rHi, a0 + step * (c + 0.175)],
+          [rLo, a0 + step * (c + 0.185)],
+          [rRoot, a0 + step * (c + 0.20)],
+        ];
     pts.forEach(([r, a], k) => { const x = r * Math.cos(a), y = r * Math.sin(a); if (i === 0 && k === 0) s.moveTo(x, y); else s.lineTo(x, y); });
   }
   s.closePath();

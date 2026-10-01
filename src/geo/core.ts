@@ -491,11 +491,15 @@ export function crankGears() {
   const N = CRANK_NOSE, kb = N.key.b / 2 + 0.05;
   const keyedBore = () => { const h = new THREE.Path(); const a = Math.asin(kb / (N.seatR + 0.05)); h.absarc(0, 0, N.seatR + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false); h.lineTo(kb, N.seatR + N.key.proud + 0.4); h.lineTo(-kb, N.seatR + N.key.proud + 0.4); h.closePath(); return h; };
   const z0 = N.gear[0], z1 = N.gear[1];
-  // 35 T on the 84 mm centres (module shared with the 60 T intermediate gear). Teeth sit just outside the Ø56 nose.
+  // 35 T on the 84 mm centres (module shared with the 60 T intermediate gear).
+  // Root r = pr − 1.7 ≈ 29.25, so 1.25 mm of web sits under the Ø56 nose (r 28). The Woodruff
+  // key top is r 30.6 and the keyway reaches r 31.0, which is past that root, so this tooth
+  // count cannot clear the key. Main's hub OD (r 33.4) is this gear's tip circle and is not
+  // restored: a disc that large would bury the teeth. The keyed hub stays just under the root.
   const pr = (CRANK_GEAR_T * INT_GEAR.module) / 2;
   const hub = circleShape(pr - 1.6); hub.holes.push(keyedBore());
   p.add(extrude(hub, z1 - z0), 'steel', [0, 0, z0]);
-  // ψ ≈ 30°: twist = tan(ψ) * width / pitch radius
+  // ψ ≈ 30° over the full 14 mm face. The intermediate teeth use the same tan(ψ) over their 12.7 mm face.
   const twist = Math.tan(30 * DEG) * (z1 - z0) / pr;
   addHelix(p, CRANK_GEAR_T, pr - 1.7, pr + 2.5, N.seatR + 0.25, z0, z1, twist, 'steel', [0, 0, 0], 11);
   // smaller-OD brass distributor gear, same hand, narrow face
@@ -840,14 +844,17 @@ export const CAM_WEB = { depth: 6, bevel: 0.6 };
 /** Vernier: 17 sprocket holes and 16 flange-rim scallops on one circle. Only the dowel angle lines up. */
 export const SPROCKET_HOLES = 17;
 export const FLANGE_NOTCHES = 16;
-export const VERNIER = { holeR: 3.35, notchR: 3.55 };
+export const VERNIER = { holeR: 3.35, notchR: 2.0 };
 export const CAM_NOSE = {
   r: 11, key: { D: 9.6, h: 4.8, b: 4, proud: 1.8, dz: -11 }, flange: [-16, -6] as [number, number], flangeR: 24,
   shim: 0.6, hubFace: 10, end: 23,
   // rad 24 is the pin circle (flange rim). It clears the hub (r ≤ 19.5) and the M22 nut (vertex r ≈ 18.5).
   pin: { r: 3, rad: 24, a: 0.3 + Math.PI / 6, len: 14, proud: 2 },
 };
-/** Disc of radius R with semicircular rim notches (centres on the rim). Outer path, CCW. */
+/**
+ * Disc of radius R with semicircular rim notches (centres on the rim). Outer path, CCW.
+ * notchR 2.0 on the Ø48 rim: scallop ≈ 9.6°, land ≈ 12.9°, so the lands are wider than the scallops.
+ */
 function vernierRim(s: 1 | -1, R: number, notchR: number, nNotch: number, a0: number, samples = 480): [number, number][] {
   const centres = Array.from({ length: nNotch }, (_, i) => {
     const a = a0 + (i * 2 * Math.PI) / nNotch;
@@ -870,6 +877,21 @@ function vernierRim(s: 1 | -1, R: number, notchR: number, nNotch: number, a0: nu
   }
   return pts;
 }
+/**
+ * Scalloped annulus as one outline (outer CCW, then the bore traced CW), same trick as
+ * sprocketRingShape. ExtrudeGeometry's hole triangulator bridges this rim and caps the bore.
+ */
+function scallopedAnnulus(s: 1 | -1, R: number, notchR: number, nNotch: number, a0: number, rHole: number) {
+  const outer = vernierRim(s, R, notchR, nNotch, a0);
+  const aJoin = Math.atan2(outer[0][1], outer[0][0]);
+  const pts = outer.slice();
+  const innerN = 72;
+  for (let i = 0; i <= innerN; i++) {
+    const a = aJoin - (i / innerN) * Math.PI * 2;
+    pts.push([rHole * Math.cos(a), rHole * Math.sin(a)]);
+  }
+  return polyShape(pts);
+}
 /** Sprocket flange (#36): tall bright keyed hub, 16 scallops only on the short sprocket-face rim. The dowel sits in one scallop. */
 export function camFlange(s: 1 | -1) {
   const p = new Part();
@@ -886,9 +908,8 @@ export function camFlange(s: 1 | -1) {
   // curveSegments 32 keeps the keyed bore round; 4 segments polygon it into an octagon.
   const hub = circleShape(hubR); hub.holes.push(keyed());
   p.add(extrude(hub, z1 - z0 - rimH, 0, 32), 'polishedSteel', [X, 0, zc + z0]);
-  const rim = polyShape(vernierRim(s, N.flangeR, VERNIER.notchR, FLANGE_NOTCHES, N.pin.a));
-  rim.holes.push(circlePath(hubR + 0.2) as THREE.Path);
-  p.add(extrude(rim, rimH, 0, 32), 'polishedSteel', [X, 0, zc + z1 - rimH]);
+  const rim = scallopedAnnulus(s, N.flangeR, VERNIER.notchR, FLANGE_NOTCHES, N.pin.a, hubR + 0.2);
+  p.add(extrude(rim, rimH, 0, 1), 'polishedSteel', [X, 0, zc + z1 - rimH]);
   return p.g;
 }
 
@@ -1630,13 +1651,18 @@ export function intermediateShaft() {
     hub.holes.push(circlePath(3.5, 28 * Math.cos(a), 28 * Math.sin(a)) as THREE.Path);
   }
   p.add(extrude(hub, g1 - g0 + 2), 'steel', [0, y, g0 - 1]);
-  const twist = -Math.tan(30 * DEG) * (g1 - g0) / pr; // opposite hand to the crank gear
   const k = INT_GEAR.module / 2;
-  // Phase 0 puts both tip flats on the line of centres. A third of a tooth (π/60 − 0.017 rad)
-  // seats the crank tip in the intermediate gap. Teeth stop at z 204.7, short of the pulley-end
-  // bulkhead (z 205); the hub still spans the original face z 192–206.
-  const meshPhase = Math.PI / INT_GEAR.teeth - 0.017;
-  addHelix(p, INT_GEAR.teeth, pr - 3.2 * k, pr + 1.6 * k, 34, g0, 204.7, twist, 'steel', [0, y, 0], 12, meshPhase);
+  // Teeth stop at z 204.7. With the slice's 0.04 mm overlap the tips stay 0.26 mm short of the
+  // pulley-end bulkhead (z 205). The hub still spans the original face z 192–206.
+  // Twist is tan(30°) over that 12.7 mm tooth face. Using the 14 mm hub width here made the
+  // helix steeper than the crank gear, so a phase that was right at mid-face drifted off.
+  const toothZ1 = 204.7;
+  const twist = -Math.tan(30 * DEG) * (toothZ1 - g0) / pr;
+  // Half a tooth (π/60) plus Bottom End's −0.021 rad (~0.2 tooth) on the old −0.017 offset
+  // seats the crank tip in the gap. Another −0.006 rad lets the tapered flanks clear at every
+  // depth of the face (the slice centres are not the same z on the two gears).
+  const meshPhase = Math.PI / INT_GEAR.teeth - 0.017 - 0.021 - 0.006;
+  addHelix(p, INT_GEAR.teeth, pr - 3.2 * k, pr + 1.6 * k, 34, g0, toothZ1, twist, 'steel', [0, y, 0], 12, meshPhase);
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + 0.18;
     const x = 28 * Math.cos(a), yy = y + 28 * Math.sin(a);
@@ -1657,7 +1683,60 @@ export function intermediateShaft() {
   seg(12, 250.2, 257.6, 'steel'); // land between the almost-touching sprocket rows
   seg(11, 266, 276, 'polishedSteel');
   p.add(yToZ(hexNut(16, 6)), 'darkSteel', [0, y, 280]);
-  // Tooth tips aimed at the case perimeter nut (-18, -136, 190), r 8. The sector is the whole tooth, not only the tip.
-  cutGroup(p.g, boxMM([-36, -158, 186], [10, -124, 212]));
+  // Static-pose hack. The nut head sits outboard of the split (x ≈ −28..−18, axis y −136, z 190,
+  // washer r 8). A box chord was deleting about eight teeth; main only needed three bald ones.
+  // Cut the head's envelope plus 1 mm — a round relief, not a chord — and pull any tip that still
+  // enters the lug cylinder back along the tip circle. The nut and the case are not moved.
+  const nutHead = cyl(9, 16, 32);
+  nutHead.rotateZ(Math.PI / 2);
+  nutHead.translate(-24, -136, 190);
+  cutGroup(p.g, nutHead);
+  shavePerimeterTips(p.g);
   return p.g;
+}
+
+/** See intermediateShaft. Tip band is r > rTip − 0.55, the same vertices the clearance test checks. */
+function shavePerimeterTips(root: THREE.Object3D) {
+  const mod = INT_GEAR.module;
+  const pr = (INT_GEAR.teeth * mod) / 2;
+  const k = mod / 2;
+  const rTip = pr + 1.6 * k;
+  const rRoot = pr - 3.2 * k;
+  const rKeep = rTip - 0.55;
+  const y0 = INT_SHAFT_Y;
+  const lug = (x: number, y: number, z: number) => {
+    const dx = x < -18 ? -18 - x : x > 0 ? x : 0;
+    const radial = Math.hypot(y + 136, z - 190);
+    return dx === 0 ? radial - 8 : Math.hypot(dx, Math.max(0, radial - 8));
+  };
+  root.updateMatrixWorld(true);
+  const v = new THREE.Vector3();
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const g = mesh.geometry;
+    const P = g.getAttribute('position') as THREE.BufferAttribute;
+    const inv = mesh.matrixWorld.clone().invert();
+    let changed = false;
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
+      const dx = v.x, dy = v.y - y0, r = Math.hypot(dx, dy);
+      if (r <= rKeep || lug(v.x, v.y, v.z) >= 1) continue;
+      const ang = Math.atan2(dy, dx), c = Math.cos(ang), s = Math.sin(ang);
+      const L = (rr: number) => lug(rr * c, y0 + rr * s, v.z);
+      let nr = rRoot + 0.15;
+      if (L(nr) >= 1) {
+        let lo = nr, hi = r;
+        for (let n = 0; n < 16; n++) {
+          const mid = (lo + hi) / 2;
+          if (L(mid) >= 1) lo = mid; else hi = mid;
+        }
+        nr = lo;
+      }
+      v.set(nr * c, y0 + nr * s, v.z).applyMatrix4(inv);
+      P.setXYZ(i, v.x, v.y, v.z);
+      changed = true;
+    }
+    if (changed) { P.needsUpdate = true; g.computeVertexNormals(); }
+  });
 }

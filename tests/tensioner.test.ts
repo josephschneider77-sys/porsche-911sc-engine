@@ -50,49 +50,67 @@ describe('cam drive ratio', () => {
     });
     expect(tips).toBeGreaterThan(20);
   });
-  it('crank and intermediate teeth interleave at the pitch line', () => {
-    const mod = INT_GEAR.module;
-    const prC = (CRANK_GEAR_T * mod) / 2;
-    const prI = (INT_GEAR.teeth * mod) / 2;
-    const rTipC = prC + 2.5;
-    const rRootI = prI - 3.2 * (mod / 2);
-    const crank: THREE.Vector3[] = [];
-    const int: THREE.Vector3[] = [];
-    const split = (dest: THREE.Vector3[], root: THREE.Object3D) => {
+  it('crank and intermediate gear sections do not overlap across the face', () => {
+    const crank = crankGears();
+    const mid = intermediateShaft();
+    const segsAt = (root: THREE.Object3D, z: number) => {
       root.updateMatrixWorld(true);
+      const segs: Array<[[number, number], [number, number]]> = [];
       const v = new THREE.Vector3();
       root.traverse((o) => {
         const mesh = o as THREE.Mesh;
         if (!mesh.isMesh) return;
-        const P = mesh.geometry.getAttribute('position');
-        for (let i = 0; i < P.count; i++) dest.push(v.clone().fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld));
+        const g = mesh.geometry;
+        const P = g.getAttribute('position');
+        const idx = g.index;
+        const at = (i: number) => v.clone().fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
+        const nTri = idx ? idx.count / 3 : P.count / 3;
+        for (let t = 0; t < nTri; t++) {
+          const ia = idx ? idx.getX(t * 3) : t * 3;
+          const ib = idx ? idx.getX(t * 3 + 1) : t * 3 + 1;
+          const ic = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
+          const tri = [at(ia), at(ib), at(ic)];
+          const hits: [number, number][] = [];
+          for (let k = 0; k < 3; k++) {
+            const A = tri[k], B = tri[(k + 1) % 3];
+            const sa = A.z - z, sb = B.z - z;
+            if (Math.abs(sa) < 1e-6) hits.push([A.x, A.y]);
+            else if (sa * sb < 0) {
+              const u = sa / (sa - sb);
+              hits.push([A.x + (B.x - A.x) * u, A.y + (B.y - A.y) * u]);
+            }
+          }
+          if (hits.length >= 2 && Math.hypot(hits[0][0] - hits[1][0], hits[0][1] - hits[1][1]) > 1e-4) segs.push([hits[0], hits[1]]);
+        }
       });
+      return segs;
     };
-    split(crank, crankGears());
-    split(int, intermediateShaft());
-    const tips = crank.filter((p) => Math.abs(p.z - 199) < 0.6 && Math.hypot(p.x, p.y) > rTipC - 0.2);
-    let tip = tips[0], best = Infinity;
-    for (const p of tips) {
-      const d = Math.abs(Math.atan2(Math.sin(Math.atan2(p.y, p.x) + Math.PI / 2), Math.cos(Math.atan2(p.y, p.x) + Math.PI / 2)));
-      if (d < best) { best = d; tip = p; }
+    const inside = (segs: Array<[[number, number], [number, number]]>, x: number, y: number) => {
+      let n = 0;
+      for (const [a, b] of segs) {
+        if ((a[1] > y) === (b[1] > y)) continue;
+        const u = (y - a[1]) / (b[1] - a[1]);
+        if (a[0] + u * (b[0] - a[0]) > x) n++;
+      }
+      return n % 2 === 1;
+    };
+    // Depths Bottom End sectioned: inboard, mid-face, and the pulley end of the 12.7 mm face.
+    for (const z of [196, 199.3, 203, 204.5]) {
+      const a = segsAt(crank, z), b = segsAt(mid, z);
+      const cell = 0.2;
+      let both = 0, crankN = 0, intN = 0;
+      for (let x = -8; x <= 8; x += cell) {
+        for (let y = -42; y <= -20; y += cell) {
+          const ic = inside(a, x, y), ii = inside(b, x, y);
+          if (ic) crankN++;
+          if (ii) intN++;
+          if (ic && ii) both++;
+        }
+      }
+      expect(crankN, `crank section at z ${z}`).toBeGreaterThan(20);
+      expect(intN, `intermediate section at z ${z}`).toBeGreaterThan(20);
+      expect(both * cell * cell, `overlap at z ${z}`).toBe(0);
     }
-    const bins = new Float64Array(1440);
-    for (const p of int) {
-      if (Math.abs(p.z - 199) > 0.6) continue;
-      const y = p.y - INT_SHAFT_Y, r = Math.hypot(p.x, y);
-      if (r < rRootI - 0.3) continue;
-      let a = Math.atan2(y, p.x); if (a < 0) a += Math.PI * 2;
-      const b = Math.min(1439, (a / (Math.PI * 2) * 1440) | 0);
-      if (r > bins[b]) bins[b] = r;
-    }
-    let a = Math.atan2(tip.y - INT_SHAFT_Y, tip.x); if (a < 0) a += Math.PI * 2;
-    const b = (a / (Math.PI * 2) * 1440) | 0;
-    const outline = Math.max(bins[b], bins[(b + 1) % 1440], bins[(b + 1439) % 1440]);
-    const gap = Math.hypot(tip.x, tip.y - INT_SHAFT_Y) - outline;
-    expect(outline).toBeGreaterThan(rRootI - 0.4);
-    expect(outline).toBeLessThan(prI);
-    expect(gap).toBeGreaterThan(0.05);
-    expect(gap).toBeLessThan(1);
   });
 });
 
@@ -158,6 +176,29 @@ describe.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('chain te
     const landA = CAM_NOSE.pin.a + Math.PI / FLANGE_NOTCHES;
     const land = new THREE.Vector3(X + (CAM_NOSE.pin.rad - 0.6) * Math.cos(landA) * s, (CAM_NOSE.pin.rad - 0.6) * Math.sin(landA), z);
     expect(rayHit(`cam-flange-${b}`, land, down, 60)).not.toBeNull();
+  });
+  it('flange bore is open along the cam axis', () => {
+    const X = CAM_X * s, z = CHAIN_Z[s] + 30;
+    const down = new THREE.Vector3(0, 0, -1);
+    for (const r of [3, 8]) {
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        const o = new THREE.Vector3(X + r * Math.cos(a), r * Math.sin(a), z);
+        expect(rayHit(`cam-flange-${b}`, o, down, 60), `r ${r} a ${i}`).toBeNull();
+      }
+    }
+  });
+  it('flange lands are wider than the scallops', () => {
+    const X = CAM_X * s, z = CHAIN_Z[s] + 30;
+    const down = new THREE.Vector3(0, 0, -1);
+    let solid = 0;
+    const rad = 23.4;
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      const o = new THREE.Vector3(X + rad * Math.cos(a), rad * Math.sin(a), z);
+      if (rayHit(`cam-flange-${b}`, o, down, 60)) solid++;
+    }
+    expect(solid).toBeGreaterThan(18);
   });
   it('tensioner meshes stay by the chain housing and each is one piece', () => {
     const root = chainTensioner(s);
