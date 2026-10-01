@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PARTS } from '../src/data/parts';
+import { fastenerSets } from '../src/geo/fasteners';
 
 export interface Hit { a: string; b: string; tris: number; box: THREE.Box3 }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
@@ -28,11 +29,15 @@ function solid(id: string, asset: string, pos: number[] | undefined, rot: number
     let g: THREE.BufferGeometry = o.geometry;
     g = g.index ? g.toNonIndexed() : g.clone();
     if (!g.attributes.normal) g.computeVertexNormals();
-    const w = m.clone().multiply(o.matrixWorld); nm.getNormalMatrix(w);
-    const P = g.attributes.position, N = g.attributes.normal;
-    for (let i = 0; i < P.count; i++) {
-      v.fromBufferAttribute(P, i).applyMatrix4(w); n.fromBufferAttribute(N, i).applyMatrix3(nm).normalize();
-      v.addScaledVector(n, -tol); out.push(v.x, v.y, v.z);
+    // instanced hardware: expand every instance
+    const inst: THREE.Matrix4[] = o.isInstancedMesh ? Array.from({ length: o.count }, (_, i) => { const im = new THREE.Matrix4(); o.getMatrixAt(i, im); return im; }) : [new THREE.Matrix4()];
+    for (const im of inst) {
+      const w = m.clone().multiply(o.matrixWorld).multiply(im); nm.getNormalMatrix(w);
+      const P = g.attributes.position, N = g.attributes.normal;
+      for (let i = 0; i < P.count; i++) {
+        v.fromBufferAttribute(P, i).applyMatrix4(w); n.fromBufferAttribute(N, i).applyMatrix3(nm).normalize();
+        v.addScaledVector(n, -tol); out.push(v.x, v.y, v.z);
+      }
     }
   });
   const geom = new THREE.BufferGeometry(); geom.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
@@ -116,14 +121,30 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('alternator', 'fan-pulley|fan-housing|fan-impeller|plenum', 'JOINT alternator in the fan housing, impeller on its shaft'),
   pair('fan-housing', 'fan-impeller', 'JOINT impeller in housing'), pair('fan-belt', 'fan-pulley|crank-pulley', 'JOINT belt in grooves'),
   // ---- SIMPLIFIED (pre-v3, not cam drive / exhaust)
-  pair('crankcase-right|crankcase-left', 'conrod|piston|head|spark-plug|flywheel|pressure-plate', 'SIMPLIFIED case interior / head studs / rear seal boss not relieved'),
+  pair('crankcase-right|crankcase-left', 'conrod|piston|head|flywheel|pressure-plate', 'SIMPLIFIED case interior / head studs / rear seal boss not relieved'),
   pair('conrod', 'cylinder', 'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)'),
   pair('piston', 'head|valves', 'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut'),
   pair('cylinder', 'valves', 'SIMPLIFIED valve heads at the barrel top'),
-  pair('valve-cover-upper|valve-cover-lower', 'rockers|valves|camshaft', 'SIMPLIFIED covers are solid shells'),
-  pair('upper-air-guide', 'cam-housing|cylinder|head|intake-runner|injector|plenum|rockers|valves|valve-cover-upper|distributor|fuel-lines', 'SIMPLIFIED shroud cut-outs not modelled'),
+  pair('valve-cover-upper|valve-cover-lower', 'rockers|valves|camshaft|rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED covers are solid shells (rocker-shaft screw heads inside them)'),
+  pair('rockers', 'valve-cover-nuts-upper|valve-cover-nuts-lower', 'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear'),
+  pair('upper-air-guide', 'cam-housing|cylinder|head|intake-runner|injector|plenum|rockers|valves|valve-cover-upper|distributor|fuel-lines|valve-cover-nuts-upper|intake-nuts|breather-nuts', 'SIMPLIFIED shroud cut-outs not modelled'),
+  pair('fuel-lines', 'case-perimeter-nuts|crankcase-right|crankcase-left', 'SIMPLIFIED injection-line routing over the split-flange lugs is approximate'),
+  pair('valves', 'cam-housing-nuts', 'SIMPLIFIED modelled valve springs/retainers sit too high (long tilted valves) and pass the cam-housing nut stations, as they pass the base plate'),
   pair('oil-cooler', 'distributor|intake-runner|upper-air-guide', 'SIMPLIFIED cooler block envelope'),
   pair('breather-lid', 'distributor|upper-air-guide', 'SIMPLIFIED'), pair('plenum', 'distributor', 'SIMPLIFIED'),
 ];
+/**
+ * Fastener joints (JOINT, generated): each hardware set may overlap the part it seats on and the part it threads
+ * into (shank / stud in its hole); a stud may pass through the part its nut clamps. Nothing else is allowed, so a nut
+ * buried in a rib, a bolt through a neighbouring part or a stud through a spark plug is still flagged.
+ */
+const FASTENER_JOINTS = new Set<string>();
+for (const f of fastenerSets()) for (const it of f.items) {
+  FASTENER_JOINTS.add(`${f.id}|${it.seat}`); FASTENER_JOINTS.add(`${f.id}|${it.into}`);
+  if (it.stud) FASTENER_JOINTS.add(`${it.into}|${it.seat}`);
+}
+// screw + nut pairs (thread engagement)
+for (const [a, b] of [['case-through-bolts', 'case-through-nuts'], ['rocker-shaft-screws-right', 'rocker-shaft-nuts-right'], ['rocker-shaft-screws-left', 'rocker-shaft-nuts-left']]) FASTENER_JOINTS.add(`${a}|${b}`);
+export const isFastenerJoint = (a: string, b: string) => FASTENER_JOINTS.has(`${a}|${b}`) || FASTENER_JOINTS.has(`${b}|${a}`);
 export const isMating = (a: string, b: string) =>
-  MATING.some(([x, y]) => (x.test(a) && y.test(b)) || (x.test(b) && y.test(a)));
+  isFastenerJoint(a, b) || MATING.some(([x, y]) => (x.test(a) && y.test(b)) || (x.test(b) && y.test(a)));

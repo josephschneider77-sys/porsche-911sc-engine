@@ -65,7 +65,7 @@ function showInfo(id: string | null) {
 viewer.onPick = (id) => showInfo(id && id === viewer.selected ? null : id);
 
 // ---------------------------------------------------------------- parts list
-const order: SystemKey[] = ['crankcase', 'crank', 'pistons', 'heads', 'valvetrain', 'camdrive', 'lubrication', 'cooling', 'induction', 'ignition', 'exhaust', 'clutch'];
+const order: SystemKey[] = ['crankcase', 'crank', 'pistons', 'heads', 'valvetrain', 'camdrive', 'lubrication', 'cooling', 'induction', 'ignition', 'exhaust', 'clutch', 'hardware'];
 function renderList() {
   const list = $('parts-list');
   if ($('parts').classList.contains('hidden')) return;

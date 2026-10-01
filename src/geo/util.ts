@@ -130,9 +130,17 @@ export class Part {
 export function consolidate(root: THREE.Object3D, name: string): THREE.Group {
   root.updateMatrixWorld(true);
   const byMat = new Map<string, { m: THREE.Material; geos: THREE.BufferGeometry[] }>();
+  const inst: THREE.InstancedMesh[] = [];
   root.traverse((o) => {
     const me = o as THREE.Mesh;
     if (!me.isMesh) return;
+    if ((o as THREE.InstancedMesh).isInstancedMesh) {
+      // keep instancing (EXT_mesh_gpu_instancing): bake the parent transform into the instance matrices
+      const im = o as THREE.InstancedMesh; const c = new THREE.InstancedMesh(im.geometry, im.material, im.count);
+      const m = new THREE.Matrix4();
+      for (let i = 0; i < im.count; i++) { im.getMatrixAt(i, m); c.setMatrixAt(i, m.premultiply(im.matrixWorld)); }
+      c.name = `${name}:inst${inst.length}`; inst.push(c); return;
+    }
     let g = me.geometry.clone();
     g.applyMatrix4(me.matrixWorld);
     if (g.index) g = g.toNonIndexed();
@@ -149,6 +157,7 @@ export function consolidate(root: THREE.Object3D, name: string): THREE.Group {
     g.computeBoundingBox(); g.computeBoundingSphere();
     const me = new THREE.Mesh(g, e.m); me.name = `${name}:${k}`; out.add(me);
   }
+  for (const c of inst) { c.computeBoundingBox(); c.computeBoundingSphere(); out.add(c); }
   return out;
 }
 

@@ -9,16 +9,17 @@ import {
   polyShape, hull, circlePts, gearShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset,
 } from './util';
 import {
-  SPEC, CYL_Z, MAIN_Z, THROW_DEG, DECK_X, CYL_TOP_X, HEAD_OUT_X, CAM_X, CAM_HOUSING_OUT_X, INT_SHAFT_Y, CASE_Z, NOSE_BEARING_Z,
+  SPEC, SPARK_Z, CYL_Z, MAIN_Z, THROW_DEG, DECK_X, CYL_TOP_X, HEAD_OUT_X, CAM_X, CAM_HOUSING_OUT_X, INT_SHAFT_Y, CASE_Z, NOSE_BEARING_Z,
 } from '../data/layout';
 import type { MatKey } from './materials';
+import { HEAD_HW, CASE_TB, CASE_LUG } from './hwLayout';
 
 /** Chain plane (centre of the duplex chain) per bank: in front of the cam-housing end (z 222), rows clear of each other. */
 export const CHAIN_Z: Record<1 | -1, number> = { 1: 258, [-1]: 235 } as any;
 
 export const CRANK_GEAR_T = 36;
 
-const bankZ = (s: 1 | -1) => (s === 1 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]]);
+export const bankZ = (s: 1 | -1) => (s === 1 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]]);
 
 // ---------------------------------------------------------------- crankcase half (101-05 left / 101-10 right)
 /**
@@ -63,16 +64,16 @@ export function crankcaseHalf(s: 1 | -1) {
   // split-line flanges (top & bottom) with bosses + nuts
   p.add(boxMM([s > 0 ? 0 : -18, 108, z0], [s > 0 ? 18 : 0, 121, z1]), 'castAlu');
   p.add(boxMM([s > 0 ? 0 : -18, -132, z0], [s > 0 ? 18 : 0, -120, z1]), 'castAlu');
-  for (let z = z0 + 22; z < z1 - 8; z += 41) {
-    for (const [y, dir] of [[121, 1], [-132, -1]] as const) {
-      p.add(cyl(9, 4, 14), 'castAlu', [X(9), y + dir * 2, z]);
-      p.add(hexNut(13, 7), 'zincPlate', [X(9), y + dir * 7, z]);
-      p.add(cyl(3.9, 8, 8), 'zincPlate', [X(9), y + dir * 12, z]);
-    }
+  // horizontal (X-axis) stud lugs on the split flange: studs in the right half, lock nuts on the left-half lug faces
+  for (const [y, zs, y0] of [[CASE_LUG.yTop, CASE_LUG.top, 115], [CASE_LUG.yBot, CASE_LUG.bottom, -126]] as const) for (const z of zs) {
+    p.add(yToX(cyl(CASE_LUG.r, CASE_LUG.x, 16)), 'castAlu', [X(CASE_LUG.x / 2), y, z]);
+    p.add(boxMM([s > 0 ? 0 : -CASE_LUG.x, Math.min(y, y0), z - CASE_LUG.r], [s > 0 ? CASE_LUG.x : 0, Math.max(y, y0), z + CASE_LUG.r]), 'castAlu');
   }
-  // transverse casting ribs on the top + bottom surfaces
+  // transverse casting ribs on the top + bottom surfaces, between the lugs
+  const topMid = CASE_LUG.top.slice(1).map((z, i) => (z + CASE_LUG.top[i]) / 2);
+  for (const z of topMid) p.add(gusset([X(16), 121], [X(16), 108], [X(74), 108], 4, z), 'castAlu');
   for (let z = z0 + 12; z < z1 - 6; z += 29.5) {
-    p.add(gusset([X(16), 121], [X(16), 108], [X(74), 108], 4, z), 'castAlu');
+    if (CASE_LUG.bottom.some((zb) => Math.abs(zb - z) < 12)) continue;
     p.add(gusset([X(16), -132], [X(16), -120], [X(72), -114], 4, z), 'castAlu');
   }
   // cylinder spigot bores on the deck + lower head studs (Dilavar)
@@ -92,15 +93,11 @@ export function crankcaseHalf(s: 1 | -1) {
   const mids = [zs[0] - 59, (zs[0] + zs[1]) / 2, (zs[1] + zs[2]) / 2, zs[2] + 59];
   for (const zm of mids) {
     if (zm < z0 + 6 || zm > z1 - 6) continue;
-    p.add(boxMM([s > 0 ? 94 : -103, -80, zm - 5], [s > 0 ? 103 : -94, 74, zm + 5]), 'castAlu');
-    for (const y of [-46, 46]) {
-      p.add(yToX(cyl(12, 10, 24)), 'castAlu', [X(103), y, zm]);
-      p.add(yToX(hexNut(17, 10)), 'darkSteel', [X(113), y, zm]);
-      p.add(yToX(cyl(5.5, 6, 10)), 'darkSteel', [X(121), y, zm]);
-    }
     p.add(gusset([X(100), 70], [X(100), 108], [X(30), 112], 5, zm), 'castAlu');
     p.add(gusset([X(100), -72], [X(100), -116], [X(40), -124], 5, zm), 'castAlu');
   }
+  // through-bolt bosses on the main webs (bolt heads right, cap nuts left; hardware in fasteners.ts)
+  for (const z of CASE_TB.z) for (const y of CASE_TB.y) p.add(yToX(cyl(CASE_TB.r, CASE_TB.x - 94, 24)), 'castAlu', [X((CASE_TB.x + 94) / 2), y, z]);
   // longitudinal stiffening rails
   p.add(boxMM([s > 0 ? 88 : -104, 78, z0], [s > 0 ? 104 : -88, 86, z1]), 'castAlu');
   p.add(boxMM([s > 0 ? 88 : -104, -92, z0], [s > 0 ? 104 : -88, -84, z1]), 'castAlu');
@@ -144,15 +141,18 @@ export function crankcaseHalf(s: 1 | -1) {
   plate.holes.push(circlePath(29, 0, 0) as THREE.Path);
   p.add(extrude(plate, 6, 0, 8), 'castAlu', [0, 0, W.z1 - 6]);
   p.add(yToZ(lathe([[29, 0], [40, 0], [40, W.z1 - 6 - 228], [29, W.z1 - 6 - 228]], 32, s > 0 ? 0 : Math.PI, Math.PI)), 'castAlu', [0, 0, 228]);
-  for (const [x, y] of [[40, -118], [96, -30], [92, 10], [30, 36], [80, -120]] as const) p.add(yToZ(hexNut(10, 5)), 'zincPlate', [X(x), y, W.z1 + 2.5]);
+  // stud bosses for the chain-housing flange nuts (studs added with the hardware)
+  for (const q of chainHousingStuds(s)) p.add(yToX(cyl(7.5, CHAIN_BOX_INNER_X - 104, 14)), 'castAlu', [X((CHAIN_BOX_INNER_X + 104) / 2), q.y, q.z]);
   if (s > 0) {
     // oil pressure sender + engine-number pad on the right half
     p.add(cyl(11, 22, 16), 'castAlu', [40, 121, 170]);
     p.add(cyl(15, 30, 24), 'darkSteel', [40, 143, 170]);
     p.add(boxMM([60, 100, 110], [92, 106, 160]), 'machinedAlu');
+    // oil-thermostat pad under the right half (flange face y -128, 3 studs)
+    p.add(cyl(30, 12, 32), 'castAlu', [58, -122, 118]);
   } else {
     // breather / oil-filler tower seat on the left half
-    p.add(boxMM([-72, 108, 120], [-18, 122, 185]), 'castAlu');
+    p.add(boxMM([-76, 108, 120], [-30, 122, 185]), 'castAlu');
   }
   // round sump boss underneath (strainer cover seats here)
   p.add(yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), 'castAlu', [0, -126, -10]);
@@ -197,12 +197,13 @@ export function crankshaft() {
   }
   // flywheel flange with 9 bolt holes (102-00 #6 pan-head screws x9)
   const fl = circleShape(52);
-  for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; fl.holes.push(circlePath(5.5, 36 * Math.cos(a), 36 * Math.sin(a)) as THREE.Path); }
+  for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; fl.holes.push(circlePath(4.2, 36 * Math.cos(a), 36 * Math.sin(a)) as THREE.Path); } // tapped M10x1
   fl.holes.push(circlePath(10) as THREE.Path);
   p.add(extrude(fl, 12, 1), 'forgedDark', [0, 0, CASE_Z.flywheel - 8]);
   p.add(yToZ(cyl(rMain, 24, 32)), 'polishedSteel', [0, 0, -196]);
   // nose: timing gear seat, distributor drive seat, bearing 8 journal, pulley snout
   p.add(yToZ(lathe([[rMain, 186], [34, 186], [34, 226], [27, 226], [27, 256], [20, 256], [20, 318], [8, 320]], 48)), 'polishedSteel');
+  p.add(extrude(ringShape(8.5, 5), 4, 0, 24), 'polishedSteel', [0, 0, 316]); // nose end with the tapped M12x1.5 pulley-bolt hole
   return p.g;
 }
 
@@ -363,8 +364,10 @@ export function cylinderHead() {
   // spigot into the barrel + chamber
   p.add(yToX(lathe([[40, 0], [49.5, 0], [50.2, 1], [50.2, 5], [53, 6]], 48)), 'machinedAlu');
   p.add(yToX(lathe([[0.1, 9], [18, 8.2], [32, 5.6], [42, 2.4], [46, 0.2], [40, 0]], 48)), 'castAlu');
-  // core casting
+  // core casting + barrel-nut bosses on the four head studs (nut seat at x = HEAD_HW.barrel.x)
   p.add(boxMM([5, -50, -42], [W - 16, 52, 42]), 'castAlu');
+  const r45b = HEAD_HW.barrel.r * Math.SQRT1_2;
+  for (const [a, b] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) p.add(yToX(cyl(11.5, 10, 20)), 'castAlu', [HEAD_HW.barrel.x - 5, a * r45b, b * r45b]);
   // fins normal to the cylinder axis, rounded-square like the barrel, slightly larger
   const s45 = CYL_FIN.studR * Math.SQRT1_2;
   for (let x = 7, i = 0; x < 44; x += 4.6, i++) {
@@ -373,35 +376,32 @@ export function cylinderHead() {
     p.add(g, 'castAlu', [x, 0, 0]);
   }
   // cam-side "rocker box" face with two spring wells
-  const face = roundRect(92, 124, 10);
+  // face block with counterbores over the barrel nuts (socket access from the cam-housing side)
+  const face = roundRect(108, 124, 10);
+  for (const [a, b] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) face.holes.push(circlePath(11.5, a * r45b, b * r45b) as THREE.Path);
   const wellI: [number, number] = [0, 38], wellE: [number, number] = [0, -38];
   face.holes.push(circlePath(17.5, wellI[0], wellI[1]) as THREE.Path, circlePath(16.5, wellE[0], wellE[1]) as THREE.Path);
   const fg = extrudeC(face, 14, 0.8, 16); fg.rotateY(Math.PI / 2);
   p.add(fg, 'castAlu', [W - 8, 0, 0]);
   for (const [y, r] of [[38, 17.4], [-38, 16.4]]) p.add(yToX(cyl(r, 1, 32)), 'bore', [W - 15.5, y, 0]);
   // intake port (top) with flange & 2 studs
-  const ip = roundRect(46, 40, 12);
+  const ip = roundRect(46, 76, 12);
   ip.holes.push(circlePath(17.5) as THREE.Path);
   const ipg = extrudeC(ip, 10); ipg.rotateX(Math.PI / 2);
   p.add(ipg, 'castAlu', [26, 60, 0]);
   p.add(cylBetween([26, 44, 0], [26, 56, 0], 22, 24), 'castAlu');
   p.add(yToZ(cyl(17.4, 1, 32)).rotateX(Math.PI / 2), 'bore', [26, 63, 0]);
-  for (const z of [-17, 17]) { p.add(cyl(4, 14, 8), 'zincPlate', [26, 70, z]); p.add(hexNut(13, 6), 'zincPlate', [26, 68, z]); }
   // exhaust port (bottom) flange & studs
-  const ep = roundRect(44, 34, 8); ep.holes.push(circlePath(15.5) as THREE.Path);
-  const epg = extrudeC(ep, 10); epg.rotateX(Math.PI / 2);
-  p.add(epg, 'castAlu', [34, -57, 0]);
+  const ep = roundRect(44, 78, 8); ep.holes.push(circlePath(15.5) as THREE.Path);
+  const epg = extrudeC(ep, 11.5); epg.rotateX(Math.PI / 2);
+  p.add(epg, 'castAlu', [34, -57.75, 0]); // flange face y -63.5
   p.add(cylBetween([34, -44, 0], [34, -54, 0], 20, 24), 'castAlu');
-  p.add(yToZ(cyl(15.4, 1, 32)).rotateX(Math.PI / 2), 'bore', [34, -61, 0]);
-  for (const z of [-16, 16]) p.add(cyl(4, 16, 8), 'zincPlate', [34, -64, z]);
+  p.add(yToZ(cyl(15.4, 1, 32)).rotateX(Math.PI / 2), 'bore', [34, -62.6, 0]);
   // spark plug boss (lower side, angled outward)
   const sp = cyl(11, 26, 20); sp.rotateZ(-20 * DEG);
-  p.add(sp, 'castAlu', [16, -50, 34]);
-  p.add(yToZ(cyl(7, 1, 16)).rotateX(Math.PI / 2).rotateZ(-20 * DEG), 'bore', [12, -62, 34]);
-  // cam housing studs (#5-#7)
-  for (const [y, z] of [[36, 30], [36, -30], [-36, 30], [-36, -30]]) {
-    p.add(yToX(cyl(4, 16, 8)), 'zincPlate', [W + 4, y, z]);
-  }
+  p.add(sp, 'castAlu', [16, -50, SPARK_Z]);
+  p.add(yToZ(cyl(7, 1, 16)).rotateX(Math.PI / 2).rotateZ(-20 * DEG), 'bore', [12, -62, SPARK_Z]);
+  // cam-housing studs (103-00 #7) are added with the hardware (fasteners.ts, HEAD_HW.camStud)
   return p.g;
 }
 
@@ -440,7 +440,13 @@ export function valveSet() {
  */
 const CH_Z0 = -168, CH_Z1 = CASE_Z.pulley;
 /** Valve-cover ear positions along engine Z (relative to housing centre). */
-const VC_EARS = (upper: boolean) => (upper ? [-0.36, 0, 0.36] : [-0.42, -0.21, 0, 0.21, 0.42]);
+const VC_EAR_F = (upper: boolean) => (upper ? [-0.39, -0.13, 0.13, 0.39] : [-0.42, -0.252, -0.084, 0.084, 0.252, 0.42]);
+/** Valve-cover ear stations along engine Z, relative to the housing centre (mm): 4 per edge upper, 6 lower (103-05: 40 nuts). */
+export const VC_EARS = (upper: boolean) => VC_EAR_F(upper).map((f) => f * (CH_Z1 - CH_Z0 - 30));
+/** Ear centre offset across the cover (cover-local x). */
+export const VC_EDGE = 31;
+/** Rocker-shaft towers: axis x (unsigned), y, and machined end-face offset from the cylinder centre. */
+export const ROCKER_TOWER = { x: CAM_X + 16, y: 40, face: 23 };
 export function camHousing(s: 1 | -1) {
   const p = new Part();
   const X = (x: number) => x * s;
@@ -450,7 +456,7 @@ export function camHousing(s: 1 | -1) {
   };
   const L = CH_Z1 - CH_Z0, zc = (CH_Z0 + CH_Z1) / 2;
   // base plate against heads with machined skirt
-  bx(HEAD_OUT_X, HEAD_OUT_X + 10, -70, 72, CH_Z0, CH_Z1);
+  bx(HEAD_OUT_X, HEAD_OUT_X + 10, -70, 72, CH_Z0 - 5, CH_Z1); // extended at the flywheel end under the cyl. 6 nuts
   bx(HEAD_OUT_X, HEAD_OUT_X + 2, -73, 75, CH_Z0 + 2, CH_Z1 - 2, 'machinedAlu');
   // cam tunnel: thick sector shell around the cam axis on the outer side (open toward the rockers)
   const tun = new THREE.Shape();
@@ -484,7 +490,7 @@ export function camHousing(s: 1 | -1) {
   }
   // cast stud bosses + studs on the rails where the valve-cover ears land
   for (const upper of [true, false]) for (const f of VC_EARS(upper)) {
-    const z = zc + f * (L - 30);
+    const z = zc + f;
     for (const yy of upper ? [69] : [-69]) {
       p.add(yToX(cyl(6.5, 12, 14)), 'castAlu', [X(HEAD_OUT_X + 12), yy, z]);
     }
@@ -501,11 +507,7 @@ export function camHousing(s: 1 | -1) {
   // flywheel-end tunnel cover (#16/#17)
   p.add(yToZ(lathe([[0, -3], [30, -3], [30, 2], [26, 4], [0, 4]], 36)), 'castAlu', [X(CAM_X), 0, CH_Z0 - 4]);
   for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2 + 0.5; p.add(yToZ(hexNut(9, 5)), 'zincPlate', [X(CAM_X) + 25 * Math.cos(a), 25 * Math.sin(a), CH_Z0 - 8]); }
-  // stud nuts to heads (#22)
-  for (const zc2 of zs) for (const [y, dz] of [[60, 30], [60, -30], [-60, 30], [-60, -30]]) {
-    p.add(yToX(hexNut(13, 7)), 'zincPlate', [X(HEAD_OUT_X + 16), y, zc2 + dz]);
-    p.add(yToX(cyl(8.5, 1.5, 16)), 'zincPlate', [X(HEAD_OUT_X + 12), y, zc2 + dz]);
-  }
+  // nuts to the heads (#22) on the head studs: fasteners.ts (cam-housing-nuts)
   return p.g;
 }
 
@@ -545,13 +547,8 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   pan.translate(0, 0, 3.5);
   loc.add(pan, 'castAlu');
   // ears with nuts and washers (both long edges)
-  for (const f of VC_EARS(upper)) {
-    const yy = f * (L - 30);
-    for (const xx of [-w / 2 - 2, w / 2 + 2]) {
-      loc.add(yToZ(cyl(7, 7, 16)), 'castAlu', [xx, yy, 3.5]);
-      loc.add(yToZ(cyl(6.2, 1.2, 14)), 'zincPlate', [xx, yy, 7.6]);
-      loc.add(yToZ(hexNut(10, 6)), 'zincPlate', [xx, yy, 11]);
-    }
+  for (const yy of VC_EARS(upper)) {
+    for (const xx of [-VC_EDGE, VC_EDGE]) loc.add(yToZ(cyl(8.5, 7, 16)), 'castAlu', [xx, yy, 3.5]); // ear, nut seat at z 7
   }
   if (upper) {
     // two machined round bosses
@@ -566,7 +563,11 @@ export function valveCover(s: 1 | -1, upper: boolean) {
     // lower covers: low longitudinal stiffening ribs
     for (const dx of [-8, 8]) loc.add(boxMM([dx - 1.2, -len / 2 + 20, 13], [dx + 1.2, len / 2 - 20, 15.5]), 'castAlu');
   }
-  // local x = along slope, local y = engine Z, local z = outward normal
+  loc.g.applyMatrix4(coverMatrix(s, upper));
+  const out = new Part(); out.addObj(loc.g); return out.g;
+}
+/** Valve-cover frame: local x = along the slope, local y = engine Z, local z = outward normal (seat flange at z 0). */
+export function coverMatrix(s: 1 | -1, upper: boolean) {
   const a0 = new THREE.Vector3((HEAD_OUT_X + 13) * s, upper ? 74 : -74, 0);
   const a1 = new THREE.Vector3((CAM_HOUSING_OUT_X - 7) * s, upper ? 32 : -32, 0);
   const mid = a0.clone().add(a1).multiplyScalar(0.5);
@@ -577,8 +578,7 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   if (n.dot(outward) < 0) { u = u.negate(); n = new THREE.Vector3().crossVectors(u, e); }
   const m = new THREE.Matrix4().makeBasis(u, e, n);
   m.setPosition(mid.clone().add(n.clone().multiplyScalar(2)).setZ((CH_Z0 + CH_Z1) / 2));
-  loc.g.applyMatrix4(m);
-  const out = new Part(); out.addObj(loc.g); return out.g;
+  return m;
 }
 
 // ---------------------------------------------------------------- camshaft (103-10/-15 #42)
@@ -642,24 +642,18 @@ const INT_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / INT_T)); // 27.4
 const CAM_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / CAM_T)); // 41.0
 const ROW = 5.1; // duplex row offset from chain centre
 /** Chain-housing box (both banks): bolts to the crankcase pulley face, cover face 70 mm proud of it. */
-const HOUSING_Z0 = CASE_Z.pulley, HOUSING_Z1 = CASE_Z.pulley + 70;
+export const HOUSING_Z0 = CASE_Z.pulley, HOUSING_Z1 = CASE_Z.pulley + 70;
 /** Straight inner (crankcase-side) edge of the chain box, |x|. Inboard of this the chains run in the case's chain well. */
 export const CHAIN_BOX_INNER_X = 118;
 const CAM_END_X = 254; // inboard edge of the cam-housing end face that sits inside the box
 const CAM_HOUSING_END_Z = CASE_Z.pulley + 10; // 222
 
-export function chainPath(s: 1 | -1) {
-  // two circles: intermediate shaft sprocket & cam sprocket; external tangent loop
+/** Straight two-sprocket loop (intermediate + cam sprocket, external tangents): the reference the idler deflects. */
+export function basePath(s: 1 | -1) {
   const c1 = new THREE.Vector2(0, INT_SHAFT_Y), r1 = INT_SPROCKET_R;
   const c2 = new THREE.Vector2(CAM_X * s, 0), r2 = CAM_SPROCKET_R;
-  const pts: THREE.Vector2[] = [];
   const d = c2.clone().sub(c1); const L = d.length(); const base = Math.atan2(d.y, d.x);
   const beta = Math.acos((r1 - r2) / L);
-  const arc = (c: THREE.Vector2, r: number, a0: number, a1: number, n: number) => {
-    for (let i = 0; i <= n; i++) { const a = a0 + ((a1 - a0) * i) / n; pts.push(new THREE.Vector2(c.x + r * Math.cos(a), c.y + r * Math.sin(a))); }
-  };
-  arc(c2, r2, base - beta, base + beta, 40);
-  arc(c1, r1, base + beta, base + Math.PI * 2 - beta, 40);
   const al = s > 0 ? base - beta : base + beta; // lower (slack) run
   const lo1 = new THREE.Vector2(c1.x + r1 * Math.cos(al), c1.y + r1 * Math.sin(al));
   const lo2 = new THREE.Vector2(c2.x + r2 * Math.cos(al), c2.y + r2 * Math.sin(al));
@@ -668,51 +662,123 @@ export function chainPath(s: 1 | -1) {
   const up2 = new THREE.Vector2(c2.x + r2 * Math.cos(au), c2.y + r2 * Math.sin(au));
   const nLo = new THREE.Vector2(Math.cos(al), Math.sin(al)); // outward normal of lower run (points down)
   const nUp = new THREE.Vector2(Math.cos(au), Math.sin(au));
-  return { pts, c1, c2, lo1, lo2, up1, up2, nLo, nUp };
+  return { c1, c2, r1, r2, lo1, lo2, up1, up2, nLo, nUp };
+}
+/** How far the idler pushes the slack run into the loop, measured from the straight tangent line (mm, E). */
+export const IDLER_PUSH = 38;
+/** Idler station along the slack run, |x| (mm, E: photo rebuild-pic10, idler about 2/3 of the way to the cam). */
+export const IDLER_X = 210;
+/** Idler wrap: the chain's pitch line follows the idler pitch circle over this arc (computed, see chainPath). */
+interface Circ { c: THREE.Vector2; r: number; sg: 1 | -1 }
+/** Common tangent leaving circle a and arriving at circle b for a CCW loop; sg = -1 circles are wrapped from outside. */
+function tangent(a: Circ, b: Circ) {
+  const d = b.c.clone().sub(a.c), L = d.length(), phi = Math.atan2(d.y, d.x);
+  const k = (a.sg * a.r - b.sg * b.r) / L;
+  for (const sgn of [1, -1]) {
+    const th = phi + sgn * Math.acos(k);
+    const n = new THREE.Vector2(Math.cos(th), Math.sin(th));
+    const pa = a.c.clone().add(n.clone().multiplyScalar(a.sg * a.r)), pb = b.c.clone().add(n.clone().multiplyScalar(b.sg * b.r));
+    const t = new THREE.Vector2(-n.y, n.x);
+    if (t.dot(pb.clone().sub(pa)) > 0) return { pa, pb, n };
+  }
+  throw new Error('no tangent');
+}
+/**
+ * Chain pitch line (engine XY) for one bank: CCW loop over the cam sprocket, the intermediate sprocket and the idler.
+ * The idler sits OUTSIDE the loop under the slack (lower) run and pushes it IDLER_PUSH mm inward, so the chain leaves
+ * the intermediate sprocket, wraps over the top of the idler pitch circle and climbs to the cam sprocket.
+ */
+export function chainPath(s: 1 | -1) {
+  const B = basePath(s);
+  const T = tensionerLayout(s);
+  const cam: Circ = { c: B.c2, r: B.r2, sg: 1 }, int: Circ = { c: B.c1, r: B.r1, sg: 1 }, idl: Circ = { c: T.idler, r: T.idlerR, sg: -1 };
+  // CCW traversal order (see basePath): right bank cam -> int -> idler, left bank cam -> idler -> int
+  const order = s > 0 ? [cam, int, idl] : [cam, idl, int];
+  const tans = order.map((a, i) => tangent(a, order[(i + 1) % 3]));
+  const pts: THREE.Vector2[] = [];
+  const arcs: { circ: Circ; a0: number; a1: number }[] = [];
+  order.forEach((C, i) => {
+    const pin = tans[(i + 2) % 3].pb, pout = tans[i].pa;
+    let a0 = Math.atan2(pin.y - C.c.y, pin.x - C.c.x), a1 = Math.atan2(pout.y - C.c.y, pout.x - C.c.x);
+    if (C.sg > 0) { while (a1 <= a0) a1 += Math.PI * 2; } else { while (a1 >= a0) a1 -= Math.PI * 2; }
+    arcs.push({ circ: C, a0, a1 });
+    const n = Math.max(2, Math.ceil(Math.abs(a1 - a0) / 0.05));
+    for (let k = 0; k <= n; k++) { const a = a0 + ((a1 - a0) * k) / n; pts.push(new THREE.Vector2(C.c.x + C.r * Math.cos(a), C.c.y + C.r * Math.sin(a))); }
+    // straight run to the next circle
+    const A = tans[i].pa, Bp = tans[i].pb, m = Math.max(2, Math.ceil(A.distanceTo(Bp) / 6));
+    for (let k = 1; k < m; k++) pts.push(A.clone().lerp(Bp, k / m));
+  });
+  const idlerArc = arcs[order.indexOf(idl)];
+  const intToIdler = tans[1]; // slack run between the int sprocket and the idler (direction of travel differs per bank)
+  const idlerToCam = s > 0 ? tans[2] : tans[0];
+  return { ...B, pts, arcs, idlerArc, idlerWrap: Math.abs(idlerArc.a1 - idlerArc.a0), slackA: intToIdler, slackB: idlerToCam };
+}
+/** Chain pin centres (one per pitch) along the closed pitch line, shared by the chain mesh and the tests. */
+export function chainPins(s: 1 | -1) {
+  const { pts } = chainPath(s);
+  const curve = new THREE.CatmullRomCurve3(pts.map((v) => new THREE.Vector3(v.x, v.y, 0)), true, 'centripetal');
+  const len = curve.getLength(); const n = Math.round(len / PITCH / 2) * 2;
+  return { n, len, pins: Array.from({ length: n }, (_, i) => curve.getPointAt(i / n)) };
 }
 /** y of a run (line a-b) at engine x. */
 const runY = (a: THREE.Vector2, b: THREE.Vector2, x: number) => a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x);
+/** Hydraulic adjuster: body length, plunger + dome, arm-tail pad radius, and the plunger axis z offset from the chain plane. */
+export const ADJ = { body: 50, dome: 4.5, pad: 6.5, zOff: { 1: -13, [-1]: -5 } as Record<number, number> };
 /**
- * Tensioner geometry (photo rebuild-pic10 / tensioner-pic3): 15 T idler under the slack run about ⅔ of the way to the
- * cam, idler arm pivoting outboard of it, arm tail inboard, hydraulic adjuster lying inclined in the lower inner corner
- * of the box pushing the tail up — nothing hangs down over the heat exchanger.
+ * Tensioner geometry (photo rebuild-pic10 / tensioner-pic3/4): 15 T idler OUTSIDE the loop under the slack run, about
+ * 2/3 of the way to the cam, pushed IDLER_PUSH mm up into the run so the chain wraps it. The idler arm pivots outboard
+ * of it; its tail pad (inboard) rests on the plunger of the hydraulic adjuster, which stands inclined (~36 deg) in the
+ * lower inner corner of the box with its base where the v3 floor already was, so nothing drops toward the heat exchanger.
  */
 export function tensionerLayout(s: 1 | -1) {
-  const { lo1, lo2, nLo } = chainPath(s);
+  const { lo1, lo2, nLo } = basePath(s);
   const idlerR = PITCH / (2 * Math.sin(Math.PI / IDLER_T));
-  const xI = 208 * s;
+  const xI = IDLER_X * s;
   const onRun = new THREE.Vector2(xI, runY(lo1, lo2, xI));
-  const idler = onRun.clone().add(nLo.clone().multiplyScalar(idlerR - 1.5));
+  const up = nLo.clone().multiplyScalar(-1);
+  // pitch circle tangent to the straight run, then pushed IDLER_PUSH into the loop
+  const idler = onRun.clone().add(nLo.clone().multiplyScalar(idlerR)).add(up.clone().multiplyScalar(IDLER_PUSH));
   const dir = lo2.clone().sub(lo1).normalize(); // along the run, toward the cam
   const pivot = idler.clone().add(dir.clone().multiplyScalar(44)).add(nLo.clone().multiplyScalar(4));
-  const tail = idler.clone().add(dir.clone().multiplyScalar(-34)).add(nLo.clone().multiplyScalar(13));
-  const axis = new THREE.Vector2(0.94 * s, 0.34); // adjuster axis, base -> plunger tip (≈20° above horizontal; the photo's ≈60° would need a deeper box over the heat exchanger)
-  const adjLen = 56;
-  const adj = tail.clone().add(axis.clone().multiplyScalar(-9)); // plunger tip under the arm tail
-  const adjBase = adj.clone().add(axis.clone().multiplyScalar(-adjLen));
-  return { idler, idlerR, pivot, tail, adj, adjBase, axis, adjLen, dir };
+  const tail = idler.clone().add(dir.clone().multiplyScalar(-30)).add(nLo.clone().multiplyScalar(20));
+  // adjuster base in the lower inner corner at the v3 floor height; axis aims at the tail pad
+  const adjBase = new THREE.Vector2(134 * s, -124);
+  const axis = tail.clone().sub(adjBase).normalize();
+  const contact = tail.clone().sub(axis.clone().multiplyScalar(ADJ.pad)); // plunger dome apex touches the pad here
+  const reach = contact.distanceTo(adjBase); // base -> apex
+  const plunger = reach - ADJ.body - ADJ.dome; // exposed plunger length
+  const adj = adjBase.clone().add(axis.clone().multiplyScalar(ADJ.body)); // top of the body (plunger exits here)
+  const perp = new THREE.Vector2(-axis.y, axis.x).multiplyScalar(s); // toward the chain / box interior
+  const ear = adjBase.clone().add(axis.clone().multiplyScalar(12)).add(perp.clone().multiplyScalar(21)); // mounting ear stud
+  const z = CHAIN_Z[s], adjZ = z + ADJ.zOff[s];
+  return { idler, idlerR, pivot, tail, contact, adj, adjBase, axis, perp, ear, reach, plunger, dir, up, z, adjZ, adjLen: ADJ.body };
 }
-function duplexSprocket(p: Part, teeth: number, r: number, at: V3, hub: number, mat: MatKey = 'steel') {
+/** Rotation that puts a tooth gap (roller seat, gearShape sprocket mode: gap centre at 0.875 pitch) on the nearest chain roller. */
+export function toothPhase(s: 1 | -1, cx: number, cy: number, r: number, teeth: number) {
+  const { pins } = chainPins(s);
+  let best = pins[0], bd = Infinity;
+  for (const q of pins) { const d = Math.abs(Math.hypot(q.x - cx, q.y - cy) - r); if (d < bd) { bd = d; best = q; } }
+  return Math.atan2(best.y - cy, best.x - cx) - 0.875 * ((Math.PI * 2) / teeth);
+}
+function duplexSprocket(p: Part, teeth: number, r: number, at: V3, hub: number, mat: MatKey = 'steel', phase = 0) {
   const rr = r - 3.6, rt = r + 3.4;
   for (const dz of [-ROW, ROW]) {
     const ring = gearShape(teeth, rr, rt, 0, true); ring.holes.push(circlePath(rr - 4) as THREE.Path);
-    p.add(extrudeC(ring, 5.2, 0.4, 2), mat, [at[0], at[1], at[2] + dz]);
+    p.add(extrudeC(ring, 5.2, 0.4, 2).rotateZ(phase), mat, [at[0], at[1], at[2] + dz]);
   }
   const body = circleShape(rr - 3.5); body.holes.push(circlePath(hub) as THREE.Path);
   p.add(extrudeC(body, 15.8, 0.6, 24), mat, at);
 }
 export function timingChain(s: 1 | -1) {
   const p = new Part();
-  const { pts } = chainPath(s);
-  const curve = new THREE.CatmullRomCurve3(pts.map((v) => new THREE.Vector3(v.x, v.y, 0)), true);
-  const len = curve.getLength(); const n = Math.round(len / PITCH / 2) * 2;
+  const { n, pins } = chainPins(s);
   const z = CHAIN_Z[s];
   const inner = extrudeC(roundRect(PITCH + 6.2, 8.8, 4.4), 1.2, 0, 3);
   const outer = extrudeC(polyShape([[-PITCH / 2 - 3.6, -4.3], [-PITCH / 2 + 1.5, -3.2], [PITCH / 2 - 1.5, -3.2], [PITCH / 2 + 3.6, -4.3], [PITCH / 2 + 4.6, 0], [PITCH / 2 + 3.6, 4.3], [PITCH / 2 - 1.5, 3.2], [-PITCH / 2 + 1.5, 3.2], [-PITCH / 2 - 3.6, 4.3], [-PITCH / 2 - 4.6, 0]]), 1.2);
   const roller = yToZ(cyl(3.2, 5.6, 10));
   const pin = yToZ(cyl(1.7, 22.4, 6));
   for (let i = 0; i < n; i++) {
-    const a = curve.getPointAt(i / n), b = curve.getPointAt(((i + 1) % n) / n);
+    const a = pins[i], b = pins[(i + 1) % n];
     const ang = Math.atan2(b.y - a.y, b.x - a.x);
     const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
     const isInner = i % 2 === 0;
@@ -729,7 +795,7 @@ export function camSprocket(s: 1 | -1) {
   const rr = CAM_SPROCKET_R - 3.6, rt = CAM_SPROCKET_R + 3.4;
   for (const dz of [-ROW, ROW]) {
     const ring = gearShape(CAM_T, rr, rt, 0, true); ring.holes.push(circlePath(rr - 5) as THREE.Path);
-    p.add(extrudeC(ring, 5.2, 0.4, 2), 'steel', [X, 0, z + dz]);
+    p.add(extrudeC(ring, 5.2, 0.4, 2).rotateZ(toothPhase(s, X, 0, CAM_SPROCKET_R, CAM_T)), 'steel', [X, 0, z + dz]);
   }
   // web with 6 lightening holes (Porsche vernier: dowel + holes) and hub
   const web = circleShape(rr - 4);
@@ -745,47 +811,60 @@ export function camSprocket(s: 1 | -1) {
   p.add(yToZ(cyl(3.5, 5, 10)), 'brass', [X + 14 * s, 8, z + 8]); // dowel
   return p.g;
 }
-/** Chain tensioner (chain adjuster #10), idler arm (#5), idler sprocket (#6), guide ramps (#2). */
+/**
+ * Chain tensioner (103-10/-15): idler sprocket (#6, 15 T) on its arm (#5) pressed up into the slack run so the chain
+ * wraps it (~36 deg), arm pivoting on its shaft (#3) in the housing boss, tail pad loaded by the hydraulic chain
+ * adjuster (#10) whose plunger dome bears on the pad; adjuster held by its mounting ear on a housing stud + M8 nut
+ * (103-10 #27/#28); plastic guide rails (#2) on the tight run and under the slack run.
+ */
 export function chainTensioner(s: 1 | -1) {
   const p = new Part();
   const z = CHAIN_Z[s];
   const T = tensionerLayout(s);
-  const { up1, up2, lo1, lo2, nUp, nLo } = chainPath(s);
-  // idler sprocket (duplex, 15 T) on a stub shaft
-  duplexSprocket(p, IDLER_T, T.idlerR, [T.idler.x, T.idler.y, z], 6);
+  const { up1, up2, nUp } = basePath(s);
+  const P = chainPath(s);
+  // idler sprocket (duplex, 15 T), tooth gaps phased onto the chain rollers, on its stub bolt (103-10 #7)
+  duplexSprocket(p, IDLER_T, T.idlerR, [T.idler.x, T.idler.y, z], 6, 'steel', toothPhase(s, T.idler.x, T.idler.y, T.idlerR, IDLER_T));
   p.add(yToZ(cyl(6, 24, 12)), 'polishedSteel', [T.idler.x, T.idler.y, z]);
+  p.add(yToZ(hexNut(13, 6)), 'darkSteel', [T.idler.x, T.idler.y, z + 15]);
   // forged idler arm behind the chain: pivot boss -> idler hub -> tail pad
-  const armPts = hull([...circlePts(T.pivot.x, T.pivot.y, 10, 16), ...circlePts(T.idler.x, T.idler.y, 9, 16), ...circlePts(T.tail.x, T.tail.y, 6.5, 12)]);
+  const armPts = hull([...circlePts(T.pivot.x, T.pivot.y, 10, 16), ...circlePts(T.idler.x, T.idler.y, 9, 16), ...circlePts(T.tail.x, T.tail.y, ADJ.pad, 12)]);
   p.add(extrudeC(polyShape(armPts), 6, 0.8), 'forgedDark', [0, 0, z - 15]);
   p.add(yToZ(cyl(10, 18, 20)), 'forgedDark', [T.pivot.x, T.pivot.y, z - 9]);
   p.add(yToZ(cyl(7, 28, 16)), 'polishedSteel', [T.pivot.x, T.pivot.y, z - 6]); // idler arm shaft (#3)
-  // hydraulic chain adjuster, inclined in the lower inner corner: alu body, plunger tip against the arm tail
-  const zz = z - 4;
+  // tail pad (hardened, Z-axis) that the plunger dome bears on
+  const padZ0 = z - 18, padZ1 = Math.max(T.adjZ + 8, z - 12);
+  p.add(yToZ(cyl(ADJ.pad, padZ1 - padZ0, 20)), 'polishedSteel', [T.tail.x, T.tail.y, (padZ0 + padZ1) / 2]);
+  // hydraulic adjuster along its axis: alu body from the base, steel plunger, domed tip touching the tail pad
   const adj = new Part();
-  adj.add(lathe([[0, -T.adjLen], [11, -T.adjLen], [12.5, -T.adjLen + 4], [12.5, -14], [11, -10], [8, -10], [8, -2], [0, -2]], 28), 'castAlu');
-  for (let k = 0; k < 3; k++) adj.add(cyl(13.3, 1.3, 28), 'castAlu', [0, -24 - k * 10, 0]);
-  adj.add(cyl(5, 10, 14), 'polishedSteel', [0, 3, 0]);
-  adj.add(lathe([[0, 0], [6.5, 0], [6.5, 2.5], [3, 4.5], [0, 4.5]], 14), 'steel', [0, 7.5, 0]);
-  // mounting flange across the body (bolted to the housing back wall boss)
-  const fl = extrudeC(polyShape(hull([...circlePts(-18, 0, 6, 10), ...circlePts(18, 0, 6, 10), ...circlePts(0, 0, 14, 16)])), 4);
-  fl.rotateX(Math.PI / 2);
-  adj.add(fl, 'castAlu', [0, -18, 0]);
-  adj.add(hexNut(15, 7), 'zincPlate', [0, -T.adjLen - 3.5, 0]);
-  const ang = Math.atan2(T.axis.y, T.axis.x) - Math.PI / 2;
-  adj.g.rotation.z = ang; adj.g.position.set(T.adj.x, T.adj.y, zz);
+  const L = ADJ.body, reach = T.reach;
+  adj.add(lathe([[0.1, 0], [11, 0], [12.5, 4], [12.5, L - 6], [11, L - 2], [8, L - 2], [8, L], [0.1, L]], 28), 'castAlu');
+  for (let k = 0; k < 3; k++) adj.add(cyl(13.3, 1.3, 28), 'castAlu', [0, 12 + k * 10, 0]);
+  adj.add(cyl(5, reach - ADJ.dome - (L - 2), 14), 'polishedSteel', [0, (L - 2 + reach - ADJ.dome) / 2, 0]);
+  adj.add(lathe([[0.1, 0], [6.5, 0], [6.5, 1.5], [3, ADJ.dome], [0.1, ADJ.dome]], 18), 'steel', [0, reach - ADJ.dome, 0]);
+  adj.g.rotation.z = Math.atan2(T.axis.y, T.axis.x) - Math.PI / 2; adj.g.position.set(T.adjBase.x, T.adjBase.y, T.adjZ);
   p.g.add(adj.g);
-  // plastic guide ramps (#2): above the upper (tight) run near the inner edge, and under the lower run at the int exit
-  const ramp = (a: THREE.Vector2, b: THREE.Vector2, n: THREE.Vector2, f0: number, f1: number, outside: boolean) => {
-    const off = outside ? 9.5 : -5.5;
+  // mounting ear at the body base with its stud and nut (stud from the housing boss)
+  const earC = T.adjBase.clone().add(T.axis.clone().multiplyScalar(12));
+  p.add(extrudeC(polyShape(hull([...circlePts(earC.x, earC.y, 11, 16), ...circlePts(T.ear.x, T.ear.y, 8, 16)])), 6, 0.6), 'castAlu', [0, 0, T.adjZ]);
+  p.add(yToZ(cyl(4, T.adjZ + 12 - (HOUSING_Z0 + 4) , 10)), 'zincPlate', [T.ear.x, T.ear.y, (T.adjZ + 12 + HOUSING_Z0 + 4) / 2]);
+  p.add(yToZ(cyl(8, 1.6, 16)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + 3.6 + 0.8]);
+  p.add(yToZ(hexNut(13, 6.5)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + 3.6 + 1.6 + 3.25]);
+  // plastic guide rails (#2): above the tight run near the inner edge, and under the slack run at the int exit
+  const ramp = (a: THREE.Vector2, b: THREE.Vector2, n: THREE.Vector2, f0: number, f1: number) => {
+    const off = 9.5;
     const A = a.clone().lerp(b, f0).add(n.clone().multiplyScalar(off)), B = a.clone().lerp(b, f1).add(n.clone().multiplyScalar(off));
     const d = B.clone().sub(A); const an = Math.atan2(d.y, d.x);
     const g = extrudeC(roundRect(d.length(), 6, 2.5), 21, 0.6, 3); g.rotateZ(an);
     p.add(g, 'blackPlastic', [(A.x + B.x) / 2, (A.y + B.y) / 2, z]);
     const c = extrudeC(roundRect(d.length() * 0.8, 5, 2), 5); c.rotateZ(an);
-    p.add(c, 'castAlu', [(A.x + B.x) / 2 + n.x * (outside ? 3 : -3), (A.y + B.y) / 2 + n.y * (outside ? 3 : -3), z - 13.5]);
+    p.add(c, 'castAlu', [(A.x + B.x) / 2 + n.x * 3, (A.y + B.y) / 2 + n.y * 3, z - 13.5]);
   };
-  ramp(up1, up2, nUp, 0.45, 0.78, true);
-  ramp(lo1, lo2, nLo, 0.42, 0.55, false);
+  ramp(up1, up2, nUp, 0.53, 0.82);
+  const sa = P.slackA.pa, sb = P.slackA.pb; const dd = sb.clone().sub(sa).normalize();
+  let nn = new THREE.Vector2(dd.y, -dd.x); if (nn.y > 0) nn = nn.negate(); // outside of the loop = below the slack run
+  const [f0, f1] = s > 0 ? [0.55, 0.8] : [0.2, 0.45];
+  ramp(sa, sb, nn, f0, f1);
   return p.g;
 }
 /** Clip a convex polygon to the half-plane x*s >= x0. */
@@ -837,6 +916,23 @@ function outlineBolts(o: [number, number][], every: number, skip?: (x: number, y
   for (const q of out) if ((q.x - cx) * q.nx + (q.y - cy) * q.ny < 0) { q.nx *= -1; q.ny *= -1; }
   return skip ? out.filter((q) => !skip(q.x, q.y)) : out;
 }
+/** Cover-stud stations (19 per engine, 103-05 #3: 10 right / 9 left), 4 mm inside the box outline, clear of the open chain passage. */
+export function chainCoverBolts(s: 1 | -1) {
+  const o = chainOutline(s, 0), want = s > 0 ? 10 : 9;
+  for (let every = 50; every < 120; every += 0.25) {
+    const b = outlineBolts(o, every, inPassage(s));
+    if (b.length === want) return b.map((q) => ({ x: q.x - q.nx * 4, y: q.y - q.ny * 4 }));
+  }
+  throw new Error('chainCoverBolts: no spacing gives the catalogue count');
+}
+/** Chain-housing -> crankcase studs on the inner-edge flange (nut seat = flange face inside the box), 5 per side. */
+export function chainHousingStuds(s: 1 | -1) {
+  const { yTop, yBot } = chainWellProfile(s);
+  const x = (CHAIN_BOX_INNER_X + 6) * s;
+  return [...[226, 247, 268].map((z) => ({ x, y: yTop - 10, z })), ...(s > 0 ? [224.5, 274] : [252, 274]).map((z) => ({ x, y: yBot + 13.5, z }))];
+}
+/** Chain-housing cover plate: bottom face just above the housing lip (bevel 0.8), nut seat = flat top face. */
+export const CHAIN_LID = { z0: HOUSING_Z1 + 1.1, t: 4.5, top: HOUSING_Z1 + 1.1 + 4.5 + 0.8 };
 function shapeFrom(o: [number, number][], holes: [number, number][][] = []) {
   const sh = polyShape(o);
   for (const h of holes) { const p = new THREE.Path(); const r = h.slice().reverse(); p.moveTo(r[0][0], r[0][1]); r.slice(1).forEach(([x, y]) => p.lineTo(x, y)); p.closePath(); sh.holes.push(p); }
@@ -877,14 +973,13 @@ export function chainHousing(s: 1 | -1) {
   // inner-edge flange to the crankcase well (gasket face)
   const yTop = Math.max(...o.filter((q) => Math.abs(q[0] * s - CHAIN_BOX_INNER_X) < 0.5).map((q) => q[1]));
   const yBot = Math.min(...o.filter((q) => Math.abs(q[0] * s - CHAIN_BOX_INNER_X) < 0.5).map((q) => q[1]));
-  p.add(boxMM([CHAIN_BOX_INNER_X * s - (s > 0 ? 0 : 6), yBot, HOUSING_Z0], [CHAIN_BOX_INNER_X * s + (s > 0 ? 6 : 0), yBot + 8, HOUSING_Z1]), 'castAlu');
-  p.add(boxMM([CHAIN_BOX_INNER_X * s - (s > 0 ? 0 : 6), yTop - 8, HOUSING_Z0], [CHAIN_BOX_INNER_X * s + (s > 0 ? 6 : 0), yTop, HOUSING_Z1]), 'castAlu');
-  // cast bolt bosses with studs for the cover (~13 per box)
-  for (const b of outlineBolts(o, 58, inPassage(s))) {
-    const x = b.x - b.nx * 2, y = b.y - b.ny * 2;
-    const z0b = x * s > CAM_END_X - 4 ? CAM_HOUSING_END_Z + 5 : HOUSING_Z0 + 4;
-    p.add(yToZ(cyl(5.5, HOUSING_Z1 - z0b, 14)), 'castAlu', [x, y, (z0b + HOUSING_Z1) / 2]);
-    p.add(yToZ(cyl(3, 14, 8)), 'zincPlate', [x, y, HOUSING_Z1 + 4]);
+  // 18 mm flange strips (nuts for the case studs seat on their inner face, see chainHousingStuds)
+  p.add(boxMM([CHAIN_BOX_INNER_X * s - (s > 0 ? 0 : 6), yBot, HOUSING_Z0], [CHAIN_BOX_INNER_X * s + (s > 0 ? 6 : 0), yBot + 22, HOUSING_Z1]), 'castAlu');
+  p.add(boxMM([CHAIN_BOX_INNER_X * s - (s > 0 ? 0 : 6), yTop - 18, HOUSING_Z0], [CHAIN_BOX_INNER_X * s + (s > 0 ? 6 : 0), yTop, HOUSING_Z1]), 'castAlu');
+  // cast bosses for the cover studs (studs added with the hardware)
+  for (const b of chainCoverBolts(s)) {
+    const z0b = b.x * s > CAM_END_X - 4 ? CAM_HOUSING_END_Z + 5 : HOUSING_Z0 + 4;
+    p.add(yToZ(cyl(5.5, HOUSING_Z1 - z0b, 14)), 'castAlu', [b.x, b.y, (z0b + HOUSING_Z1) / 2]);
   }
   // external ribs on the outer wall
   for (const b of outlineBolts(o, 110, (x) => x * s < CHAIN_BOX_INNER_X + 10)) {
@@ -893,7 +988,8 @@ export function chainHousing(s: 1 | -1) {
   }
   // internal bosses: idler-arm shaft & tensioner seat
   p.add(yToZ(cyl(12, CHAIN_Z[s] - 16 - HOUSING_Z0, 18)), 'castAlu', [T.pivot.x, T.pivot.y, (HOUSING_Z0 + CHAIN_Z[s] - 16) / 2]);
-  p.add(yToZ(cyl(15, CHAIN_Z[s] - 15 - 14 - HOUSING_Z0, 18)), 'castAlu', [T.adjBase.x + T.axis.x * 30, T.adjBase.y + T.axis.y * 30, (HOUSING_Z0 + CHAIN_Z[s] - 29) / 2]);
+  // adjuster mounting-ear stud boss from the back wall up to the ear
+  p.add(yToZ(cyl(8, T.adjZ - 3 - HOUSING_Z0, 16)), 'castAlu', [T.ear.x, T.ear.y, (HOUSING_Z0 + T.adjZ - 3) / 2]);
   return p.g;
 }
 /** Consecutive sub-runs of a polyline whose points satisfy f. */
@@ -922,7 +1018,7 @@ function clipBelowX(pts: [number, number][], s: 1 | -1, x0: number): [number, nu
 export function chainHousingLid(s: 1 | -1) {
   const p = new Part();
   const o = chainOutline(s, 3);
-  const z0 = HOUSING_Z1 + 0.5, t = 4.5;
+  const z0 = CHAIN_LID.z0, t = CHAIN_LID.t;
   p.add(extrude(shapeFrom(o), t, 0.8, 8), 'castAlu', [0, 0, z0]);
   const T = tensionerLayout(s);
   const zt = z0 + t;
@@ -941,12 +1037,7 @@ export function chainHousingLid(s: 1 | -1) {
   p.add(yToZ(cyl(12, 6, 24)), 'castAlu', [T.pivot.x, T.pivot.y, zt + 2.5]);
   p.add(yToZ(hexNut(11, 4)), 'zincPlate', [T.pivot.x, T.pivot.y, zt + 7.5]);
   p.add(yToZ(cyl(14, 5, 24)), 'castAlu', [T.adjBase.x + T.axis.x * 30, T.adjBase.y + T.axis.y * 30, zt + 2]);
-  // perimeter nuts + washers on the housing studs
-  for (const b of outlineBolts(chainOutline(s, 0), 58, inPassage(s))) {
-    const x = b.x - b.nx * 2, y = b.y - b.ny * 2;
-    p.add(yToZ(cyl(5.8, 1.2, 14)), 'zincPlate', [x, y, zt + 0.6]);
-    p.add(yToZ(hexNut(10, 5.5)), 'zincPlate', [x, y, zt + 4]);
-  }
+  // perimeter lock nuts on the housing studs: fasteners.ts (chain-cover-nuts)
   return p.g;
 }
 
@@ -966,7 +1057,7 @@ export function intermediateShaft() {
   const pr = (INT_GEAR.teeth * INT_GEAR.module) / 2;
   p.add(extrudeC(gearShape(INT_GEAR.teeth, pr - 3, pr + 1.5, 14), 14, 0.4), 'castAlu', [0, INT_SHAFT_Y, 199]); // matches v2 mesh (45 / 49.5)
   for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; p.add(yToZ(cyl(5, 15, 12)), 'darkSteel', [28 * Math.cos(a), INT_SHAFT_Y + 28 * Math.sin(a), 199]); }
-  for (const s of [1, -1] as const) duplexSprocket(p, INT_T, INT_SPROCKET_R, [0, INT_SHAFT_Y, CHAIN_Z[s]], 9);
+  for (const s of [1, -1] as const) duplexSprocket(p, INT_T, INT_SPROCKET_R, [0, INT_SHAFT_Y, CHAIN_Z[s]], 9, 'steel', toothPhase(s, 0, INT_SHAFT_Y, INT_SPROCKET_R, INT_T));
   p.add(yToZ(hexNut(18, 7)), 'darkSteel', [0, INT_SHAFT_Y, z1 + 3]);
   // splined coupling end for the oil-pump connecting shaft (flywheel end)
   p.add(yToZ(cyl(11, 12, 16)), 'darkSteel', [0, INT_SHAFT_Y, z0 - 2]);

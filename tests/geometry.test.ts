@@ -7,7 +7,8 @@ describe('procedural part geometry', () => {
     it(`${id} builds real geometry at mm scale`, () => {
       const obj = build();
       let tris = 0;
-      obj.traverse((o: any) => { if (o.isMesh) tris += (o.geometry.index?.count ?? o.geometry.attributes.position.count) / 3; });
+      // instanced hardware counts once per instance
+      obj.traverse((o: any) => { if (o.isMesh) tris += ((o.geometry.index?.count ?? o.geometry.attributes.position.count) / 3) * (o.isInstancedMesh ? o.count : 1); });
       expect(tris).toBeGreaterThan(40);
       const box = new THREE.Box3().setFromObject(obj);
       const size = box.getSize(new THREE.Vector3());

@@ -2,7 +2,7 @@
 export interface CatalogGroup { ill: string; title: string; system: SystemKey; design911?: number }
 export type SystemKey =
   | 'crankcase' | 'crank' | 'pistons' | 'heads' | 'camdrive' | 'valvetrain' | 'lubrication'
-  | 'cooling' | 'induction' | 'ignition' | 'exhaust' | 'clutch';
+  | 'cooling' | 'induction' | 'ignition' | 'exhaust' | 'clutch' | 'hardware';
 
 export const SYSTEMS: Record<SystemKey, { label: string; catalogGroup: string }> = {
   crankcase: { label: 'Crankcase', catalogGroup: '101' },
@@ -17,6 +17,7 @@ export const SYSTEMS: Record<SystemKey, { label: string; catalogGroup: string }>
   ignition: { label: 'Ignition', catalogGroup: '901' },
   exhaust: { label: 'Exhaust & heat exchangers', catalogGroup: '202' },
   clutch: { label: 'Clutch & flywheel', catalogGroup: '102/301' },
+  hardware: { label: 'Fasteners & hardware', catalogGroup: '101-301' },
 };
 
 export const ILLUSTRATIONS: Record<string, CatalogGroup> = {
