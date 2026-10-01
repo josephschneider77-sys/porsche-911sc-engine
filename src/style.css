@@ -88,3 +88,14 @@ td.pn { text-align: right; color: #fff; white-space: nowrap; }
   .dock { left: 16px; right: auto; width: 420px; bottom: 16px; margin: 0; }
   .sheet { right: auto; left: 16px; bottom: 190px; }
 }
+
+/* Touch screens: keep every tap target at least ~40 px (close buttons, list eye toggles, card actions, slider). */
+@media (pointer: coarse) {
+  .icon-btn.small { width: 40px; height: 40px; font-size: 15px; }
+  .info-head { padding-top: 8px; padding-right: 8px; }
+  .sheet-head { padding-top: 6px; padding-bottom: 6px; padding-right: 6px; }
+  .eye { width: 40px; height: 40px; margin: -7px 0; font-size: 14px; }
+  .info-actions button { height: 42px; }
+  input[type=range] { height: 40px; }
+  .explode-row { margin-bottom: 2px; }
+}
