@@ -115,8 +115,8 @@ export function fastenerSets(): FSet[] {
   set('oil-pump-nuts', 'nut', 8, { tab: true, grip: 20, embed: 4 }, OIL_PUMP.studs.slice(0, 3).map(([x, y]) => ({ p: V(x, y, OIL_PUMP.coverFace), n: V(0, 0, -1), seat: 'oil-pump', into: 'oil-pump', stud: true })));
   set('sump-nuts', 'nut', 6, { spring: true, grip: SUMP.grip, embed: 12 }, ring(12, SUMP.boltR, Math.PI / 12).map(([x, z]) =>
     ({ p: V(x, SUMP.seatY, SUMP.zc + z), n: V(0, -1, 0), seat: 'sump-plate', into: x > 0 ? 'crankcase-right' : 'crankcase-left', stud: true })));
-  set('thermostat-nuts', 'lock', 6, { washer: DIM[6].wr, grip: THERMO.grip, embed: 10 }, ring(3, 22).map(([dx, dz]) =>
-    ({ p: V(THERMO.x + dx, THERMO.seatY, THERMO.z + dz), n: V(0, -1, 0), seat: 'oil-thermostat', into: 'crankcase-right', stud: true })));
+  set('thermostat-nuts', 'lock', 6, { washer: DIM[6].wr, grip: THERMO.grip, embed: 10 }, THERMO.ears.map(([dx, dz]) =>
+    ({ p: V(THERMO.x + dx, THERMO.seatY, THERMO.z + dz), n: V(0, 1, 0), seat: 'oil-thermostat', into: 'crankcase-right', stud: true })));
   set('breather-nuts', 'nut', 6, { spring: true, grip: BREATHER.grip, embed: 10 }, BREATHER.studs.map(([x, z]) =>
     ({ p: V(x, BREATHER.seatY, z), n: V(0, 1, 0), seat: 'breather-lid', into: 'crankcase-left', stud: true })));
   for (const s of sides) {

@@ -145,8 +145,22 @@ def('ishaft-stopper', () => new Part().add(cyl(3, 10, 12).translate(0, 5, 0), 's
 def('case-roll-pin', () => pin(4, 16, 'darkSteel'), () => [M(V(-8, INT_SHAFT_Y - 40, -190), X)]);
 def('spray-jets', () => { const p = new Part(); p.add(hexNut(10, 5).translate(0, 2.5, 0), 'brass'); p.add(cylBetween([0, 5, 0], [0, 12, 0], 2, 8), 'brass'); p.add(cylBetween([0, 12, 0], [8, 18, 0], 1.6, 8), 'brass'); return p; },
   () => CYLS.map((c) => { const s = bankOf(c); return M(V(s * 70, -60, CYL_Z[c] + 15 * s), V(s, 0.6, 0).normalize(), V(0, 0, 1)); }));
-def('relief-plugs', () => plug(17, 9, 9), () => [V(-45, 0, -160), V(45, 0, 165)].map((p) => onSurf(p.x < 0 ? 'crankcase-left' : 'crankcase-right', V(p.x, -300, p.z), Y)));
-def('relief-pistons', () => { const p = new Part(); p.add(cyl(8, 30, 18).translate(0, 15, 0), 'steel'); p.add(spring(6, 1.6, 30, 70, 9), 'darkSteel'); return p; }, () => [V(-45, 0, -160), V(45, 0, 165)].map((q) => { const m = onSurf(q.x < 0 ? 'crankcase-left' : 'crankcase-right', V(q.x, -300, q.z), Y); return m.multiply(new THREE.Matrix4().makeTranslation(0, 12, 0).premultiply(new THREE.Matrix4().makeRotationX(Math.PI))); }));
+def('relief-plugs', () => {
+  const p = new Part();
+  p.add(lathe([[8.2, 0], [13.5, 0], [13.5, 1.6], [8.2, 1.6]], 28), 'copper');
+  p.add(lathe([[6.4, 1.6], [11.2, 1.6], [11.2, 3.2], [6.4, 3.2]], 24), 'zincPlate');
+  p.add(hexNut(19, 8).translate(0, 3.2 + 4, 0), 'zincPlate');
+  p.add(cyl(7.2, 12, 16).translate(0, -6, 0), 'zincPlate');
+  return p;
+}, () => [V(-45, 0, -160), V(45, 0, 165)].map((p) => onSurf(p.x < 0 ? 'crankcase-left' : 'crankcase-right', V(p.x, -300, p.z), Y)));
+def('relief-pistons', () => {
+  const p = new Part();
+  // hollow cup, open toward +Y (into the bore after the placement flip), spring inside the cup
+  p.add(lathe([[3.2, 0], [7.4, 0], [7.6, 2], [7.6, 16], [6.2, 17], [3.2, 17]], 20), 'steel');
+  p.add(lathe([[0.1, 1], [3.2, 1], [3.2, 16], [0.1, 16]], 16), 'bore');
+  p.add(spring(4.2, 1.15, 2, 15, 6), 'darkSteel');
+  return p;
+}, () => [V(-45, 0, -160), V(45, 0, 165)].map((q) => { const m = onSurf(q.x < 0 ? 'crankcase-left' : 'crankcase-right', V(q.x, -300, q.z), Y); return m.multiply(new THREE.Matrix4().makeTranslation(0, 14, 0).premultiply(new THREE.Matrix4().makeRotationX(Math.PI))); }));
 def('case-oil-fittings', () => { const p = new Part(); p.add(lathe([[0.1, 0], [12, 0], [12, 3], [0.1, 3]], 24), 'copper'); p.add(hexNut(27, 12).translate(0, 9, 0), 'zincPlate'); p.add(lathe([[7, 15], [10, 15], [9, 19], [7, 19]], 20), 'brass'); p.add(hexNut(22, 14).translate(0, 22, 0), 'zincPlate'); p.add(cyl(7.5, 30, 14).translate(0, 44, 0), 'steel'); return p; },
   () => [onSurf('crankcase-left', V(-62, -300, -110), Y), onSurf('crankcase-right', V(34, -300, -165), Y)]);
 def('case-connection-left', () => sender(10, 6, 22, 'zincPlate'), () => [onSurf('crankcase-left', V(-62, -300, 160), Y)]);
@@ -154,12 +168,12 @@ def('oil-temp-sensor', () => sender(8, 18, 22), () => [onSurf('crankcase-right',
 def('oil-pressure-sender', () => { const p = sender(15, 3, 22, 'satinBlack'); p.add(lathe([[7.2, -1.5], [11, -1.5], [11, 0], [7.2, 0]], 24), 'copper'); return p; }, () => [onSurf('crankcase-right', V(40, 300, 150), V(0, -1, 0))]);
 def('oil-pressure-switch', () => sender(12, 3, 24, 'satinBlack'), () => [onSurf('crankcase-right', V(64, 300, 120), V(0, -1, 0))]);
 def('oil-pressure-fitting', () => { const p = banjo(); p.add(lathe([[0.1, 23], [6, 23], [6, 26], [0.1, 26]], 16), 'brass'); return p; }, () => [onSurf('crankcase-right', V(64, 300, 160), V(0, -1, 0))]);
-def('thermostat-oring', () => oring(19, 1.8), () => [M(V(THERMO.x, THERMO.seatY + 3.6 + 0.05, THERMO.z), Y)]);
+def('thermostat-oring', () => oring(19, 1.8), () => [M(V(THERMO.x, THERMO.seatY - THERMO.grip - 4.8, THERMO.z), Y)]);
 def('sump-drain-ring', () => washer(7, 11, 1.5, 'copper'), () => [M(V(0, SUMP.seatY - 9, SUMP.zc), V(0, -1, 0))]);
 def('case-through-orings', () => oring(7.2, 1.2), () => fastenerSets().filter((f) => f.id.startsWith('case-through')).flatMap((f) => f.items.map((it) => M(it.p.clone().addScaledVector(it.n, -0.1), it.n.clone().negate()))));
 def('oil-return-tubes', () => { const p = new Part(); const L = 150; p.add(cyl(7, L, 16).translate(0, L / 2, 0), 'steel'); p.add(torus(7.2, 1.6, 6, 24).rotateX(Math.PI / 2).translate(0, 6, 0), 'rubber'); p.add(torus(7.2, 1.6, 6, 24).rotateX(Math.PI / 2).translate(0, L - 6, 0), 'rubber'); return p; },
   () => [1, -1].flatMap((s) => [s > 0 ? [CYL_Z[1], CYL_Z[2]] : [CYL_Z[4], CYL_Z[5]], s > 0 ? [CYL_Z[2], CYL_Z[3]] : [CYL_Z[5], CYL_Z[6]]].map(([a, b2]) => M(V(s * (DECK_X + 6), -78, (a + b2) / 2), V(s, 0, 0)))));
-def('oil-pump-seals', () => oring(9, 1.5), () => OIL_PUMP.studs.slice(0, 2).map(([x, y]) => M(V(x * 0.5, y + 10, OIL_PUMP.coverFace + 8), Z)).concat([[-14, -98], [14, -98], [0, -112], [0, -84], [0, -98]].map(([x, y]) => M(V(x, y, OIL_PUMP.coverFace + 12), Z))));
+def('oil-pump-seals', () => oring(9, 1.5), () => OIL_PUMP.seals.map(([x, y, z], i) => M(V(x, y, z), i < 2 ? Y : Z)));
 
 def('oil-cooler-seals', () => oring(5, 1), () => [[-84, 49], [-84, 75]].map(([x, z]) => M(V(x, 101.05, z), Y)));
 

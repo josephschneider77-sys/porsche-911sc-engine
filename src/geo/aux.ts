@@ -11,7 +11,7 @@ import {
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
 export { INTAKE_PORT, INJ };
 
-export const FAN = { y: 255, zHousing0: 205, zHousing1: 290, zFan: 262, zBelt: 303, rCrankPulley: 78, rFanPulley: 56 };
+export const FAN = { y: 255, zHousing0: 205, zHousing1: 290, zFan: 262, zBelt: 303, rCrankPulley: 65, rFanPulley: 56 };
 export const PLENUM = { y0: 205, y1: 262, x: 110, z0: -165, z1: 172 };
 /** Round air-cleaner canister lying across the engine (SC), axis along X. */
 export const AIRBOX = { y: 362, z: 40, r: 80, len: 440 };
@@ -112,28 +112,37 @@ export function fanPulley() {
   return p.g;
 }
 export function crankPulley() {
-  // 930/03 RoW, no A/C: one V-groove pressed-steel dish (930 102 028 09). The groove pitch
-  // stays on the fan-belt line (r 73, z FAN.zBelt) — a 134 mm OD would drop the belt off that line.
+  // 930/03 RoW, no A/C: one V-groove pressed-steel dish, OD 134 (lip r 67). The belt
+  // pitch is FAN.rCrankPulley − 5 = 60, in the valley at z FAN.zBelt. Hub recess still
+  // presents a washer face at z 324 for the pulley bolt.
   const p = new Part();
   const prof: [number, number][] = [
-    [6.6, 293],
-    [74, 293],
-    [81, 296.4],
-    [81, 300.2],
-    [64, 303],
-    [81, 305.8],
-    [81, 311],
-    [66, 317],
-    [50, 324],
-    [36, 330],
-    [24, 334],
-    [17.6, 335],
+    [6.6, 294],
+    [52, 294],
+    [67, 297.2],
+    [67, 300.4],
+    [53, 303],
+    [67, 305.6],
+    [67, 309.2],
+    [58, 312.4],
+    [58, 314.2],
+    [48, 317],
+    [48, 318.6],
+    [38, 321.2],
+    [38, 322.6],
+    [28, 325.4],
+    [22, 328.2],
+    [17.6, 331],
     [17.6, 322.2],
     [6.6, 322.2],
   ];
   const body = yToZ(lathe(prof, 72));
-  const notch = boxMM([-1.5, 76, 298], [1.5, 84, 309]);
+  const notch = boxMM([-1.2, 64, 296], [1.2, 70, 310]);
   p.add(csgSub(body, notch), 'yellowZinc');
+  // concentric pressed rings on the dish (the lathe steps, plus a bright bead on each)
+  for (const [r, z] of [[58, 313.2], [48, 317.8], [38, 321.9]] as [number, number][]) {
+    p.add(yToZ(lathe([[r - 1.3, -0.45], [r + 0.4, -0.15], [r + 0.4, 0.35], [r - 1.3, 0.55]], 64)), 'yellowZinc', [0, 0, z]);
+  }
   // recessed hub: washer face exactly at z 324, normal +Z, bore for the M12 bolt
   p.add(extrude(ringShape(16.8, 6.6), 1.15), 'yellowZinc', [0, 0, 322.85]);
   return p.g;
@@ -174,7 +183,7 @@ export function upperAirGuide() {
   roof.holes.push(cut);
   const rg = extrude(roof, t); rg.rotateX(Math.PI / 2); rg.translate(0, ay + t, (zA + zB) / 2);
   // v5 cut-outs: distributor cap opening (roof + left wing), breather neck, air-distributor foot slot
-  const distCut = boxMM([-137, 138, 120], [-60, 170, 180]), brCut = boxMM([-65, 138, 183], [-39, 170, 196]);
+  const distCut = boxMM([-137, 138, 120], [-60, 170, 180]), brCut = boxMM([-70, 142, 168], [-40, 176, 200]);
   p.add(csgSub(rg, distCut, brCut, boxMM([-94, 140, -157], [94, 165, -143])), 'satinBlack');
   const slopeLen = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax);
   for (const s of [1, -1] as const) {
@@ -240,60 +249,169 @@ export function oilCooler() {
 }
 /** Oil-cooler feet: 4 studs in the left case top (case surface y 95 at x -90). */
 export const OIL_COOLER = { foot: 6, footTop: 101, studs: [[-89, 36], [-89, 62], [-89, 88], [-89, 112]] as [number, number][] };
-/** Oil thermostat under the right half: flange (y -133..-128) on a cast pad, 3 nuts (fasteners.ts). */
-export const THERMO = { x: 58, z: 118, seatY: -133, grip: 5 };
+/**
+ * Oil thermostat on TOP of the right case half at the pulley end.
+ * seatY is the nut face (top of the flange). The case pad is at seatY − grip.
+ * Three ears: 1978 PET 101-10 #41 is three M6 lock nuts (the two-bolt flange is post-63D).
+ */
+export const THERMO = {
+  x: 88, z: 176, seatY: 118, grip: 8,
+  // Ears sit outside the domed cap so an M6 washer (r 6.25) lands on a flat face.
+  ears: [[18, 0], [4, 16], [6, -14]] as [number, number][],
+};
 export function oilThermostat() {
   const p = new Part();
-  p.add(lathe([[0.1, 0], [22, 0], [22, 4], [16, 6], [16, 34], [0.1, 34]], 32), 'castAlu', [THERMO.x, -162.5, THERMO.z]);
-  p.add(cyl(28, 5, 32), 'castAlu', [THERMO.x, -130.5, THERMO.z]);
+  const { x, z, seatY, grip, ears } = THERMO;
+  const yFlangeBot = seatY - grip;
+  // rounded flange: disc plus three bolt ears. Cap stays under y 120 so it clears the
+  // oil-pressure fitting banjo (seat y ~123) and the fan-shroud collar.
+  p.add(cyl(14, grip, 40), 'machinedAlu', [x, yFlangeBot + grip / 2, z]);
+  p.add(lathe([[0.1, 0], [7.5, 0], [6, 0.9], [0.1, 1.2]], 32), 'machinedAlu', [x, seatY - 0.15, z]);
+  for (const [dx, dz] of ears) p.add(cyl(7.2, grip, 20), 'machinedAlu', [x + dx, yFlangeBot + grip / 2, z + dz]);
+  // O-ring land, then the stepped cartridge. Windows are gaps between the bands.
+  p.add(cyl(17.2, 6, 36), 'polishedSteel', [x, yFlangeBot - 3, z]);
+  const yTop = yFlangeBot - 6;
+  const band = (r: number, y0: number, y1: number, mat: 'polishedSteel' | 'darkSteel' = 'polishedSteel') =>
+    p.add(cyl(r, y1 - y0, 36), mat, [x, (y0 + y1) / 2, z]);
+  band(15.4, yTop - 12, yTop);
+  band(13.8, yTop - 24, yTop - 18);
+  // Stop above the pulley-end through-bolt (y 62, z 177).
+  band(14.6, yTop - 32, yTop - 26, 'darkSteel');
+  for (const [y0, y1] of [[yTop - 18, yTop - 12], [yTop - 26, yTop - 24]] as [number, number][]) {
+    p.add(boxMM([x - 15.2, y0, z - 4.5], [x - 10.5, y1, z + 4.5]), 'polishedSteel');
+    p.add(boxMM([x + 10.5, y0, z - 4.5], [x + 15.2, y1, z + 4.5]), 'polishedSteel');
+  }
+  p.add(cyl(9.4, 11, 24), 'brass', [x, yTop - 17, z]);
   return p.g;
 }
-/** Breather cover on the left half: plate y 122..132 at x -52, two M6 nuts (fasteners.ts). */
-export const BREATHER = { x: -52, seatY: 132, grip: 10, studs: [[-38, 128], [-38, 176]] as [number, number][] };
+/** Breather tower on the left half: flange top y 132, two M6 nuts (101-10 #36 qty 2). */
+export const BREATHER = { x: -50, seatY: 132, grip: 10, studs: [[-35, 122], [-35, 168]] as [number, number][] };
 /** Clearance prism round the distributor base + clamp (plan hull), height h centred at y. */
 function distRelief(h: number, y: number) { return extrudeC(polyShape(hull([...circlePts(DIST.x, DIST.z, 31, 32), ...circlePts(DIST.stud[0], DIST.stud[1], 11, 12)])), h).rotateX(Math.PI / 2).translate(0, y, 0); }
 export function breatherLid() {
   const p = new Part();
-  const sh = roundRect(46, 70, 16);
-  const g = extrude(sh, 6, 2); g.rotateX(-Math.PI / 2); g.translate(BREATHER.x, 124, 152);
-  // v5: the casting is relieved round the distributor base (clamp + O-ring) instead of overlapping it
-  const relief = distRelief(60, 140);
-  p.add(csgSub(g, relief), 'castAlu');
-  const nx = BREATHER.x + 20;
-  p.add(cylBetween([nx, 132, 152], [nx, 154, 152], 9, 20), 'castAlu');
-  p.add(cylBetween([nx, 154, 152], [nx, 154, 185], 8, 16), 'castAlu');
+  // flange in the XZ plane. extrude +Z, rotateX(-90) sends that thickness up; shape Y becomes −Z.
+  // Ears stay outboard of the perimeter-nut heads (those reach x −28) and outside the distributor relief.
+  const stud = BREATHER.studs;
+  // Full-depth flange stays inboard of the shroud collar (at y 122 the collar wall is x ≈ −41)
+  // and outboard of the perimeter-nut heads (they reach x −28).
+  const outline = hull([
+    ...circlePts(stud[0][0], -stud[0][1], 4.6, 10),
+    ...circlePts(stud[1][0], -stud[1][1], 4.6, 10),
+    ...circlePts(-36, -145, 4.6, 8),
+  ]);
+  const sh = polyShape(outline);
+  const g = extrude(sh, BREATHER.grip);
+  g.rotateX(-Math.PI / 2);
+  g.translate(0, BREATHER.seatY - BREATHER.grip, 0);
+  p.add(csgSub(g, distRelief(70, 145)), 'castAlu');
+  // Foot under the tower, only the top 3 mm, where the collar wall has moved outboard.
+  const tx = -50, tz = 186;
+  p.add(cyl(8, 3, 20), 'castAlu', [tx, BREATHER.seatY - 1.5, tz]);
+  p.add(boxMM([-40, BREATHER.seatY - 3, 164], [tx, BREATHER.seatY, tz]), 'castAlu');
+  // Ribbed tower, clear of the distributor body (r ~32 at x −75, z 150).
+  p.add(cyl(7, 22, 20), 'castAlu', [tx, BREATHER.seatY + 11, tz]);
+  p.add(lathe([[5, 0], [8, 0], [8.5, 3], [7, 10], [6, 18], [6, 22]], 18), 'castAlu', [tx, BREATHER.seatY, tz]);
+  for (const a of [0.4, 1.5, 2.6]) {
+    const rib = boxMM([-0.9, 3, 4.5], [0.9, 16, 8]);
+    rib.rotateY(a);
+    rib.translate(tx, BREATHER.seatY, tz);
+    p.add(rib, 'castAlu');
+  }
+  // Hose neck inside the shroud opening, above the collar bolts (y ~129, z ~201).
+  p.add(cylBetween([tx, BREATHER.seatY + 18, tz], [tx - 2, BREATHER.seatY + 30, tz + 8], 5.5, 12), 'castAlu');
+  p.add(cylBetween([tx - 2, BREATHER.seatY + 30, tz + 8], [tx - 3, BREATHER.seatY + 34, tz + 10], 6.4, 10), 'castAlu');
+  p.add(lathe([[4.2, 0], [5.4, 0], [5.4, 5], [4.2, 5]], 12), 'bore', [tx - 1, BREATHER.seatY + 22, tz + 4]);
+  p.add(cylBetween([tx + 5, BREATHER.seatY + 6, tz - 2], [tx + 13, BREATHER.seatY + 7, tz - 1], 3.6, 10), 'castAlu');
+  p.add(hexNut(9, 3.5), 'darkSteel', [tx + 12, BREATHER.seatY + 7, tz - 1]);
+  p.add(boxMM([tx - 5, BREATHER.seatY + 4, tz - 10], [tx + 3, BREATHER.seatY + 6, tz - 3]), 'castAlu');
   return p.g;
 }
-/** Sump (strainer) cover: top face y -130 under the gasket/strainer stack, flat 4 mm flange; 12 nuts at r 74. */
+/** Sump (strainer) cover. Nut face y = seatY, 12 M6 nuts at r 74 (101-05 #35 qty 12). */
 export const SUMP = { seatY: -134, zc: -10, boltR: 74, grip: 6 };
 export function sumpPlate() {
   const p = new Part();
-  const y = -130;
-  const plate = lathe([[0.1, 0], [80, 0], [80, 4], [67, 4], [60, 12], [0.1, 12]], 64);
-  plate.rotateX(Math.PI);
-  p.add(plate, 'castAlu', [0, y, -10]);
-  p.add(hexNut(19, 8), 'darkSteel', [0, y - 16, -10]);
-  // strainer (#38) sits inside, sandwiched by gaskets (#39)
-  p.add(lathe([[0.1, 0], [72, 0], [72, 2], [0.1, 2]], 64), 'gasket', [0, y, -10]);
-  p.add(lathe([[60, 2], [70, 2], [70, 2.9], [60, 2.9]], 64), 'gasket', [0, y, -10]); // second strainer gasket (#39)
-  p.add(lathe([[72.3, 0], [80, 0], [80, 0.8], [72.3, 0.8]], 64), 'gasket', [0, y, -10]); // lid gasket to the case (#36)
-  const scr = lathe([[0.1, 0], [68, 0], [68, 18], [60, 22], [0.1, 22]], 64);
-  p.add(scr, 'zincPlate', [0, y + 3, -10]);
-  for (let r = 12; r < 68; r += 8) p.add(torus(r, 0.8, 4, 48).rotateX(Math.PI / 2), 'darkSteel', [0, y + 25.5, -10]);
+  const yNut = SUMP.seatY, zc = SUMP.zc;
+  // pressed-steel flange. Nut face is the annulus at axial 0 (y = yNut); the centre dishes downward.
+  const dish = lathe([
+    [64, 0], [80, 0], [80, 3], [68, 3], [62, 1.5], [36, -5], [22, -7], [12, -3], [9, 1], [0.1, 1],
+  ], 72);
+  p.add(dish, 'zincPlate', [0, yNut, zc]);
+  // kidney / heart bead on the outer face, open toward the drain boss
+  const bead = new THREE.TorusGeometry(24, 2.6, 8, 36, Math.PI * 1.65);
+  bead.rotateX(Math.PI / 2);
+  bead.rotateY(0.5);
+  bead.translate(2, yNut - 7.2, zc - 2);
+  p.add(bead, 'zincPlate');
+  // central drain boss + hex plug (911 107 176 03). Sealing ring sits at yNut − 9.
+  p.add(cyl(11, 4, 24), 'zincPlate', [0, yNut - 5, zc]);
+  p.add(hexNut(17, 7), 'darkSteel', [0, yNut - 9 - 3.5, zc]);
+  // edge stack inside the case: lid gasket, strainer rim, second gasket. Screen is a coarse disc.
+  p.add(lathe([[66, 0], [78, 0], [78, 0.7], [66, 0.7]], 64), 'gasket', [0, yNut + 3.1, zc]);
+  p.add(lathe([[58, 0], [70, 0], [70, 1.1], [58, 1.1]], 48), 'darkSteel', [0, yNut + 4.2, zc]);
+  p.add(lathe([[58, 0], [70, 0], [70, 0.7], [58, 0.7]], 48), 'gasket', [0, yNut + 5.5, zc]);
+  for (let r = 14; r <= 54; r += 8) p.add(torus(r, 0.55, 4, 40).rotateX(Math.PI / 2), 'darkSteel', [0, yNut + 4.6, zc]);
+  for (let i = 0; i < 12; i++) {
+    const g = boxMM([-0.35, yNut + 4.1, -44], [0.35, yNut + 5.2, 0]);
+    g.rotateY((i / 12) * Math.PI * 2);
+    g.translate(0, 0, zc);
+    p.add(g, 'darkSteel');
+  }
   return p.g;
 }
-/** Oil-pump cover nuts: studs through the cover plate (outer face z -161) into the body. */
-export const OIL_PUMP = { coverFace: -161, studs: [[-28, -88], [28, -88], [-28, -108], [28, -108]] as [number, number][] };
+/**
+ * Oil pump in the flywheel-end bay. The long axis is across the case (X): the bay between
+ * the z −177 and z −118 webs is only ~37 mm deep, so a 2.2× body along Z will not fit.
+ * coverFace is the flywheel face of the three mounting ears (oil-pump-nuts, n = −Z).
+ * seals: seven O-ring seats, [x, y, z, axis] with axis 'Y' (top ports) or 'Z' (end face).
+ */
+export const OIL_PUMP = {
+  // Flywheel face of the cover. M8 nuts stand ~8 mm proud toward −Z and must stay
+  // pulley-side of the flywheel web (solid through z −169).
+  coverFace: -158,
+  studs: [[-14, -96], [-14, -86], [22, -92]] as [number, number][],
+  seals: [
+    [-12, -75.6, -148], [18, -75.6, -148],
+    [-16, -98, -157.2], [-8, -88, -157.2], [8, -96, -157.2], [20, -90, -157.2], [2, -104, -157.2],
+  ] as [number, number, number][],
+};
 export function oilPump() {
-  // Pressure + scavenge pump inside the crankcase at the FLYWHEEL end (cyl. 6 bay between mains 1 and 2), driven off
-  // the back of the intermediate shaft by a splined connecting shaft (factory side-section; Klassik ATS / Pelican rebuild).
   const p = new Part();
-  const zc = -148, y = -100;
-  p.add(extrudeC(roundRect(70, 40, 10), 14, 1.2), 'castAlu', [0, y, zc + 4]);
-  for (const [x, t] of [[-17, 9], [17, 9]] as const) p.add(extrudeC(gearShape(t, 11, 13.5, 3), 6), 'steel', [x, y, zc - 6]);
-  p.add(extrudeC(roundRect(70, 40, 10), 4), 'castAlu', [0, y, zc - 11]);
-  p.add(yToZ(cyl(7, 46, 16)), 'steel', [0, INT_SHAFT_Y, zc + 32]); // connecting shaft (#6) to the int. shaft
-  p.add(cylBetween([20, y - 20, zc + 2], [20, -140, zc + 2], 6, 12), 'castAlu'); // pickup to the strainer
+  // Bay between the z −177 web (face −169) and the z −118 web (face −132) is ~37 mm.
+  // Long axis is X. Body stays inboard of the left relief plug (x −45, z −160).
+  const z0 = OIL_PUMP.coverFace, z1 = -136, y0 = -104, y1 = -78;
+  p.add(boxMM([-24, y0, z0], [4, y1, z1]), 'castAlu');
+  p.add(boxMM([4, y0 + 1, z0 + 1], [36, y1 - 1, z1 - 1]), 'castAlu');
+  p.add(boxMM([2, y0 - 1, z0], [8, y1 + 1, z1]), 'machinedAlu');
+  for (const z of [-154, -149, -144, -139]) p.add(boxMM([8, y1 - 1, z], [32, y1 + 2.6, z + 1.8]), 'castAlu');
+  for (const [x, y] of OIL_PUMP.studs) {
+    p.add(boxMM([x - 7, y - 6, z0], [x + 7, y + 6, z0 + 8]), 'castAlu');
+    p.add(cyl(3.6, 8, 12).rotateX(Math.PI / 2), 'bore', [x, y, z0 + 4]);
+  }
+  p.add(cyl(10, 3.5, 24), 'castAlu', [-12, y1 - 1, -148]);
+  p.add(cyl(10, 3.5, 24), 'castAlu', [18, y1 - 1, -148]);
+  for (const [x, y] of OIL_PUMP.seals.slice(2)) p.add(cyl(7, 2.4, 14).rotateX(Math.PI / 2), 'castAlu', [x, y, z0 + 1.2]);
+  for (const [y, z] of [[-90, -152], [-90, -142], [-100, -152], [-100, -142]] as [number, number][]) {
+    p.add(yToX(cyl(2.1, 48, 8)), 'steel', [6, y, z]);
+    p.add(yToX(hexNut(8, 3.2)), 'darkSteel', [30, y, z]);
+  }
+  p.add(yToZ(cyl(8, 10, 16)), 'steel', [0, INT_SHAFT_Y, z1 - 2]);
+  p.add(yToZ(cyl(6.2, 40, 16)), 'darkSteel', [0, INT_SHAFT_Y, -118]);
+  for (let i = 0; i < 8; i++) {
+    const g = boxMM([-0.6, 4.2, -3], [0.6, 7.6, 3]);
+    g.rotateZ((i / 8) * Math.PI * 2);
+    g.translate(0, INT_SHAFT_Y, -128);
+    p.add(g, 'darkSteel');
+  }
+  // Suction pipe: about one body-length along the case, then down to just above the strainer.
+  // Stays near x 0 so it misses the left relief plug.
+  p.add(tube([
+    [-8, -100, -150],
+    [-4, -102, -90],
+    [-2, -108, -40],
+    [0, -116, -16],
+  ], 5.2, 10, 24), 'castAlu');
+  p.add(cyl(7, 4, 14).rotateZ(0.5), 'castAlu', [-10, -100, -152]);
   return p.g;
 }
 
