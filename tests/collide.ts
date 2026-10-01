@@ -102,7 +102,7 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('flywheel', 'clutch-disc|pressure-plate', 'JOINT clutch stack'), pair('clutch-disc', 'pressure-plate', 'JOINT clutch stack'),
   // ---- JOINT: top end
   pair('cylinder', 'head', 'JOINT cylinder/head sealing joint'),
-  pair('head', 'valves|spark-plug|intake-runner', 'JOINT guides/seats, plug thread, intake port'),
+  pair('head', 'valves|spark-plug', 'JOINT guides/seats, plug thread'),
   pair('cam-housing', 'head|camshaft|rockers|valves|valve-cover-upper|valve-cover-lower', 'JOINT cam housing on heads, bearings, rocker shafts, cover flanges'),
   pair('camshaft', 'rockers', 'JOINT lobes on rocker pads'), pair('rockers', 'valves', 'JOINT rocker tips on stems'),
   // ---- JOINT: cam drive (same bank only)
@@ -116,18 +116,14 @@ export const MATING: [RegExp, RegExp, string][] = [
   // ---- JOINT: exhaust, induction, fan
   pair('heat-exchanger', 'head', 'JOINT primaries in the exhaust ports'),
   pair('muffler', 'heat-exchanger', 'JOINT muffler inlet stubs over the HE outlets'),
-  pair('injector', 'intake-runner|fuel-lines', 'JOINT injector in runner boss, fuel line on injector'),
-  pair('plenum', 'intake-runner|air-filter|air-cleaner-lid|mixture-control-unit|fuel-lines', 'JOINT plenum fittings'),
-  pair('air-filter', 'air-cleaner-lid|fuel-lines', 'JOINT air-cleaner drum'), pair('mixture-control-unit', 'fuel-lines|intake-runner', 'JOINT MCU lines'),
-  pair('alternator', 'fan-pulley|fan-housing|fan-impeller|plenum', 'JOINT alternator in the fan housing, impeller on its shaft'),
+  pair('alternator', 'fan-pulley|fan-housing|fan-impeller', 'JOINT alternator in the fan housing, impeller on its shaft'),
   pair('fan-housing', 'fan-impeller', 'JOINT impeller in housing'), pair('fan-belt', 'fan-pulley|crank-pulley', 'JOINT belt in grooves'),
   // ---- JOINT: v5 parts
   ...sameSide('cam-flange', 'camshaft|cam-sprocket', 'JOINT keyed flange on the cam nose, dowel into the sprocket'),
   ...sameSide('adjuster-cover', 'chain-housing-lid', 'JOINT cover gasketed onto the lid'),
   pair('distributor-clamp', 'distributor|crankcase-left', 'JOINT clamp round the distributor shank, spacer on the case'),
   pair('fan-hub', 'fan-impeller|alternator', 'JOINT hub extension on the alternator shaft, fan wheel on the hub'),
-  pair('airbox-struts', 'plenum|air-cleaner-lid|air-filter', 'JOINT struts between air distributor and air-cleaner housing'),
-  pair('warm-up-regulator', 'crankcase-left|fuel-lines', 'JOINT regulator on the case pad, lines into it'),
+  pair('warm-up-regulator', 'crankcase-left', 'JOINT regulator flange on the case pad'),
   pair('ignition-leads', 'distributor|spark-plug', 'JOINT leads in the cap towers / plug connectors'),
   // ---- SIMPLIFIED (pre-v3, not cam drive / exhaust)
   pair('crankcase-right|crankcase-left', 'conrod|piston|head|flywheel|pressure-plate', 'SIMPLIFIED case interior / head studs / rear seal boss not relieved'),

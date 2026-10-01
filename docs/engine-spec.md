@@ -426,3 +426,40 @@ The fan group moved down with the new centre distance. `FAN.y` was 255; it is no
 - **Intake.** The CIS stack stays at the main height. The lowered fan does not move the plenum, air cleaner, mixture unit, runners, boots, fuel lines or linkage. Top-end parts (heads, cam housings, valvetrain, chain drive) are not moved.
 - **Alternator.** Drive-end and rectifier shields are the bright aluminium castings (cooling slots in the drive end, smaller windows on the slip-ring end). The laminated stator is a short inset waist. Copper shows in the windows and does not form the outer silhouette. Brush block, diode plates and the ground-strap stud stay on the slip-ring face.
 - **Fan housing colour.** Albedo #6C6F71, roughness 0.92, environment intensity 0.12, so the lit magnesium reads about #8A8D8F. The impeller keeps its own magnesium finish.
+
+## 16. Batch 6 — 1978 CIS intake and fuel circuit
+
+Section 15's note that the CIS stack stays put is superseded here. The air distributor, runners, sleeves, mixture unit and fuel lines are rebuilt. Cylinder heads are unchanged: the intake flange face is still world y 65, the studs are still head-local x 26, z ±28, and the runner flange (46 × 76) still seats on that face.
+
+K = published figure. E = estimated from the JE / FVD photographs in `photo-ref/`.
+
+| Dimension | Value | Tag | Source |
+| --- | --- | --- | --- |
+| Port ID | 38 mm | K | Jim Williams, CIS Primer, Pelican 8327087; JE aluminium-airbox note: 1978–79 US / 1978–83 Euro are 38 mm, US 1980–83 are 34 mm |
+| Port OD | 44 mm | E | Scaled off the sleeve in reassembly-19 |
+| Sleeve OD | 47 mm | E | FVD 911 110 885 02 and reassembly-19 (the sleeve is the fat band on each stub) |
+| Sleeve length | 50 mm | E | Same photo; two worm-drive clamps, screws up |
+| Sleeve ID | 44.6 mm | E | 0.3 mm radial air on the 44 mm stub so the rubber does not interpenetrate |
+| Metal gap inside the sleeve | 8 mm | E | Each end covered by 21 mm of rubber |
+| Box width across the stub faces | 155 mm | E | reassembly-19, scaled off the 47 mm sleeves (three sleeves per side, nearly touching) |
+| Stub pitch along the crank | 50 mm | E | reassembly-19: the three stubs are adjacent |
+| Box length along the crank | 190 mm | E | Three pitches plus wall and the cold-start boss |
+| Box height | 78 mm (y 174–252) | E | JE teardown-16 / 18 / 37 / 38; top stays ~30 mm under the air-cleaner drum |
+| Stub length past the face | 28 mm | E | reassembly-19, short straight tubes, axis horizontal |
+| Throttle bore | 26 mm | E | Housing at the pulley end (+Z) |
+
+The 1978 car has no cold-start spider. The cold-start valve sprays into the lower chamber through a boss on the flywheel end. The lower air-cleaner shell stays in the housing part (911 110 106 13). A neck rises from the box toward the drum and stops 1.5 mm short of the shell (a boolean hole in the shell left triangles inside the filter). The lid and the filter element are still separate parts. The lid's intake snout stays in the upper half.
+
+Each runner is its own mesh (`intake-runner-1`…`6`) because the head pitch is 118 mm and the stub pitch is 50 mm, so the Z bend differs per cylinder. Stub order follows the crank: the pulley-end cylinder of each bank (1 and 4) takes the pulley-end stub (z +50), so the pipes converge and do not cross. The spigot is coaxial with its stub and the sleeve. Left-bank injectors lean outboard (−X); the pose is a +57° roll, the mirror of the right bank's −57°.
+
+The paper flange gasket is drawn 2.2 mm thick (real paper is about 0.5 mm) so the 1 mm collision erosion does not turn the sheet inside out, and it stands 0.45 mm off the head face. Its outline is 42 × 72, 2 mm inside the 46 × 76 flange, with the port hole at Ø36 and the stud holes at Ø10.4. The head flange and the stud pattern did not need to change.
+
+Fuel-line ends, and what they seat on:
+
+- feed: filter-side block in `fuel-lines` → banjo + two washers on the distributor inlet
+- six injector lines: distributor outlet banjo → injector nipple face
+- warm-up regulator: two lines (`wur-lines`), banjo + two washers at both ends (1978 distributor with the push valve)
+- cold-start feed: distributor banjo → cold-start-valve banjo
+- return: M14×1.5 union on the distributor → tank-side block in `fuel-lines`
+
+The filter and the tank are off the engine, so those two blocks are part of the line assembly. Catalogue feature counts in `checklist.ts` are unchanged.
