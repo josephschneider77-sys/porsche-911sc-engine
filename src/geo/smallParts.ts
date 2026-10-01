@@ -8,7 +8,7 @@ import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect,
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
-import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, chainOutline, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
+import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INTAKE_PORT, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
 import { LIP_Z, chainLidStations } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, PLENUM, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD } from './aux';
@@ -59,6 +59,45 @@ function banjo() { const p = new Part(); p.add(lathe([[5, 0], [8, 0], [8, 1.5], 
 function hoseClamp(R: number, w = 9) { const p = new Part(); p.add(lathe([[R, -w / 2], [R + 0.8, -w / 2], [R + 0.8, w / 2], [R, w / 2]], 32), 'zincPlate'); p.add(box(8, w, 10).translate(R + 4, 0, 0), 'zincPlate'); return p; }
 
 const CAM_ZC = (s: 1 | -1) => CHAIN_Z[s];
+/** Cover-stud hole in the lid gasket. M6 stud is r 3; the hole is centred on the stud. */
+export const LID_STUD_HOLE_R = 3.3;
+/**
+ * Timing-cover gasket: the flange annulus (same outlines as the housing lip), from the flange
+ * face to the cover face. Stud holes are coaxial with chainCoverBolts. No z-scale — frame
+ * (+Y → +Z, +X → +X) maps local (x, t, −y) onto world (x, y, t).
+ */
+export function chainLidGasket(s: 1 | -1) {
+  const ccw = (pts: [number, number][]) => {
+    let a = 0;
+    for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; }
+    return a >= 0 ? pts : pts.slice().reverse();
+  };
+  // Flange outline, with the inboard edge held just outboard of the case chain-well plate
+  // (the raw outline steps 3 mm onto that plate). Same chainOutline the flange is built from.
+  const xCut = CHAIN_BOX_INNER_X + 1.2;
+  const clipped: [number, number][] = [];
+  const raw = chainOutline(s, 3);
+  const past = (q: [number, number]) => q[0] * s >= xCut;
+  for (let i = 0; i < raw.length; i++) {
+    const a = raw[i], b = raw[(i + 1) % raw.length];
+    if (past(a)) clipped.push(a);
+    if (past(a) !== past(b)) {
+      const t = (xCut * s - a[0]) / (b[0] - a[0]);
+      clipped.push([xCut * s, a[1] + (b[1] - a[1]) * t]);
+    }
+  }
+  const outer = ccw(clipped);
+  const inner = ccw(chainOutline(s, -4)).slice().reverse();
+  const sh = new THREE.Shape(outer.map(([a, b]) => new THREE.Vector2(a, b)));
+  sh.holes.push(new THREE.Path(inner.map(([a, b]) => new THREE.Vector2(a, b))));
+  const t = CHAIN_LID.z0 - HOUSING_Z1;
+  let geom: THREE.BufferGeometry = extrudeC(sh, t);
+  const cutters = chainCoverBolts(s).map((q) => yToZ(cyl(LID_STUD_HOLE_R, t + 4, 20)).translate(q.x, q.y, 0));
+  geom = csgSub(geom, ...cutters);
+  geom.rotateX(-Math.PI / 2);
+  geom.translate(0, t / 2, 0);
+  return new Part().add(geom, 'gasket');
+}
 /** Chain-adjuster cover (103-10/15 #29-#31) on the lid outside face: gasket, round seal, cover (engine frame). */
 export function adjusterCoverPart(s: 1 | -1) {
   const c = adjusterCover(s); const p = new Part();
@@ -93,7 +132,7 @@ for (const s of BANKS) {
   // chain housing: case-side gasket (#5), lid gasket (#8 L / #9 R), lid screw plug + ring, expansion plug (#10)
   const out = chainOutline(s, 0) as [number, number][];
   def(`chain-housing-gasket-${b}`, () => gasketRing(out.map(([x, y]) => [x, y]), 8), () => [M(V(0, 0, HOUSING_Z0), Z, X)]);
-  def(`chain-lid-gasket-${b}`, () => gasketRing(out.map(([x, y]) => [x, y]), 9), () => [M(V(0, 0, HOUSING_Z1 + 0.3), Z, X)]);
+  def(`chain-lid-gasket-${b}`, () => chainLidGasket(s), () => [M(V(0, 0, HOUSING_Z1), Z, X)]);
   def(`chain-lid-plug-${b}`, () => plug(17, 6, 8), () => [onSurf(`chain-housing-lid-${b}`, V(s * 232, -22, 400), V(0, 0, -1))]);
   def(`chain-lid-plug2-${b}`, () => plug(14, 5, 7, false), () => [onSurf(`chain-housing-lid-${b}`, V(s * 250, 30, 400), V(0, 0, -1))]);
   def(`cam-housing-plug-${b}`, () => plug(14, 6, 7), () => [onSurf(`cam-housing-${b}`, V(s * 450, 0, -110), V(-s, 0, 0))]);

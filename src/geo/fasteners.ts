@@ -220,7 +220,13 @@ function prototype(f: FSet): Part {
     p.add(lathe([[M / 2 + 0.4, 0], [d.wr, 0], [d.wr, d.wt], [M / 2 + 0.4, d.wt]], 20), 'steel');
     const t = new THREE.BoxGeometry(d.af * 0.45, d.h * 0.8, d.wt); t.translate(0, d.wt + d.h * 0.4, d.af / 2 + d.wt / 2 + 0.1); p.add(t, 'steel'); y = d.wt;
   }
-  if (f.spring) { const t = springT(f), ro = 0.5 * d.af * 0.85; p.add(lathe([[M / 2 + 0.3, 0], [ro, 0], [ro, t], [M / 2 + 0.3, t]], 16, 0.15, Math.PI * 2 - 0.3), 'darkSteel', [0, y, 0]); y += t; }
+  if (f.spring) {
+    const t = springT(f);
+    // Cam-nut washer stands proud of the M22 flats so it reads from the cover side.
+    const ro = f.id.startsWith('cam-nut') ? d.af / 2 + 3.2 : 0.5 * d.af * 0.85;
+    p.add(lathe([[M / 2 + 0.3, 0], [ro, 0], [ro, t], [M / 2 + 0.3, t]], 16, 0.15, Math.PI * 2 - 0.3), 'darkSteel', [0, y, 0]);
+    y += t;
+  }
   const hexAt = (h: number, y0: number, af = d.af) => { const g = hexNut(af, h); g.translate(0, y0 + h / 2, 0); return g; };
   // Reshape the existing rocker-shaft sets to the photos. Other pan heads and nuts are unchanged.
   if (f.id.startsWith('rocker-shaft-screws')) {
@@ -240,7 +246,13 @@ function prototype(f: FSet): Part {
     return p;
   }
   switch (f.kind) {
-    case 'nut': p.add(hexAt(d.h, y), f.mat); break;
+    case 'nut':
+      if (f.id.startsWith('cam-nut')) {
+        // Open bore: the cam nose (r 10.6) shows through the hex instead of a solid plug.
+        const bore = 11.05, rv = d.af / Math.sqrt(3);
+        p.add(lathe([[bore, 0], [rv, 0], [rv, d.h], [bore, d.h]], 6), f.mat, [0, y, 0]);
+      } else p.add(hexAt(d.h, y), f.mat);
+      break;
     case 'lock': p.add(hexAt(d.h, y), f.mat); p.add(lathe([[d.af * 0.45, 0], [d.af * 0.45, d.h * 0.3], [M * 0.55, d.h * 0.3], [M * 0.55, 0]], 16), 'blackPlastic', [0, y + d.h, 0]); break;
     case 'barrel': p.add(lathe([[0.1, 0], [d.af * 0.5, 0], [d.af * 0.5, 9], [d.af * 0.42, 13], [0.1, 13]], 12), f.mat, [0, y, 0]); break;
     case 'cap': p.add(hexAt(0.7 * d.h, y), f.mat); p.add(lathe([[0.1, d.af * 0.22], [d.af * 0.2, d.af * 0.19], [d.af * 0.38, d.af * 0.08], [d.af * 0.45, 0]], 14), f.mat, [0, y + 0.7 * d.h, 0]); break;
