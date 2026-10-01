@@ -337,7 +337,6 @@ Joe's request: "every detail, every part". For example, the half-moon (Woodruff)
 - **Stud lengths:** these are allocated across catalogue lines by pool (`POOLS`), not stud by stud.
 - **Features asserted per part:** rings, bushes, plugs and similar features baked into a part's mesh are counted from `FEATURES` rather than measured from the geometry.
 - **Estimated positions:** the intermediate-shaft stopper and circlips, the cam-housing plug and the second chain-lid plug.
-- **Left valve cover:** 30 mm longer at the flywheel end (`VC_EXT`). It overhangs the housing to cover its studs.
 - **Oil-cooler feet:** partly buried in the hollow case top inherited from PR #8.
 - **GLB total:** 5,238,860 B in 229 files (v4: 3,544,164 B / 89 files).
 
@@ -363,7 +362,9 @@ The external full-length oil line on the old housing is gone. Photos of the hous
 | Cam bore Ø | 47.1 mm, four webs, open from the chain end | Same audit. Four journals are visible on the FVD cam photo; the old “3 plain bearings” note was wrong | unverified |
 | Lobe base radius / lift / peak radius | 16 mm / 6.4 mm / 22.4 mm | Profile is base circle + flank + nose. Peak is held under the journal so the cam slides in. Peak crank angles (intake 450°, exhaust 270° after firing TDC) are a conventional shape, not a measured SC cam card | unverified |
 | Shank Ø | 28 mm (~0.6 × journal) | Proportion on the FVD cam photo | unverified |
-| Cam nose | r 11 mm, Woodruff 4 × 5 × 10, M22 external thread | Unchanged `CAM_NOSE`, so the existing key, flange, washer and nut still fit. The photo’s large disc is the separate flange | nose interface unchanged |
+| Cam nose | r 11 mm, Woodruff 4 × 5 × 10, M22 external thread | Key, washer and nut still use `CAM_NOSE`. Flange OD is 62 mm so the dowel holes clear the hub | key / nut interface unchanged |
+| Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket web, tail in the flange hole | 900 243 001 00. Stoddard lists the pin as 6 × 14. Same `cam-pin-*` part; circle radius 24 mm, outside the M22 nut | length from the parts listing |
+| Valve covers | seat length `CH_Z1 − CH_Z0 − 8` on both banks | Left cover used to overhang the flywheel end by 30 mm (`VC_EXT`). It now matches the cam-housing rails, same as the right cover. Nuts stay on `VC_EARS` | unverified |
 | Rocker shaft | Ø18 × 50 mm, hollow, two O-ring grooves, slotted ends | Photo of 901.105.342.04. Length is the span between the spot faces | unverified |
 | Rocker-shaft screw | M6 socket head, 999.067.008.00 | Photo; the catalogue text says pan head. Same part set, reshaped | head shape from the photo |
 | Rocker-shaft nut | Conical flange, internal hex, 901.105.376.02 | Photo of 901.105.376.03 (catalogue lists .02) | shape from the photo |
@@ -374,4 +375,4 @@ Closed valves meet the 45° seat with no gap. At the assembled crank (cylinder 1
 
 ### Tests
 
-`tests/valvetrain.test.ts` checks lash, nose opening, lobe-peak versus journal radius on the mesh, the open bore from the chain end, and the left/right mirror. The collision allowlist did not gain a new SIMPLIFIED entry. The old “springs through the cam-housing nuts” pair stays off the list and the stack clears those nuts. Cover-to-rocker SIMPLIFIED entries are unchanged: the hollow covers are still shallower than the rocker gear.
+`tests/valvetrain.test.ts` checks lash, nose opening, lobe-peak versus journal radius on the mesh, the open bore from the chain end, the left/right mirror, the left valve cover against the cam-housing seat, and the cam dowel (proud of the sprocket, seated in the flange). The collision allowlist did not gain a new SIMPLIFIED entry. The old “springs through the cam-housing nuts” pair stays off the list and the stack clears those nuts. Cover-to-rocker SIMPLIFIED entries are unchanged: the hollow covers are still shallower than the rocker gear.

@@ -650,15 +650,17 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
  */
 /** Valve-cover cavity: half-width at the seat (w0 + 8 bevel = 26) and how much the v5 hollow pan top rose (z 13.5 -> 22). */
 export const VC_CAV = { w0: 18 }, VC_RAISE = 8.5;
-/** Extra cover length at the flywheel end (local -y), per bank. */
-export const VC_EXT = (s: 1 | -1) => (s < 0 ? 30 : 0);
+/**
+ * Extra cover length at the flywheel end. Both banks are 0: the cover matches the cam-housing seat rails
+ * (`CH_Z0`..`CH_Z1`), the same length and Z position as the right cover. The old left-only +30 mm overhang is gone.
+ */
+export const VC_EXT = (_s: 1 | -1) => 0;
 export function valveCover(s: 1 | -1, upper: boolean) {
   const loc = new Part();
   const len = CH_Z1 - CH_Z0 - 8, w = 58;
   const L = CH_Z1 - CH_Z0;
   // hollow cast pan (v5): drafted outer shell 2.5-3 mm thick over a matching cavity that clears the rocker gear,
-  // on a seat flange ring; everything below the seat plane is trimmed off.
-  // the left bank's cylinder 6 rocker gear sits past the housing centre line: that cover is 30 mm longer at the flywheel end (E: overhangs the housing end)
+  // on a seat flange ring; everything below the seat plane is trimmed off. Ears stay on VC_EARS so the nuts land on the housing bosses.
   const ext = VC_EXT(s), cy = -ext / 2;
   const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
   cavity.translate(0, cy, -20);
@@ -706,16 +708,25 @@ export function coverMatrix(s: 1 | -1, upper: boolean) {
 /**
  * Cam nose stack (103-10/-15), measured along engine Z from the chain plane z = CHAIN_Z[s]:
  * thrust washer #34 (z-18.5..-16) | sprocket flange #36 on the Woodruff key #37 (z-16..-6) | alignment shim #35
- * (z-6..-5.4) | sprocket #38 hub (z-5.4..+13), dowelled to the flange by straight pin #39 | spring washer #40 +
+ * (z-6..-5.4) | sprocket #38 hub (z-5.4..+10), dowelled to the flange by straight pin #39 | spring washer #40 +
  * nut #41 (fasteners.ts cam-nut-*) on the M22x1.5 thread (E) at the nose end.
+ * Pin #39 (900 243 001 00, Ø6 × 14) sits on a circle outside the hub and the M22 nut, through the sprocket web
+ * and 2 mm proud of that web, with its tail seated in the flange hole. It is the existing `cam-pin-*` part.
  */
 // Camshaft mesh: valvetrain.ts camshaft(). Nose stack shared with the CoS key, flange, shim and nut.
-export const CAM_NOSE = { r: 11, key: { D: 9.6, h: 4.8, b: 4, proud: 1.8, dz: -11 }, flange: [-16, -6] as [number, number], shim: 0.6, hubFace: 10, end: 23, pin: { r: 3, rad: 16, a: 0.5 } };
+/** Sprocket web disc (extrudeC). Flat faces at ±depth/2; bevel lips sit `bevel` mm outside those faces. */
+export const CAM_WEB = { depth: 6, bevel: 0.6, liteR: 28, liteHole: 5.5, liteA: 0.3 };
+export const CAM_NOSE = {
+  r: 11, key: { D: 9.6, h: 4.8, b: 4, proud: 1.8, dz: -11 }, flange: [-16, -6] as [number, number], flangeR: 31,
+  shim: 0.6, hubFace: 10, end: 23,
+  // rad 24 clears the hub (r ≤ 19.5) and the M22 nut (vertex r ≈ 18.5). Angle is midway between lightening holes.
+  pin: { r: 3, rad: 24, a: CAM_WEB.liteA + Math.PI / 6, len: 14, proud: 2 },
+};
 /** Sprocket flange (#36): keyed hub disc on the cam nose, carries the sprocket via the dowel pin #39. */
 export function camFlange(s: 1 | -1) {
   const p = new Part();
   const X = CAM_X * s, zc = CHAIN_Z[s], N = CAM_NOSE;
-  const sh = circleShape(24);
+  const sh = circleShape(N.flangeR);
   const bore = new THREE.Path(); // bore with the key slot at +Y
   const kb = N.key.b / 2 + 0.05, a = Math.asin(kb / (N.r + 0.05));
   bore.absarc(0, 0, N.r + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false);
@@ -893,10 +904,18 @@ export function camSprocket(s: 1 | -1) {
   }
   // web: 6 lightening holes + the 3 vernier dowel holes (one carries the pin #39), hub on the cam nose
   const web = circleShape(rr - 4);
-  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; web.holes.push(circlePath(5.5, 28 * Math.cos(a), 28 * Math.sin(a)) as THREE.Path); }
+  const W = CAM_WEB;
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + W.liteA; web.holes.push(circlePath(W.liteHole, W.liteR * Math.cos(a), W.liteR * Math.sin(a)) as THREE.Path); }
   for (let i = 0; i < 3; i++) { const q = N.pin.a + (i * 2 * Math.PI) / 3; web.holes.push(circlePath(N.pin.r + 0.05, N.pin.rad * Math.cos(q) * s, N.pin.rad * Math.sin(q)) as THREE.Path); }
   web.holes.push(circlePath(N.r + 8.2) as THREE.Path);
-  p.add(extrudeC(web, 6, 0.6, 24), 'steel', [X, 0, z]);
+  p.add(extrudeC(web, W.depth, W.bevel, 24), 'steel', [X, 0, z]);
+  // tubular bosses from the flange face back to the web, so the dowel hole is continuous and the pin is not buried in the hub
+  const webBack = -W.depth / 2 - W.bevel;
+  for (let i = 0; i < 3; i++) {
+    const q = N.pin.a + (i * 2 * Math.PI) / 3;
+    const bx = N.pin.rad * Math.cos(q) * s, by = N.pin.rad * Math.sin(q);
+    p.add(yToZ(lathe([[N.pin.r + 0.12, N.flange[1]], [5.4, N.flange[1]], [5.4, webBack + 0.4], [N.pin.r + 0.12, webBack + 0.4]], 18)), 'steel', [X + bx, by, z]);
+  }
   const z0 = N.flange[1] + N.shim; // hub back face on the shim
   p.add(yToZ(lathe([[N.r + 0.15, z0], [N.r + 8.5, z0], [N.r + 8.5, z0 + 2.2], [N.r + 8.2, z0 + 2.2], [N.r + 8.2, 7], [N.r + 5, N.hubFace], [N.r + 0.15, N.hubFace]], 32)), 'steel', [X, 0, z]);
   return p.g;

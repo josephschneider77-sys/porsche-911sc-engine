@@ -1128,7 +1128,9 @@ These are the sizes the cam housings, camshafts, rockers and valves are built to
 | Cam journal / housing bore | Ø46.7 mm / Ø47.1 mm, four webs | Audit photos read about Ø47. Peak lobe radius 22.4 mm is under the journal so the cam slides in from the chain end | unverified |
 | Lobe | base radius 16 mm, lift 6.4 mm | Built as base circle, flank and nose. Peak timing is conventional, not a measured cam card | unverified |
 | Cam shank | Ø28 mm | About 0.6 × the journal on the FVD photo | unverified |
-| Cam nose | r 11 mm, Woodruff key, external M22 | Existing `CAM_NOSE` (key, flange, washer, nut unchanged) | interface unchanged |
+| Cam nose | r 11 mm, Woodruff key, external M22 | Key, washer and nut still use `CAM_NOSE`. Flange OD 62 mm so the dowel holes clear the hub | key / nut unchanged |
+| Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket, tail in the flange hole | 900 243 001 00, Stoddard 6 × 14. Existing `cam-pin-*`, circle radius 24 mm | parts listing |
+| Valve covers | both banks match the cam-housing seat | Left cover no longer overhangs the flywheel end by 30 mm. Nuts stay on the ear bosses | — |
 | Rocker shaft | Ø18 × 50 mm, hollow, two grooves, slotted | Photo of 901.105.342.04 | unverified |
 | Shaft screw / nut | M6 socket head 999.067.008.00; conical nut 901.105.376.02 | Photos. Same fastener sets, reshaped (the catalogue calls the screw a pan head) | shape from photos |
 | Rocker ratio | ~1.13 in / ~1.21 ex at this layout | Follows from the pad-on-base-circle placement. Not taken from a published ratio | unverified |

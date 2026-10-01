@@ -4,7 +4,8 @@ import {
   CAM, PEAK_R, LASH, FIRE_CRANK, ASSEMBLED_CRANK, trainPose, camshaft, camWebZ, lobeRadius,
 } from '../src/geo/valvetrain';
 import { CAM_X } from '../src/data/layout';
-import { CH_Z0 } from '../src/geo/core';
+import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1 } from '../src/geo/core';
+import { ASSET_BUILDERS } from '../src/geo/assets';
 import { rayHit } from './hw';
 
 const PEAK_AT = { in: 450, ex: 270 } as const;
@@ -13,7 +14,16 @@ function worldVerts(obj: THREE.Object3D): THREE.Vector3[] {
   const out: THREE.Vector3[] = [];
   obj.updateMatrixWorld(true);
   const v = new THREE.Vector3();
+  const inst = new THREE.Matrix4();
   obj.traverse((o: any) => {
+    if (o.isInstancedMesh) {
+      const p = o.geometry.attributes.position as THREE.BufferAttribute;
+      for (let n = 0; n < o.count; n++) {
+        o.getMatrixAt(n, inst); inst.premultiply(o.matrixWorld);
+        for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(inst); out.push(v.clone()); }
+      }
+      return;
+    }
     if (!o.isMesh) return;
     const p = o.geometry.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld); out.push(v.clone()); }
@@ -82,5 +92,34 @@ describe('top-end batch 1', () => {
     const leftEx = trainPose(6, -1, 0).lay;
     expect(leftEx.P.x).toBeCloseTo(-rightEx.P.x, 2);
     expect(leftEx.z).toBeCloseTo(-rightEx.z, 2);
+  });
+
+  it('trims the left valve cover to the cam-housing seat, matching the right cover', () => {
+    const box = (id: string) => new THREE.Box3().setFromObject(ASSET_BUILDERS[id]());
+    for (const u of ['upper', 'lower'] as const) {
+      const L = box(`valve-cover-${u}-left`), R = box(`valve-cover-${u}-right`);
+      expect(L.min.z, `${u} flywheel end`).toBeCloseTo(R.min.z, 0);
+      expect(L.max.z, `${u} pulley end`).toBeCloseTo(R.max.z, 0);
+      expect(L.min.z, u).toBeGreaterThan(CH_Z0 - 1);
+      expect(L.max.z, u).toBeLessThan(CH_Z1 + 1);
+      expect(L.max.z - L.min.z, `${u} length`).toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
+    }
+  });
+
+  it('seats the cam dowel in the flange hole and stands it proud of the sprocket', () => {
+    const lip = CAM_WEB.depth / 2 + CAM_WEB.bevel;
+    for (const s of [1, -1] as const) {
+      const b = s > 0 ? 'right' : 'left';
+      const zc = CHAIN_Z[s];
+      const pin = worldVerts(ASSET_BUILDERS[`cam-pin-${b}`]());
+      const zs = pin.map((v) => v.z - zc);
+      const tip = Math.max(...zs), tail = Math.min(...zs);
+      expect(tip - tail, `${b} length`).toBeCloseTo(CAM_NOSE.pin.len, 1);
+      expect(tip, `${b} proud of the web`).toBeGreaterThan(lip + CAM_NOSE.pin.proud - 0.25);
+      expect(tail, `${b} inside the flange`).toBeLessThan(CAM_NOSE.flange[1] - 1);
+      expect(tail, `${b} not through the flange back`).toBeGreaterThan(CAM_NOSE.flange[0] + 1);
+      const rad = pin.map((v) => Math.hypot(v.x - CAM_X * s, v.y));
+      expect((Math.min(...rad) + Math.max(...rad)) / 2, `${b} circle`).toBeCloseTo(CAM_NOSE.pin.rad, 0);
+    }
   });
 });
