@@ -33,7 +33,7 @@ Known dimensions are marked **K**. Values estimated from the catalogue illustrat
 - Valves: intake Ø49, exhaust Ø41.5, stem Ø9 *E*; valve angles ~28° / ~32° *E*.
 - Flywheel OD ~268 with 130-tooth ring gear *E*; clutch 225 *E*.
 - Fan Ø226 **K** for 1978–79 (Pelican forum 428673; catalogue 930 106 011 01 is the -79 impeller and does not state 245 mm). Later cars are ~245 *E*. Belt 9.5 × 725 **K** (105-00 #12).
-- Timing chain pitch 3/8" (9.525) *E*. Cam drive (see §15): crank gear 35 T : intermediate gear 60 T (module 168/95, 84 mm centres), intermediate sprockets 24 T, cam sprockets 28 T (pitch Ø85), idler 19 T — cam at exactly ½ crank. Bottom End signed off; tooth counts unverified against Dempsey, chosen for exact 2:1 with 24T/28T.
+- Timing chain pitch 3/8" (9.525) *E*. Cam drive (see §16): crank gear 35 T : intermediate gear 60 T (module 168/95, 84 mm centres), intermediate sprockets 24 T, cam sprockets 28 T (pitch Ø85), idler 19 T — cam at exactly ½ crank. Bottom End signed off; tooth counts unverified against Dempsey, chosen for exact 2:1 with 24T/28T.
 
 ## 2. Coordinate frame
 +X is the car's right side (cylinders 1-3). +Y is up. +Z is the pulley/fan end (rear of the car). The crank axis is Z. Units are millimetres. See `src/data/layout.ts`.
@@ -180,7 +180,7 @@ Joe's v2 review: the chain cover collided with the exhaust and the chain covers 
 | Item | v2 | v3 (*E*) |
 |---|---|---|
 | Cam sprocket | 36 T (pitch Ø109) | **28 T (pitch Ø85)**; FVD face count, chain-wrap Ø ≈ 80-85 |
-| Int.-shaft sprockets | 18 T (ratio patch) | **24 T**, the published count; see §15 |
+| Int.-shaft sprockets | 18 T (ratio patch) | **24 T**, the published count; see §16 |
 | Crank : int. gear | 36 : 48 | 36 : 48 (int. shaft at ¾ crank, so cam at ½ crank) |
 | Chain box, end view | hull reaching x ≈ −16 … 372, y ≈ −200 … 80 (crossed the centreline, overlapped the other bank and sat on the heat exchanger) | **x 118 … 347, y −145 … 55** (≈229 × 200 mm): straight inner edge at \|x\| = 118, round end around the cam (r 55), floor rising from −145 at the tensioner corner to −58 under the cam |
 | Box depth | 54 + dome | 70 mm from the case face (z 212 → 282), flat cover, low cam boss (5 mm) |
