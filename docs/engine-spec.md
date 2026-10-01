@@ -422,7 +422,7 @@ Photo pass on the cooling fan, fan housing, split pulley, Bosch alternator and t
 
 The fan group moved down with the new centre distance. `FAN.y` was 255; it is now 210.33, a drop of 44.67 mm. Fan housing, impeller, hub, pulley, belt, alternator and collar bolts all sit on that axis. The housing lip was reduced to r 136 so the full circle clears the crank pulley and the chain-box gaskets. The shroud mouth is a sleeve on that same axis, z 214–232, radius 146, just engine-side of the band clamp.
 
-- **Upper air guide.** Wings, skirts, screw lips and the flywheel-end plate stay seated on the heads. The fan end is one skin: the flat centre roof eases into a horn whose mouth is a short sleeve on the fan axis, wrapped around the housing barrel just engine-side of the band clamp (z 214–232, radius 146). Where that skin would enter the throttle body, the alternator or the distributor cap it is cut back locally. The distributor moved to x −98, z 146 so the cap clears the lowered alternator; the shroud opening moved with it.
+- **Upper air guide.** Wings, skirts, screw lips and the flywheel-end plate stay seated on the heads. The fan end is one skin: the flat centre roof eases into a horn whose mouth is a short sleeve on the fan axis, wrapped around the housing barrel just engine-side of the band clamp (z 214–232, radius 146). Where that skin would enter the throttle body, the alternator or the distributor cap it is cut back locally. The distributor moved to x −98, z 146 so the cap clears the lowered alternator; the shroud opening moved with it. That upright placement is superseded by §19.
 - **Intake.** The CIS stack stays at the main height. The lowered fan does not move the plenum, air cleaner, mixture unit, runners, boots, fuel lines or linkage. Top-end parts (heads, cam housings, valvetrain, chain drive) are not moved.
 - **Alternator.** Drive-end and rectifier shields are the bright aluminium castings (cooling slots in the drive end, smaller windows on the slip-ring end). The laminated stator is a short inset waist. Copper shows in the windows and does not form the outer silhouette. Brush block, diode plates and the ground-strap stud stay on the slip-ring face.
 - **Fan housing colour.** Albedo #6C6F71, roughness 0.92, environment intensity 0.12, so the lit magnesium reads about #8A8D8F. The impeller keeps its own magnesium finish.
@@ -553,3 +553,35 @@ Two struts carry the canister: straight `911 110 133 02` (#18) and angled `911 1
 Vacuum, nine pieces in three sizes (the bulk hoses are sold by the metre, so the checklist does not count cuts): small r 3.2 mm (3.2×7) for the manifold, the limiter and the distributor; medium r 4.5 mm (Ø9) for the thermo valve, the reducing socket and the additional-air signal; large r 7 mm (8×14 OD) for the three short runs on the socket cluster. The thermo valve is illustration 17A. It is not a line in the text extract, so it is drawn and not claimed. The distributor hose still ends on `DIST_VAC_NIPPLE`.
 
 Two further vacuum seats are not part of that nine-piece harness. Illustration 108-00 #31 (`999 239 003 40`, the diverter-valve hose) and illustration 202-05 #16 (the same hose, 770 mm, EGR to the throttle) are outside the checklist extract, so they are not claimed and their long hoses are not drawn here. The T-piece (#14) has a spare branch: a small 3.2×7 hose from the tee up to a nipple at (−86, 328, −16), axis (0, −1, 0), and the tee already reaches the manifold nipple. The throttle housing carries a ported-vacuum nipple at (36, 230, 146), axis (0, 0, 1), on the pulley side of the lever pad. The breather tower's neck is the spigot for 901 107 394 00, which the checklist leaves off the engine (the oil tank is body-mounted); there is no breather hose mesh. The heater flexible pipe seats on the left adapter mouth and on a ferrule at the body end. `tests/fuel-lines.test.ts` checks every named line, including these.
+
+## 19. Distributor at the left-case pulley end
+
+The upright distributor at x −98, z 146 sat outboard of the case skin and about 65 mm toward the flywheel from the crank drive wheel. On the 930/03 the distributor stands in a bore in the left case half at the pulley end, driven by a helical pinion off the crankshaft gear.
+
+Photos of normally aspirated 911 engines (the SC bay is the same layout) show the body on the left side of the case, leaning outboard toward the left wing, with the cap towers on top and the vacuum can toward the left rear. The clamp and its nut sit at the base. The coil is on the left inner wing, which is bodywork, so the coil lead ends in a cut stub toward the fan.
+
+- Wikimedia, normally aspirated 911 bay (left-side distributor, outboard lean, vacuum can to the left rear, coil on the left wing): https://commons.wikimedia.org/wiki/File:Flickr_-_wbaiv_-_Porsche_911_%22normally_aspirated%22_ie_no_turbosupercharger.jpg
+- Wikimedia, 911 Carrera engine lid: https://commons.wikimedia.org/wiki/File:Porsche_911_Carrera_Motorhaube-20190501-RM-154600.jpg
+- Wikimedia, 911 2.0 engine: https://commons.wikimedia.org/wiki/File:Porsche_911_2.0_003.JPG
+- Wikimedia, 911L at Nottuln: https://commons.wikimedia.org/wiki/File:Nottuln,_Oldtimermuseum,_Porsche_911L_--_2021_--_4496.jpg
+- Stoddard, pinion 930 602 422 03, counterclockwise, 78–83 SC: https://www.stoddard.com/en/distributor-pinion-counterclockwise-rotation-P990031475
+- The crank wheel stays 930 102 115 01, the number already on `crank-gears`. 930 602 422 02 is the clockwise pinion and is not used.
+
+A shaft that leaned toward the fan would put the cap inside the fan housing (z ≥ 208) or the chain box. The open bay is flywheel of the fan, so the rotor axis points up, outboard, and slightly toward the flywheel. The towers follow that axis. The vacuum can's local +X points outboard and toward the fan.
+
+`DIST` in `src/geo/aux.ts` (the same axis is duplicated in `core.ts` for the bore):
+
+| | Value |
+| --- | --- |
+| Pinion centre | (−36.2, 26.5, 216) |
+| Aim point (direction only) | (−150, 168, 150) |
+| Rotor axis (unit) | (−0.5890, 0.7324, −0.3416) |
+| Local +X | (−0.7296, −0.3001, 0.6145), outboard and toward the fan |
+| Local +Z | (−0.3476, −0.6112, −0.7111) |
+| Case bore | r 14.6, along the axis from the gear pocket to the mouth |
+| Shank | r 13.2 in the bore, O-ring in the groove, shoulder outside the mouth |
+| Pinion | tip r 12, 0.5 mm off the crank wheel (tip r 32.4) |
+| Clamp | steel plate at local y 97.5–102, stud at local (−28, 2), M8 nut |
+| Cap towers | six posts on a 20 mm radius at local y 166, plus the centre coil tower |
+
+The coil lead and the primary leave the cap and run along the left shroud edge, within about 40 mm of the sheet, and end in cut stubs toward the fan. Each plug lead still starts at its tower and then follows `partPose` of that plug, and it never goes below its boot. The plug-end path stays parametric so a later head can move the plugs.
