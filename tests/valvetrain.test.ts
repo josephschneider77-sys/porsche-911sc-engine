@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import {
-  CAM, PEAK_R, LASH, FIRE_CRANK, ASSEMBLED_CRANK, trainPose, camshaft, camWebZ, lobeRadius,
+  CAM, PEAK_R, LASH, PAD_LEN, EYE_LEN, FIRE_CRANK, ASSEMBLED_CRANK, trainPose, camshaft, camWebZ, lobeRadius,
+  rockerStations,
 } from '../src/geo/valvetrain';
 import { CAM_X } from '../src/data/layout';
 import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1 } from '../src/geo/core';
@@ -51,6 +52,9 @@ describe('top-end batch 1', () => {
       expect(peak.lobeR, tag).toBeCloseTo(PEAK_R, 2);
       expect(peak.lift, `${tag} lift`).toBeGreaterThan(4);
       expect(peak.gap, tag).toBeLessThan(0.02);
+      // Photo proportions: a long pad arm and a distinct shorter eye arm, not a stub on the boss.
+      expect(closed.lay.P.distanceTo(closed.lay.K), `${tag} pad arm`).toBeGreaterThan(PAD_LEN - 1);
+      expect(closed.lay.P.distanceTo(closed.lay.ball), `${tag} eye arm`).toBeGreaterThan(EYE_LEN - 1);
     }
   });
 
@@ -103,6 +107,49 @@ describe('top-end batch 1', () => {
       expect(L.min.z, u).toBeGreaterThan(CH_Z0 - 1);
       expect(L.max.z, u).toBeLessThan(CH_Z1 + 1);
       expect(L.max.z - L.min.z, `${u} length`).toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
+    }
+  });
+
+  it('keeps every rocker sub-mesh in one connected piece per station', () => {
+    const tol = 0.75;
+    const count = (meshes: THREE.Mesh[]) => {
+      const boxes = meshes.map((m) => new THREE.Box3().setFromObject(m));
+      const parent = meshes.map((_, i) => i);
+      const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+      for (let i = 0; i < meshes.length; i++) for (let j = i + 1; j < meshes.length; j++) {
+        if (boxes[i].clone().expandByScalar(tol).intersectsBox(boxes[j])) {
+          const a = find(i), b = find(j);
+          if (a !== b) parent[a] = b;
+        }
+      }
+      return new Set(meshes.map((_, i) => find(i))).size;
+    };
+    for (const s of [1, -1] as const) {
+      const id = s > 0 ? 'rockers-right' : 'rockers-left';
+      const root = ASSET_BUILDERS[id]();
+      root.updateMatrixWorld(true);
+      const meshes: THREE.Mesh[] = [];
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh && !(m as THREE.InstancedMesh).isInstancedMesh) meshes.push(m);
+      });
+      const stations = rockerStations(s);
+      const groups: THREE.Mesh[][] = stations.map(() => []);
+      for (const m of meshes) {
+        const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3());
+        let best = 0, bestD = Infinity;
+        stations.forEach((st, i) => {
+          const d = Math.hypot(c.x - st.x, c.y - st.y, c.z - st.z);
+          if (d < bestD) { bestD = d; best = i; }
+        });
+        expect(bestD, `${id} floating fragment`).toBeLessThan(56);
+        groups[best].push(m);
+      }
+      groups.forEach((g, i) => {
+        const tag = `${id} cyl ${stations[i].cyl} side ${stations[i].side}`;
+        expect(g.length, tag).toBeGreaterThan(4);
+        expect(count(g), `${tag} components`).toBe(1);
+      });
     }
   });
 
