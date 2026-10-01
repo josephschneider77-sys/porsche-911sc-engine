@@ -377,6 +377,14 @@ export function crankcaseHalf(s: 1 | -1) {
     axial(14.5, yS, 269, 284),
     axial(36.5, 0, 190.8, 225),
   ], open);
+  // The gear pocket removes the lower lug. The left lock nut still needs a seat under the
+  // two rays the pocket took (the other two still hit the lug outside the pocket). Both
+  // patches stay out of the 60 T ring: z 196.8 is 0.5 mm outside the tip circle, and
+  // y −129.2 is at z 190, ahead of the tooth face at z 192.
+  if (s < 0) {
+    p.add(boxMM([-18, -137.4, 195.6], [-16.5, -136.0, 198.0]), 'machinedAlu');
+    p.add(boxMM([-18, -130.6, 189.0], [-14.5, -127.8, 190.9]), 'machinedAlu');
+  }
   return p.g;
 }
 
@@ -1765,7 +1773,8 @@ export function perimeterClashSolids(): THREE.BufferGeometry[] {
   const m = new THREE.Matrix4().compose(seat, q, new THREE.Vector3(1, 1, 1));
   const wt = 1.6, h = 6.5, af = 13, pad = 2.4;
   const along = (g: THREE.BufferGeometry, y0: number, y1: number) => g.translate(0, (y0 + y1) / 2, 0).applyMatrix4(m);
-  const washer = along(cyl(8 + pad, wt + 0.4, 24), -0.2, wt + 0.2);
+  // Inboard of the seat (local y < 0) so the tooth ring is already gone on the face the nut bears on.
+  const washer = along(cyl(8 + pad, wt + 1.8, 24), -1.6, wt + 0.2);
   const hex = along(cyl(af / Math.sqrt(3) + pad, h + 0.3, 16), wt - 0.15, wt + h + 0.15);
   const nylon = along(cyl(af * 0.45 + pad, h * 0.3 + 1.6, 20), wt + h - 0.2, wt + h + h * 0.3 + 1.4);
   // studGeometry: r = M/2*0.96, from -(grip+embed) to headHeight+1.5. Lock head is wt + h*1.3.
