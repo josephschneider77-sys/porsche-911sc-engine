@@ -764,13 +764,27 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
   cavity.translate(0, cy, -20);
   const below = boxMM([-w, -len, -40], [w, len, 0.01]);
-  loc.add(csgSub(extrude(roundRect(w, len + ext, 7), 3, 0.6, 6).translate(0, cy, 0), cavity), 'castAlu');
+  // Stepped seat flange: thin outer lip, then a raised land the pan walls leave from.
+  const lip = extrude(roundRect(w, len + ext, 7), 1.15, 0.25, 6).translate(0, cy, 0);
+  const step = extrude(roundRect(w - 7, len - 6 + ext, 5), 2.15, 0.4, 6).translate(0, cy, 1.15);
+  // Sprocket-end notch (pulley / chain end, local +y). Deep enough to read, clear of the ear pads.
+  const notch = boxMM([-15, len / 2 - 16 + cy, -1], [15, len / 2 + 4 + cy, 16]);
+  loc.add(csgSub(lip, cavity, notch), 'castAlu');
+  loc.add(csgSub(step, cavity, notch), 'castAlu');
   const pan = new THREE.ExtrudeGeometry(roundRect(w - 17, len - 22 + ext, 6), { depth: 12, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
-  loc.add(csgSub(pan.translate(0, cy, 0), cavity, below), 'castAlu');
-  // ears (both long edges): bosses trimmed to a slightly narrower cavity so the full nut seat stays solid, nut seat at z 7
+  loc.add(csgSub(pan.translate(0, cy, 0), cavity, below, notch), 'castAlu');
+  // Raised ears: a drafted boss that flares out of the pan side up to the nut pad. Nut face stays at z 7.
   const earCut = new THREE.ExtrudeGeometry(roundRect(31, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 }).translate(0, cy, -20);
+  const earBoss = yToZ(lathe([
+    [12.4, 0], [11.2, 1.5], [9.4, 3.4], [8.6, 5.4], [8.6, 7], [0.4, 7],
+  ], 20));
   for (const yy of VC_EARS(upper)) {
-    for (const xx of [-VC_EDGE, VC_EDGE]) loc.add(csgSub(yToZ(cyl(8.5, 7, 16)).translate(xx, yy, 3.5), earCut), 'castAlu');
+    for (const xx of [-VC_EDGE, VC_EDGE]) {
+      loc.add(csgSub(earBoss.clone().translate(xx, yy, 0), earCut), 'castAlu');
+      // web rising from the pan wall into the ear, kept below the nut face
+      const webX = xx > 0 ? [xx - 10, xx - 2] : [xx + 2, xx + 10];
+      loc.add(boxMM([webX[0], yy - 4.5, 2.2], [webX[1], yy + 4.5, 6.2]), 'castAlu');
+    }
   }
   if (upper) {
     // two machined round bosses

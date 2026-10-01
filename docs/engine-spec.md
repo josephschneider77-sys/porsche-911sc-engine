@@ -345,29 +345,37 @@ Geometry is in `src/geo/valvetrain.ts`. Chief of Staff parts are reshaped, not d
 
 The external full-length oil line on the old housing is gone. Photos of the housing do not show one. The splash tube (`930.105.362.00`) and the banjo stay; the tube is moved off the journal centreline.
 
+Photo pass (batch 2) reshapes the same meshes against the comparison sheets. The cam-housing photo is the photo column of `cam-housing.png`. Exhaust-valve shape follows the SC valve 930.105.419.51; the 930 Turbo sodium-filled valve is shape comparison only and is not the part modelled. Nothing below was measured from Dempsey’s rebuild book unless the last column says so.
+
 ### Dimensions
 
 | Item | Value used | Source | vs Dempsey |
 |---|---|---|---|
-| Valve lash, cold, intake and exhaust | 0.10 mm between the adjuster ball and the stem tip; the pad is on the base circle | Wayne Dempsey, “911 Valve Adjustment” (same author as the rebuild book) | verified |
-| Intake / exhaust head Ø | 49 mm / 41.5 mm | Catalogue 930.105.409.13 / 930.105.419.51; kept from the previous model | not re-measured in the book for this pass |
+| Valve lash, cold, intake and exhaust | 0.10 mm between the adjuster ball surface and the stem tip; the pad crown is on the base circle | Wayne Dempsey, “911 Valve Adjustment” (same author as the rebuild book) | verified |
+| Intake / exhaust head Ø | 49 mm / 41.5 mm | Catalogue 930.105.409.13 / 930.105.419.51 | not re-measured in the book for this pass |
 | Included angle | 28° intake / 32° exhaust | Previous model. Not found as a quoted figure in the sources used here | unverified |
 | Overall valve length | 112 mm | Previous model | unverified |
 | Stem Ø | 9 mm | Common 911 stem size; not quoted from Dempsey here | unverified |
+| Seat ring | land 1.25 mm tall, OD = head Ø + 0.56 mm | The dark ring on the comparison sheet was a fat collar (about +2.4 mm and 5 mm tall). This is a thin land just outside the 45° face | unverified |
 | Keeper grooves | 3 beads, two half-cones (901.105.417.00) | Photo of 901.105.417.00 | unverified as a measured width |
 | Installed spring height | 34.5 mm | Bentley 911 SC specification 34.5 ± 0.3 mm, quoted on a DDK forum thread. Not Dempsey | unverified against the book |
-| Spring wire / coil Ø | outer centre Ø20.4 mm, inner Ø14.2 mm | Scaled so the stack clears the cam-housing stud nuts. Photo shows a larger outer coil | unverified |
+| Outer spring | centre Ø20.0 mm, wire Ø1.55 mm, 5.2 turns, dark, damper coils at the head end | Two distinct helices. Outer OD is kept near the previous stack so the cam-housing stud nuts still clear | unverified |
+| Inner spring | centre Ø12.1 mm, wire Ø0.92 mm, 8 turns, brighter steel, phase-offset from the outer | Radial gap to the outer wire is about 2.7 mm, so the coils do not read as one spring | unverified |
 | Cam journal Ø | 46.7 mm | Chosen just under a Ø47 bore. The audit photos read “about Ø47” | unverified |
-| Cam bore Ø | 47.1 mm, four webs, open from the chain end | Same audit. Four journals are visible on the FVD cam photo; the old “3 plain bearings” note was wrong | unverified |
-| Lobe base radius / lift / peak radius | 16 mm / 6.4 mm / 22.4 mm | Profile is base circle + flank + nose. Peak is held under the journal so the cam slides in. Peak crank angles (intake 450°, exhaust 270° after firing TDC) are a conventional shape, not a measured SC cam card | unverified |
-| Shank Ø | 28 mm (~0.6 × journal) | Proportion on the FVD cam photo | unverified |
+| Cam bore Ø | 47.1 mm, four webs, open from the chain end | Same audit. Four journals are visible on the cam photo | unverified |
+| Lobe base radius / lift / peak radius | 15.2 mm / 7.0 mm / 22.2 mm | Peak is under the journal (22.85 mm limit) so the cam still slides in. The nose drops 3.2 mm over 0.34 rad (~19°), then a smooth flank of 1.08 rad down to the base circle, so the tip reads eccentric and cylinder 4 still has overlap lift | unverified. Not a measured SC cam card |
+| Lobe width | 10.5 mm | Wide enough to read as a lobe, narrow enough that the heel is not buried in the shank | unverified |
+| Shank Ø | 37.2 mm (~0.80 × journal), cast | The Ø28 shank read as too thin next to the journals. Ground relief grooves between each intake/exhaust pair are Ø30 | unverified |
 | Cam nose | r 11 mm, Woodruff 4 × 5 × 10, M22 external thread | Key, washer and nut still use `CAM_NOSE`. Flange OD is 62 mm so the dowel holes clear the hub | key / nut interface unchanged |
 | Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket web, tail in the flange hole | 900 243 001 00. Stoddard lists the pin as 6 × 14. Same `cam-pin-*` part; circle radius 24 mm, outside the M22 nut | length from the parts listing |
-| Valve covers | seat length `CH_Z1 − CH_Z0 − 8` on both banks | Left cover used to overhang the flywheel end by 30 mm (`VC_EXT`). It now matches the cam-housing rails, same as the right cover. Nuts stay on `VC_EARS` | unverified |
-| Rocker shaft | Ø18 × 50 mm, hollow, two O-ring grooves, slotted ends | Photo of 901.105.342.04. Length is the span between the spot faces | unverified |
-| Rocker-shaft screw | M6 socket head, 999.067.008.00 | Photo; the catalogue text says pan head. Same part set, reshaped | head shape from the photo |
+| Cam housing | one casting: recessed head face, oval boss per cylinder, central spine outside the bore, drafted outer arch with five ribs, split rocker towers | Photo column of the cam-housing comparison sheet. Spine and bay cheeks stay outside the Ø47.1 bore | unverified |
+| Valve covers | both banks, seat length `CH_Z1 − CH_Z0 − 8`. Lip 1.15 mm plus a 2.15 mm step. Sprocket-end notch 30 mm wide. Ears are drafted bosses with a flat nut face at local z = 7. Two round bosses and the PORSCHE letters stay on the upper covers | Comparison sheet. Left cover still matches the right cover’s Z (`VC_EXT` = 0); the test forbids the old 30 mm flywheel overhang | unverified |
+| Left valve-cover gasket | same outline as the cover. The middle of the flywheel end rail is open (|local x| < 27 mm) | Cylinder 6’s shaft screw and intake nut land on that rail because the cover cannot grow past the housing. Corner seals stay. Real gasket is a full frame | model clearance, unverified |
+| Rocker shaft | Ø18, 30 mm between the O-ring grooves, spot faces 34 mm apart, hollow, slotted ends | Photo of 901.105.342.04. Shorter than the old 50 mm so the shaft does not stand well proud of the arm. Boss is 22 mm tall (OD about 27 mm) with about 4 mm of shaft showing each side | unverified |
+| Rocker arm | curved I-beam. Pad arm 45 mm from the shaft to the cam axis; crowned pad face R 26 mm, 14.5 mm wide. Adjuster eye 8.2 mm with an M8 locknut on the outer face and a Ø6.4 ball. Intake chord (pad crown to ball) 49.3 mm, exhaust 52.2 mm — 2.7× and 2.9× the Ø18 bore | The loose forging in the photo is about 3.5× the bore. The stem tip is 65 mm (intake) / 67 mm (exhaust) from the cam axis, so the installed chord cannot reach 3.5× without moving the valve and the spring stack. The arm is the long curved forging; the centres stay on the stem tip and the base circle | unverified |
+| Rocker-shaft screw | M6 socket head, 999.067.008.00, shank 26 mm | Photo; the catalogue text says pan head. Same part set, reshaped | head shape from the photo |
 | Rocker-shaft nut | Conical flange, internal hex, 901.105.376.02 | Photo of 901.105.376.03 (catalogue lists .02) | shape from the photo |
-| Rocker ratio | about 1.13 intake / 1.21 exhaust at this layout (7.2 / 7.7 mm valve lift from 6.4 mm cam lift) | Consequence of putting the pad on the base circle and the ball on the stem. Published ratios near 1.4 were not used | unverified |
+| Rocker ratio | follows from the pad on the base circle and the ball on the stem. Cam lift is 7.0 mm; valve lift at the nose is above 4 mm | Published ratios near 1.4 were not used | unverified |
 | Firing order | 1-6-2-4-3-5, cams at half crank speed | Standard 911. Opposite cylinders are 360° apart on the 720° cycle | verified as the engine’s order, not as a page citation |
 
 Closed valves meet the 45° seat with no gap. At the assembled crank (cylinder 1 at firing TDC) cylinder 4 is on overlap and both of its valves are off the seat. Each cylinder has its own valve asset for that reason.
