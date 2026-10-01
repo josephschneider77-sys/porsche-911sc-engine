@@ -1,8 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { basePath, chainPath, chainPins, tensionerLayout, ADJ } from '../src/geo/core';
+import { CAM_X, INT_SHAFT_Y } from '../src/data/layout';
+import {
+  basePath, chainPath, chainPins, tensionerLayout, ADJ, CAM_NOSE, CAM_SPROCKET_R, INT_SPROCKET_R,
+  SPROCKET_HOLES, FLANGE_NOTCHES, VERNIER, CHAIN_Z, guideRails, railInner,
+} from '../src/geo/core';
+import { rayHit } from './hw';
 
-describe.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('chain tensioner, %s bank', (s) => {
+describe.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('chain tensioner, %s bank', (s, b) => {
   const B = basePath(s), P = chainPath(s), T = tensionerLayout(s), { pins } = chainPins(s);
   const inward = B.nLo.clone().negate();
   const dLine = (q: { x: number; y: number }) => new THREE.Vector2(q.x - B.lo1.x, q.y - B.lo1.y).dot(inward); // >0 = pushed into the loop
@@ -33,5 +38,45 @@ describe.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('chain te
     expect(Math.abs(T.contact.distanceTo(T.tail) - ADJ.pad)).toBeLessThanOrEqual(0.5);
     expect(T.adjBase.distanceTo(T.contact)).toBeCloseTo(T.reach, 6);
     expect(T.plunger).toBeGreaterThan(2);
+  });
+  it('chain rollers sit on the cam and intermediate pitch circles', () => {
+    const onCam = pins.filter((q) => Math.abs(Math.hypot(q.x - CAM_X * s, q.y) - CAM_SPROCKET_R) < 0.35);
+    const onInt = pins.filter((q) => Math.abs(Math.hypot(q.x, q.y - INT_SHAFT_Y) - INT_SPROCKET_R) < 0.35);
+    expect(onCam.length).toBeGreaterThanOrEqual(4);
+    expect(onInt.length).toBeGreaterThanOrEqual(3);
+    for (const q of pins) {
+      expect(Math.hypot(q.x - CAM_X * s, q.y)).toBeGreaterThan(CAM_SPROCKET_R - 0.35);
+      expect(Math.hypot(q.x, q.y - INT_SHAFT_Y)).toBeGreaterThan(INT_SPROCKET_R - 0.35);
+    }
+  });
+  it('cam sprocket has 17 open vernier holes and a land between them', () => {
+    const X = CAM_X * s, z = CHAIN_Z[s] + 30;
+    const at = (a: number, rad: number) => new THREE.Vector3(X + rad * Math.cos(a) * s, rad * Math.sin(a), z);
+    const down = new THREE.Vector3(0, 0, -1);
+    for (let i = 0; i < SPROCKET_HOLES; i++) {
+      const a = CAM_NOSE.pin.a + (i * 2 * Math.PI) / SPROCKET_HOLES;
+      expect(rayHit(`cam-sprocket-${b}`, at(a, CAM_NOSE.pin.rad), down, 60), `hole ${i}`).toBeNull();
+    }
+    const mid = CAM_NOSE.pin.a + Math.PI / SPROCKET_HOLES;
+    expect(rayHit(`cam-sprocket-${b}`, at(mid, CAM_NOSE.pin.rad), down, 60)).not.toBeNull();
+  });
+  it('flange rim is scalloped: open at the dowel, solid halfway to the next notch', () => {
+    const X = CAM_X * s, z = CHAIN_Z[s] + 30;
+    const down = new THREE.Vector3(0, 0, -1);
+    const notchR = CAM_NOSE.pin.rad - VERNIER.notchR * 0.45;
+    const open = new THREE.Vector3(X + notchR * Math.cos(CAM_NOSE.pin.a) * s, notchR * Math.sin(CAM_NOSE.pin.a), z);
+    expect(rayHit(`cam-flange-${b}`, open, down, 60)).toBeNull();
+    const landA = CAM_NOSE.pin.a + Math.PI / FLANGE_NOTCHES;
+    const land = new THREE.Vector3(X + (CAM_NOSE.pin.rad - 0.6) * Math.cos(landA) * s, (CAM_NOSE.pin.rad - 0.6) * Math.sin(landA), z);
+    expect(rayHit(`cam-flange-${b}`, land, down, 60)).not.toBeNull();
+  });
+  it('guide-rail shoes sit against the chain run', () => {
+    for (const r of guideRails(s)) {
+      const f = (r.f0 + r.f1) / 2;
+      const q = r.a.clone().lerp(r.b, f);
+      const hit = rayHit(`chain-tensioner-${b}`, new THREE.Vector3(q.x, q.y, CHAIN_Z[s]), new THREE.Vector3(r.n.x, r.n.y, 0), 20);
+      expect(hit, `rail at x ${q.x.toFixed(0)}`).toBeTruthy();
+      expect(Math.abs(hit!.distance - railInner(0.5))).toBeLessThan(0.6);
+    }
   });
 });

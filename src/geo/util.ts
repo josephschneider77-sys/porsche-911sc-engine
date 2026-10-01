@@ -80,14 +80,39 @@ export function hull(points: [number, number][]): [number, number][] {
 export function circlePts(cx: number, cy: number, r: number, n = 24): [number, number][] {
   return Array.from({ length: n }, (_, i) => [cx + r * Math.cos((i / n) * Math.PI * 2), cy + r * Math.sin((i / n) * Math.PI * 2)] as [number, number]);
 }
+/**
+ * Toothed annulus as one outline (outer teeth, then the bore reversed). ExtrudeGeometry's hole
+ * triangulator bridges a duplex sprocket's bore, so the bore is part of the contour instead.
+ * The root flat is centred at 0.875 of the tooth pitch, which is where `toothPhase` seats a roller.
+ */
+export function sprocketRingShape(teeth: number, rRoot: number, rTip: number, rHole: number) {
+  const step = (Math.PI * 2) / teeth;
+  const outer: [number, number][] = [];
+  for (let i = 0; i < teeth; i++) {
+    const a0 = i * step;
+    for (const [r, f] of [[rRoot, 0.02], [rTip, 0.14], [rTip, 0.30], [rRoot, 0.50], [rRoot, 0.78], [rRoot, 0.97]] as [number, number][]) {
+      const a = a0 + step * f;
+      outer.push([r * Math.cos(a), r * Math.sin(a)]);
+    }
+  }
+  const aJoin = Math.atan2(outer[0][1], outer[0][0]);
+  const pts = outer.slice();
+  const innerN = Math.max(48, teeth * 2);
+  for (let i = 0; i <= innerN; i++) {
+    const a = aJoin - (i / innerN) * Math.PI * 2;
+    pts.push([rHole * Math.cos(a), rHole * Math.sin(a)]);
+  }
+  return polyShape(pts);
+}
 /** Spur gear / sprocket outline. */
 export function gearShape(teeth: number, rRoot: number, rTip: number, holeR = 0, sprocket = false) {
   const s = new THREE.Shape();
   const n = teeth;
   for (let i = 0; i < n; i++) {
     const a0 = (i / n) * Math.PI * 2, step = (Math.PI * 2) / n;
+    // Sprocket gullet: root flat centred at 0.875 of the tooth pitch (toothPhase seats a roller there).
     const pts: [number, number][] = sprocket
-      ? [[rRoot, a0], [rTip, a0 + step * 0.3], [rTip, a0 + step * 0.45], [rRoot, a0 + step * 0.75]]
+      ? [[rRoot, a0 + step * 0.02], [rTip, a0 + step * 0.14], [rTip, a0 + step * 0.30], [rRoot, a0 + step * 0.50], [rRoot, a0 + step * 0.78], [rRoot, a0 + step * 0.97]]
       : [[rRoot, a0], [rTip, a0 + step * 0.22], [rTip, a0 + step * 0.48], [rRoot, a0 + step * 0.7]];
     pts.forEach(([r, a], k) => { const x = r * Math.cos(a), y = r * Math.sin(a); if (i === 0 && k === 0) s.moveTo(x, y); else s.lineTo(x, y); });
   }

@@ -366,7 +366,7 @@ Photo pass (batch 2) reshapes the same meshes against the comparison sheets. The
 | Lobe base radius / lift / peak radius | 15.2 mm / 7.5 mm / 22.7 mm | Peak is under the journal (22.85 mm limit) so the cam still slides in. Profile is a base circle, a flank, and an offset circular nose (radius 13.2 mm). The flank meets the base circle at 1.22 rad with zero slope. The section is a straight extrusion: full-width flat face, 0.5 mm edge chamfer, no axial crown | unverified. Not a measured SC cam card |
 | Lobe width | 12.4 mm | Intake and exhaust centres of one cylinder are 14 mm apart, with a 1.7 mm ground groove between the pair. Each lobe is phased to its own rocker (intake peak 450° crank, exhaust 270°) | unverified |
 | Shank Ø | 33.6 mm in the middle of a span, 28.4 mm on the cheeks beside a lobe | Stout next to the journals. The cheek is just under the Ø30.4 heel so the base circle shows without a deep neck. Ground relief between each pair is Ø25.2 | unverified |
-| Cam nose | r 11 mm, Woodruff 4 × 5 × 10, M22 external thread | Key, washer and nut still use `CAM_NOSE`. Flange OD is 62 mm so the dowel holes clear the hub | key / nut interface unchanged |
+| Cam nose | r 11 mm, Woodruff 4 × 5 × 10, M22 external thread | Key, washer and nut still use `CAM_NOSE`. Flange OD is 48 mm (the pin-circle rim); see §14 | key / nut interface unchanged |
 | Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket web, tail in the flange hole | 900 243 001 00. Stoddard lists the pin as 6 × 14. Same `cam-pin-*` part; circle radius 24 mm, outside the M22 nut | length from the parts listing |
 | Cam housing | one sand casting. Head face: two lobed spring wells per cylinder on raised gasket lands, four to six cast bosses around each opening, pocket floors set back about 5 mm, small round oil/drain holes between the wells, cam-tunnel spine proud of the pockets and ending before the bore. Outer tunnel is a drafted arch with filleted lips, longitudinal ribs, a bearing-boss bulge at each journal, and a transverse rib between journals | Photo column of the cam-housing comparison sheet. Spine, bay cheeks and tunnel bands stay outside the Ø47.1 bore. Nut faces stay at x = 272 | unverified |
 | Valve covers | both banks, seat length `CH_Z1 − CH_Z0 − 8`. Lip 1.15 mm plus a 2.15 mm step. Sprocket-end notch 30 mm wide. Stud ears are towers (base Ø about 33) with a gusset blending the pan wall into the ear. Nut face stays a flat disc at local z = 7. Two round bosses and the PORSCHE letters stay on the upper covers | Comparison sheet. Left cover still matches the right cover’s Z (`VC_EXT` = 0); the test forbids the old 30 mm flywheel overhang | unverified |
@@ -426,3 +426,49 @@ The fan group moved down with the new centre distance. `FAN.y` was 255; it is no
 - **Intake.** The CIS stack stays at the main height. The lowered fan does not move the plenum, air cleaner, mixture unit, runners, boots, fuel lines or linkage. Top-end parts (heads, cam housings, valvetrain, chain drive) are not moved.
 - **Alternator.** Drive-end and rectifier shields are the bright aluminium castings (cooling slots in the drive end, smaller windows on the slip-ring end). The laminated stator is a short inset waist. Copper shows in the windows and does not form the outer silhouette. Brush block, diode plates and the ground-strap stud stay on the slip-ring face.
 - **Fan housing colour.** Albedo #6C6F71, roughness 0.92, environment intensity 0.12, so the lit magnesium reads about #8A8D8F. The impeller keeps its own magnesium finish.
+
+## 16. Top end batch 2 — timing chain
+
+Photo pass on the cam sprockets and flanges, the intermediate-shaft sprockets, both duplex chains, the tensioners (idler arm, idler sprocket, hydraulic body, mounting ear), the guide rails, the chain housings and lids, and the chain-side cam covers (`930 105 196 00`). Existing parts were reshaped. Cam axes, chain planes, the intermediate-shaft gear, the fan housing and the upper air guide were not moved.
+
+### Tensioner: sealed, not pressure-fed
+
+The 1978 930/03 chain tensioner is the sealed hydraulic unit **930 105 049 00** (checklist 103-10/15 #10). **930 105 053 00** is the alternate of the same family; **930 105 053 04** is the later supersession of that sealed unit (Stoddard: “Latest Supersession of Hydraulic Tensioner”, supersedes 049) and is excluded from engine 63D onward. The pressure-fed Carrera tensioner is a 1984-on part. The bolt-on update is **930 105 911 00** (left) and **930 105 912 00 / 01** (right), listed N/A in the checklist as an alternative. Wayne Dempsey’s Pelican Project 16 says pressure-fed tensioners were introduced in 1984 and sold as a kit for 1969–1983 engines; an SC through 1983 did not come with them. This model keeps the sealed body: a cylinder, a collar, a bleeder screw (the PET bleeder 930 105 573 00 is an internal feature, not a separate fed line) and a steel plunger. There is no oil-feed banjo.
+
+- Dempsey, “Chain Tensioners — Carrera Style”: https://www.pelicanparts.com/techarticles/101_Projects_Porsche_911/16-Carrera_Chain_Tensioner_Install/16-Carrera_Chain_Tensioner_Install.htm
+- Stoddard, 930 105 053 04: https://www.stoddard.com/en/diagrams-porsche-911-1983-eu-3-0sc-coupe-manual-gearbox-5-speed/engine-and-fuel-feed-36/timing-chain-timing-sprocket-rocker-gear-chain-tensioner-4241/93010505304-chain-tensioner-911-from-1965-1983-7013
+
+### Vernier sprocket and flange
+
+The sprocket (**901 105 546 02**, photo of 901 105 546 04) has **17** equally spaced holes. The flange (**901 105 583 01**, photo of 901 105 583 02) has **16** semicircular scallops on the same circle (Ø48 mm). The dowel **900 243 001 00** (Ø6 × 14) passes through the one pair that lines up. Rauch & Spiegel, who make the flange, state that count; Dempsey’s cam-timing article says the pin meets only one flange hole. The old mesh had six lightening holes and three drilled flange holes, which read as a hex. Those are gone. The flange stays keyed; the sprocket is not (a keyway on the sprocket would lock the vernier).
+
+- Heritage, camshaft chain sprocket: https://www.heritagepartscentre.com/eu/90110554604-camshaft-chain-sprocket.html
+- Heritage, camshaft sprocket flange: https://www.heritagepartscentre.com/eu/90110558302-camshaft-sprocket-flange.html
+- Rauch & Spiegel, sprocket carrier hub: https://www.rauchandspiegel.com/product/camshaft-sprocket-carrier-hub/
+- Dempsey, “Camshaft Timing”: https://www.pelicanparts.com/techarticles/101_Projects_Porsche_911/15-Cam_Timing/15-Cam_Timing.htm
+
+### Sizes
+
+| Item | Value used | Source | vs Dempsey |
+|---|---|---|---|
+| Chain | duplex 3/8 in, pitch 9.525 mm. Figure-8 outer plates and rounded inner plates, each with two pin holes. Roller Ø and pin Ø stay 6.4 / 3.4 (the previous mesh). A full 06B-2 roller (Ø6.35) reaches the chain box. Part stays **901 105 529 00** | ISO 606 / BS 06B-2 for the pitch. Plate silhouette from Heritage 993 105 529 00 and the divided 911 105 529 51, drawn inside the previous plate outline | pitch already used in §8; plate height not re-measured in the book |
+| Cam sprocket | 27 T, pitch Ø 82 mm | §8 photo scale (chain-wrap Ø ≈ 80–85). A 36 T sprocket (pitch Ø ≈ 109) does not fit the box or the existing centres | tooth count not a page citation |
+| Intermediate sprockets | 18 T, solid duplex, centre groove, bore only, planes z 235 / 258 | Ratio with the 36:48 crank pair puts the cam at half crank speed. Photo of 901 105 125 04 shows a solid duplex with no hole ring | tooth count not a page citation |
+| Idler | 15 T, outside wrap on the slack run | Unchanged layout (`IDLER_PUSH` 38). Centres not moved | 15 T not re-measured in the book |
+| Flange | OD 48 mm, 16 rim scallops, keyed bore | Rauch & Spiegel 16 / 17 vernier | unverified against the book |
+| Sprocket holes | 17 × Ø6.7 on the Ø48 circle, one boss on the dowel hole | Same | unverified against the book |
+| Idler arm | single pivot bush, waisted forging. Left **901 105 505 02**, right **901 105 506 02** | 1978 PET. The wider two-bush arms 930 105 509/510 are 1980+ and were used only as a shape reference | curve not traced from the book |
+| Guide rails | left 3 × 911 105 222 06, right 2 × 911 105 222 06. Bowed U-channel, inner face 4.9 mm off the pitch line, 0.55 mm bow | Heritage photos of the black and brown rails. Brown 911 105 222 05 stays the alternate row, not an extra part. Dempsey notes one brown rail on the lower right; the PET primary line is the black count kept here | rail curve not measured from the book |
+| Chain box | outline unchanged (§8) | Already photo-scaled. Bolt stations still 10 right / 9 left | unchanged |
+| Lid | flat plate, low cam pad r 32 instead of the cone | Same covers | pad height *E* |
+| Chain-side cover | **930 105 196 00**, flat annulus, centre hole r 11, top face at the existing screw seat | Heritage “Camshaft Flange Cover” | unverified against the book |
+| Cam-bore end | chain end of the cam bore stays open. **930 105 161 00** remains the flywheel-end lid | Valvetrain test | unchanged |
+
+- Heritage, intermediate sprocket: https://www.heritagepartscentre.com/eu/90110512504-intermediate-shaft-chain-sprocket.html
+- Heritage, black guide rail: https://www.heritagepartscentre.com/eu/91110522206-timing-chain-guide-rail-black.html
+- Heritage, brown guide rail: https://www.heritagepartscentre.com/eu/91110522205-timing-chain-guide-rail-brown.html
+- Heritage, duplex chain (later endless, plate shape): https://www.heritagepartscentre.com/eu/99310552900-timing-chain-closed.html — the SC chain remains 901 105 529 00. Divided chain: https://www.heritagepartscentre.com/eu/91110552951-timing-chain-divided.html
+- Heritage, flange cover: https://www.heritagepartscentre.com/eu/93010519600-camshaft-flange-cover.html
+- Heritage, later idler arms (shape only): https://www.heritagepartscentre.com/eu/93010550900-chain-tensioner-sprocket-support-left.html and https://www.heritagepartscentre.com/eu/93010551000-chain-tensioner-sprocket-support-right.html
+
+Each chain wraps the intermediate sprocket, the cam sprocket and the idler, with rollers on those pitch circles. The plunger still meets the idler-arm pad. The rail shoes sit on the chain runs. No new collision-allowlist entry.

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
-  polyShape, hull, circlePts, gearShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, woodruffGeom, cutGroup,
+  polyShape, hull, circlePts, gearShape, sprocketRingShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, woodruffGeom, cutGroup,
 } from './util';
 import {
   SPEC, SPARK_Z, CYL_Z, MAIN_Z, THROW_DEG, DECK_X, CYL_TOP_X, HEAD_OUT_X, CAM_X, CAM_HOUSING_OUT_X, INT_SHAFT_Y, CASE_Z, NOSE_BEARING_Z,
@@ -831,29 +831,55 @@ export function coverMatrix(s: 1 | -1, upper: boolean) {
  * (z-6..-5.4) | sprocket #38 hub (z-5.4..+10), dowelled to the flange by straight pin #39 | spring washer #40 +
  * nut #41 (fasteners.ts cam-nut-*) on the M22x1.5 thread (E) at the nose end.
  * Pin #39 (900 243 001 00, Ø6 × 14) sits on a circle outside the hub and the M22 nut, through the sprocket web
- * and 2 mm proud of that web, with its tail seated in the flange hole. It is the existing `cam-pin-*` part.
+ * and 2 mm proud of that web, with its tail seated in one flange-rim scallop. It is the existing `cam-pin-*` part.
  */
 // Camshaft mesh: valvetrain.ts camshaft(). Nose stack shared with the CoS key, flange, shim and nut.
 /** Sprocket web disc (extrudeC). Flat faces at ±depth/2; bevel lips sit `bevel` mm outside those faces. */
-export const CAM_WEB = { depth: 6, bevel: 0.6, liteR: 28, liteHole: 5.5, liteA: 0.3 };
+export const CAM_WEB = { depth: 6, bevel: 0.6 };
+/** Vernier: 17 sprocket holes and 16 flange-rim scallops on one circle. Only the dowel angle lines up. */
+export const SPROCKET_HOLES = 17;
+export const FLANGE_NOTCHES = 16;
+export const VERNIER = { holeR: 3.35, notchR: 3.55 };
 export const CAM_NOSE = {
-  r: 11, key: { D: 9.6, h: 4.8, b: 4, proud: 1.8, dz: -11 }, flange: [-16, -6] as [number, number], flangeR: 31,
+  r: 11, key: { D: 9.6, h: 4.8, b: 4, proud: 1.8, dz: -11 }, flange: [-16, -6] as [number, number], flangeR: 24,
   shim: 0.6, hubFace: 10, end: 23,
-  // rad 24 clears the hub (r ≤ 19.5) and the M22 nut (vertex r ≈ 18.5). Angle is midway between lightening holes.
-  pin: { r: 3, rad: 24, a: CAM_WEB.liteA + Math.PI / 6, len: 14, proud: 2 },
+  // rad 24 is the pin circle (flange rim). It clears the hub (r ≤ 19.5) and the M22 nut (vertex r ≈ 18.5).
+  pin: { r: 3, rad: 24, a: 0.3 + Math.PI / 6, len: 14, proud: 2 },
 };
-/** Sprocket flange (#36): keyed hub disc on the cam nose, carries the sprocket via the dowel pin #39. */
+/** Disc of radius R with semicircular rim notches (centres on the rim). Outer path, CCW. */
+function vernierRim(s: 1 | -1, R: number, notchR: number, nNotch: number, a0: number, samples = 480): [number, number][] {
+  const centres = Array.from({ length: nNotch }, (_, i) => {
+    const a = a0 + (i * 2 * Math.PI) / nNotch;
+    return [R * Math.cos(a) * s, R * Math.sin(a)] as [number, number];
+  });
+  const pts: [number, number][] = [];
+  for (let i = 0; i < samples; i++) {
+    const g = (i / samples) * Math.PI * 2;
+    const dx = Math.cos(g), dy = Math.sin(g);
+    let t = R;
+    for (const [cx, cy] of centres) {
+      const b = dx * cx + dy * cy;
+      const disc = b * b - (cx * cx + cy * cy - notchR * notchR);
+      if (disc < 0) continue;
+      const tEnter = b - Math.sqrt(disc);
+      const rimIn = (R * dx - cx) ** 2 + (R * dy - cy) ** 2 < notchR * notchR - 1e-4;
+      if (rimIn && tEnter > 1 && tEnter < t) t = tEnter;
+    }
+    pts.push([t * dx, t * dy]);
+  }
+  return pts;
+}
+/** Sprocket flange (#36): keyed hub, 16 half-hole scallops on the pin circle. The dowel sits in one scallop. */
 export function camFlange(s: 1 | -1) {
   const p = new Part();
   const X = CAM_X * s, zc = CHAIN_Z[s], N = CAM_NOSE;
-  const sh = circleShape(N.flangeR);
+  const sh = polyShape(vernierRim(s, N.flangeR, VERNIER.notchR, FLANGE_NOTCHES, N.pin.a));
   const bore = new THREE.Path(); // bore with the key slot at +Y
   const kb = N.key.b / 2 + 0.05, a = Math.asin(kb / (N.r + 0.05));
   bore.absarc(0, 0, N.r + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false);
   bore.lineTo(kb, N.r + N.key.proud + 0.4); bore.lineTo(-kb, N.r + N.key.proud + 0.4); bore.closePath();
   sh.holes.push(bore);
-  for (let i = 0; i < 3; i++) { const q = N.pin.a + (i * 2 * Math.PI) / 3; sh.holes.push(circlePath(N.pin.r + 0.05, N.pin.rad * Math.cos(q) * s, N.pin.rad * Math.sin(q)) as THREE.Path); }
-  p.add(extrude(sh, N.flange[1] - N.flange[0], 0.5, 24), 'darkSteel', [X, 0, zc + N.flange[0]]);
+  p.add(extrude(sh, N.flange[1] - N.flange[0], 0, 4), 'darkSteel', [X, 0, zc + N.flange[0]]);
   return p.g;
 }
 
@@ -861,11 +887,12 @@ export function camFlange(s: 1 | -1) {
 // Sizes from Dempsey's rebuild photos (photo-ref/book: rebuild-pic10, tensioner-pic3/4/9/10, sample_page1) scaled by
 // the 9.525 mm chain pitch: cam sprocket 27 T (pitch Ø 82 mm; photo chain-wrap Ø ≈ 80-85 mm), intermediate sprockets
 // 18 T so the cam turns at ½ crank with the 36:48 crank/intermediate gear pair (int. shaft at ¾ crank).
-const PITCH = 9.525;
-const INT_T = 18, CAM_T = 27, IDLER_T = 15;
-const INT_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / INT_T)); // 27.4
-const CAM_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / CAM_T)); // 41.0
-const ROW = 5.1; // duplex row offset from chain centre
+export const PITCH = 9.525; // ISO 606 / BS 06B-2 duplex, 3/8 in
+export const INT_T = 18, CAM_T = 27, IDLER_T = 15;
+export const INT_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / INT_T)); // 27.4
+export const CAM_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / CAM_T)); // 41.0
+export const IDLER_SPROCKET_R = PITCH / (2 * Math.sin(Math.PI / IDLER_T)); // 22.9
+const ROW = 5.1; // duplex row offset from chain centre (transverse pitch ≈ 10.2)
 /** Chain-housing box (both banks): bolts to the crankcase pulley face, cover face 70 mm proud of it. */
 export const HOUSING_Z0 = CASE_Z.pulley, HOUSING_Z1 = CASE_Z.pulley + 70;
 /** Straight inner (crankcase-side) edge of the chain box, |x|. Inboard of this the chains run in the case's chain well. */
@@ -957,7 +984,7 @@ export const ADJ = { body: 50, dome: 4.5, pad: 6.5, zOff: { 1: -13, [-1]: -5 } a
  */
 export function tensionerLayout(s: 1 | -1) {
   const { lo1, lo2, nLo } = basePath(s);
-  const idlerR = PITCH / (2 * Math.sin(Math.PI / IDLER_T));
+  const idlerR = IDLER_SPROCKET_R;
   const xI = IDLER_X * s;
   const onRun = new THREE.Vector2(xI, runY(lo1, lo2, xI));
   const up = nLo.clone().multiplyScalar(-1);
@@ -985,21 +1012,35 @@ export function toothPhase(s: 1 | -1, cx: number, cy: number, r: number, teeth: 
   for (const q of pins) { const d = Math.abs(Math.hypot(q.x - cx, q.y - cy) - r); if (d < bd) { bd = d; best = q; } }
   return Math.atan2(best.y - cy, best.x - cx) - 0.875 * ((Math.PI * 2) / teeth);
 }
+/** Solid duplex sprocket: two toothed rings, a bored web, and a centre groove for the middle plates. No lightening holes. */
 function duplexSprocket(p: Part, teeth: number, r: number, at: V3, hub: number, mat: MatKey = 'steel', phase = 0) {
   const rr = r - 3.6, rt = r + 3.4;
   for (const dz of [-ROW, ROW]) {
-    const ring = gearShape(teeth, rr, rt, 0, true); ring.holes.push(circlePath(rr - 4) as THREE.Path);
-    p.add(extrudeC(ring, 5.2, 0.4, 2).rotateZ(phase), mat, [at[0], at[1], at[2] + dz]);
+    p.add(extrudeC(sprocketRingShape(teeth, rr, rt, rr - 5.5), 4.8, 0, 2).rotateZ(phase), mat, [at[0], at[1], at[2] + dz]);
   }
-  const body = circleShape(rr - 3.5); body.holes.push(circlePath(hub) as THREE.Path);
-  p.add(extrudeC(body, 15.8, 0.6, 24), mat, at);
+  const web = circleShape(rr - 5.2); web.holes.push(circlePath(hub) as THREE.Path);
+  for (const zc of [-4.5, 4.5]) p.add(extrudeC(web, 6.2, 0.25, 24), mat, [at[0], at[1], at[2] + zc]);
+}
+/** Link plate inside the previous silhouette. Pin holes are cut with CSG; shape holes triangulate across the bore. */
+function chainPlate(outer: boolean) {
+  const shape = outer
+    ? polyShape([
+      [-PITCH / 2 - 3.4, -4.1], [-PITCH / 2 + 0.4, -2.05], [PITCH / 2 - 0.4, -2.05], [PITCH / 2 + 3.4, -4.1],
+      [PITCH / 2 + 4.4, 0],
+      [PITCH / 2 + 3.4, 4.1], [PITCH / 2 - 0.4, 2.05], [-PITCH / 2 + 0.4, 2.05], [-PITCH / 2 - 3.4, 4.1],
+      [-PITCH / 2 - 4.4, 0],
+    ])
+    : roundRect(PITCH + 5.8, 8.2, 4.1);
+  const pinHole = (x: number) => yToZ(cyl(1.72, 4, 12)).translate(x, 0, 0);
+  return csgSub(extrudeC(shape, 1.2, 0, 3), pinHole(PITCH / 2), pinHole(-PITCH / 2));
 }
 export function timingChain(s: 1 | -1) {
   const p = new Part();
   const { n, pins } = chainPins(s);
   const z = CHAIN_Z[s];
-  const inner = extrudeC(roundRect(PITCH + 6.2, 8.8, 4.4), 1.2, 0, 3);
-  const outer = extrudeC(polyShape([[-PITCH / 2 - 3.6, -4.3], [-PITCH / 2 + 1.5, -3.2], [PITCH / 2 - 1.5, -3.2], [PITCH / 2 + 3.6, -4.3], [PITCH / 2 + 4.6, 0], [PITCH / 2 + 3.6, 4.3], [PITCH / 2 - 1.5, 3.2], [-PITCH / 2 + 1.5, 3.2], [-PITCH / 2 - 3.6, 4.3], [-PITCH / 2 - 4.6, 0]]), 1.2);
+  const inner = chainPlate(false);
+  const outer = chainPlate(true);
+  // Roller and pin keep the previous envelope. A full 06B-2 roller (Ø6.35) reaches the chain box.
   const roller = yToZ(cyl(3.2, 5.6, 10));
   const pin = yToZ(cyl(1.7, 22.4, 6));
   for (let i = 0; i < n; i++) {
@@ -1019,23 +1060,21 @@ export function camSprocket(s: 1 | -1) {
   const X = CAM_X * s, z = CHAIN_Z[s], N = CAM_NOSE;
   const rr = CAM_SPROCKET_R - 3.6, rt = CAM_SPROCKET_R + 3.4;
   for (const dz of [-ROW, ROW]) {
-    const ring = gearShape(CAM_T, rr, rt, 0, true); ring.holes.push(circlePath(rr - 5) as THREE.Path);
-    p.add(extrudeC(ring, 5.2, 0.4, 2).rotateZ(toothPhase(s, X, 0, CAM_SPROCKET_R, CAM_T)), 'steel', [X, 0, z + dz]);
+    p.add(extrudeC(sprocketRingShape(CAM_T, rr, rt, rr - 5), 5.2, 0, 2).rotateZ(toothPhase(s, X, 0, CAM_SPROCKET_R, CAM_T)), 'steel', [X, 0, z + dz]);
   }
-  // web: 6 lightening holes + the 3 vernier dowel holes (one carries the pin #39), hub on the cam nose
+  // web: a ring of 17 vernier holes. One of them (the dowel angle) carries pin #39.
   const web = circleShape(rr - 4);
   const W = CAM_WEB;
-  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + W.liteA; web.holes.push(circlePath(W.liteHole, W.liteR * Math.cos(a), W.liteR * Math.sin(a)) as THREE.Path); }
-  for (let i = 0; i < 3; i++) { const q = N.pin.a + (i * 2 * Math.PI) / 3; web.holes.push(circlePath(N.pin.r + 0.05, N.pin.rad * Math.cos(q) * s, N.pin.rad * Math.sin(q)) as THREE.Path); }
+  for (let i = 0; i < SPROCKET_HOLES; i++) {
+    const q = N.pin.a + (i * 2 * Math.PI) / SPROCKET_HOLES;
+    web.holes.push(circlePath(VERNIER.holeR, N.pin.rad * Math.cos(q) * s, N.pin.rad * Math.sin(q)) as THREE.Path);
+  }
   web.holes.push(circlePath(N.r + 8.2) as THREE.Path);
   p.add(extrudeC(web, W.depth, W.bevel, 24), 'steel', [X, 0, z]);
-  // tubular bosses from the flange face back to the web, so the dowel hole is continuous and the pin is not buried in the hub
+  // one tubular boss on the engaged hole, from the flange face back to the web
   const webBack = -W.depth / 2 - W.bevel;
-  for (let i = 0; i < 3; i++) {
-    const q = N.pin.a + (i * 2 * Math.PI) / 3;
-    const bx = N.pin.rad * Math.cos(q) * s, by = N.pin.rad * Math.sin(q);
-    p.add(yToZ(lathe([[N.pin.r + 0.12, N.flange[1]], [5.4, N.flange[1]], [5.4, webBack + 0.4], [N.pin.r + 0.12, webBack + 0.4]], 18)), 'steel', [X + bx, by, z]);
-  }
+  const bx = N.pin.rad * Math.cos(N.pin.a) * s, by = N.pin.rad * Math.sin(N.pin.a);
+  p.add(yToZ(lathe([[N.pin.r + 0.12, N.flange[1]], [5.4, N.flange[1]], [5.4, webBack + 0.4], [N.pin.r + 0.12, webBack + 0.4]], 18)), 'steel', [X + bx, by, z]);
   const z0 = N.flange[1] + N.shim; // hub back face on the shim
   p.add(yToZ(lathe([[N.r + 0.15, z0], [N.r + 8.5, z0], [N.r + 8.5, z0 + 2.2], [N.r + 8.2, z0 + 2.2], [N.r + 8.2, 7], [N.r + 5, N.hubFace], [N.r + 0.15, N.hubFace]], 32)), 'steel', [X, 0, z]);
   return p.g;
@@ -1057,6 +1096,22 @@ export function guideRails(s: 1 | -1) {
 }
 /** Rail mounting tabs: bosses outboard of the rail (clear of the chain plates) that take the rail bolts. */
 export const RAIL_TAB = { off: 16.5, r: 8, z0: -16, z1: 11.1 };
+/** Curved U-channel shoe. `inner` is the gap from the pitch line to the shoe face; `bow` pulls the middle in. */
+export const RAIL_SHOE = { inner: 4.9, thick: 6.5, bow: 0.55 };
+/** Distance from the pitch line to the shoe's inner face at fraction u along the rail (0 at the start). */
+export function railInner(u: number) { return RAIL_SHOE.inner - RAIL_SHOE.bow * Math.sin(Math.PI * u); }
+/** Forged idler-arm leg: waisted bar from one eye to the next, local +X along the leg. */
+function armLinkShape(L: number, rA: number, rB: number) {
+  const dip = Math.min(rA, rB) * 0.36;
+  const yAt = (x: number) => { const u = x / L; return (1 - u) * rA + u * rB - dip * Math.sin(Math.PI * u); };
+  const n = 14;
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= n; i++) pts.push([(L * i) / n, yAt((L * i) / n)]);
+  for (let i = 1; i < 8; i++) { const a = Math.PI / 2 - (Math.PI * i) / 8; pts.push([L + rB * Math.cos(a), rB * Math.sin(a)]); }
+  for (let i = n; i >= 0; i--) pts.push([(L * i) / n, -yAt((L * i) / n)]);
+  for (let i = 1; i < 8; i++) { const a = -Math.PI / 2 - (Math.PI * i) / 8; pts.push([rA * Math.cos(a), rA * Math.sin(a)]); }
+  return polyShape(pts);
+}
 /** Rail bolts (#3, 4 per bank): one through each end of the first two rails, head on the rail front face. */
 export function railBolts(s: 1 | -1) {
   const z = CHAIN_Z[s];
@@ -1066,25 +1121,30 @@ export function chainTensioner(s: 1 | -1) {
   const p = new Part();
   const z = CHAIN_Z[s];
   const T = tensionerLayout(s);
-  const { up1, up2, nUp } = basePath(s);
-  const P = chainPath(s);
   // idler sprocket (duplex, 15 T), tooth gaps phased onto the chain rollers, on its stub bolt (103-10 #7)
   duplexSprocket(p, IDLER_T, T.idlerR, [T.idler.x, T.idler.y, z], 6, 'steel', toothPhase(s, T.idler.x, T.idler.y, T.idlerR, IDLER_T));
   p.add(yToZ(cyl(6, 24, 12)), 'polishedSteel', [T.idler.x, T.idler.y, z]);
   p.add(yToZ(hexNut(13, 6)), 'darkSteel', [T.idler.x, T.idler.y, z + 15]);
-  // forged idler arm behind the chain: pivot boss -> idler hub -> tail pad
-  const armPts = hull([...circlePts(T.pivot.x, T.pivot.y, 10, 16), ...circlePts(T.idler.x, T.idler.y, 9, 16), ...circlePts(T.tail.x, T.tail.y, ADJ.pad, 12)]);
-  p.add(extrudeC(polyShape(armPts), 6, 0.8), 'forgedDark', [0, 0, z - 15]);
+  // forged idler arm (1978 single-bush 901 105 505/506): pivot eye, waisted leg, idler eye, waisted leg, tail
+  const armLeg = (a: THREE.Vector2, b: THREE.Vector2, rA: number, rB: number) => {
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+    const g = extrudeC(armLinkShape(L, rA, rB), 5.5, 0.35, 2);
+    g.rotateZ(Math.atan2(dy, dx)); g.translate(a.x, a.y, z - 15); p.add(g, 'forgedDark');
+  };
+  armLeg(T.pivot, T.idler, 8.2, 10);
+  armLeg(T.idler, T.tail, 10, 7);
   p.add(yToZ(cyl(10, 18, 20)), 'forgedDark', [T.pivot.x, T.pivot.y, z - 9]);
   p.add(yToZ(cyl(7, 28, 16)), 'polishedSteel', [T.pivot.x, T.pivot.y, z - 6]); // idler arm shaft (#3)
   // tail pad (hardened, Z-axis) that the plunger dome bears on
   const padZ0 = z - 18, padZ1 = Math.max(T.adjZ + 8, z - 12);
   p.add(yToZ(cyl(ADJ.pad, padZ1 - padZ0, 20)), 'polishedSteel', [T.tail.x, T.tail.y, (padZ0 + padZ1) / 2]);
-  // hydraulic adjuster along its axis: alu body from the base, steel plunger, domed tip touching the tail pad
+  // sealed hydraulic adjuster (930 105 049 00): cylindrical body, collar, bleeder, steel plunger, domed tip
   const adj = new Part();
   const L = ADJ.body, reach = T.reach;
-  adj.add(lathe([[0.1, 0], [11, 0], [12.5, 4], [12.5, L - 6], [11, L - 2], [8, L - 2], [8, L], [0.1, L]], 28), 'castAlu');
-  for (let k = 0; k < 3; k++) adj.add(cyl(13.3, 1.3, 28), 'castAlu', [0, 12 + k * 10, 0]);
+  adj.add(lathe([[0.1, 0], [13.2, 0], [13.2, 3], [11.4, 4.5], [11.4, L - 10], [13, L - 8.5], [13, L - 5], [8.4, L - 3.5], [8.4, L], [0.1, L]], 32), 'castAlu');
+  adj.add(cyl(12.6, 1.2, 28), 'castAlu', [0, 16, 0]);
+  adj.add(cyl(2.1, 5, 10).rotateZ(Math.PI / 2).translate(9.2, 18, 0), 'darkSteel');
+  adj.add(hexNut(6.5, 3.2).rotateZ(Math.PI / 2).translate(12.6, 18, 0), 'zincPlate');
   adj.add(cyl(5, reach - ADJ.dome - (L - 2), 14), 'polishedSteel', [0, (L - 2 + reach - ADJ.dome) / 2, 0]);
   adj.add(lathe([[0.1, 0], [6.5, 0], [6.5, 1.5], [3, ADJ.dome], [0.1, ADJ.dome]], 18), 'steel', [0, reach - ADJ.dome, 0]);
   adj.g.rotation.z = Math.atan2(T.axis.y, T.axis.x) - Math.PI / 2; adj.g.position.set(T.adjBase.x, T.adjBase.y, T.adjZ);
@@ -1095,18 +1155,43 @@ export function chainTensioner(s: 1 | -1) {
   p.add(yToZ(cyl(4, T.adjZ + 12 - (HOUSING_Z0 + 4) , 10)), 'zincPlate', [T.ear.x, T.ear.y, (T.adjZ + 12 + HOUSING_Z0 + 4) / 2]);
   p.add(yToZ(cyl(8, 1.6, 16)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + 3.6 + 0.8]);
   p.add(yToZ(hexNut(13, 6.5)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + 3.6 + 1.6 + 3.25]);
-  // plastic guide rails (#2): above the tight run near the inner edge, and under the slack run at the int exit
-  const ramp = (a: THREE.Vector2, b: THREE.Vector2, n: THREE.Vector2, f0: number, f1: number) => {
-    const off = 9.5;
-    const A = a.clone().lerp(b, f0).add(n.clone().multiplyScalar(off)), B = a.clone().lerp(b, f1).add(n.clone().multiplyScalar(off));
-    const d = B.clone().sub(A); const an = Math.atan2(d.y, d.x);
-    const g = extrudeC(roundRect(d.length(), 6, 2.5), 21, 0.6, 3); g.rotateZ(an);
-    p.add(g, 'blackPlastic', [(A.x + B.x) / 2, (A.y + B.y) / 2, z]);
-    const c = extrudeC(roundRect(d.length() * 0.8, 5, 2), 5); c.rotateZ(an);
-    p.add(c, 'castAlu', [(A.x + B.x) / 2 + n.x * 3, (A.y + B.y) / 2 + n.y * 3, z - 13.5]);
+  // plastic guide rails (#2): bowed U-channel shoes sitting against the chain run
+  const shoe = (a: THREE.Vector2, b: THREE.Vector2, n: THREE.Vector2, f0: number, f1: number) => {
+    const A = a.clone().lerp(b, f0), B = a.clone().lerp(b, f1);
+    const segs = 7;
+    for (let i = 0; i < segs; i++) {
+      const u0 = i / segs, u1 = (i + 1) / segs, um = (u0 + u1) / 2;
+      const inner = railInner(um);
+      const off = inner + RAIL_SHOE.thick / 2;
+      const p0 = A.clone().lerp(B, u0).add(n.clone().multiplyScalar(off));
+      const p1 = A.clone().lerp(B, u1).add(n.clone().multiplyScalar(off));
+      const seg = p1.clone().sub(p0); const sl = seg.length(); const sa = Math.atan2(seg.y, seg.x);
+      // Z span stays under the rail-bolt seat (z = RAIL_TAB.z1) so the bolt head still lands on a flat face.
+      const web = extrudeC(roundRect(sl + 0.8, RAIL_SHOE.thick, 1.1), 18, 0, 2); web.rotateZ(sa);
+      p.add(web, 'blackPlastic', [(p0.x + p1.x) / 2, (p0.y + p1.y) / 2, z]);
+      for (const zs of [1, -1] as const) {
+        const lip = extrudeC(roundRect(sl + 0.5, 3.1, 0.5), 2.6, 0, 2); lip.rotateZ(sa);
+        const c = A.clone().lerp(B, um).add(n.clone().multiplyScalar(inner + 1.55));
+        p.add(lip, 'blackPlastic', [c.x, c.y, z + zs * 8.4]);
+      }
+    }
   };
-  for (const r of guideRails(s)) ramp(r.a, r.b, r.n, r.f0, r.f1);
-  for (const q of railBolts(s)) p.add(yToZ(cyl(RAIL_TAB.r, RAIL_TAB.z1 - RAIL_TAB.z0, 20)), 'blackPlastic', [q.x, q.y, z + (RAIL_TAB.z0 + RAIL_TAB.z1) / 2]);
+  const rails = guideRails(s);
+  rails.forEach((r, i) => {
+    shoe(r.a, r.b, r.n, r.f0, r.f1);
+    if (i >= 2) return;
+    for (const f of [r.f0 + 0.04, r.f1 - 0.04]) {
+      const run = r.a.clone().lerp(r.b, f);
+      const bolt = run.clone().add(r.n.clone().multiplyScalar(RAIL_TAB.off));
+      p.add(yToZ(cyl(RAIL_TAB.r, RAIL_TAB.z1 - RAIL_TAB.z0, 20)), 'blackPlastic', [bolt.x, bolt.y, z + (RAIL_TAB.z0 + RAIL_TAB.z1) / 2]);
+      const start = RAIL_SHOE.inner + RAIL_SHOE.thick;
+      const len = RAIL_TAB.off - start;
+      const tab = boxMM([-3.4, 0, -6], [3.4, len + 2, 6]);
+      tab.rotateZ(Math.atan2(r.n.y, r.n.x) - Math.PI / 2);
+      tab.translate(run.x + r.n.x * start, run.y + r.n.y * start, z);
+      p.add(tab, 'blackPlastic');
+    }
+  });
   return p.g;
 }
 /** Clip a convex polygon to the half-plane x*s >= x0. */
@@ -1282,9 +1367,9 @@ export function chainHousingLid(s: 1 | -1) {
   ribTo(xi, 2, (CAM_X - 24) * s, 2); // horizontal rib at cam height
   ribTo((CAM_X - 18) * s, -14, T.adjBase.x + 14 * s, T.adjBase.y + 6); // diagonal ridge to the tensioner corner
   ribTo(xi, -46, T.idler.x, T.idler.y + 4, 3.5, 3);
-  // low cam-centre boss with a machined plug
-  p.add(yToZ(lathe([[0, 0], [30, 0], [26, 5], [0, 5]], 40)), 'castAlu', [CAM_X * s, 0, zt - 0.5]);
-  p.add(yToZ(lathe([[0, 0], [17, 0], [17, 2], [15, 3], [0, 3]], 32)), 'machinedAlu', [CAM_X * s, 0, zt + 4.5]);
+  // low machined pad over the cam (the chain-side closure is this lid, not a plug in the cam bore)
+  p.add(yToZ(lathe([[0, 0], [32, 0], [32, 1.5], [18, 2.1], [18, 2.6], [0, 2.6]], 48)), 'castAlu', [CAM_X * s, 0, zt - 0.3]);
+  p.add(yToZ(lathe([[8, 0], [14, 0], [14, 0.5], [8, 0.5]], 32)), 'machinedAlu', [CAM_X * s, 0, zt + 2.2]);
   // idler-shaft cap + tensioner boss
   p.add(yToZ(cyl(12, 6, 24)), 'castAlu', [T.pivot.x, T.pivot.y, zt + 2.5]);
   p.add(yToZ(hexNut(11, 4)), 'zincPlate', [T.pivot.x, T.pivot.y, zt + 7.5]);

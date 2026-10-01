@@ -62,9 +62,10 @@ const CAM_ZC = (s: 1 | -1) => CHAIN_Z[s];
 /** Chain-adjuster cover (103-10/15 #29-#31) on the lid outside face: gasket, round seal, cover (engine frame). */
 export function adjusterCoverPart(s: 1 | -1) {
   const c = adjusterCover(s); const p = new Part();
-  p.add(yToZ(lathe([[0.1, 0], [29, 0], [29, 0.5], [0.1, 0.5]], 40)), 'gasket', [c.x, c.y, CHAIN_LID.top]);
+  p.add(yToZ(lathe([[11, 0], [29, 0], [29, 0.5], [11, 0.5]], 48)), 'gasket', [c.x, c.y, CHAIN_LID.top]);
   p.add(torus(16.5, 1.5, 8, 40), 'rubber', [c.x, c.y, CHAIN_LID.top + 1.8]);
-  p.add(yToZ(lathe([[0.1, 0.5], [30, 0.5], [30, 3.5], [19, 3.5], [15, 9], [0.1, 9]], 40)), 'castAlu', [c.x, c.y, CHAIN_LID.top]);
+  // flat annulus: top face stays at local z 3.5 so the three cover screws still seat. Centre hole r 11.
+  p.add(yToZ(lathe([[11, 0.5], [30, 0.5], [30, 3.5], [11, 3.5]], 48)), 'castAlu', [c.x, c.y, CHAIN_LID.top]);
   return p.g;
 }
 export const SMALL_GEOM: Record<string, SmallGeom> = {};
