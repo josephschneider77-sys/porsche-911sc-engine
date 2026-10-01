@@ -128,7 +128,7 @@ function perBank(): PartDef[] {
       id: `camshaft-${b}`, name: `Camshaft, ${b}`, system: 'camdrive', asset: `camshaft-${b}`, explode: [s * 640, 60, 0],
       catalog: [{ ill, pos: '42', pn: s === 1 ? '930 105 148 08' : '930 105 147 08', qty: 1, note: 'SC grind, -81' }],
       description: 'Chilled cast-iron camshaft with one intake and one exhaust lobe per cylinder, ground journals in the four housing webs, and a keyed nose for the existing Woodruff key, flange, thrust washer and M22 nut. Every lobe peak is under the journal radius so the cam slides in from the chain end. Driven at half crank speed.',
-      specs: { Speed: '½ crank', Lobes: '6 (base circle + flank + nose)', Journals: '4 × Ø46.7 mm (unverified)', 'Lobe peak': 'Ø44.8 mm, under the journal (unverified)' },
+      specs: { Speed: '½ crank', Lobes: '6 (base circle + flank + nose)', Journals: '4 × Ø46.7 mm (unverified)', 'Lobe peak': 'Ø45.4 mm, under the journal (unverified)' },
     });
     out.push({
       id: `rockers-${b}`, name: `Rocker arms & shafts, ${b}`, system: 'valvetrain', asset: `rockers-${b}`, explode: [s * 600, 30, 60],
