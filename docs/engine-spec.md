@@ -162,3 +162,12 @@ The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild 
 - Cam housings: continuous cam tunnel, rocker-shaft towers with machined faces, cover-seat rails with stud bosses, end bores, tunnel cover, oil-feed bosses.
 - Valve covers: chamfered pan on a seat flange with bolt ears (3 per edge on the upper cover, 5 on the lower). The upper cover has two machined round bosses and raised cast PORSCHE lettering.
 - Camshaft: polished lobes and journals on a dark shaft.
+
+**Cooling, induction, exhaust and clutch (PR 3):**
+- Fan housing: black-painted magnesium drum with a rolled intake bell, three raised bands, axial ribs, cast feet and stator spokes.
+- Fan: 11 broad, twisted paddle blades on a pressed hub with a ring of holes. Fan and crank pulleys are yellow zinc, with a shim stack and hub bolts.
+- CIS: black moulded air distributor with one ribbed lobe per intake pipe and a cast throttle/idle housing. The air cleaner is now the SC's round drum lying across the engine (lower half on the distributor, upper half = lid with snout and straps) with a cylindrical pleated element. The air-flow meter is a black-painted funnel with a brass sensor plate; the grey fuel distributor sits beside it.
+- Heat exchangers: aluminised lofted heater box, lumpy over each primary, with a seam flange, 2-stud port flanges, entry sleeves and the heater-outlet adapter.
+- Muffler: aluminised oval drum with a slight banana curve, seam flange and dished end caps.
+- Flywheel: dark body, ground friction face, ring gear, balance drillings.
+- 1978 upper air guide: the catalogue part is red (Joe's reference engine has a red/orange shroud). It is still shown black, as requested.
