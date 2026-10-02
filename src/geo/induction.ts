@@ -224,14 +224,17 @@ export function runnerTunnelCutters(s: 1 | -1): THREE.BufferGeometry[] {
 }
 
 // ---------------------------------------------------------------- fuel distributor (Kat 502 p106, fig 107-00 #1)
-// Square block, E 80 × 40 × 88 mm. Outlet circle Ø76 (E, inside the Ø75–85 band scaled from
-// the A 8×11.5 ring drawn on the same page). Towers are short so the nuts stay under the air cleaner.
+// Footprint E 80 × 40 × 88 mm, unchanged so the fuel lines still land.
+// Outlet circle Ø76 (E, scaled from the A 8×11.5 ring on the same page).
+// Lower housing is waisted, with vertical ribs. The joint to the upper housing is at mid-height.
+// Outlet towers are hex bosses 15 mm proud of the upper housing (E, from the drawing).
 const FD = { x0: -150, x1: -70, y0: 266, y1: 306, z0: -120, z1: -32 };
 export const FD_CX = (FD.x0 + FD.x1) / 2;
 export const FD_CZ = (FD.z0 + FD.z1) / 2;
 /** Outlet-circle radius, mm. Ø76 E. */
 export const FD_RING_R = 38;
-const TOWER = 8;
+/** Hex tower height above the upper housing, mm. E from fig 107-00. */
+const TOWER = 15;
 
 /** Cylinder and plan angle (deg from +X) of each injector outlet. Left bank is the −X half. */
 const OUTLETS: { c: number; deg: number }[] = [
@@ -837,24 +840,43 @@ export function mixtureControlUnit() {
   p.add(lathe([[r + 4, 4.8], [46, 4.8], [46, 6], [r + 4, 6]], 36).translate(x, base, z), 'blackPaint');
   p.add(lathe([[0.2, 0], [r - 4, 0], [r - 4, 1.4], [0.2, 1.4]], 28).translate(x, base + 16, z), 'brass');
   p.add(cyl(3.2, 5, 10).translate(x, base + 18, z), 'steel');
-  // Fuel distributor 911 110 967 00 (Kat 502 p106). Same 80 × 40 × 88 footprint.
-  // Lower body, castellated upper housing, raised ring, towers, plunger cover, side inlet.
-  p.add(boxMM([FD.x0, FD.y0, FD.z0], [FD.x1, FD.y1 - 8, FD.z1]), 'zincPlate');
-  p.add(boxMM([FD.x0 + 3, FD.y1 - 14, FD.z0 + 3], [FD.x1 - 3, FD.y1, FD.z1 - 3]), 'zincPlate');
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-    const cx = FD_CX + 30 * Math.cos(a);
-    const cz = FD_CZ + 30 * Math.sin(a);
-    p.add(boxMM([cx - 3.5, FD.y1 - 6, cz - 3.5], [cx + 3.5, FD.y1 + 1, cz + 3.5]), 'zincPlate');
+  // Fuel distributor 911 110 967 00 (Kat 502 p106, fig 107-00). Same 80 × 40 × 88 footprint.
+  // Waisted lower housing, joint at mid-height, separate upper housing, hex towers, centre hub.
+  const yJoint = (FD.y0 + FD.y1) / 2;
+  const inset = 4.5;
+  p.add(boxMM([FD.x0, FD.y0, FD.z0], [FD.x1, FD.y0 + 5, FD.z1]), 'zincPlate');
+  p.add(boxMM([FD.x0 + inset, FD.y0 + 5, FD.z0 + inset], [FD.x1 - inset, yJoint - 5, FD.z1 - inset]), 'zincPlate');
+  p.add(boxMM([FD.x0, yJoint - 5, FD.z0], [FD.x1, yJoint, FD.z1]), 'zincPlate');
+  // Vertical ribs fill the waist out to the footprint so the lower housing reads as fluted, not a cube.
+  const ribW = 3.2;
+  for (const xOuter of [FD.x0, FD.x1]) {
+    const sign = xOuter < FD_CX ? -1 : 1;
+    const xIn = xOuter - sign * inset;
+    for (const z of [-112, -100, -78, -56, -44]) {
+      if (sign < 0 && Math.abs(z + 90) < 8) continue;
+      if (sign > 0 && Math.abs(z - FD_CZ) < 12) continue;
+      p.add(boxMM([Math.min(xOuter, xIn), FD.y0, z - ribW / 2], [Math.max(xOuter, xIn), yJoint, z + ribW / 2]), 'zincPlate');
+    }
   }
-  // Raised ring, outer Ø78 so it stays inside the 80 mm block. Towers stand on it.
-  p.add(lathe([[22, FD.y1], [39, FD.y1], [39, FD.y1 + 4], [22, FD.y1 + 4]], 36).translate(FD_CX, 0, FD_CZ), 'zincPlate');
-  // Stepped control-plunger cover in the middle of the ring.
-  p.add(lathe([
-    [12, FD.y1 + 4], [12, FD.y1 + 7.5], [7, FD.y1 + 7.5], [7, FD.y1 + 11], [3.2, FD.y1 + 11], [3.2, FD.y1 + 15],
-  ], 18).translate(FD_CX, 0, FD_CZ), 'darkSteel');
+  for (const zOuter of [FD.z0, FD.z1]) {
+    const sign = zOuter < FD_CZ ? -1 : 1;
+    const zIn = zOuter - sign * inset;
+    for (const x of [-140, -124, -96, -80]) {
+      p.add(boxMM([x - ribW / 2, FD.y0, Math.min(zOuter, zIn)], [x + ribW / 2, yJoint, Math.max(zOuter, zIn)]), 'zincPlate');
+    }
+  }
+  // Upper housing steps in at the joint so the split reads at mid-height.
+  p.add(boxMM([FD.x0 + 1.6, yJoint, FD.z0 + 1.6], [FD.x1 - 1.6, FD.y1, FD.z1 - 1.6]), 'zincPlate');
+  // Raised hub and the control-pressure banjo in the middle of the outlet circle.
+  const hubTop = FD.y1 + 8;
+  p.add(cyl(11, 8, 20).translate(FD_CX, FD.y1 + 4, FD_CZ), 'zincPlate');
+  p.add(lathe([[4.1, 0], [7.3, 0], [7.3, 8], [4.1, 8]], 16).translate(FD_CX, hubTop, FD_CZ), 'brass');
+  p.add(cylBetween([FD_CX, hubTop + 4, FD_CZ], [FD_CX, hubTop + 4, FD_CZ - 12], 2.05, 8), 'brass');
+  p.add(hexNut(12, 4.6).translate(FD_CX, hubTop + 10.3, FD_CZ), 'zincPlate');
   for (const b of INJ_BANJOS) {
-    p.add(cylBetween([b.face[0], FD.y1 + 2, b.face[2]], b.face, 6.2, 14), 'zincPlate');
+    const hex = hexNut(16, TOWER);
+    hex.translate(b.face[0], FD.y1 + TOWER / 2, b.face[2]);
+    p.add(hex, 'zincPlate');
   }
   // Side inlet boss on the +X face. Outer face at x −64, inside the air-flow meter.
   p.add(cylBetween([FD.x1 - 6, 286, FD_CZ], [-64, 286, FD_CZ], 8, 16), 'zincPlate');

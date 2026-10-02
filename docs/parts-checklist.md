@@ -756,7 +756,7 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 1 | 930 106 041 13 | Air guide | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 999 507 003 02 | Speed nut | 5 | modelled | `shroud-speed-nuts` |
 | 2 | 999 507 003 01 | Speed nut | 5 | alt | alternative to 105-05 #2 |
-| 3 | 911 106 406 00 | Air guide | 1 | **MISSING** | air guide 911 106 406 00: location not identified in the photo references, not modelled |
+| 3 | 911 106 406 00 | Air guide | 1 | **MISSING** | air duct for the front oil cooler (911 106 406 00, trade 911 106 406 01), right front fender, not on the engine and not the CIS intake air guide |
 | 4 | 930 106 326 01 | Hot air socket | 1 | modelled | `upper-air-guide` socket |
 | 5 | 911 106 327 00 | Hot air socket | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 6 | 911 106 036 01 | Cover plate | 1 | modelled | `shroud-cover-plate` |
