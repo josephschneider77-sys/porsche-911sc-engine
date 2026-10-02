@@ -90,9 +90,16 @@ function perCylinder(): PartDef[] {
     out.push({
       id: `spark-plug-${c}`, name: `Spark plug, cyl. ${c}`, system: 'ignition', asset: 'spark-plug',
       position: [(CYL_TOP_X + SPARK_TIP.x) * s, SPARK_TIP.y, z + SPARK_Z * s], rotation: zRot, explode: [s * 380, -220, 0],
-      catalog: [{ ill: '901-00', pos: '16', pn: '999 170 170 90', qty: 6, note: 'Remark -79, model SC. Heat range 145 EA 0,8. 136 90 is the other -79 line; 055 90 and 165 90 are remark 80-.' }, { ill: '901-00', pos: '21', pn: '911 602 315 00', note: 'Plug connector. Blank remark and model (1978 USA 930/04). Straight tube, seal flange, 90° elbow' }],
-      description: 'Bosch plug 999 170 170 90, catalogue type line 145 EA 0,8, one per cylinder, entered through the upper valve cover. M14×1.25 thread, 19 mm reach, gasket seat, 20.8 mm hex, ribbed ceramic. The connector (911 602 315 00) is a straight tube on the terminal, a round seal flange in the cover hole, and a 90° elbow. The part origin is 0.75 mm piston-side of the centre electrode; the ground strap outer face is 0.75 mm past the origin. The mesh gap is 0.80 mm. Local −Y runs toward the terminal. The axis is SPARK_AXIS: 35.95° above horizontal, 36.79° off the cylinder axis.',
+      catalog: [{ ill: '901-00', pos: '16', pn: '999 170 170 90', qty: 6, note: 'Remark -79, model SC. Heat range 145 EA 0,8. 136 90 is the other -79 line; 055 90 and 165 90 are remark 80-.' }],
+      description: 'Bosch plug 999 170 170 90, catalogue type line 145 EA 0,8, one per cylinder, entered through the upper valve cover. M14×1.25 thread, 19 mm reach, gasket seat, 20.8 mm hex, ribbed ceramic. The part origin is 0.75 mm piston-side of the centre electrode; the ground strap outer face is 0.75 mm past the origin. The mesh gap is 0.80 mm. Local −Y runs toward the terminal. The axis is SPARK_AXIS: 35.95° above horizontal, 36.79° off the cylinder axis.',
       specs: { Thread: 'M14 x 1.25', Reach: '19 mm', Hex: '20.8 mm', 'Heat range': '145 EA 0,8', Gap: '0.8 mm', 'Terminal (plug-local)': `(0, ${SPARK_NIPPLE_Y}, 0)` },
+    });
+    out.push({
+      id: `spark-plug-connector-${c}`, name: `Spark plug connector, cyl. ${c}`, system: 'ignition', asset: 'spark-plug-connector',
+      position: [(CYL_TOP_X + SPARK_TIP.x) * s, SPARK_TIP.y, z + SPARK_Z * s], rotation: zRot, explode: [s * 440, -300, 0],
+      catalog: [{ ill: '901-00', pos: '21', pn: '911 602 315 00', qty: 6, note: 'Blank remark and model (1978 USA 930/04). Straight tube, seal flange, 90° elbow.' }],
+      description: 'Connector 911 602 315 00, one per cylinder, on the same datum and axis as the plug. A straight tube grips the terminal nut, a round seal flange seats in the upper-cover hole, and a 90° elbow leaves along plug-local +X. The elbow outlet is where the ignition lead enters.',
+      specs: { Form: 'Straight tube, seal flange, 90° elbow', 'Outlet (plug-local)': '+X' },
     });
     out.push({
       id: `intake-runner-${c}`, name: `Intake pipe, cyl. ${c}`, system: 'induction', asset: `intake-runner-${c}`,

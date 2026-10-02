@@ -1240,8 +1240,7 @@ function washerAnnulus(yBack: number, yFace: number, rIn: number, rOut: number, 
  * the terminal is along −Y. Thread M14×1.25, 19 mm reach, drawn at the minor
  * diameter minus 0.12 mm so it sits in the head bore without burying the shell.
  * The crush washer's seat face is plug-local y = SPARK_SEAT_Y. The connector
- * (911 602 315 00) is a straight tube over the terminal, a round seal flange at
- * the cover hole, and a 90° elbow the lead enters.
+ * (911 602 315 00) is sparkPlugConnector(), on the same local frame.
  */
 export function sparkPlug() {
   const p = new Part();
@@ -1299,10 +1298,20 @@ export function sparkPlug() {
   // Terminal stud and nut. The connector bore is smaller than the nut's corners, so it grips.
   p.add(cyl(2.0, 7, 12).translate(0, SPARK_NIPPLE_Y + 3.2, 0), 'steel');
   p.add(hexNut(8, nutH).translate(0, SPARK_NIPPLE_Y, 0), 'darkSteel');
-  // Straight tube from just over the terminal nut out past the cover. Inner radius
-  // clears the ceramic and grips the nut. Outer radius clears the cover hole.
+  return p.g;
+}
+
+/**
+ * Spark plug connector 911 602 315 00. Same local frame as the plug: +Y is the
+ * firing end, the terminal is along −Y, and the elbow leaves along +X.
+ * Straight tube from just over the terminal nut, seal flange in the cover hole,
+ * then a 90° elbow. The outlet centre is SPARK_MOUTH.
+ */
+export function sparkPlugConnector() {
+  const p = new Part();
   const yTube0 = SPARK_NIPPLE_Y + 2;
   const yJoin = -(SPARK_FLANGE_T + 12);
+  // Inner radius clears the ceramic and grips the nut. Outer radius clears the cover hole.
   const tubeProf: [number, number][] = [
     [4.3, yTube0], [SPARK_TUBE_R, yTube0], [SPARK_TUBE_R, yJoin], [4.3, yJoin],
   ];
@@ -1316,15 +1325,24 @@ export function sparkPlug() {
   ];
   p.add(lathe(flangeProf.slice().reverse(), 32), 'rubber');
   // 90° elbow. Starts on the axis at yJoin, travelling toward −Y, and leaves
-  // along local +X. Centre of the bend is (SPARK_BEND_R, yJoin).
+  // along local +X. Centre of the bend is (SPARK_BEND_R, yJoin). The straight
+  // run is several samples so the mouth ring stays normal to +X.
   const R = SPARK_BEND_R;
   const bend: V3[] = [];
   for (let i = 0; i <= 8; i++) {
     const ang = Math.PI + (i / 8) * (Math.PI / 2);
     bend.push([R + R * Math.cos(ang), yJoin + R * Math.sin(ang), 0]);
   }
-  bend.push([SPARK_MOUTH[0], SPARK_MOUTH[1], SPARK_MOUTH[2]]);
-  p.add(tube(bend, SPARK_TUBE_R, 10, 8), 'blackPlastic');
+  const joint = bend[bend.length - 1];
+  for (let i = 1; i <= 4; i++) {
+    const t = i / 4;
+    bend.push([
+      joint[0] + (SPARK_MOUTH[0] - joint[0]) * t,
+      joint[1] + (SPARK_MOUTH[1] - joint[1]) * t,
+      joint[2] + (SPARK_MOUTH[2] - joint[2]) * t,
+    ]);
+  }
+  p.add(tube(bend, SPARK_TUBE_R, 12, 24), 'blackPlastic');
   return p.g;
 }
 

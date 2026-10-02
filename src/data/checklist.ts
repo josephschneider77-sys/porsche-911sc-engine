@@ -42,7 +42,6 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'warm-up-regulator': { conn: 2, ring: 2 },
   'distributor': { cap: 1 },
   'ignition-leads': { coil: 1, plug: 1, line: 1 },
-  'spark-plug': { connector: 1 },
   'flywheel': { ring: 1 },
   // small-part prototypes
   'case-connection-left': { ring: 1 },
@@ -234,8 +233,8 @@ export const CLAIMS: Claim[] = [
   C('301-00#1', 'pressure-plate'), C('301-00#2', 'clutch-disc'), C('301-00#3', 'clutch-bolts', 'spring'), C('301-00#4', 'clutch-bolts'), C('301-00#5', 'flywheel', 'ring'),
   // ---- 901-00 ignition
   C('901-00#4', 'distributor-oring'), C('901-00#5', 'distributor-nut', 'washer'), C('901-00#6', 'distributor-nut', 'spring'), C('901-00#7', 'distributor-nut'),
-  C('901-00#8', 'distributor', 'cap'), C('901-00#9', 'ignition-leads', 'line'), C('901-00#16', 'spark-plug-*'), C('901-00#17', 'ignition-leads'),
-  C('901-00#18', 'ignition-leads', 'coil'), C('901-00#19', 'ignition-leads', 'plug'), C('901-00#21', 'spark-plug-*', 'connector'), C('901-00#22', 'ignition-lead-holders'),
+  C('901-00#8', 'distributor', 'cap'), C('901-00#9', 'ignition-leads', 'line'), C('901-00#16', '^spark-plug-\\d$'), C('901-00#17', 'ignition-leads'),
+  C('901-00#18', 'ignition-leads', 'coil'), C('901-00#19', 'ignition-leads', 'plug'), C('901-00#21', '^spark-plug-connector-\\d$'), C('901-00#22', 'ignition-lead-holders'),
 ];
 
 const range = (ill: string, pos: (string | number)[], why: string): NotApplicable[] => pos.map((p) => ({ line: `${ill}#${p}`, why }));

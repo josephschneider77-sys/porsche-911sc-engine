@@ -77,6 +77,7 @@ export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
   'fuel-lines': A.fuelLines,
   distributor: A.distributor,
   'spark-plug': A.sparkPlug,
+  'spark-plug-connector': A.sparkPlugConnector,
   'heat-exchanger-right': () => A.heatExchanger(1),
   'heat-exchanger-left': () => A.heatExchanger(-1),
   muffler: A.muffler,

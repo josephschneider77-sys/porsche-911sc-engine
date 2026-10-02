@@ -134,7 +134,7 @@ function solid(id: string, asset: string, pos: number[] | undefined, rot: number
  *   rocker shaft × cam-housing bore — cylinder of the shaft, radial allowance 0.45 mm
  *   valve-cover gasket × cam-housing land — cover-local |z| under 0.45 mm
  *   spark plug × head — M14 minor bore along the 19 mm reach, and the washer spot-face
- *   spark plug × upper cover — connector seal flange in the machined hole.
+ *   spark plug connector × upper cover — seal flange in the machined hole.
  *     The tube and the elbow stay clear of the hole edge; only this flange seats.
  */
 const SHAFT_SEAT_R = 0.45;
@@ -195,11 +195,12 @@ function narrowSeat(a: string, b: string, p: THREE.Vector3): boolean {
     if (Math.abs(t - tSeat) <= PLUG_SEAT_TOL && radial <= 11.2 + PLUG_SEAT_TOL && radial >= minorR - PLUG_SEAT_TOL) return true;
   }
   const cover = /^valve-cover-upper-(left|right)$/.test(a) ? a : /^valve-cover-upper-(left|right)$/.test(b) ? b : '';
-  if (plug && cover) {
-    const n = Number(plug.slice(-1));
+  const conn = /^spark-plug-connector-(\d)$/.exec(a)?.[1] ? a : /^spark-plug-connector-(\d)$/.exec(b)?.[1] ? b : '';
+  if (conn && cover) {
+    const n = Number(conn.slice(-1));
     const right = cover.endsWith('right');
     if ((n <= 3) !== right) return false;
-    const fr = plugAxis(plug);
+    const fr = plugAxis(conn);
     if (!fr) return false;
     _seat.copy(p).sub(fr.tip);
     const t = _seat.dot(fr.axis);
@@ -413,7 +414,8 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('fan-hub', 'fan-impeller|alternator', 'pressed: fan hub on the alternator shaft and the impeller on the hub'),
   pair('warm-up-regulator', 'crankcase-left', 'seated: regulator flange on the case pad'),
   pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),
-  pair('ignition-leads', 'spark-plug', 'seated: lead boot on the plug terminal'),
+  pair('ignition-leads', 'spark-plug-connector', 'seated: lead boot in the connector elbow'),
+  ...sameCyl('spark-plug', 'spark-plug-connector', 'seated: connector tube on the plug terminal'),
   pair('ignition-leads', 'ignition-lead-holders', 'seated: lead clipped in the shroud holder'),
   // ---- top end (heads, cylinders, cams, valvetrain, covers, chain drive) — not rewritten here
 

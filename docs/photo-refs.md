@@ -75,7 +75,7 @@ Every rocker-gear line above (positions 44–50, PDF p.73) has a blank remark an
 | 16 | Spark plug | 6 | **999 170 170 90**. Remark `-79`, model SC, qty 6. The description column continues `145 EA 0,8`: heat range 145 EA, printed gap 0,8. That is the catalogue line for an SC through 1979, which includes 1978 USA 930/04. **999 170 136 90** is the other `-79` line, same heat range. 999 170 055 90 and 999 170 165 90 are remark `80-`, type line `225 EA 0,7`, and do not cover 1978. 999 170 128 90 is Turbo (`280 EA 0,6`). |
 | 21 | Spark plug connector | 6 | **911 602 315 00**. Blank remark and blank model column, so it covers 1978 USA 930/04. Straight tube, round seal flange near the outer end, 90° elbow. |
 
-The sheet does not print a thread reach. The modelled plug is the Bosch W-series already specified for this work: M14×1.25, 19 mm reach, sealing washer, 20.8 mm hex, ribbed ceramic, terminal nut, ground strap and centre electrode. The mesh gap is 0.8 mm, the same figure the type line prints as 0,8. The connector is drawn on the plug.
+The sheet does not print a thread reach. The modelled plug is the Bosch W-series already specified for this work: M14×1.25, 19 mm reach, sealing washer, 20.8 mm hex, ribbed ceramic, terminal nut, ground strap and centre electrode. The mesh gap is 0.8 mm, the same figure the type line prints as 0,8. The connector is its own part (`spark-plug-connector-*`), on the same datum and axis as the plug. The elbow outlet is the point the ignition lead enters.
 
 ## Air injection — illustration 108-00 (not modelled)
 

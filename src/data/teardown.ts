@@ -27,7 +27,7 @@ export const TEARDOWN: TeardownStep[] = [
   { id: 'intake', title: 'Air distributor & intake pipes', note: 'Plug the intake ports with rags.', parts: [...hw('intake-nuts-*'), 'plenum', ...cyl('intake-runner')] },
   { id: 'belt', title: 'V-belt', note: 'Remove shims from the fan pulley to slacken the belt.', parts: [...hw('fan-pulley-nut'), 'fan-belt', 'fan-pulley'] },
   { id: 'fan', title: 'Fan housing with fan & alternator', note: 'Loosen the strap clamp; fan housing, fan and alternator lift out together.', parts: ['fan-impeller', 'fan-hub', 'alternator', 'fan-housing'] },
-  { id: 'distributor', title: 'Distributor & spark plugs', note: 'Mark rotor position before removal.', parts: ['ignition-leads', 'distributor-clamp', 'distributor', ...cyl('spark-plug')] },
+  { id: 'distributor', title: 'Distributor & spark plugs', note: 'Mark rotor position before removal. The connectors come off with the leads.', parts: ['ignition-leads', ...cyl('spark-plug-connector'), 'distributor-clamp', 'distributor', ...cyl('spark-plug')] },
   { id: 'shroud', title: 'Upper air guide & oil cooler', note: 'The shroud comes off once the fan housing is out.', parts: ['upper-air-guide', 'oil-cooler'] },
   { id: 'pulley', title: 'Crankshaft pulley', note: 'Central bolt, hold the crank from the flywheel flange.', parts: [...hw('pulley-bolt'), 'crank-pulley'] },
   { id: 'valve-covers', title: 'Valve covers', note: 'Upper and lower covers on both cam housings.', parts: [...hw('valve-cover-nuts-upper-*', 'valve-cover-nuts-lower-*'), 'valve-cover-upper-right', 'valve-cover-lower-right', 'valve-cover-upper-left', 'valve-cover-lower-left'] },

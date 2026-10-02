@@ -1064,7 +1064,7 @@ Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) 
 | 15 | 900 076 064 02 | Hexagon nut | 2 | alt | alternative to 901-00 #15 |
 | 16 | 999 170 055 90 | Spark plug | 6 | excluded | model years 80-: not a 1978 engine |
 | 16 | 999 170 165 90 | Spark plug | 6 | excluded | model years 80-: not a 1978 engine |
-| 16 | 999 170 170 90 | Spark plug | 6 | modelled | `spark-plug-*` |
+| 16 | 999 170 170 90 | Spark plug | 6 | modelled | `^spark-plug-\d$` |
 | 16 | 999 170 136 90 | Spark plug | 6 | alt | alternative to 901-00 #16 |
 | 16 | 999 170 128 90 | Spark plug | 6 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 17 | 911 609 011 07 | Set of ignition cables | 1 | modelled | `ignition-leads` |
@@ -1072,7 +1072,7 @@ Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) 
 | 19 | 911 609 510 00 | Cable plug | 1 | modelled | `ignition-leads` plug |
 | 19 | PCG 609 510 00 | Cable plug | 1 | alt | alternative to 901-00 #19 |
 | 20 | 999 659 001 40 | Water protection cap | 1 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
-| 21 | 911 602 315 00 | Spark plug connector | 6 | modelled | `spark-plug-*` connector |
+| 21 | 911 602 315 00 | Spark plug connector | 6 | modelled | `^spark-plug-connector-\d$` |
 | 22 | 901 609 591 00 | Cable holder | 4 | modelled | `ignition-lead-holders` |
 | 24 | 930 602 702 00 | Switch unit | 1 | N/A | capacitive-discharge switch unit and its screws: body-mounted, not part of the engine assembly |
 | 25 | N 014 703 2 | Pan-head screw | 3 | N/A | capacitive-discharge switch unit and its screws: body-mounted, not part of the engine assembly |
