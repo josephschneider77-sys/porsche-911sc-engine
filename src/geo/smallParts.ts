@@ -12,7 +12,7 @@ import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSIN
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
 import { LIP_Z, chainLidStations } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD, airCleanerLayout } from './aux';
-import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, VAC_T, VAC_LIMIT, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
+import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const X = V(1, 0, 0), Y = V(0, 1, 0), Z = V(0, 0, 1);
@@ -294,6 +294,8 @@ def('cold-start-valve', () => {
   // the shanks run into the holes cut in the plenum boss.
   p.add(lathe([[7.2, 0], [14, 0], [14, 2], [7.2, 2]], 24), 'gasket');
   p.add(box(44, 3.2, 14).translate(0, 3.6, 0), 'castAlu');
+  // Intermediate piece 911 110 264 00 (107-10 #32): a machined collar between the flange and the valve body.
+  p.add(lathe([[12.2, 12], [15.2, 12], [15.2, 18], [12.2, 18]], 24), 'machinedAlu');
   p.add(lathe([[0.1, 2], [12, 2], [12, 8], [0.1, 8]], 24), 'castAlu');
   p.add(torus(11, 1.3, 6, 24).rotateX(Math.PI / 2).translate(0, 8.5, 0), 'rubber');
   p.add(lathe([[0.1, 9], [12, 9], [12, 42], [8, 46], [0.1, 46]], 24), 'zincPlate');
@@ -308,7 +310,35 @@ def('cold-start-valve', () => {
   csvPortLocalGeometry(p);
   return p;
 }, () => [csvPoseMatrix()]);
-def('aux-air-valve', () => { const p = new Part(); p.add(lathe([[0.1, 0], [20, 0], [20, 30], [0.1, 30]], 28), 'castAlu'); p.add(cylBetween([0, 16, 0], [26, 16, 0], 5.5, 12), 'castAlu'); p.add(cylBetween([0, 16, 0], [-26, 16, 0], 5.5, 12), 'castAlu'); for (const k of [-1, 1]) { p.add(hexNut(10, 4).translate(k * 24, 5, 0), 'zincPlate'); p.add(lathe([[3.2, 0.15], [5.5, 0.15], [5.5, 1.05], [3.2, 1.05]], 12).translate(k * 24, 0, 0), 'darkSteel'); } p.add(box(52, 2, 12).translate(0, 1.2, 0), 'zincPlate'); return p; }, () => [aavMatrix()]);
+def('aux-air-valve', () => {
+  const p = new Part();
+  // Bosch auxiliary-air regulator 911 606 102 04. Rectangular body; barbs stay at local x ±26 so the hose seats do not move.
+  p.add(boxMM([-16, 2, -12], [16, 30, 12]), 'castAlu');
+  p.add(boxMM([-14, 0, -10], [14, 2.4, 10]), 'zincPlate');
+  p.add(cylBetween([16, 16, 0], [26, 16, 0], 9, 14), 'castAlu');
+  p.add(cylBetween([-16, 16, 0], [-26, 16, 0], 9, 14), 'castAlu');
+  for (const k of [-1, 1]) {
+    p.add(hexNut(10, 4).translate(k * 14, 5, 0), 'zincPlate');
+    p.add(lathe([[3.2, 0.15], [5.5, 0.15], [5.5, 1.05], [3.2, 1.05]], 12).translate(k * 14, 0, 0), 'darkSteel');
+  }
+  return p;
+}, () => [aavMatrix()]);
+def('additional-air-valve', () => {
+  const p = new Part();
+  // 911 110 273 00 (107-10 #39, tags -80). Support #40 and two spring washers #41. Vacuum barb is ADD_AIR_VAC.
+  const [tx, ty, tz] = ADD_AIR_VAC.tip;
+  // Flywheel of the right-bank injector ribbon. The support hangs in that same pocket.
+  p.add(boxMM([90, 292, -236], [118, 308, -214]), 'castAlu');
+  p.add(cylBetween([90, 300, -224], [78, 300, -224], 8, 12), 'castAlu');
+  p.add(cylBetween([118, 300, -224], [130, 300, -224], 8, 12), 'castAlu');
+  p.add(cylBetween([104, 300, -214], [tx, ty, tz], 3.4, 10), 'brass');
+  p.add(boxMM([96, 268, -232], [112, 294, -218]), 'zincPlate');
+  for (const x of [100, 108]) {
+    p.add(hexNut(8, 3).translate(x, 270, -225), 'zincPlate');
+    p.add(lathe([[2.6, 0], [4.6, 0], [4.6, 1], [2.6, 1]], 12).translate(x, 268.2, -225), 'darkSteel');
+  }
+  return p;
+}, () => [new THREE.Matrix4()]);
 def('aux-air-plumbing', () => auxAirPlumbingPart(), () => [new THREE.Matrix4()]);
 def('vacuum-limiter', () => { const p = new Part(); p.add(lathe([[0.1, 0], [16, 0], [16, 20], [0.1, 20]], 24), 'satinBlack'); p.add(cylBetween([0, 10, 0], [22, 10, 0], 3.6, 10), 'blackPlastic'); p.add(cyl(4.2, 5, 12).translate(0, 23, 0), 'zincPlate'); p.add(hexNut(10, 5).translate(0, 28, 0), 'zincPlate'); p.add(lathe([[3.6, 20], [6.2, 20], [6.2, 21.3], [3.6, 21.3]], 12), 'darkSteel'); return p; }, () => [M(V(...VAC_LIMIT.origin), Y)]);
 def('vacuum-fittings', () => {
@@ -320,13 +350,18 @@ def('vacuum-fittings', () => {
   t.name = 'fitting:vac-t';
   t.add(mesh(cylBetween([ox - 14, oy, oz], [ox + 14, oy, oz], 3.6, 10), 'blackPlastic'));
   t.add(mesh(cylBetween([ox, oy, oz], [ox, oy, oz + 16], 3.6, 10), 'blackPlastic'));
-  t.add(mesh(cylBetween([ox, oy, oz + 16], [ox, oy, oz + 28], 2.8, 10), 'brass'));
+  // Elbow up. The hose seat is vacTPorts().plusZ; a straight leg would meet the throttle flange.
+  t.add(mesh(cylBetween([ox, oy, oz + 16], [ox, oy, oz + 22], 2.8, 10), 'brass'));
+  t.add(mesh(cylBetween([ox, oy, oz + 20], [10, 274, 76], 2.8, 8), 'brass'));
+  // Last 8 mm is along +Y so the hose seat is a flat face on vacTPorts().plusZ.
+  t.add(mesh(cylBetween([10, 274, 76], [10, 282, 76], 2.8, 8), 'brass'));
   // Rings around the barbs, inboard of each tip so the hose ray meets the barb face.
   const xRing = torus(4.2, 0.7, 6, 14).rotateY(Math.PI / 2);
   t.add(mesh(xRing, 'zincPlate', [ox - 4, oy, oz]));
   t.add(mesh(xRing.clone(), 'zincPlate', [ox + 10, oy, oz]));
-  t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, oy, oz + 20]));
+  t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, 276, 78]));
   p.g.add(t);
+  p.g.add(vacuumCluster().g);
   p.g.add(vacuumHosesPart().g);
   return p;
 }, () => [new THREE.Matrix4()]);

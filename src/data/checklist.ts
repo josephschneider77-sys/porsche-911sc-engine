@@ -36,7 +36,7 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'fan-housing': { strap: 1, clamp: 1, washer: 2, nut: 2 },
   'fan-pulley': { shim: 1 },
   'upper-air-guide': { socket: 1 },
-  'airbox-struts': { strutA: 1, strutB: 1, buffer: 4 },
+  'airbox-struts': { strutA: 1, strutB: 1, buffer: 2 },
   'mixture-control-unit': { distributor: 1, meter: 1 },
   'fuel-lines': { line: 6, fuelA: 1, fuelB: 1, fuelC: 1 },
   'warm-up-regulator': { conn: 2, ring: 2 },
@@ -64,7 +64,8 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'afm-screws': { spring: 1, washer: 1 },
   'throttle-housing': { spring: 1, oring: 1 },
   'cold-start-valve': { oring: 1, piece: 1, gasket: 1, screw: 2, spring: 2 },
-  'aux-air-valve': { spring: 2, screw: 2, support: 1, spring2: 2 },
+  'aux-air-valve': { spring: 2, screw: 2 },
+  'additional-air-valve': { support: 1, spring2: 2 },
   'aux-air-plumbing': { clamp: 7, pipe: 1, conn: 1 },
   'wur-lines': { socket: 1, ring2: 1, tube: 1, conn: 1, ring3: 1, banjo: 3, ring: 6 },
   'throttle-linkage': { bracket: 1, sleeve: 2, lever: 2, washer: 1, spring: 4, nut: 4, rod: 1, spring2: 1 },
@@ -217,7 +218,8 @@ export const CLAIMS: Claim[] = [
   C('107-10#28', 'injection-line-bracket', 'nut'), C('107-10#29', 'injection-line-bracket', 'spring'),
   C('107-10#30', 'cold-start-valve'), C('107-10#31', 'cold-start-valve', 'oring'), C('107-10#32', 'cold-start-valve', 'piece'), C('107-10#33', 'cold-start-valve', 'gasket'),
   C('107-10#34', 'cold-start-valve', 'screw'), C('107-10#35', 'cold-start-valve', 'spring'),
-  C('107-10#36', 'aux-air-valve'), C('107-10#37', 'aux-air-valve', 'spring'), C('107-10#38', 'aux-air-valve', 'screw'), C('107-10#40', 'aux-air-valve', 'support'), C('107-10#41', 'aux-air-valve', 'spring2'),
+  C('107-10#36', 'aux-air-valve'), C('107-10#37', 'aux-air-valve', 'spring'), C('107-10#38', 'aux-air-valve', 'screw'),
+  C('107-10#39', 'additional-air-valve'), C('107-10#40', 'additional-air-valve', 'support'), C('107-10#41', 'additional-air-valve', 'spring2'),
   C('107-10#43', 'aux-air-plumbing'), C('107-10#44', 'aux-air-plumbing', 'clamp', 4), C('107-10#45', 'aux-air-plumbing', 'clamp', 2), C('107-10#46', 'aux-air-plumbing', 'pipe'),
   C('107-10#47', 'aux-air-plumbing', 'conn'), C('107-10#48', 'aux-air-plumbing', 'clamp', 1),
   C('107-10#49', 'wur-lines', 'socket'), C('107-10#50', 'wur-lines', 'ring2'), C('107-10#51', 'wur-lines', 'tube'), C('107-10#52', 'wur-lines', 'conn'), C('107-10#53', 'wur-lines', 'ring3'),
@@ -277,7 +279,6 @@ export const NOT_APPLICABLE: NotApplicable[] = [
 /** Lines still not modelled (reported by the doc generator; the test requires this list to match reality). */
 export const STILL_MISSING: NotApplicable[] = [
   { line: '105-05#3', why: 'air guide 911 106 406 00: location not identified in the photo references, not modelled' },
-  { line: '107-10#39', why: 'additional air valve 911 110 273 00: not an alternative to the auxiliary air regulator; added with the air-distributor rebuild' },
 ];
 
 /** Groups covered by this checklist (108-00 air injection is not on this US 49-state/ROW reference engine set; see docs). */
