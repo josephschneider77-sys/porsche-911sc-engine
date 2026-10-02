@@ -11,8 +11,8 @@ import { partPose, seat, probe } from './probe';
 import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
 import { LIP_Z, chainLidStations } from './stations';
-import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
-import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, VAC_T, VAC_LIMIT } from './induction';
+import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD, airCleanerLayout } from './aux';
+import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, VAC_T, VAC_LIMIT, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const X = V(1, 0, 0), Y = V(0, 1, 0), Z = V(0, 0, 1);
@@ -330,19 +330,49 @@ def('vacuum-fittings', () => {
   p.g.add(vacuumHosesPart().g);
   return p;
 }, () => [new THREE.Matrix4()]);
-def('airbox-clamps', () => { const p = new Part(); const R = SNOUT_R + 2.2; p.add(torus(R, 1.15, 8, 28).rotateX(Math.PI / 2), 'zincPlate'); p.add(box(4, 5, 4).translate(R + 2, 0, 0), 'zincPlate'); p.add(hexNut(7, 3).translate(R + 3.2, 3, 0), 'zincPlate'); return p; }, () => airboxSnoutSamples().map(({ p, dir }) => M(V(...p), V(...dir), Y)));
+def('airbox-clamps', () => {
+  const p = new Part();
+  // S 85/9. The meter clamp is this prototype scaled to S 131/9.
+  // Major radius leaves about 1.5 mm of air on both the Ø85 boot and, once scaled, the Ø131 boot.
+  const R = 42.5 + 3.0;
+  p.add(torus(R, 1.15, 8, 28).rotateX(Math.PI / 2), 'zincPlate');
+  p.add(box(4, 5, 4).translate(R + 2, 0, 0), 'zincPlate');
+  p.add(hexNut(7, 3).translate(R + 3.2, 3, 0), 'zincPlate');
+  return p;
+}, () => airGuideClampMatrices());
 def('injection-banjos', () => banjoProto(), () => injectorBanjoMatrices());
-def('injection-line-rings', () => washer(4.1, 6.2, 1, 'copper'), () => sealRingFrames().map(({ p, n }) => M(V(...p), V(...n))));
+def('injection-line-rings', () => washer(4, 5.75, 1.2, 'copper'), () => sealRingFrames().map(({ p, n }) => M(V(...p), V(...n))));
 def('injection-line-bracket', () => {
   const p = new Part();
-  const h = LINE_CLIP.y1 - LINE_CLIP.y0;
-  // Backplate outboard of the ribbon. Fingers reach toward the tubes and stop 6 mm short.
-  p.add(box(1.8, h, LINE_CLIP.depth).translate(0, h / 2, 0), 'zincPlate');
-  p.add(box(8, 1.5, LINE_CLIP.depth).translate(4.6, 8, 0), 'zincPlate');
-  p.add(box(8, 1.5, LINE_CLIP.depth).translate(4.6, h - 8, 0), 'zincPlate');
-  p.add(hexNut(8, 3.2).translate(-3, 6, 0), 'zincPlate');
+  // One fitting: angle bracket #26, U-clamp #27, nut #28, spring washer #29,
+  // plus the blower-hose clamps from 108-10 (the blower itself is not modelled).
+  const g = new THREE.Group();
+  g.name = 'fitting:line-bracket';
+  const put = (geo: THREE.BufferGeometry, mat: 'zincPlate' | 'darkSteel') => g.add(mesh(geo, mat));
+  put(box(28, 2.2, 18).translate(0, 1.1, 0), 'zincPlate');
+  put(box(3, 16, 18).translate(-12, 10, 0), 'zincPlate');
+  put(box(16, 3, 4).translate(-2, 16, -7), 'zincPlate');
+  put(box(16, 3, 4).translate(-2, 16, 7), 'zincPlate');
+  put(box(16, 3, 18).translate(-2, 12, 0), 'zincPlate');
+  put(hexNut(10, 3.2).translate(6, 4.6, 0), 'zincPlate');
+  put(lathe([[3.2, 2.2], [5.4, 2.2], [5.4, 3.3], [3.2, 3.3]], 12).translate(6, 0, 0), 'zincPlate');
+  // 2×8/15 on the cyl 2–3 side, 2×11/15 and 12/15 beside them. Positions are E.
+  put(torus(8, 0.9, 6, 16).rotateY(Math.PI / 2).translate(22, 24, -8), 'zincPlate');
+  put(torus(8, 0.9, 6, 16).rotateY(Math.PI / 2).translate(22, 24, 10), 'zincPlate');
+  put(torus(11, 0.9, 6, 16).rotateY(Math.PI / 2).translate(22, 36, 0), 'zincPlate');
+  p.g.add(g);
   return p;
-}, () => [M(V(LINE_CLIP.x, LINE_CLIP.y0, LINE_CLIP.z), Y, X)]);
+}, () => [M(V(LINE_CLIP.x, LINE_CLIP.y, LINE_CLIP.z), Y, X)]);
+def('afm-screws', () => {
+  const p = new Part();
+  // Washer, compression spring, M6×25 pan head. The head stands on the spring; nothing enters the lid.
+  p.add(lathe([[3.3, 0], [6.5, 0], [6.5, 1.2], [3.3, 1.2]], 16), 'zincPlate');
+  p.add(spring(3.4, 0.7, 1.4, 8, 5), 'darkSteel');
+  p.add(lathe([[2.8, 8.2], [5.6, 8.2], [5.6, 11.2], [2.2, 12.4], [2.2, 8.2]], 16), 'zincPlate');
+  return p;
+}, () => afmScrewMatrices());
+def('throttle-housing', () => throttleHousingPart(), () => [new THREE.Matrix4()]);
+def('air-guide', () => { const p = new Part(); p.addObj(airGuidePart()); return p; }, () => [new THREE.Matrix4()]);
 def('wur-lines', () => { const p = new Part(); p.addObj(wurLinesPart()); return p; }, () => [new THREE.Matrix4()]);
 def('throttle-linkage', () => { const p = new Part(); p.add(box(16, 2, 12).translate(0, 1, 0), 'zincPlate'); for (const k of [-1, 1]) p.add(lathe([[3.2, 2], [5.2, 2], [5.2, 9], [3.2, 9]], 12).translate(k * 5, 0, 0), 'bronze'); p.add(box(14, 3, 3.5).translate(7, 11, 0), 'zincPlate'); p.add(lathe([[3, 9], [6.5, 9], [6.5, 10.4], [3, 10.4]], 12), 'zincPlate'); p.add(cylBetween([7, 11, 0], [24, 16, 32], 2.1, 8), 'zincPlate'); p.add(spring(2.2, 0.65, 6, 18, 7).translate(-6, 0, 3), 'darkSteel'); for (const k of [-1, 1]) { p.add(hexNut(8, 3.2).translate(k * 5, 11, 0), 'zincPlate'); p.add(lathe([[2.5, 2], [4, 2], [4, 3.1], [2.5, 3.1]], 10).translate(k * 5, 0, 0), 'darkSteel'); } return p; }, () => [M(V(42, 236.6, 114), Y, X)]);
 def('airbox-straps', () => { const p = new Part(); p.add(box(16, 1.6, 86).translate(0, 0.8, 0), 'zincPlate'); p.add(hexNut(8, 3.2).translate(0, 3.4, 0), 'zincPlate'); p.add(lathe([[3.2, 1.6], [5.2, 1.6], [5.2, 2.4], [3.2, 2.4]], 12), 'darkSteel'); return p; }, () => [-90, 90].map((x) => M(V(x, airCleanerLayout().crown + 1.8, AIRBOX.z), Y, X)));

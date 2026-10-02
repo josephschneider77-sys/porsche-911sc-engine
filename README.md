@@ -2,7 +2,7 @@
 
 **Live:** https://josephschneider77-sys.github.io/porsche-911sc-engine/
 
-A phone-friendly Three.js model of the 1978 Porsche 911 SC Type 930/03 air-cooled flat-six (2994 cc, 95 × 70.4 mm). Every part is modelled at real-world scale in millimetres. Shapes are traced from the Porsche parts-catalogue illustrations; see [`docs/engine-spec.md`](docs/engine-spec.md).
+A phone-friendly Three.js model of the 1978 Porsche 911 SC Type 930/04 (US, not California) air-cooled flat-six (2994 cc, 95 × 70.4 mm). Every part is modelled at real-world scale in millimetres. Intake and fuel shapes follow Porsche Kat 502; see [`docs/engine-spec.md`](docs/engine-spec.md) and [`docs/photo-refs.md`](docs/photo-refs.md).
 
 - **Disassemble** step by step in the workshop teardown order (34 steps, Next/Back).
 - **Explode** slider for an animated exploded view.
