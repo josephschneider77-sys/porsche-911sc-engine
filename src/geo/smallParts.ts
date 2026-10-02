@@ -106,7 +106,7 @@ function coverGasketGeom(s: 1 | -1) {
   const C = CAM_COVER;
   const bolts = camCoverAngles(s).map((d) => camCoverBolt(s, d));
   // Vertex far enough that each M6 hole (r 3.2) stays inside the triangle with a land.
-  const reach = C.boltR + 8;
+  const reach = C.boltR + 6.6;
   const verts = bolts.map((b) => {
     const dx = b.x - cx, dy = b.y, L = Math.hypot(dx, dy);
     return [cx + (dx / L) * reach, (dy / L) * reach] as [number, number];
@@ -150,28 +150,30 @@ export function camFlangeCoverPart(s: 1 | -1) {
   // screw so the head sits in the rim and stays under the chain, without a hole that breaks the edge.
   const bolts = camCoverAngles(s).map((d) => camCoverBolt(s, d));
   const N = 240;
-  const headR = 6.5;
-  const radAt = (a: number, notched: boolean) => {
+  // Seat notch clears the M6 shank and still leaves metal under the washer.
+  // Rim notch clears the Ø12.4 head. Both open through the outer edge: a closed
+  // hole at this radius would break the rim (bolt r 44.8, rim r 47.2).
+  const radAt = (a: number, notchR: number) => {
     const ca = Math.cos(a), sa = Math.sin(a);
     let r = C.rimR;
-    if (!notched) return r;
+    if (notchR <= 0) return r;
     // Stay outside the bore so the notch and the inner hole stay separate contours.
-    const floor = C.rimInner + 1.4;
+    const floor = C.rimInner + 0.9;
     for (const b of bolts) {
       const bx = b.x - cx, by = b.y;
       const bdot = bx * ca + by * sa;
-      const disc = bdot * bdot - (bx * bx + by * by - headR * headR);
+      const disc = bdot * bdot - (bx * bx + by * by - notchR * notchR);
       if (disc <= 0) continue;
       const near = bdot - Math.sqrt(disc);
       if (near < r) r = Math.max(near, floor);
     }
     return r;
   };
-  const rimPts = (notched: boolean): [number, number][] => {
+  const rimPts = (notchR: number): [number, number][] => {
     const pts: [number, number][] = [];
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2;
-      const r = radAt(a, notched);
+      const r = radAt(a, notchR);
       pts.push([cx + Math.cos(a) * r, Math.sin(a) * r]);
     }
     return pts;
@@ -181,9 +183,9 @@ export function camFlangeCoverPart(s: 1 | -1) {
       const a = (i / n) * Math.PI * 2;
       return [x + r * Math.cos(a), y + r * Math.sin(a)] as [number, number];
     });
-  const seatPlan = rimPts(false);
-  const notchPlan = rimPts(true);
-  p.add(holedPlate(seatPlan, [ring(C.rimInner, cx, 0), ...bolts.map((b) => ring(3.3, b.x, b.y, 16))], () => [stack.cover0, seatZ]), 'castAlu');
+  const seatPlan = rimPts(3.6);
+  const notchPlan = rimPts(6.5);
+  p.add(holedPlate(seatPlan, [ring(C.rimInner, cx, 0)], () => [stack.cover0, seatZ]), 'castAlu');
   p.add(holedPlate(notchPlan, [ring(C.rimInner, cx, 0)], () => [seatZ, rimTop]), 'castAlu');
   p.add(coverGasketGeom(s), 'gasket');
   // 999 701 468 40, 67.5 × 75.4 × 4. The torus fills the groove: OD on the body, ID on the root.

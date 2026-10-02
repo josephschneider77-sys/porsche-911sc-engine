@@ -379,7 +379,10 @@ export const TOP_END_WHY = new Set<string>([
  */
 const FASTENER_JOINTS = new Set<string>();
 for (const f of fastenerSets()) for (const it of f.items) {
-  FASTENER_JOINTS.add(`${f.id}|${it.seat}`); FASTENER_JOINTS.add(`${f.id}|${it.into}`);
+  // Cover screws: the head and washer sit on the rim, clear of the seal. Only the
+  // thread in the cam housing is a joint. The seat pair would hide a head in the rim.
+  if (!f.id.startsWith('cam-flange-cover-screws')) FASTENER_JOINTS.add(`${f.id}|${it.seat}`);
+  FASTENER_JOINTS.add(`${f.id}|${it.into}`);
   if (it.stud) FASTENER_JOINTS.add(`${it.into}|${it.seat}`);
 }
 // screw + nut pairs (thread engagement)
@@ -392,7 +395,8 @@ export const isMating = (a: string, b: string) =>
 /** Idler shaft in its housing boss, or the adjuster stud in its boss. Nothing else between these two parts. */
 function tensionerSeatSample(s: 1 | -1, p: THREE.Vector3) {
   const T = tensionerLayout(s);
-  const shaft = Math.hypot(p.x - T.pivot.x, p.y - T.pivot.y) < 13.5 && p.z > HOUSING_Z0 - 1 && p.z < T.z + 4;
+  // Shaft radius only. The eye (r 11) and bush (r 7.2) sit on the boss and must not enter it.
+  const shaft = Math.hypot(p.x - T.pivot.x, p.y - T.pivot.y) < 6.8 && p.z > HOUSING_Z0 - 1 && p.z < T.z - 16;
   const stud = Math.hypot(p.x - T.ear.x, p.y - T.ear.y) < 9.2 && p.z > HOUSING_Z0 - 1 && p.z < T.adjZ + 20;
   return shaft || stud;
 }

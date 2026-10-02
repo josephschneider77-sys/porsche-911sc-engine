@@ -49,6 +49,13 @@ describe('intra-part fuel and induction solids', () => {
     ], 1);
     expect(hits.map((h) => `${h.part}: ${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
   });
+  it('chain tensioners and cam-flange covers do not interpenetrate themselves', () => {
+    const hits = findIntraPartHits([
+      'chain-tensioner-left', 'chain-tensioner-right',
+      'cam-flange-cover-left', 'cam-flange-cover-right',
+    ], 1);
+    expect(hits.map((h) => `${h.part}: ${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
+  });
 });
 
 describe('assembled-pose interference', () => {

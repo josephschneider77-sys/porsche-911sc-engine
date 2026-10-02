@@ -25,7 +25,7 @@ Stack on the cam nose: cam housing → #29 → #30 → #31 → #34 → #35 → #
 |---|---|---|
 | Guide rail, right, idler-to-cam run | 911 105 222 05 | p.74 Bild 103-15 #2, quantity 1. Brown. Full length of that run, two bolt slots, bolted to bosses on the housing. |
 | Guide rail, right, the other two | 911 105 222 06 | p.74 Bild 103-15 #2, quantity 2. |
-| Guide rail, left | 911 105 222 06 | p.70 Bild 103-10 #2, quantity 3. |
+| Guide rail, left | 911 105 222 06 | p.70 Bild 103-10 #2, quantity 3. The idler-to-cam rail is painted the same brown as 222 05 so the two banks match. |
 | Bolt | 901 105 226 03 | p.70 #3 and p.74 #3, quantity 4 per side. Two pass through the idler-to-cam rail (222 05 on the right) and one through each of the other two rails. |
 | Sealing ring | 900 123 066 30 | p.70 #4 and p.74 #4, quantity 4 per side, under those bolt heads. |
 
