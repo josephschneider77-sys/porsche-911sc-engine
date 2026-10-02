@@ -61,7 +61,25 @@ function punchDistributor(g: THREE.BufferGeometry) {
   out.computeVertexNormals();
   return out;
 }
+/** mulberry32. three-bvh-csg jitters coplanar rays with Math.random, so the hollow right case was not byte-stable. */
+function mulberry32(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+let crankRightSeeded = false;
 export function crankcaseHalf(s: 1 | -1) {
+  if (s > 0 && !crankRightSeeded) {
+    crankRightSeeded = true;
+    const random = Math.random;
+    Math.random = mulberry32(0x9115c);
+    try { return crankcaseHalf(s); }
+    finally { Math.random = random; crankRightSeeded = false; }
+  }
   const p = new Part();
   const z0 = CASE_Z.flywheel, z1 = CASE_Z.pulley;
   const X = (x: number) => x * s;
@@ -766,9 +784,10 @@ export function crankshaft() {
       [rMain - 5, -mainW / 2], [rMain - 1.5, -mainW / 2 + 2.4], [rMain, -mainW / 2 + 4],
       [rMain, mainW / 2 - 4], [rMain - 1.5, mainW / 2 - 2.4], [rMain - 5, mainW / 2],
     ], 48)), 'polishedSteel', [0, 0, z]);
-    // A Ø1 spot, 3 mm deep in the journal. The old Ø6 × 0.6 wafer reached the main-web
-    // face (3 mm from the journal centre); 1 mm of erosion on each side then crossed.
-    p.add(yToX(cyl(0.5, 3, 10)), 'bore', [rMain - 1.4, 0, z]);
+    // Visible oil hole on the journal crown. A full Ø6 circle reaches the web faces at
+    // ±3 mm (and the 1 mm test moves those faces in to ±2 mm), so the bore is Ø5.6 and
+    // stays inside the journal. The old Ø6 × 0.6 wafer crossed the web once it eroded.
+    p.add(yToX(cyl(2.8, 4, 12)), 'bore', [rMain - 2.2, 0, z]);
   }
   const throws = Object.entries(CYL_Z).map(([c, z]) => ({ c: +c, z, a: THROW_DEG[+c] * DEG }));
   const cheekT = 12.6;

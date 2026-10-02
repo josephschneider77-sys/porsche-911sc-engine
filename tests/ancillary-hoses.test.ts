@@ -5,7 +5,7 @@ import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PART_BY_ID } from '../src/data/parts';
 import { TEE_AIR_INJ, THROTTLE_PORTED_VAC } from '../src/geo/induction';
 import { AIR_CHECK_VALVE_OUTLET, heaterStub, EGR_FEED_PORT } from '../src/geo/aux';
-import { checkValveInlet, DIVERTER_VAC, DIVERTER_VAC_EGR } from '../src/geo/bottomAnc';
+import { checkValveInlet, DIVERTER_VAC, DIVERTER_VAC_EGR, EGR_BARB_2 } from '../src/geo/bottomAnc';
 
 const poseOf = (id: string) => {
   const d = PART_BY_ID[id];
@@ -137,6 +137,7 @@ describe('ancillary hose ends', () => {
     { hose: 'heater-hose-left', point: new THREE.Vector3(...heaterStub(-1).tip), axis: new THREE.Vector3(...heaterStub(-1).axis), fitting: 'heat-exchanger-left', radii: [11.2, 11.6, 12] },
     { hose: 'egr-pipe-feed', point: new THREE.Vector3(...EGR_FEED_PORT.tip), axis: new THREE.Vector3(...EGR_FEED_PORT.axis), fitting: 'heat-exchanger-left', radii: [7.2, 7.6, 8] },
     { hose: 'egr-hose-pair', point: new THREE.Vector3(...DIVERTER_VAC_EGR), axis: new THREE.Vector3(1, 0, 0), fitting: 'air-diverter' },
+    { hose: 'egr-hose-pair', point: new THREE.Vector3(...EGR_BARB_2.point), axis: new THREE.Vector3(...EGR_BARB_2.axis), fitting: 'egr-valve' },
   ];
 
   it('each listed port has a hose or pipe centreline on it, and the fitting face is there', () => {
