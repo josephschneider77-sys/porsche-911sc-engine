@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PART_BY_ID } from '../src/data/parts';
-import { BOX, SLEEVE, FUEL_LINES, FUEL_BANJOS, BANJO } from '../src/geo/induction';
+import { BOX, SLEEVE, FUEL_LINES, FUEL_BANJOS, BANJO, serviceHoses, bootFrames, SLEEVE_IN_X, STUB_TIP_X, RUNNER_TIP_X, injectorFace, injectorAxis } from '../src/geo/induction';
+import { AIRBOX } from '../src/geo/aux';
+import { HEATER_HOSE_ENDS } from '../src/geo/smallParts';
 
 const poseOf = (id: string) => {
   const d = PART_BY_ID[id];
@@ -39,6 +41,12 @@ function partBVH(id: string, skipLines: boolean) {
   return new MeshBVH(geom);
 }
 
+function qMaxAbsX(verts: THREE.Vector3[]) {
+  let m = 0;
+  for (const q of verts) m = Math.max(m, Math.abs(q.x));
+  return m;
+}
+
 function lineVertices(partId: string, lineId: string) {
   const root = ASSET_BUILDERS[PART_BY_ID[partId].asset]();
   root.updateMatrixWorld(true);
@@ -65,6 +73,9 @@ describe('1978 CIS fuel lines', () => {
     expect(BOX.portId).toBe(38);
     expect(SLEEVE.od).toBe(47);
     expect(SLEEVE.len).toBe(50);
+    expect(AIRBOX.len).toBe(402);
+    expect(AIRBOX.wid).toBe(181);
+    expect(AIRBOX.h).toBe(41.4);
   });
 
   it('every line end is on its fitting, and every banjo has two washers', () => {
@@ -75,7 +86,23 @@ describe('1978 CIS fuel lines', () => {
       return bvh.get(key)!;
     };
     const bad: string[] = [];
-    for (const line of FUEL_LINES) {
+    const hoses = [...FUEL_LINES, ...serviceHoses(), {
+      id: 'heater',
+      part: 'heater-hose',
+      a: { part: 'heater-adapters', point: HEATER_HOSE_ENDS.adapter.tip, axis: HEATER_HOSE_ENDS.adapter.axis },
+      b: { part: 'heater-hose', point: HEATER_HOSE_ENDS.ferrule.tip, axis: HEATER_HOSE_ENDS.ferrule.axis },
+    }];
+    const named = new Set(hoses.map((h) => `${h.part}:${h.id}`));
+    for (const partId of [...new Set(hoses.map((h) => h.part))]) {
+      const root = ASSET_BUILDERS[PART_BY_ID[partId].asset]();
+      root.traverse((o: any) => {
+        if (o.isMesh && typeof o.name === 'string' && o.name.startsWith('line:') && !o.name.endsWith(':cap')) {
+          const id = o.name.slice(5);
+          if (!named.has(`${partId}:${id}`)) bad.push(`${partId} line:${id} has no fitting record`);
+        }
+      });
+    }
+    for (const line of hoses) {
       const verts = lineVertices(line.part, line.id);
       if (!verts.length) bad.push(`${line.id}: no line mesh in ${line.part}`);
       for (const end of [line.a, line.b]) {
@@ -85,14 +112,16 @@ describe('1978 CIS fuel lines', () => {
           const d = Math.min(...verts.map((q) => q.distanceTo(p)));
           if (d > 0.5) bad.push(`${line.id} @ ${end.part}: nearest line vertex ${d.toFixed(2)} mm from the fitting (free air)`);
         }
-        // Off the centreline: the injector nipple face is an annulus, so a ray on the axis falls through the hole.
-        const side = new THREE.Vector3(0, 1, 0).cross(axis);
-        if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
-        side.normalize().multiplyScalar(1.2);
-        const origin = p.clone().addScaledVector(axis, 2).add(side);
-        const hit = fitting(end.part).raycastFirst(new THREE.Ray(origin, axis.clone().negate()), THREE.DoubleSide) as any;
-        if (!hit) bad.push(`${line.id} @ ${end.part}: ray missed the fitting`);
-        else if (Math.abs(hit.distance - 2) > 0.5) bad.push(`${line.id} @ ${end.part}: fitting face ${(hit.distance - 2).toFixed(2)} mm off the seat`);
+        // Off the centreline: a nipple is an annulus, a heater mouth is a large tube. Try a few radii.
+        const side0 = new THREE.Vector3(0, 1, 0).cross(axis);
+        if (side0.lengthSq() < 1e-6) side0.set(1, 0, 0);
+        side0.normalize();
+        const face = [1.2, 8, 39].some((rad) => {
+          const origin = p.clone().addScaledVector(axis, 2).addScaledVector(side0, rad);
+          const hit = fitting(end.part).raycastFirst(new THREE.Ray(origin, axis.clone().negate()), THREE.DoubleSide) as any;
+          return hit && Math.abs(hit.distance - 2) <= 0.5;
+        });
+        if (!face) bad.push(`${line.id} @ ${end.part}: fitting face is not at the seat`);
       }
     }
     for (const b of FUEL_BANJOS) {
@@ -112,5 +141,44 @@ describe('1978 CIS fuel lines', () => {
       });
     }
     expect(bad).toEqual([]);
+  });
+
+  it('injector lines stop at the tube nut instead of flaring out along the injector axis', () => {
+    const bad: string[] = [];
+    for (const c of [1, 2, 3, 4, 5, 6]) {
+      const face = new THREE.Vector3(...injectorFace(c));
+      const axis = new THREE.Vector3(...injectorAxis(c)).normalize();
+      const verts = lineVertices('fuel-lines', `inj-${c}`);
+      if (!verts.length) { bad.push(`inj-${c}: no mesh`); continue; }
+      let past = 0;
+      for (const q of verts) past = Math.max(past, q.clone().sub(face).dot(axis));
+      // 8 mm nut, then a 6 mm bend. A 10 mm bend reached about x ±289; a 30 mm lead reached x ±297.
+      if (past > 18) bad.push(`inj-${c}: steel ${past.toFixed(1)} mm past the nipple`);
+      const reach = qMaxAbsX(verts);
+      if (reach > 286) bad.push(`inj-${c}: steel reaches |x| ${reach.toFixed(1)}`);
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('distributor outlet eyes are 17 mm apart and the stubs fan outboard', () => {
+    const faces = FUEL_BANJOS.filter((b) => b.id.startsWith('inj-')).map((b) => b.face);
+    const zs = faces.map((f) => f[2]).sort((a, b) => a - b);
+    for (let i = 1; i < zs.length; i++) expect(zs[i] - zs[i - 1]).toBeCloseTo(17, 5);
+    const stubs = FUEL_LINES.filter((l) => l.id.startsWith('inj-')).map((l) => l.a.axis);
+    for (const s of stubs) expect(s[0]).toBeLessThan(-0.9);
+    const yaw = stubs.map((s) => s[2]);
+    expect(Math.max(...yaw) - Math.min(...yaw)).toBeGreaterThan(0.45);
+  });
+
+  it('intake sleeves sit on the stub and the runner, not in free air', () => {
+    for (const b of bootFrames()) {
+      const s = b.axis[0];
+      const x0 = b.origin[0];
+      const x1 = x0 + s * SLEEVE.len;
+      const onStub = s > 0 ? x0 > SLEEVE_IN_X - 0.1 && x0 < STUB_TIP_X : x0 < -SLEEVE_IN_X + 0.1 && x0 > -STUB_TIP_X;
+      const onRunner = s > 0 ? x1 > RUNNER_TIP_X && x1 < RUNNER_TIP_X + 30 : x1 < -RUNNER_TIP_X && x1 > -RUNNER_TIP_X - 30;
+      expect(onStub, `boot ${b.c} plenum end`).toBe(true);
+      expect(onRunner, `boot ${b.c} runner end`).toBe(true);
+    }
   });
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
-import { findCollisions, isMating, clearance } from './collide';
+import { findCollisions, findIntraPartHits, erodedSolidsClash, isMating, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
 import { rayHit } from './hw';
 import { OIL_COOLER } from '../src/geo/aux';
 import { cylinder, conrod } from '../src/geo/core';
@@ -12,8 +12,56 @@ import { bankOf, CYL_Z, CYL_TOP_X, DECK_X, pinX } from '../src/data/layout';
 const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|timing-chain|cam-sprocket)-(left|right)$/;
 const EXHAUST = /^(heat-exchanger-(left|right)|muffler)$/;
 
+describe('seated face contact', () => {
+  const slab = (x0: number, x1: number) => {
+    const g = new THREE.BoxGeometry(x1 - x0, 20, 20);
+    g.translate((x0 + x1) / 2, 10, 0);
+    return g;
+  };
+  it('two blocks that share a face are seated, not clashing', () => {
+    expect(geometriesClash(slab(0, 10), slab(10, 20))).toBe(false);
+  });
+  it('a real 1 mm overlap still fails', () => {
+    expect(geometriesClash(slab(0, 10), slab(9, 19))).toBe(true);
+  });
+  it('two triangles that only share an edge are seated', () => {
+    const tri = (pts: number[]) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      return g;
+    };
+    const upper = tri([0, 0, 0, 20, 0, 0, 10, 8, 3]);
+    const lower = tri([0, 0, 0, 20, 0, 0, 10, -8, 3]);
+    expect(geometriesClash(upper, lower)).toBe(false);
+  });
+});
+
+describe('intra-part fuel and induction solids', () => {
+  const eye = (z: number) => {
+    const g = new THREE.CylinderGeometry(7.3, 7.3, 8, 24);
+    g.translate(0, 0, z);
+    return g;
+  };
+  it('catches neighbouring Ø14.6 eyes 12 mm apart, and lets a touching pair pass', () => {
+    // The old distributor pitch. 2.6 mm of overlap remains 0.6 mm after 1 mm of erosion each side.
+    expect(erodedSolidsClash(eye(0), eye(12), 1)).toBe(true);
+    expect(erodedSolidsClash(eye(0), eye(14.6), 1)).toBe(false);
+  });
+  it('lines, banjos, hoses and clamps do not interpenetrate themselves', () => {
+    const hits = findIntraPartHits([
+      'fuel-lines', 'wur-lines', 'injection-banjos', 'aux-air-plumbing', 'vacuum-fittings',
+      'intake-boot-clamps', 'airbox-clamps', 'injection-line-rings', 'injection-line-bracket',
+    ], 1);
+    expect(hits.map((h) => `${h.part}: ${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
+  });
+});
+
 describe('assembled-pose interference', () => {
   const hits = findCollisions(1); // 1 mm erosion per part => >2 mm interpenetration counts
+  it('bottom-end and ancillary allowlist entries name a threaded, pressed or seated joint', () => {
+    const bare = MATING.filter(([, , why]) => !TOP_END_WHY.has(why) && !/\b(threaded|pressed|seated|PENDING-INTAKE)\b/i.test(why));
+    expect(bare.map(([, , why]) => why)).toEqual([]);
+  });
   it('no part pair intersects unless it is a listed mating / known-simplified pair', () => {
     const bad = hits.filter((h) => !isMating(h.a, h.b)).map((h) => `${h.a} x ${h.b} (${h.tris} tri pairs)`);
     expect(bad).toEqual([]);

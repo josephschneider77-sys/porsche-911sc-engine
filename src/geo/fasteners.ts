@@ -9,7 +9,7 @@ import { instancedGroup } from './instancing';
 import { Part, yToZ, hexNut, cyl, lathe, mesh } from './util';
 import { MatKey } from './materials';
 import { CYL_Z, CYL_TOP_X, INTAKE_PORT, CAM_X, CASE_Z } from '../data/layout';
-import { HEAD_HW, CASE_TB, CASE_LUG } from './hwLayout';
+import { HEAD_HW, CASE_TB, CASE_LUG, caseLugY } from './hwLayout';
 export { HEAD_HW, CASE_TB, CASE_LUG };
 import { seat, probe } from './probe';
 import { adjusterCover } from './smallParts';
@@ -64,7 +64,7 @@ export function fastenerSets(): FSet[] {
     for (const upper of [true, false]) {
       const m = coverMatrix(s, upper), nm = new THREE.Matrix3().getNormalMatrix(m), u = upper ? 'upper' : 'lower';
       const items: FItem[] = [];
-      VC_EARS(upper).forEach((yy, i) => { for (const xx of [-VC_EDGE, VC_EDGE]) if (upper || xx < 0 || !VC_SPECIAL.includes(i))
+      VC_EARS(upper, s).forEach((yy, i) => { for (const xx of [-VC_EDGE, VC_EDGE]) if (upper || xx < 0 || !VC_SPECIAL.includes(i))
         items.push({ p: V(xx, yy, 7).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-${u}-${b}`, into: `cam-housing-${b}`, stud: true }); });
       set(`valve-cover-nuts-${u}-${b}`, 'nut', 8, { washer: DIM[8].wr, grip: 7, embed: 10 }, items);
     }
@@ -104,7 +104,7 @@ export function fastenerSets(): FSet[] {
   // perimeter: studs in the right half, lock nuts on the left-half lugs
   set('case-perimeter-nuts', 'lock', 8, { washer: DIM[8].wr, grip: 2 * CASE_LUG.x, embed: 14 }, [
     ...CASE_LUG.top.map((z) => ({ p: V(-CASE_LUG.x, CASE_LUG.yTop, z), n: V(-1, 0, 0), seat: 'crankcase-left', into: 'crankcase-right', stud: true })),
-    ...CASE_LUG.bottom.map((z) => ({ p: V(-CASE_LUG.x, CASE_LUG.yBot, z), n: V(-1, 0, 0), seat: 'crankcase-left', into: 'crankcase-right', stud: true })),
+    ...CASE_LUG.bottom.map((z) => ({ p: V(-CASE_LUG.x, caseLugY(z, false), z), n: V(-1, 0, 0), seat: 'crankcase-left', into: 'crankcase-right', stud: true })),
   ]);
   const ring = (n: number, r: number, a0 = 0) => Array.from({ length: n }, (_, i) => a0 + (i / n) * Math.PI * 2).map((a) => [r * Math.cos(a), r * Math.sin(a)]);
   // flywheel bolts (seat on the hub rear face), clutch bolts (seat on the cover flange)
@@ -127,7 +127,7 @@ export function fastenerSets(): FSet[] {
     set(`chain-end-nuts-${b}`, 'nut', 8, { washer: 7, spring: true, grip: END_PAD.z1 - END_PAD.z0, embed: 12 }, chainEndStations(s).map((q) => ({ p: q, n: V(0, 0, 1), seat: `chain-housing-${b}`, into: `cam-housing-${b}`, stud: true })));
     // valve-cover special nuts (103-05 #24): stud-nuts on 3 outboard lower-cover ears per bank
     const m = coverMatrix(s, false), nm = new THREE.Matrix3().getNormalMatrix(m);
-    set(`valve-cover-special-${b}`, 'cap', 8, { washer: DIM[8].wr, len: 14, mat: 'darkSteel' }, VC_SPECIAL.map((i) => ({ p: V(VC_EDGE, VC_EARS(false)[i], 7).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-lower-${b}`, into: `cam-housing-${b}` })));
+    set(`valve-cover-special-${b}`, 'cap', 8, { washer: DIM[8].wr, len: 14, mat: 'darkSteel' }, VC_SPECIAL.map((i) => ({ p: V(VC_EDGE, VC_EARS(false, s)[i], 7).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-lower-${b}`, into: `cam-housing-${b}` })));
   }
   // chain-housing lid nuts (103-05 '-' 3 nuts + spring washers): long studs from the box back wall through the lid
   for (const s of sides) set(`chain-lid-nuts-${bname(s)}`, 'nut', 8, { spring: true, grip: CHAIN_LID.top - HOUSING_Z0, embed: 0 }, chainLidStations(s).map((q) => ({ p: V(q.x, q.y, CHAIN_LID.top), n: V(0, 0, 1), seat: `chain-housing-lid-${bname(s)}`, into: `chain-housing-${bname(s)}`, stud: true })));

@@ -30,7 +30,10 @@ for (const [id, build] of Object.entries(ASSET_BUILDERS)) {
   let out = glb;
   if (!raw) {
     const doc = await io.readBinary(glb);
-    await doc.transform(dedup(), weld(), meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
+    // Default 14-bit positions match main, so unchanged meshes stay byte-identical.
+    // The hollow crankcase is ~500 mm across, and 14-bit steps (~0.03 mm) stack past the 0.05 mm GLB check.
+    const quantizePosition = id === 'crankcase-left' || id === 'crankcase-right' ? 16 : 14;
+    await doc.transform(dedup(), weld(), meshopt({ encoder: MeshoptEncoder, level: 'medium', quantizePosition }));
     out = await io.writeBinary(doc);
   }
   writeFileSync(`public/parts/${id}.glb`, Buffer.from(out));

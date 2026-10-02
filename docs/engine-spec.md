@@ -147,7 +147,7 @@ The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild 
 **Compression:** `scripts/export-glb.ts` writes GLBs with gltf-transform `dedup`, `weld` and meshopt compression (`--raw` turns this off). The viewer decodes them with `MeshoptDecoder`.
 
 **Bottom end (PR 1):**
-- Crankcase halves: hollow crank bay whose section changes along the crank (flat top split flange with cast bosses, scalloped bottom edge, sloping shoulder, belly tucking inward, three proud spigot bosses) with seven main saddles plus the nose saddle in the pulley-end chain well. Each saddle is a thick web with a machined half-bore, a locating notch and two stud pads, set inboard of the spigot tunnels; the intermediate shaft has its own bore in every web. Cylinder spigots are open bores in individual bosses, with a machined counterbore ring and four head-stud bosses just outside it. Through-bolt bosses, perimeter nut lobes, oil-passage plugs, the round flywheel seal boss, the part-number pad and the sender / bolt / breather pads are on the cast exterior. The left-case oil-cooler mounting bosses are machined flush with the cooler-foot undersides (y 95). Cast skin is a darker sand-cast tone; the flange, spigots and saddles are bright machined faces. Main shells are steel-backed halves with locating tabs (bearing 1 thrust); bearing 8 is a steel nose bushing.
+- Crankcase halves: hollow crank bay whose section changes along the crank (flat top split flange with cast bosses, scalloped bottom edge, sloping shoulder, belly tucking inward, three proud spigot bosses) with seven main saddles plus the nose saddle in the pulley-end chain well. Each saddle is a thick web with a machined half-bore, a locating notch and two stud pads, set inboard of the spigot tunnels; the intermediate shaft has its own bore in every web. Cylinder spigots are open bores in individual bosses, with a machined counterbore ring and four head-stud bosses just outside it. Through-bolt bosses, perimeter nut lobes, oil-passage plugs, the round flywheel seal boss, the part-number pad and the sender / bolt / breather pads are on the cast exterior. The left-case oil-cooler mounting bosses are machined flush with the cooler-foot undersides (y 95), with the pad 0.2 mm under the foot and a spot face inside the stud hole. The crank bay, saddle webs, intermediate-shaft bores and the chain-well plate are open around the rotating parts; the flywheel seal land sits about 2 mm off the flywheel disk. Cast skin is a darker sand-cast tone; the flange, spigots and saddles are bright machined faces. Main shells are steel-backed halves with locating tabs (bearing 1 thrust); bearing 8 is a steel nose bushing.
 - Cylinders: rounded-square fin pack (16 fins, stud notches at the corners) in satin black, with a bare machined skirt and spigot.
 - Heads: fins stacked along the cylinder axis, combustion chamber, spring-well cam face, and port bosses.
 - Pistons: ring belt, recessed skirt, and a domed crown with valve reliefs.
@@ -191,9 +191,9 @@ Joe's v2 review: the chain cover collided with the exhaust and the chain covers 
 Inboard of x = 118 the chains run in a hollow cast **chain well** on the case face. It has top and bottom walls and a front plate flush with the covers, plus the bearing-8 boss. The well opens sideways into the bolted-on chain box. The heat exchanger's fresh-air inlet is now a forward stub low on the outboard side of its pulley-end cap, instead of a tube rising into the chain box.
 
 **Interference test** (`tests/collisions.test.ts`, helper `tests/collide.ts`, CLI `npx tsx scripts/collisions.ts [tol]`):
-1. Every registry part is built at its assembled pose and eroded 1 mm along its normals, so seated faces don't count.
-2. Every pair with overlapping bounds is checked triangle-vs-triangle with three-mesh-bvh. Coincident coplanar faces are ignored.
-3. The test fails on any intersecting pair not in the `MATING` allowlist. The allowlist has **JOINT** entries (real bolted, seated or meshing hardware; cam-drive joints are same-bank only) and explicitly listed **SIMPLIFIED** pre-v3 shortcuts such as the solid case interior, solid valve covers, shroud cut-outs and piston valve reliefs.
+1. Every registry part is built at its assembled pose and eroded 1 mm along its normals, so seated faces don't count. A sheet thinner than 0.55 mm is eroded by only 0.4 of its thickness, so 0.5 mm paper does not turn inside out.
+2. Every pair with overlapping bounds is checked triangle-vs-triangle with three-mesh-bvh. Coincident coplanar faces are ignored, and so is an intersection that lies on one edge of each triangle (a shared seam). A segment that crosses a triangle is a real overlap; `tests/collisions.test.ts` checks that a 1 mm block overlap fails, a shared face does not, and two triangles that only share an edge do not.
+3. The test fails on any intersecting pair not in the `MATING` allowlist. Bottom-end and ancillary entries stay only when the overlap is a real joint and the why names it (`threaded`, `pressed` or `seated`); an entry without that word fails. Head, cylinder, cam, valvetrain, cover and chain-drive lines are left as the top-end work wrote them, including the skirt and valve-relief shortcuts. Cam-drive joints are same-bank only.
 4. Extra assertions:
    - No cam-drive part ever touches the exhaust.
    - The left and right cam drives never touch each other.
@@ -314,18 +314,18 @@ Joe's request: "every detail, every part". For example, the half-moon (Woodruff)
 - **Breather lid, plenum underside and oil-cooler end tank:** relieved around the distributor. The oil cooler now uses ported spigots with O-ring seals.
 - **Crankcase (PR #8, hollow casting):** kept as merged. v5 adds only proud boss pads for the senders, the right case bolts and the M10 nut.
 
-### Collision allowlist (SIMPLIFIED) after v5
-- **Removed:** fuel lines, upper air guide, breather lid, oil cooler, plenum × distributor, and valves × cam-housing nuts.
-- **Narrowed:** cover × rocker/valve edges and cover × rocker-shaft screws/nuts.
-- **Still listed:**
-  - case interior;
-  - conrod × cylinder skirt;
-  - piston dome;
+### Collision allowlist
+Bottom-end and ancillary overlaps stay only when they are a real joint. Each of those entries names the joint (`threaded`, `pressed` or `seated`), and the collision test fails an entry that does not. Fastener seats are generated from the hardware sets.
+
+- **Removed (geometry now clears):** solid case interior against the crank, rods, intermediate shaft, oil pump, thermostat, sump plate, breather lid, distributor and fan housing; rear seal boss against the flywheel; oil-pump cover nuts against the left case (spotfaces); fuel lines against the upper air guide; the alternator against the air distributor. Ignition leads intersect only the cap towers, the plug boots and the shroud holders. They leave each tower on the outboard side of the cap, run the inboard shroud edge (under the runner stubs, through the holders) and, for the right bank, cross above the roof at the flywheel end. They then drop at the open end of the bank and come back under the head to the boot. On the right the drop is a short slant just outside the skirt at the flywheel end (about 20 mm out, aft of the cam-housing cap). On the left it descends on the inboard line, past the wing and ahead of the chain housing, before moving out. A lead never goes below its own boot, and it does not loop outside the valve covers. Plenum and fuel lines are main's meshes, unmodified. The alternator clears the compact air distributor by about 24 mm, so that pair is not allowlisted. The collision test also accepts a `PENDING-INTAKE` tag for an overlap that only an intake-owned part can clear; nothing is tagged with it.
+- **Fuel lines and plenum:** taken from main with the 1978 CIS intake (compact air distributor, per-cylinder runners, loom at y 258). The loom passes the fan horn with about 39 mm of daylight, so the horn is not notched. Induction and fuel pairs are not allowlisted. The only induction entry is main's warm-up regulator seated on the left-case pad.
+- **Kept, bottom end:** shells pressed in the saddles, journals pressed in the shells, gears and pulley pressed on the crank nose, flywheel seated on the flange, wrist pin, clutch stack, oil-pump coupling, cylinder spigot seated on the deck, chain-box gasket face, belt in the pulley grooves, impeller and pulley pressed on the alternator shaft, impeller seated in the fan housing, lead jacket seated in the cap tower, boot seated on the plug, lead clipped in the holder, muffler stubs seated on the heat-exchanger outlets. The alternator sits in the fan-housing cradle with a fraction of a millimetre of clearance and does not intersect it, so that pair is not an allowlist entry. Upper-air-guide screws stay threaded fastener joints; the guide mesh was not cut for them.
+- **Left to the top-end work (not changed here):**
+  - conrod × cylinder skirt (the fin-root disk is a closed cap; relieving it means editing the cylinder);
+  - piston dome / valve reliefs;
   - valve heads × cylinder;
-  - ignition leads (flexible routing);
-  - rocker pivot × cover nuts;
-  - crankcase-left × oil-pump nuts (2 triangles).
-- **Result:** 536 pairs checked, 0 unexpected.
+  - valve-cover edges, gaskets, rocker-shaft screws and cover nuts;
+  - cam plug, cam key and the chain drive. The crank/intermediate gear-mesh allowlist was already removed when the timing-chain work merged; it is not restored here. The cylinder skirt is left for that work to relieve.
 
 ### Parts checklist
 `docs/parts-checklist.md` is generated by `scripts/checklist-doc.ts` from `src/data/checklist.ts`. It lists every catalogue line as one of: modelled (with its source), N/A (with a reason), an alternative row, excluded (other year/model) or MISSING.
@@ -337,7 +337,7 @@ Joe's request: "every detail, every part". For example, the half-moon (Woodruff)
 - **Stud lengths:** these are allocated across catalogue lines by pool (`POOLS`), not stud by stud.
 - **Features asserted per part:** rings, bushes, plugs and similar features baked into a part's mesh are counted from `FEATURES` rather than measured from the geometry.
 - **Estimated positions:** the intermediate-shaft stopper and circlips, the cam-housing plug and the second chain-lid plug.
-- **Oil-cooler feet:** partly buried in the hollow case top inherited from PR #8.
+- **Oil-cooler feet:** sit on a machined pad 0.2 mm under the foot, with a spot face inside the stud hole flush at y 95.
 
 ## 11. Top end batch 1 (cam housings, cams, rockers, valves)
 
@@ -370,19 +370,19 @@ Photo pass (batch 2) reshapes the same meshes against the comparison sheets. The
 | Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket web, tail in the flange hole | 900 243 001 00. Stoddard lists the pin as 6 × 14. Same `cam-pin-*` part; circle radius 24 mm, outside the M22 nut | length from the parts listing |
 | Cam housing | one sand casting. Head face: two lobed spring wells per cylinder on raised gasket lands, four to six cast bosses around each opening, pocket floors set back about 5 mm, small round oil/drain holes between the wells, cam-tunnel spine proud of the pockets and ending before the bore. Outer tunnel is a drafted arch with filleted lips, longitudinal ribs, a bearing-boss bulge at each journal, and a transverse rib between journals | Photo column of the cam-housing comparison sheet. Spine, bay cheeks and tunnel bands stay outside the Ø47.1 bore. Nut faces stay at x = 272 | unverified |
 | Valve covers | both banks, seat length `CH_Z1 − CH_Z0 − 8`. Lip 1.15 mm plus a 2.15 mm step. Sprocket-end notch 30 mm wide. Stud ears are towers (base Ø about 33) with a gusset blending the pan wall into the ear. Nut face stays a flat disc at local z = 7. Two round bosses and the PORSCHE letters stay on the upper covers | Comparison sheet. Left cover still matches the right cover’s Z (`VC_EXT` = 0); the test forbids the old 30 mm flywheel overhang | unverified |
-| Left valve-cover gasket | same outline as the cover. The middle of the flywheel end rail is open (|local x| < 27 mm) | Cylinder 6’s shaft screw and intake nut land on that rail because the cover cannot grow past the housing. Corner seals stay. Real gasket is a full frame | model clearance, unverified |
-| Rocker shaft | Ø18, 30 mm between the O-ring grooves, spot faces 34 mm apart, hollow, slotted ends | Photo of 901.105.342.04. Shorter than the old 50 mm so the shaft does not stand well proud of the arm. Boss is 22 mm tall (OD about 27 mm) with about 4 mm of shaft showing each side | unverified |
-| Rocker arm | one side-profile outline, extruded 9.6 mm. I-beam channels cut in from both flat faces, wide in the middle and narrow toward the pad and the eye, with a rib left between the channels. Pad arm 42 mm, eye arm 34 mm, 28° bend. Chilled pad is a curved shoe (face arc and a curved back), 19 mm wide, wider than the arm. Adjuster ball Ø6.4 and an M8 locknut on the eye. Pad-to-ball chord about 74 mm | Traced from the loose forging (930.105.043.05). The shaft centre moves so that profile still sits with the pad on the base circle and the ball 0.10 mm off the stem. The oil drilling stays inside the hub | unverified |
+| Left valve-cover gasket | same closed ring as the right. Where a rocker crosses a side rail the hole and the outer edge jog out together, so the rail stays one piece and the arm is in the opening | The 10–11 mm rockers cross the outboard rail. A notch would open the seal | model clearance, unverified |
+| Rocker shaft | Ø18, half-length 13 mm (was 17), hollow, slotted ends. Boss OD about 25 mm, 22 mm tall | The outer stations sit next to a cover stud. 17 mm ran the shaft end into that stud; 13 mm clears it by about 1 mm. The boss stays | unverified |
+| Rocker arm | one side-profile outline, extruded 9.6 mm. I-beam channels cut in from both flat faces, wide in the middle and narrow toward the pad and the eye, with a rib left between the channels. Pad arm 42 mm, eye arm 34 mm, pad shoe 19 mm wide. Intake eye bend 71°, exhaust 50°. Adjuster ball Ø6.4 and an M8 locknut on the eye | The old 28° bend, with the valves at y +22 / y −23, swings the eye across the stem and turns the 7.5 mm lobe into about 4.5 mm at the valve. 71° / 50° keep the arm lengths and put the eye along the stem, so the same lobe is about 10.5 mm intake and 11.1 mm exhaust. The shaft is the circle that puts the pad crown on the base circle (gap 0–0.05 mm) and the ball 0.10 mm off the stem. It moves only as far as that requires | unverified |
 | Rocker-shaft screw | M6 socket head, 999.067.008.00, shank 26 mm | Photo; the catalogue text says pan head. Same part set, reshaped | head shape from the photo |
 | Rocker-shaft nut | Conical flange, internal hex, 901.105.376.02 | Photo of 901.105.376.03 (catalogue lists .02) | shape from the photo |
-| Rocker ratio | follows from the pad on the base circle and the ball on the stem. Cam lift is 7.5 mm; valve lift at the nose is above 4 mm | Published ratios near 1.4 were not used | unverified |
+| Rocker ratio | follows from the pad on the base circle and the ball on the stem. Cam lift is 7.5 mm; valve lift at the nose is about 10.5 mm intake and 11.1 mm exhaust, and it does not drop below the previous 6.71 / 5.57 mm | The lengths give a published-style ratio near 1.4 once the eye is along the stem. The 28° layout does not | unverified |
 | Firing order | 1-6-2-4-3-5, cams at half crank speed | Standard 911. Opposite cylinders are 360° apart on the 720° cycle | verified as the engine’s order, not as a page citation |
 
 Closed valves meet the 45° seat with no gap. At the assembled crank (cylinder 1 at firing TDC) cylinder 4 is on overlap and both of its valves are off the seat. Each cylinder has its own valve asset for that reason.
 
 ### Tests
 
-`tests/valvetrain.test.ts` checks lash, nose opening, lobe-peak versus journal radius on the mesh, the open bore from the chain end, the left/right mirror, the left valve cover against the cam-housing seat, the cam dowel (proud of the sprocket, seated in the flange), and that every rocker sub-mesh on a station is one connected piece (no floating pad or rod). The collision allowlist did not gain a new entry. Cover-to-rocker SIMPLIFIED entries are unchanged: the hollow covers are still shallower than the rocker gear.
+`tests/valvetrain.test.ts` checks lash, nose lift (at least 10 mm, above the previous 6.71 / 5.57 mm), the pad crown on the base circle within 0.05 mm, lobe-peak versus the Ø47.1 bore, the open bore from the chain end, the left/right mirror, the left valve cover against the cam-housing seat, the cam dowel, a closed cover shell (no ray from inside the pan misses the roof), the plug axis clear of the exhaust flange and 2.5 mm off the heat exchanger, and that every rocker sub-mesh on a station is one connected piece. Cover studs sit in the gaps between those shafts, because the old ear line ran through the intake shaft. The plug aim (56° outboard, 14° along the row, tip at head-local 12, −18, 12) is provisional; `COVER_BOOT_HOLE` stays off until the entry is decided. The 19 mm shoe is wider than the gap to the next lobe, so the wings outside this lobe are cut back clear of the peak radius. The left flywheel journal sits just outboard of the cylinder-6 shoe; the right bank's station would land on that shoe. The plug boot ends just behind the terminal nut, short of the housing rail. The shoe face is the posed lobe normal, 0.04 mm off the polar point.
 
 ## 12. Batch 2 — rotating assembly
 
@@ -391,7 +391,7 @@ Photo pass on the crank, rods, crank gears, intermediate shaft, crank pulley and
 - **Crankshaft.** Twelve thick forged cheeks, not one repeated thin racetrack. Cheeks beside the mains are nearer round (some with a flat chord); the others are pear-shaped with a counterweight lobe opposite the crankpin. Mains 1–7 stay Ø60 **K** on the existing stations, with a short polished land and a fillet into the cheek. Rod journals stay Ø53. Main 8 (nose) stays Ø54 *E* (r 27) inside the existing nose sleeve, then the pulley spigot. The flywheel flange keeps the 9-bolt pattern, pilot bore and adds a dowel. Counterweight lobes that point downward are kept above the sump floor (y −56).
 - **Conrods.** Forged I-beam: recessed web, raised flanges, big-end shoulders with two bolt bosses, a slightly narrower cap, and nuts proud of the cap. Centre distance stays 127 mm *E* (127.8 mm is the figure many rebuilders quote; changing it would move the pistons).
 - **Crank gears.** 35 T steel helical timing gear (keyed hub) and a smaller-OD brass helical distributor gear. The module is 168/95 so the 35:60 pair still meshes on the 84 mm centres. The intermediate gear is the opposite hand. The distributor gear is unchanged. Bottom End signed off; tooth counts unverified against Dempsey, chosen for exact 2:1 with 24T/28T.
-- **Intermediate shaft.** Sprocket centres stay at z 235 and z 258, now 24 T, and the 60 T gear stays on the crank-gear plane (hub z 192–206; tooth tips stop at z 204.7 so they clear the pulley-end bore wall). The photo order (sprocket, then gear, then sprocket) cannot be met without moving a chain or the mesh, so the gear remains inboard of both sprockets. The gear is helical, bolted to a flange with a lock-plate, and the flywheel-end extension is drawn as a separate dark connecting-shaft tube in the same asset. Both case halves are bored clear of the shaft and of the 60 T gear, so the lower perimeter lug (one r 8 cylinder, x −18..18, about y −136, z 190) no longer takes the teeth. The left lock nut keeps two small seat patches where that pocket took the lug (one outside the tip circle at z 196.8, one at z 190 ahead of the tooth face). The left M8 stud still runs through that lug. `TEMP_shaveForLockNutStud()` (`TEMP_LOCKNUT_STUD_SHAVE`) is the temporary static-pose hack that cuts those teeth; Bottom End's zero-clash PR will move the stud and boss outboard and then delete it. Removing the call restores all 60 whole teeth. Its centre is 52 mm from the shaft and the root circle is r 50.2, so the stud (r 3.84) crosses the root circle by about 2 mm. Teeth #41–#48 pass over that stud and lose up to about 1.5 mm; the lock-nut hex takes about 0.9 mm off the tip of #40. The indices follow the mesh phase. The nut and the case are not moved. The cut is 2.4 mm outside the fastener so the 1 mm collision erosion does not walk the face back into the nut. Journals stay where `ishaft-bearings`, thrust washers, circlips and the stopper seat.
+- **Intermediate shaft.** Sprocket centres stay at z 235 and z 258, now 24 T, and the 60 T gear stays on the crank-gear plane (hub z 192–206; tooth tips stop at z 204.7 so they clear the pulley-end bore wall). The photo order (sprocket, then gear, then sprocket) cannot be met without moving a chain or the mesh, so the gear remains inboard of both sprockets. The gear is helical, bolted to a flange with a lock-plate, and the flywheel-end extension is drawn as a separate dark connecting-shaft tube in the same asset. All 60 teeth are whole. The bottom perimeter stud at z 190, its lock nut and both case-half lugs are lowered to y −150 (was y −136, 52 mm from the shaft) and the flange lobe follows, so a tip circle of r 54.8 clears the stud, the lock-nut hex and the lug by more than 1 mm. The gear pocket (r 57.5) no longer takes that lug, so the nut seats on the boss. Journals stay where `ishaft-bearings`, thrust washers, circlips and the stopper seat.
 - **Crank pulley.** Single groove, pressed-steel dish, yellow zinc, Z1 notch, bolt recessed in the hub. Batch 3 sets the lip to Ø134 and moves the belt pitch onto that groove (`FAN.rCrankPulley` 65, pitch radius 60, `FAN.zBelt` 303).
 - **Pulley bolt.** M12×1.5×22, zinc, washer radius 12.5 mm (was a 24 mm-radius disc) and 3.4 mm thick.
 
@@ -490,7 +490,7 @@ K = published figure. E = estimated from the JE / FVD photographs in `photo-ref/
 | Port OD | 44 mm | E | Scaled off the sleeve in reassembly-19 |
 | Sleeve OD | 47 mm | E | FVD 911 110 885 02 and reassembly-19 (the sleeve is the fat band on each stub) |
 | Sleeve length | 50 mm | E | Same photo; two worm-drive clamps, screws up |
-| Sleeve ID | 44.6 mm | E | 0.3 mm radial air on the 44 mm stub so the rubber does not interpenetrate |
+| Sleeve ID | 44 mm | E | Same as the stub and the runner spigot; the rubber is stretched on |
 | Metal gap inside the sleeve | 8 mm | E | Each end covered by 21 mm of rubber |
 | Box width across the stub faces | 155 mm | E | reassembly-19, scaled off the 47 mm sleeves (three sleeves per side, nearly touching) |
 | Stub pitch along the crank | 50 mm | E | reassembly-19: the three stubs are adjacent |
@@ -499,18 +499,47 @@ K = published figure. E = estimated from the JE / FVD photographs in `photo-ref/
 | Stub length past the face | 28 mm | E | reassembly-19, short straight tubes, axis horizontal |
 | Throttle bore | 26 mm | E | Housing at the pulley end (+Z) |
 
-The 1978 car has no cold-start spider. The cold-start valve sprays into the lower chamber through a boss on the flywheel end. The lower air-cleaner shell stays in the housing part (911 110 106 13). A neck rises from the box toward the drum and stops 1.5 mm short of the shell (a boolean hole in the shell left triangles inside the filter). The lid and the filter element are still separate parts. The lid's intake snout stays in the upper half.
+The 1978 car has no cold-start spider. The cold-start valve sprays into the lower chamber through a boss on the flywheel end. The lower air-cleaner shell stays in the housing part (911 110 106 13). The neck and the shell seam from the first pass are closed in §18.
 
 Each runner is its own mesh (`intake-runner-1`…`6`) because the head pitch is 118 mm and the stub pitch is 50 mm, so the Z bend differs per cylinder. Stub order follows the crank: the pulley-end cylinder of each bank (1 and 4) takes the pulley-end stub (z +50), so the pipes converge and do not cross. The spigot is coaxial with its stub and the sleeve. Left-bank injectors lean outboard (−X); the pose is a +57° roll, the mirror of the right bank's −57°.
 
-The paper flange gasket is drawn 2.2 mm thick (real paper is about 0.5 mm) so the 1 mm collision erosion does not turn the sheet inside out, and it stands 0.45 mm off the head face. Its outline is 42 × 72, 2 mm inside the 46 × 76 flange, with the port hole at Ø36 and the stud holes at Ø10.4. The head flange and the stud pattern did not need to change.
+The paper flange gasket is 0.5 mm thick and sits on the head face (local y 0..0.5). The runner flange (top still at local y 8, the nut face) sits on the gasket. Outline 42 × 72, 2 mm inside the 46 × 76 flange, port hole Ø36, stud holes Ø10.4. The collision test caps erosion on sheets thinner than 0.55 mm so this paper does not turn inside out. The head flange and the stud pattern did not change.
 
 Fuel-line ends, and what they seat on:
 
-- feed: filter-side block in `fuel-lines` → banjo + two washers on the distributor inlet
+- feed: banjo + two washers on the distributor inlet → filter-side hex in `fuel-lines` (the filter is off the engine)
 - six injector lines: distributor outlet banjo → injector nipple face
 - warm-up regulator: two lines (`wur-lines`), banjo + two washers at both ends (1978 distributor with the push valve)
-- cold-start feed: distributor banjo → cold-start-valve banjo
-- return: M14×1.5 union on the distributor → tank-side block in `fuel-lines`
+- cold-start feed: distributor side banjo → cold-start-valve banjo
+- return: M14×1.5 union on the distributor (the copper sealing ring) → tank-side hex in `fuel-lines`
 
-The filter and the tank are off the engine, so those two blocks are part of the line assembly. Catalogue feature counts in `checklist.ts` are unchanged.
+The filter and the tank are off the engine, so those two hexes are fittings in the line assembly. Each line arrives along the hex axis and stops on the face. Catalogue feature counts in `checklist.ts` are unchanged.
+
+## 18. Air cleaner and fuel-line routing
+
+The Ø160 × 440 mm open drum is replaced by a flat oval canister, the black housing in JE reassembly-55 and 57. The paper element is not a round cartridge. The part on the car is **911 110 185 02**, Mahle LX 261, the orange rectangular panel in the JE filter photo. A circle tall enough to hold that 181 mm panel would be larger than the old drum, so the shell is an ellipse around the panel.
+
+| Dimension | Value | Tag | Source |
+| --- | --- | --- | --- |
+| Element length | 402 mm | K | Heritage 911 110 185 02; Mahle LX 261 |
+| Element width | 181 mm | K | Same |
+| Element height | 41.4 mm | K | mhteile.com Mahle LX 261 listing |
+| Inner ellipse | 224 × 84 mm | E | Clears the panel corners (half-axes 112 and 42) |
+| Wall | 3.6 mm | E | reassembly-61 tray |
+| Straight length | 440 mm, plus 3.6 mm end caps | E | reassembly-55, a long canister rather than a trough |
+| Equator | y 378 | E | Split of the two halves; underside y 332.4 |
+| Lip | 9 × 3.2 mm | E | Clip land in reassembly-55 |
+| Canister centre Z | 36 mm | E | +Z cheek stays clear of the alternator slip-ring face (z ≈ 164) |
+| Outlet neck | Ø32 tube, opening Ø44, flange Ø60 | E | Seated on the outer bottom; the opening is left out of the skin |
+
+The two oval halves meet on the equator: wall, end-cap diameter and lip faces are in contact. Equator vertices keep a horizontal normal so the 1 mm erosion does not walk the edge into the other half, and the triangle test treats an intersection that lies on a shared boundary edge as contact. The outlet neck ends on the outer bottom with its flange on that surface; the skin leaves a Ø44 opening so the tube is not a dead end. The element is centred on the equator.
+
+The six distributor outlets are one row on 17 mm centres (eyes Ø14.6, so neighbours have about 2.4 mm of air). The stubs all leave outboard and fan by about ±15° so the lines gather into the ribbon without crossing. The body is long enough that the end eyes sit on the lid, the warm-up ports stay on the flywheel face, and the return union's hex sits on the pulley face. The six injector lines leave as a ribbon at x −134, 8 mm apart, held by the clip there. They follow the runner about 4 mm off the cast tube. Over the Ø44 spigot the line rises clear of the worm-clamp screws, then a 6 mm centreline bend turns into an 8 mm tube nut. The nut bore is 0.05 mm larger than the line. The steel stops at that nut and stays inside about x ±286. Right-bank lines cross at y 260, just above the plenum lid; cylinder 3 crosses at z −136 so it misses the banjo nuts. The two warm-up-regulator lines drop through the cylinder-6 shroud window (x ≤ −208, z −162/−174, clear of the z −185 wing rib and the hot-air socket screws) and come back inboard under the wing. The cold-start feed, the inlet and the return are short runs off their fittings. A fuel line, a banjo and a clamp are each one solid; distinct solids inside the same part are not allowed to interpenetrate.
+
+The head flange and the bottom end are unchanged. The distributor recess and the ignition-lead paths over the shroud edge are not moved. The canister stays above the alternator (measured clearance about 24 mm); the plenum throttle face (z 128) does not reach the alternator (z ≈ 164).
+
+### Auxiliary air, vacuum, cold-start seat
+
+The black rubber tube that left the air-meter and stopped near the right-front runner was not the throttle boot (it was Ø15, and it met no spigot). On the K-Jetronic layout that takeoff is metered air for the auxiliary air regulator: after the sensor plate, through the regulator, back into the manifold downstream of the throttle. The meter now has a brass barb. One hose runs to the regulator's upper barb; the lower barb feeds a brass pipe on the plenum's flywheel face, clear of the regulator body and of the shroud roof (y 153.5). The cold-start valve is centred on its boss (y 206, the spray hole). The O-ring sits on the boss face, the flange sits on the ring, and two pan-head screws with spring washers bear on the flange. Their shanks run into Ø5 holes in the boss (shank Ø4.8). The air-meter flange and the distributor bracket sit on the plenum lid face (y 253.2, the bevel above the 252 mm profile). The airbox strut feet sit on that same face, and the rubber pads meet the shell.
+
+Vacuum: a nipple on the plenum lid, the T-piece, the limiter's side barb, and a nipple on the distributor vacuum can. Three hoses join those four fittings. The breather tower's neck is the spigot for 901 107 394 00, which the checklist leaves off the engine (the oil tank is body-mounted); there is no breather hose mesh. The heater flexible pipe seats on the left adapter mouth and on a ferrule at the body end. `tests/fuel-lines.test.ts` checks every named line, including these.
