@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PART_BY_ID } from '../src/data/parts';
-import { BOX, SLEEVE, FUEL_LINES, FUEL_BANJOS, BANJO, serviceHoses, bootFrames, SLEEVE_IN_X, STUB_TIP_X, RUNNER_TIP_X, injectorFace, injectorAxis, FD_CX, FD_CZ, FD_RING_R } from '../src/geo/induction';
+import { BOX, SLEEVE, FUEL_LINES, FUEL_BANJOS, BANJO, serviceHoses, bootFrames, SLEEVE_IN_X, STUB_TIP_X, RUNNER_TIP_X, injectorFace, injectorAxis, FD_CX, FD_CZ, FD_RING_R, FD_HUB, distributorFuelSeats } from '../src/geo/induction';
 import { AIRBOX } from '../src/geo/aux';
 import { HEATER_HOSE_ENDS } from '../src/geo/smallParts';
 
@@ -140,6 +140,75 @@ describe('1978 CIS fuel lines', () => {
         });
         if (!hit) bad.push(`${b.id} washer ${i}: no copper ring of Ø${BANJO.washerRo * 2} around the bolt`);
       });
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('every banjo or union on the distributor has exactly one fuel line', () => {
+    const seats = distributorFuelSeats();
+    const ends = FUEL_LINES.flatMap((l) => [
+      { line: l.id, point: l.a.point, part: l.a.part },
+      { line: l.id, point: l.b.point, part: l.b.part },
+    ]);
+    const bad: string[] = [];
+    const used = new Set<string>();
+    for (const s of seats) {
+      const sp = new THREE.Vector3(...s.point);
+      const hits = ends.filter((e) => new THREE.Vector3(...e.point).distanceTo(sp) <= 0.5);
+      if (hits.length !== 1) bad.push(`${s.id}: ${hits.length} line ends (${hits.map((h) => h.line).join(', ')})`);
+      else if (used.has(hits[0].line + hits[0].part)) bad.push(`${s.id}: line ${hits[0].line} already ends on another distributor fitting`);
+      else used.add(hits[0].line + hits[0].part);
+    }
+    // A fitting drawn on the distributor (named banjo/union, or an injector-banjo instance)
+    // has to be one of those seats. Anonymous metal in the centre column, outside the hub,
+    // is the orphan banjo this test exists to catch.
+    const onDistributor = (p: THREE.Vector3) =>
+      p.x >= -175 && p.x <= -45 && p.y >= 250 && p.y <= 370 && p.z >= -165 && p.z <= 5;
+    const nearSeat = (p: THREE.Vector3) => seats.some((s) => new THREE.Vector3(...s.point).distanceTo(p) <= 12);
+    for (const partId of ['mixture-control-unit', 'wur-lines', 'fuel-lines', 'injection-banjos']) {
+      const root = ASSET_BUILDERS[PART_BY_ID[partId].asset]();
+      root.updateMatrixWorld(true);
+      const pose = poseOf(partId);
+      root.traverse((o: any) => {
+        const named = typeof o.name === 'string' && (o.name.startsWith('banjo:') || o.name.startsWith('fitting:'));
+        if (named) {
+          const box = new THREE.Box3().setFromObject(o);
+          const c = box.getCenter(new THREE.Vector3()).applyMatrix4(pose);
+          if (!onDistributor(c)) return;
+          if (!nearSeat(c)) bad.push(`${partId} ${o.name} is on the distributor with no fuel line`);
+          return;
+        }
+        if (partId !== 'mixture-control-unit' || !o.isMesh) return;
+        let parent = o.parent;
+        while (parent) {
+          if (typeof parent.name === 'string' && (parent.name.startsWith('fitting:') || parent.name.startsWith('banjo:'))) return;
+          parent = parent.parent;
+        }
+        const g = o.geometry as THREE.BufferGeometry;
+        const P = g.attributes.position;
+        const v = new THREE.Vector3();
+        const w = pose.clone().multiply(o.matrixWorld);
+        let outsideHub = false;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(w);
+          const radial = Math.hypot(v.x - FD_CX, v.z - FD_CZ);
+          if (radial < 16 && v.y > FD_HUB.y0 + 0.2 && (radial > FD_HUB.r + 0.3 || v.y > FD_HUB.y1 + 0.3)) outsideHub = true;
+        }
+        if (outsideHub) bad.push('mixture-control-unit has metal in the centre column that is not the hub or screw socket #49');
+      });
+      if (partId === 'injection-banjos') {
+        root.traverse((o: any) => {
+          if (!o.isInstancedMesh) return;
+          const m = new THREE.Matrix4();
+          const tip = new THREE.Vector3(0, BANJO.eyeY, BANJO.stubTip);
+          for (let i = 0; i < o.count; i++) {
+            o.getMatrixAt(i, m);
+            const world = tip.clone().applyMatrix4(m).applyMatrix4(pose);
+            const hits = seats.filter((s) => new THREE.Vector3(...s.point).distanceTo(world) <= 0.5);
+            if (hits.length !== 1) bad.push(`injection-banjos instance ${i}: ${hits.length} seats`);
+          }
+        });
+      }
     }
     expect(bad).toEqual([]);
   });

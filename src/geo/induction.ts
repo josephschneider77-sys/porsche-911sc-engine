@@ -259,8 +259,16 @@ const INJ_BANJOS = OUTLETS.map((o) => injBanjo(o.deg));
 
 /** Cold-start banjo on the inboard face (107-10 #59, one of three). Stub runs toward the flywheel. */
 const CSV_FD_BANJO = banjoFrame([FD.x1, 288, -100], [1, 0, 0], [0, 0, -1]);
-/** Screw socket 107-10 #49 on the flywheel face, for line #51 (union nuts). */
-const WUR_SOCKET = { face: [FD_CX, 292, FD.z0] as V3, axis: [0, 0, -1] as V3 };
+/**
+ * Screw socket 107-10 #49 (911 110 160 01) on the raised hub, top centre.
+ * Control-pressure line #51 leaves here on a union nut. Not a #59 banjo: those three
+ * are the warm-up, cold-start and distributor cold-start bolts. #61 is the return,
+ * on the −X M12, not this port.
+ */
+const FD_HUB_TOP = FD.y1 + 8;
+const WUR_SOCKET = { face: [FD_CX, FD_HUB_TOP + 8, FD_CZ] as V3, axis: [0, 1, 0] as V3 };
+/** Casting under the #49 socket: a plain hub, not a second fitting. */
+export const FD_HUB = { y0: FD.y1, y1: FD_HUB_TOP, r: 11 };
 /** M12 connection pieces 107-10 #57. `ret` is the return (#61). `out` is the line that leaves the engine (#62). */
 const M12_RET = { face: [FD.x0, 286, -90] as V3, axis: [-1, 0, 0] as V3 };
 const M12_OUT = { face: [FD_CX, 290, FD.z1] as V3, axis: [0, 0, 1] as V3 };
@@ -326,13 +334,27 @@ export const FUEL_LINES: FuelLineDef[] = [
     b: endOf('wur-lines', CSV_BANJO.tip, CSV_BANJO.stub),
   },
   {
-    // 930 110 502 00 (#51): union nuts, distributor screw socket to the warm-up connection piece.
+    // 930 110 502 00 (#51): union nuts, from screw socket #49 on the distributor hub to connection piece #52.
     id: 'wur-51',
     part: 'wur-lines',
     a: endOf('mixture-control-unit', WUR_SOCKET.face, WUR_SOCKET.axis),
     b: endOf('warm-up-regulator', WUR_CONN.face, WUR_CONN.axis),
   },
 ];
+
+/**
+ * Every banjo or union on the fuel distributor, and the point its one fuel line ends on.
+ * Six injector banjos, the cold-start banjo, two M12 unions (#57) and screw socket #49.
+ */
+export function distributorFuelSeats(): { id: string; point: V3 }[] {
+  return [
+    ...PORT_CYL.map((c, i) => ({ id: `inj-${c}`, point: INJ_BANJOS[i].tip })),
+    { id: 'csv-fd', point: CSV_FD_BANJO.tip },
+    { id: 'm12-ret', point: M12_RET.face },
+    { id: 'm12-out', point: M12_OUT.face },
+    { id: 'wur-socket', point: WUR_SOCKET.face },
+  ];
+}
 
 export const FUEL_BANJOS: BanjoDef[] = [
   ...PORT_CYL.map((c, i): BanjoDef => ({
@@ -812,13 +834,17 @@ export function wurLinesPart() {
   placeBanjo(p, WUR_BANJO, 'wur');
   const line = FUEL_LINES.find((l) => l.id === 'wur-51')!;
   // Union nuts sit on the line side of each face so they do not enter the distributor or the regulator.
+  // #51 leaves the top-centre screw socket upward, steps flywheel of the outlet towers, then drops
+  // outboard of the #61 return (which runs at y 300, z −158) onto connection piece #52.
   lineNut(p, WUR_SOCKET.face, WUR_SOCKET.axis, 'wur-socket-nut');
   lineNut(p, WUR_CONN.face, WUR_CONN.axis, 'wur-conn-nut');
   addLine(p, line.id, line.a.point, line.a.axis, line.b.point, line.b.axis, [
+    [-110, 348, -130],
+    [-130, 330, -158],
     [-160, 260, -155],
     [-165, 190, -145],
     [-70, 168, -140],
-  ], LINE_R, { leadA: 12, aheadA: 18, leadB: 8, aheadB: 12, fillet: 10 });
+  ], LINE_R, { leadA: 10, aheadA: 16, leadB: 8, aheadB: 12, fillet: 10 });
   return p.g;
 }
 
@@ -867,12 +893,17 @@ export function mixtureControlUnit() {
   }
   // Upper housing steps in at the joint so the split reads at mid-height.
   p.add(boxMM([FD.x0 + 1.6, yJoint, FD.z0 + 1.6], [FD.x1 - 1.6, FD.y1, FD.z1 - 1.6]), 'zincPlate');
-  // Raised hub and the control-pressure banjo in the middle of the outlet circle.
-  const hubTop = FD.y1 + 8;
-  p.add(cyl(11, 8, 20).translate(FD_CX, FD.y1 + 4, FD_CZ), 'zincPlate');
-  p.add(lathe([[4.1, 0], [7.3, 0], [7.3, 8], [4.1, 8]], 16).translate(FD_CX, hubTop, FD_CZ), 'brass');
-  p.add(cylBetween([FD_CX, hubTop + 4, FD_CZ], [FD_CX, hubTop + 4, FD_CZ - 12], 2.05, 8), 'brass');
-  p.add(hexNut(12, 4.6).translate(FD_CX, hubTop + 10.3, FD_CZ), 'zincPlate');
+  // Raised hub. Screw socket #49 stands on it; line #51's union nut is in wur-lines.
+  p.add(cyl(FD_HUB.r, FD_HUB.y1 - FD_HUB.y0, 20).translate(FD_CX, (FD_HUB.y0 + FD_HUB.y1) / 2, FD_CZ), 'zincPlate');
+  {
+    const socket = new THREE.Group();
+    socket.name = 'fitting:wur-socket';
+    socket.add(mesh(cylBetween([FD_CX, FD_HUB.y1 - 1, FD_CZ], WUR_SOCKET.face, 4, 14), 'brass'));
+    const ring = lathe([[4.2, 0], [7.2, 0], [7.2, 1.2], [4.2, 1.2]], 16);
+    ring.translate(...WUR_SOCKET.face);
+    socket.add(mesh(ring, 'copper'));
+    p.g.add(socket);
+  }
   for (const b of INJ_BANJOS) {
     const hex = hexNut(16, TOWER);
     hex.translate(b.face[0], FD.y1 + TOWER / 2, b.face[2]);
@@ -894,9 +925,7 @@ export function mixtureControlUnit() {
     void face; void axis;
   }
   p.add(cylBetween([FD.x1 - 8, CSV_FD_BANJO.face[1], CSV_FD_BANJO.face[2]], CSV_FD_BANJO.face, 6.2, 12), 'zincPlate');
-  // Screw socket #49 and the two M12 connection pieces #57. Rings #50 and #58 sit on the faces.
-  p.add(cylBetween([WUR_SOCKET.face[0], WUR_SOCKET.face[1], FD.z0 + 6], WUR_SOCKET.face, 5.5, 12), 'brass');
-  p.add(lathe([[4.2, 0], [7.2, 0], [7.2, 1.2], [4.2, 1.2]], 14).rotateX(-Math.PI / 2).translate(...WUR_SOCKET.face), 'copper');
+  // Two M12 connection pieces #57. Rings #58 sit on the faces. Socket #49 is on the hub, above.
   p.add(cylBetween([FD.x0 + 8, M12_RET.face[1], M12_RET.face[2]], M12_RET.face, 6, 12), 'brass');
   p.add(lathe([[5.2, 0], [8.2, 0], [8.2, 1.2], [5.2, 1.2]], 14).rotateZ(Math.PI / 2).translate(...M12_RET.face), 'copper');
   p.add(cylBetween([M12_OUT.face[0], M12_OUT.face[1], FD.z1 - 8], M12_OUT.face, 6, 12), 'brass');
