@@ -1318,7 +1318,9 @@ export function camHousing(s: 1 | -1) {
   // The round cam-end cover reaches y ≈ 47. The pad still runs out to the shifted housing face and is recessed there.
   {
     let pad: THREE.BufferGeometry = boxMM([X(HEAD_OUT_X + 0.8), 40, CH_Z1 - 16], [X(CAM_HOUSING_OUT_X + 10), 78, CH_Z1]);
-    pad = csgSub(pad, yToZ(cyl(CAM_COVER.rimR + 2, 14, 40)).translate(cx, 0, CH_Z1 - 5));
+    // Clear the cover rim and the screw lugs, plus the 1 mm erosion on each mesh.
+    // A tighter recess leaves a corner whose normal walks into the left cover.
+    pad = manifoldSub(pad, yToZ(cyl(CAM_COVER.rimR + 8, 14, 48)).translate(cx, 0, CH_Z1 - 5));
     p.add(pad, 'castAlu');
   }
   // no full-length external oil line — the photos don't show one; the splash tube and banjo are CoS parts
