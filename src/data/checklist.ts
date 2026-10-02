@@ -191,7 +191,7 @@ export const CLAIMS: Claim[] = [
   C('105-00#10', 'fan-hub'), C('105-00#11', 'fan-pulley-nut'), C('105-00#12', 'fan-belt'),
   C('902-05#1', 'alternator'), C('902-05#-#911 612 233 00', 'alternator-strap'),
   // ---- 105-05 air guides
-  C('105-05#1', 'upper-air-guide'), C('105-05#2', 'shroud-speed-nuts'), C('105-05#4', 'upper-air-guide', 'socket'), C('105-05#6', 'shroud-cover-plate'), C('105-05#9', 'shroud-stopper'),
+  C('105-05#1', 'upper-air-guide'), C('105-05#2', 'shroud-speed-nuts'), C('105-05#3', 'oil-cooler-cap'), C('105-05#4', 'upper-air-guide', 'socket'), C('105-05#6', 'shroud-cover-plate'), C('105-05#9', 'shroud-stopper'),
   C('105-05#10', 'shroud-screws'), C('105-05#10#999 143 004 08', 'shroud-end-screws'), C('105-05#10#900 075 057 02', 'shroud-collar-bolts-a'), C('105-05#10#900 075 014 02', 'shroud-collar-bolts-b'),
   C('105-05#11', 'shroud-end-screws', 'washer'), C('105-05#12', 'shroud-socket-screws'),
   C('105-05#13', 'fan-housing', 'clamp'), C('105-05#16', 'fan-housing', 'washer'), C('105-05#17', 'fan-housing', 'nut'),
@@ -279,9 +279,7 @@ export const NOT_APPLICABLE: NotApplicable[] = [
 ];
 
 /** Lines still not modelled (reported by the doc generator; the test requires this list to match reality). */
-export const STILL_MISSING: NotApplicable[] = [
-  { line: '105-05#3', why: 'air duct for the front oil cooler (911 106 406 00, trade 911 106 406 01), right front fender, not on the engine and not the CIS intake air guide' },
-];
+export const STILL_MISSING: NotApplicable[] = [];
 
 /** Groups covered by this checklist (108-00 air injection is not on this US 49-state/ROW reference engine set; see docs). */
 export const CHECKLIST_GROUPS = ['101-05', '101-10', '102-00', '102-05', '103-00', '103-05', '103-10', '103-15', '104-00', '104-05', '105-00', '105-05', '106-00', '107-00', '107-10', '202-00', '301-00', '901-00', '902-05'];

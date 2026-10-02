@@ -317,6 +317,7 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),
   pair('ignition-leads', 'spark-plug', 'seated: lead boot on the plug terminal'),
   pair('ignition-leads', 'ignition-lead-holders', 'seated: lead clipped in the shroud holder'),
+  pair('oil-cooler-cap', 'shroud-speed-nuts', 'seated: speed nut on the cooler-cap lip (the 1 mm nut inverts under the 1 mm erosion; clean at 0 and 0.5 mm)'),
   // ---- top end (heads, cylinders, cams, valvetrain, covers, chain drive) — not rewritten here
 
   pair('piston', 'cylinder', 'JOINT piston in bore'),
