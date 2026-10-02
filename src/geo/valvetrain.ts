@@ -9,13 +9,13 @@
  */
 import * as THREE from 'three';
 import {
-  Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, circlePath, polyShape,
-  extrude, extrudeC, hexNut, tube, csgSub, csgUnion, dropDegenerate, woodruffGeom, cutGroup, subtractSolids, roundRect,
+  Part, V3, DEG, lathe, closedLathe, boxMM, cyl, cylBetween, yToZ, yToX, circlePath, polyShape,
+  extrude, extrudeC, hexNut, tube, csgSub, csgUnion, woodruffGeom, roundRect,
 } from './util';
 import { cutClosed, manifoldAdd, manifoldSub } from './manifoldCut';
 import { CAM_X, CAM_HOUSING_OUT_X, CYL_Z, CYL_TOP_X, HEAD_OUT_X, SPARK_HOLE_R, SPARK_BEND_R, SPARK_FLANGE_T, SPARK_MOUTH, SPARK_TUBE_R, plugTipEngine, plugAxisEngine, sparkRoll } from '../data/layout';
 import { HEAD_HW } from './hwLayout';
-import { CH_Z0, CH_Z1, vcStuds, vcLugs, CAM_NOSE, CHAIN_Z, bankZ, coverMatrix } from './core';
+import { CH_Z0, CH_Z1, vcStuds, CAM_NOSE, CHAIN_Z, bankZ, coverMatrix, CAM_COVER, camCoverAngles, camCoverBolt, camNoseStack } from './core';
 import {
   VALVE_LEN, valveLen, STEM_R, GUIDE_Y0, GUIDE_Y1,
   stemDirLocal, stemPointLocal, headToEngine, camSpringCutters,
@@ -928,8 +928,9 @@ export function camshaft(s: 1 | -1) {
   const zc = CHAIN_Z[s], N = CAM_NOSE;
   const zN = zc + N.end;
   const zt = zc + N.hubFace;
-  // thrust shoulder just inboard of the thrust washer
-  p.add(yToZ(cyl(16, 5, 24)), 'polishedSteel', [X, 0, zc + N.flange[0] - 5]);
+  // thrust shoulder ends on the inboard face of the thrust washer (the shim now sits outboard of that washer)
+  const thrust0 = zc + N.flange[0] - N.shim - N.thrust;
+  p.add(yToZ(cyl(16, 5, 24)), 'polishedSteel', [X, 0, thrust0 - 2.5]);
   const nose = yToZ(cyl(N.r, zt - (CH_Z1 - 4), 24)).translate(X, 0, (CH_Z1 - 4 + zt) / 2);
   const k = N.key, kTop = N.r + k.proud;
   const pocket = woodruffGeom(k.D + 0.1, k.h + 0.05, k.b + 0.1).rotateY(-Math.PI / 2).translate(X, kTop, zc + k.dz);
@@ -1314,7 +1315,12 @@ export function camHousing(s: 1 | -1) {
   }
   p.add(yToZ(lathe([[CAM.boreR, -2], [30, -2], [30, 3], [CAM.boreR, 3], [CAM.boreR, -2]], 28)).translate(cx, 0, (cap0 + cap1) / 2), 'machinedAlu');
   // pulley-end pad for the chain-housing end studs (y ≈ 62). Kept above the cam bore so the shaft can enter from this end.
-  p.add(boxMM([X(HEAD_OUT_X + 0.8), 40, CH_Z1 - 16], [X(CAM_HOUSING_OUT_X + 10), 78, CH_Z1]), 'castAlu');
+  // The round cam-end cover reaches y ≈ 47. The pad still runs out to the shifted housing face and is recessed there.
+  {
+    let pad: THREE.BufferGeometry = boxMM([X(HEAD_OUT_X + 0.8), 40, CH_Z1 - 16], [X(CAM_HOUSING_OUT_X + 10), 78, CH_Z1]);
+    pad = csgSub(pad, yToZ(cyl(CAM_COVER.rimR + 2, 14, 40)).translate(cx, 0, CH_Z1 - 5));
+    p.add(pad, 'castAlu');
+  }
   // no full-length external oil line — the photos don't show one; the splash tube and banjo are CoS parts
   // The flywheel journal and the inter-journal ribs land on the end shaft seats.
   // Clear a column just proud of each spot face so the screw head / nut and the
@@ -1339,6 +1345,9 @@ export function camHousing(s: 1 | -1) {
   // flywheel cap cross it and land inside the cover. Cut them back to just under the
   // gasket. The cam tunnel is ~39 mm below this plane, so the bore stays.
   clipHousingUnderCovers(p.g, s);
+  // After the cover clip. The three-screw seat for 930 105 196 00 sits on the chain end,
+  // outboard of that cut, with the thrust shoulder already on the camshaft.
+  camChainSeat(p, s);
   addCoverLands(p, s);
   addShaftTowers(p, s);
   // The ear pad the cover stud threads into. A short
@@ -1916,4 +1925,28 @@ export function valveHeadEngine(cyl: number, side: 1 | -1, crank: number): THREE
     new THREE.Vector3(1, 1, 1),
   ));
   return g;
+}
+/**
+ * Chain-end seat the cover gasket closes. The face is the gasket plane (z ≥ 212 on the left,
+ * the housing end). No lip enters the cover. Bosses take the M6×25 screws.
+ */
+function camChainSeat(p: Part, s: 1 | -1) {
+  const stack = camNoseStack(s);
+  const cx = CAM_X * s;
+  const face = stack.gasket0;
+  const C = CAM_COVER;
+  if (s > 0) {
+    const z0 = 210.8;
+    const h = Math.max(1, face - 2.6 - z0);
+    p.add(yToZ(closedLathe([[19, 0], [26, 0], [26, h], [19, h]], 28)).translate(cx, 0, z0), 'castAlu');
+  }
+  p.add(yToZ(closedLathe([
+    [C.boreR + 1, 0], [C.seatFaceR, 0], [C.seatFaceR, 2.6], [C.boreR + 1, 2.6],
+  ], 40)).translate(cx, 0, face - 2.6), 'machinedAlu');
+  const zBoss = Math.min(stack.cover1 - 26, face - 6);
+  for (const deg of camCoverAngles(s)) {
+    const b = camCoverBolt(s, deg);
+    const h = face - zBoss;
+    p.add(yToZ(cyl(5.2, h, 14)).translate(b.x, b.y, zBoss + h / 2), 'castAlu');
+  }
 }

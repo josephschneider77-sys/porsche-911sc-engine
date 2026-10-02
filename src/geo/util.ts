@@ -20,6 +20,12 @@ export function mesh(g: THREE.BufferGeometry, m: MatKey, pos?: V3, rot?: V3): TH
 export function lathe(pts: [number, number][], segs = 48, phiStart = 0, phiLen = Math.PI * 2) {
   return new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 0.001), y)), segs, phiStart, phiLen);
 }
+/** Closed solid of revolution. The profile is looped back to its start so the mesh has no open rim. */
+export function closedLathe(pts: [number, number][], segs = 48) {
+  const a = pts[0], b = pts[pts.length - 1];
+  const loop = a[0] === b[0] && a[1] === b[1] ? pts : [...pts, [a[0], a[1]] as [number, number]];
+  return lathe(loop, segs);
+}
 
 export function box(w: number, h: number, d: number) { return new THREE.BoxGeometry(w, h, d); }
 /** Box spanning explicit min/max corners. */
@@ -101,6 +107,51 @@ export function sprocketRingShape(teeth: number, rRoot: number, rTip: number, rH
   for (let i = 0; i <= innerN; i++) {
     const a = aJoin - (i / innerN) * Math.PI * 2;
     pts.push([rHole * Math.cos(a), rHole * Math.sin(a)]);
+  }
+  return polyShape(pts);
+}
+/**
+ * Roller-chain tooth (idler only). The valley floor is centred at 0.76 of the pitch, the same
+ * station `toothPhase` uses, so the rollers still sit in the gaps. Tip and root are rounded.
+ */
+export function rollerChainShape(teeth: number, rRoot: number, rTip: number, rHole: number) {
+  const step = (Math.PI * 2) / teeth;
+  const GAP = 0.76;
+  const n = 18;
+  const outer: [number, number][] = [];
+  for (let i = 0; i < teeth; i++) {
+    const a0 = i * step;
+    for (let k = 0; k < n; k++) {
+      const f = k / n;
+      let d = f - GAP;
+      if (d > 0.5) d -= 1;
+      if (d < -0.5) d += 1;
+      const u = Math.abs(d) / 0.5;
+      const s = u * u * (3 - 2 * u);
+      const rad = rRoot + (rTip - rRoot) * s;
+      const a = a0 + step * f;
+      outer.push([rad * Math.cos(a), rad * Math.sin(a)]);
+    }
+  }
+  const aJoin = Math.atan2(outer[0][1], outer[0][0]);
+  const pts = outer.slice();
+  const innerN = Math.max(48, teeth * 2);
+  for (let i = 0; i <= innerN; i++) {
+    const a = aJoin - (i / innerN) * Math.PI * 2;
+    pts.push([rHole * Math.cos(a), rHole * Math.sin(a)]);
+  }
+  return polyShape(pts);
+}
+/** Annular sector, CCW, angles in the XY plane (0 = +X). */
+export function annularSector(r0: number, r1: number, a0: number, a1: number, n = 12) {
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + ((a1 - a0) * i) / n;
+    pts.push([r1 * Math.cos(a), r1 * Math.sin(a)]);
+  }
+  for (let i = n; i >= 0; i--) {
+    const a = a0 + ((a1 - a0) * i) / n;
+    pts.push([r0 * Math.cos(a), r0 * Math.sin(a)]);
   }
   return polyShape(pts);
 }
@@ -520,15 +571,37 @@ const cleanCsg = (g: THREE.BufferGeometry) => {
   if (!q.attributes.normal) q.computeVertexNormals();
   return q;
 };
+/**
+ * three-bvh-csg jitters coplanar rays with Math.random, so two exports of the
+ * crankcase were not the same file. A fixed sequence makes every boolean repeat.
+ */
+function withSeededRandom<T>(fn: () => T): T {
+  const prev = Math.random;
+  let s = 0x6d2b79f5;
+  Math.random = () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  try { return fn(); }
+  finally { Math.random = prev; }
+}
+function csgEvaluator() {
+  const ev = new Evaluator();
+  ev.attributes = ['position', 'normal'];
+  return ev;
+}
 /** Union of closed solids in the same frame. One subtraction of the result beats a stack of coaxial cuts. */
 export function csgUnion(geoms: THREE.BufferGeometry[]): THREE.BufferGeometry {
   if (!geoms.length) throw new Error('csgUnion: empty');
-  let b = new Brush(cleanCsg(geoms[0])); b.updateMatrixWorld();
-  for (let i = 1; i < geoms.length; i++) {
-    const cb = new Brush(cleanCsg(geoms[i])); cb.updateMatrixWorld();
-    b = csgEval.evaluate(b, cb, ADDITION) as Brush;
-  }
-  return b.geometry;
+  return withSeededRandom(() => {
+    const ev = csgEvaluator();
+    let b = new Brush(cleanCsg(geoms[0])); b.updateMatrixWorld();
+    for (let i = 1; i < geoms.length; i++) {
+      const cb = new Brush(cleanCsg(geoms[i])); cb.updateMatrixWorld();
+      b = ev.evaluate(b, cb, ADDITION) as Brush;
+    }
+    return b.geometry;
+  });
 }
 /** base minus cutters (geometries already in the same frame). Returns position/normal geometry. */
 /** Drop zero-area triangles. Boolean meshes leave slivers that the collision test treats as hits. */
@@ -563,9 +636,12 @@ export function csgIntersect(a: THREE.BufferGeometry, b: THREE.BufferGeometry): 
   return (csgEval.evaluate(A, B, INTERSECTION) as Brush).geometry;
 }
 export function csgSub(base: THREE.BufferGeometry, ...cutters: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  let b = new Brush(cleanCsg(base)); b.updateMatrixWorld();
-  for (const c of cutters) { const cb = new Brush(cleanCsg(c)); cb.updateMatrixWorld(); b = csgEval.evaluate(b, cb, SUBTRACTION) as Brush; }
-  return b.geometry;
+  return withSeededRandom(() => {
+    const ev = csgEvaluator();
+    let b = new Brush(cleanCsg(base)); b.updateMatrixWorld();
+    for (const c of cutters) { const cb = new Brush(cleanCsg(c)); cb.updateMatrixWorld(); b = ev.evaluate(b, cb, SUBTRACTION) as Brush; }
+    return b.geometry;
+  });
 }
 /** Woodruff key outline (half-moon): chord of length 2*sqrt(h(D-h)) on y = 0, arc down to y = -h; extruded `b` thick (centred on z). */
 export function woodruffGeom(D: number, h: number, b: number) {

@@ -376,8 +376,8 @@ Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) 
 | 6 | 930 105 063 01 | Lid | 1 | modelled | `chain-housing-lid-left` |
 | 6 | 930 105 063 08 | Lid | 1 | excluded | from engine no. 63D (after 1978) |
 | - | 999 062 010 02 | Stud | 1 | modelled | `chain-end-nuts-*` stud × 1 (one of the four chain-housing end studs) |
-| 7 | 930 105 064 01 | Lid | 1 | modelled | `chain-housing-lid-right` |
-| 7 | 930 105 064 10 | Lid | 1 | alt | alternative to 103-05 #7 |
+| 7 | 930 105 064 01 | Lid | 1 | alt | alternative to 103-05 #7 |
+| 7 | 930 105 064 10 | Lid | 1 | modelled | `chain-housing-lid-right` |
 | - | 900 123 007 30 | Sealing ring | 1 | modelled | `chain-lid-plug-left` ring |
 | - | N 016 155 3 | Screw plug | 1 | modelled | `chain-lid-plug-left` |
 | - | N 016 155 4 | Screw plug | 1 | modelled | `chain-lid-plug2-left` |
@@ -459,16 +459,16 @@ Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) 
 | 19 | 930 105 557 00 | Piston | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
 | 22 | 930 105 535 01 | Compression spring | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
 | 23 | 930 105 568 00 | Concave washer | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
-| 25 | 930 105 573 00 | Bleeder screw | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
-| 27 | N 012 241 8 | Spring washer | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
-| 28 | 900 076 025 02 | Hexagon nut | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
+| 25 | 930 105 573 00 | Bleeder screw | 1 | modelled | `chain-tensioner-left` bleeder |
+| 27 | N 012 241 8 | Spring washer | 1 | modelled | `chain-tensioner-left` spring |
+| 28 | 900 076 025 02 | Hexagon nut | 1 | modelled | `chain-tensioner-left` nut |
 | 28 | 900 076 064 02 | Hexagon nut | 1 | alt | alternative to 103-10 #28 |
-| 29 | 930 105 197 05 | Gasket | 1 | modelled | `adjuster-cover-left` gasket |
+| 29 | 930 105 197 05 | Gasket | 1 | modelled | `cam-flange-cover-left` gasket |
 | 29 | 930 105 197 03 | Gasket | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 30 | 999 701 468 40 | Round seal | 1 | modelled | `adjuster-cover-left` seal |
-| 31 | 930 105 196 00 | Cover | 1 | modelled | `adjuster-cover-left` |
-| 32 | N 012 226 5 | Spring washer | 3 | modelled | `adjuster-cover-screws-left` spring |
-| 33 | 900 075 341 02 | Combination screw | 3 | modelled | `adjuster-cover-screws-left` |
+| 30 | 999 701 468 40 | Round seal | 1 | modelled | `cam-flange-cover-left` seal |
+| 31 | 930 105 196 00 | Cover | 1 | modelled | `cam-flange-cover-left` |
+| 32 | N 012 226 5 | Spring washer | 3 | modelled | `cam-flange-cover-screws-left` spring |
+| 33 | 900 075 341 02 | Combination screw | 3 | modelled | `cam-flange-cover-screws-left` |
 | 33 | 900 075 341 01 | Combination screw | 3 | alt | alternative to 103-10 #33 |
 | 34 | 901 105 562 00 | Thrust washer | 1 | modelled | `cam-thrust-washer-left` |
 | 34 | 901 105 562 02 | Thrust washer | 1 | alt | alternative to 103-10 #34 |
@@ -506,7 +506,7 @@ Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) 
 | 1 | 993 105 529 00 | Timing chain | 1 | alt | alternative to 103-15 #1 |
 | 1 | 911 105 529 50 | Timing chain | 1 | alt | alternative to 103-15 #1 |
 | 1 | 911 105 529 51 | Timing chain | 1 | alt | alternative to 103-15 #1 |
-| 2 | 911 105 222 05 | Guide rail | 1 | alt | alternative to 103-15 #2 |
+| 2 | 911 105 222 05 | Guide rail | 1 | modelled | `chain-tensioner-right` rail × 1 |
 | 2 | 911 105 222 06 | Guide rail | 2 | modelled | `chain-tensioner-right` rail × 2 |
 | 3 | 901 105 226 03 | Bolt | 4 | modelled | `rail-bolts-right` |
 | 4 | 900 123 066 30 | Sealing ring | 4 | modelled | `rail-bolts-right` washer (sealing ring = the washer under each rail bolt) |
@@ -528,16 +528,16 @@ Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) 
 | 19 | 930 105 557 00 | Piston | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
 | 22 | 930 105 535 01 | Compression spring | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
 | 23 | 930 105 568 00 | Concave washer | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
-| 25 | 930 105 573 00 | Bleeder screw | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
-| 27 | N 012 241 8 | Spring washer | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
-| 28 | 900 076 025 02 | Hexagon nut | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
+| 25 | 930 105 573 00 | Bleeder screw | 1 | modelled | `chain-tensioner-right` bleeder |
+| 27 | N 012 241 8 | Spring washer | 1 | modelled | `chain-tensioner-right` spring |
+| 28 | 900 076 025 02 | Hexagon nut | 1 | modelled | `chain-tensioner-right` nut |
 | 28 | 900 076 064 02 | Hexagon nut | 1 | alt | alternative to 103-15 #28 |
-| 29 | 930 105 197 05 | Gasket | 1 | modelled | `adjuster-cover-right` gasket |
+| 29 | 930 105 197 05 | Gasket | 1 | modelled | `cam-flange-cover-right` gasket |
 | 29 | 930 105 197 03 | Gasket | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 30 | 999 701 468 40 | Round seal | 1 | modelled | `adjuster-cover-right` seal |
-| 31 | 930 105 196 00 | Cover | 1 | modelled | `adjuster-cover-right` |
-| 32 | N 012 226 5 | Spring washer | 3 | modelled | `adjuster-cover-screws-right` spring |
-| 33 | 900 075 341 02 | Combination screw | 3 | modelled | `adjuster-cover-screws-right` |
+| 30 | 999 701 468 40 | Round seal | 1 | modelled | `cam-flange-cover-right` seal |
+| 31 | 930 105 196 00 | Cover | 1 | modelled | `cam-flange-cover-right` |
+| 32 | N 012 226 5 | Spring washer | 3 | modelled | `cam-flange-cover-screws-right` spring |
+| 33 | 900 075 341 02 | Combination screw | 3 | modelled | `cam-flange-cover-screws-right` |
 | 33 | 900 075 341 01 | Combination screw | 3 | alt | alternative to 103-15 #33 |
 | 34 | 901 105 562 00 | Thrust washer | 1 | modelled | `cam-thrust-washer-right` |
 | 34 | 901 105 562 02 | Thrust washer | 1 | alt | alternative to 103-15 #34 |

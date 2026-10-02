@@ -174,16 +174,25 @@ function perBank(): PartDef[] {
       specs: { Location: 'Woodruff key in the cam-nose keyway', Scallops: '16 on the sprocket-face rim, lands wider than the notches' },
     });
     out.push({
-      id: `adjuster-cover-${b}`, name: `Chain-adjuster cover, ${b}`, system: 'camdrive', asset: `adjuster-cover-${b}`, explode: [s * 300, -60, 420],
-      catalog: [{ ill, pos: '31', pn: '—', qty: 1, note: 'With gasket #29 and round seal #30' }],
-      description: 'Round cover over the chain-adjuster opening in the chain-housing lid, sealed by a gasket and an O-ring style round seal and held by three combination screws.',
-      specs: { Screws: '3 (#33) + spring washers (#32)' },
+      id: `cam-flange-cover-${b}`, name: `Cam-flange cover, ${b}`, system: 'camdrive', asset: `cam-flange-cover-${b}`, explode: [s * 40, 0, 160],
+      catalog: [
+        { ill, pos: '31', pn: '930 105 196 00', qty: 1, note: 'Kat 502 p.70 Bild 103-10 / p.74 Bild 103-15' },
+        { ill, pos: '29', pn: '930 105 197 05', qty: 1, note: 'Triangular 3-hole gasket' },
+        { ill, pos: '30', pn: '999 701 468 40', qty: 1, note: 'Round seal 67.5 × 75.4 × 4' },
+      ],
+      description: 'One round cast cover, the same on both banks, on the cam axis at the chain end of the cam housing. Centre bore, an O-ring groove sized to the 67.5 × 75.4 × 4 seal with lands either side, a raised rim, and three screw lugs at 0/120/240° notched into that rim. The triangular gasket sits on the cam-housing seat.',
+      specs: { Screws: '3 × M6×25 combination (#33) + spring washers (#32)', Stack: 'housing, gasket #29, seal #30, cover #31, thrust washer #34, shim #35, flange #36' },
     });
     out.push({
       id: `chain-tensioner-${b}`, name: `Chain tensioner & guides, ${b}`, system: 'camdrive', asset: `chain-tensioner-${b}`, explode: [s * 360, -120, 320],
-      catalog: [{ ill, pos: '10', pn: '930 105 049 00', note: 'Chain adjuster (hydraulic, oil-fed on later cars)' }, { ill, pos: '5/6', pn: s === 1 ? '901 105 506 02 / 901 105 055 00' : '901 105 505 02 / 901 105 055 00', note: 'Idler arm / idler sprocket' }, { ill, pos: '2', pn: '911 105 222 06', note: 'Guide rail' }],
-      description: 'Heavy forged idler arm with a wide bushed boss. The 19 T idler presses 38 mm into the slack (return) run from outside the loop, so the chain wraps it and rollers seat in its teeth. The sealed hydraulic adjuster lies inclined in the lower inner corner of the box (stud, washer and nut on the cast mounting lug); its plunger dome bears on the round pad on the arm tail. Moulded guide rails sit on the tight run and outside the slack run.',
-      specs: { Type: 'Hydraulic adjuster (930/04: sealed unit 930 105 049 00)', Idler: '19 T, outside wrap', 'Slack-run deflection': '38 mm (model)', Plunger: 'in contact with the arm pad' },
+      catalog: [
+        { ill, pos: '10', pn: '930 105 049 00', note: 'Chain adjuster: straight cylinder, long flat strap from the foot eye past the top to the stud' },
+        { ill, pos: '10A', pn: '930 105 513 00', note: 'Spacer sleeve on the stud under the strap eye (p.76)' },
+        { ill, pos: '5/6', pn: s === 1 ? '901 105 506 02 / 901 105 055 00' : '901 105 505 02 / 901 105 055 00', note: 'Idler arm / idler sprocket' },
+        { ill, pos: '2', pn: s === 1 ? '911 105 222 05 / 911 105 222 06' : '911 105 222 06', note: s === 1 ? '1 brown + 2 black guide rails' : '3 black guide rails' },
+      ],
+      description: 'Heavy forged idler arm with a wide bushed boss. The 19 T idler has a solid web and rounded roller-chain teeth and presses 38 mm into the slack run from outside the loop. The chain adjuster is a straight cylinder. Its flat strap has an eye at the cylinder foot, runs outside the body but inside the chain box, and continues past the top to an eye on the housing stud, with spacer sleeve 930 105 513 00 (#10A) on that stud. A side bleeder carries sealing ring #26 (A 6.5×9.5), and a nut plus spring washer close the stud. The plunger dome bears on the arm-tail pad. Three ribbed guide-rail blocks sit on the chain runs. Kat 502 #3 is four bolts per bank: two through the idler-to-cam rail and one through each of the other two, into bosses on the housing.',
+      specs: { Type: 'Sealed hydraulic adjuster 930 105 049 00', Idler: '19 T, solid web, roller-chain teeth', Rails: s === 1 ? '1 × 911 105 222 05 + 2 × 911 105 222 06' : '3 × 911 105 222 06', Plunger: 'in contact with the arm pad' },
     });
     out.push({
       id: `chain-housing-${b}`, name: `Chain housing, ${b}`, system: 'camdrive', asset: `chain-housing-${b}`, explode: [s * 340, -20, 170],
@@ -193,9 +202,9 @@ function perBank(): PartDef[] {
     });
     out.push({
       id: `chain-housing-lid-${b}`, name: `Chain housing cover, ${b}`, system: 'camdrive', asset: `chain-housing-lid-${b}`, explode: [s * 380, -20, 380],
-      catalog: [{ ill: '103-05', pos: s === 1 ? '7' : '6', pn: s === 1 ? '930 105 064 01' : '930 105 063 01', qty: 1 }],
-      description: 'Flat cast chain-box cover: straight inner edge, rounded cam end, horizontal and diagonal stiffening ribs, low cam-centre boss and ~13 perimeter nuts.',
-      specs: { Gasket: s === 1 ? '930 105 192 01' : '930 105 191 03' },
+      catalog: [{ ill: '103-05', pos: s === 1 ? '7' : '6', pn: s === 1 ? '930 105 064 10' : '930 105 063 01', qty: 1, note: s === 1 ? '064 01 is the Turbo lid; Kat 502 p.66 Bild 103-05' : 'Kat 502 p.66 Bild 103-05' }],
+      description: 'Cast pan: sealing face on the gasket, raised perimeter rim with stud bosses, a deep field with a cross step along the upper part, centre stud pads, round bosses for the screw plugs, and a stout diagonal tube with a domed end on the outer face.',
+      specs: { Gasket: s === 1 ? '930 105 192 01' : '930 105 191 03', 'Part': s === 1 ? '930 105 064 10' : '930 105 063 01' },
     });
     out.push({
       id: `heat-exchanger-${b}`, name: `Heat exchanger, ${b} (cyl. ${cyls})`, system: 'exhaust', asset: `heat-exchanger-${b}`, explode: [s * 330, -320, 0],

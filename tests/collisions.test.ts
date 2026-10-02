@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
-import { findCollisions, findIntraPartHits, erodedSolidsClash, isMating, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
+import { findCollisions, findIntraPartHits, erodedSolidsClash, allowedClash, isMating, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
 import { rayHit } from './hw';
 import { OIL_COOLER, oilCooler, DIST, DIST_AXIS, distW } from '../src/geo/aux';
 import { cylinder, conrod } from '../src/geo/core';
@@ -55,6 +55,17 @@ describe('intra-part fuel and induction solids', () => {
     ], 1);
     expect(hits.map((h) => `${h.part}: ${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
   });
+  it('chain tensioners, cam-flange covers and rail bolts do not interpenetrate themselves', () => {
+    const hits = findIntraPartHits([
+      'chain-tensioner-left', 'chain-tensioner-right',
+      'cam-flange-cover-left', 'cam-flange-cover-right',
+      'rail-bolts-left', 'rail-bolts-right',
+    ], 1);
+    // The plunger dome is seated on the tail pad. Anything else inside the part still fails.
+    const seated = (h: { a: string; b: string }) =>
+      (h.a === 'seat:plunger-dome' && h.b === 'seat:tail-pad') || (h.b === 'seat:plunger-dome' && h.a === 'seat:tail-pad');
+    expect(hits.filter((h) => !seated(h)).map((h) => `${h.part}: ${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
+  });
 });
 
 describe('assembled-pose interference', () => {
@@ -64,7 +75,7 @@ describe('assembled-pose interference', () => {
     expect(bare.map(([, , why]) => why)).toEqual([]);
   });
   it('no part pair intersects unless it is a listed mating / known-simplified pair', () => {
-    const bad = hits.filter((h) => !isMating(h.a, h.b)).map((h) => `${h.a} x ${h.b} (${h.tris} tri pairs)`);
+    const bad = hits.filter((h) => !allowedClash(h)).map((h) => `${h.a} x ${h.b} (${h.tris} tri pairs)`);
     expect(bad).toEqual([]);
   });
   it('cam drive (chain boxes, covers, tensioners, chains, sprockets) never touches the exhaust', () => {
