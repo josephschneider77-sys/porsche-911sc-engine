@@ -105,18 +105,43 @@ function coverGasketGeom(s: 1 | -1) {
   const cx = CAM_X * s;
   const C = CAM_COVER;
   const bolts = camCoverAngles(s).map((d) => camCoverBolt(s, d));
-  // Vertex far enough that each M6 hole (r 3.2) stays inside the triangle with a land.
-  const reach = C.boltR + 6.6;
-  const verts = bolts.map((b) => {
-    const dx = b.x - cx, dy = b.y, L = Math.hypot(dx, dy);
-    return [cx + (dx / L) * reach, (dy / L) * reach] as [number, number];
-  });
-  const ring = (r: number, x: number, y: number, n = 28): [number, number][] =>
+  // The screw hole has to sit inside the outline. A sharp corner at boltR+6.6 cuts the
+  // hole, and a CSG cylinder through that corner opens the shell. Round each corner.
+  const holeR = 3.5;
+  const Ro = holeR + 1.5;
+  const centers = bolts.map((b) => new THREE.Vector2(b.x, b.y));
+  const origin = new THREE.Vector2(cx, 0);
+  const outward = (a: THREE.Vector2, b: THREE.Vector2) => {
+    const d = b.clone().sub(a);
+    const n = new THREE.Vector2(-d.y, d.x).normalize();
+    if (n.dot(a.clone().add(b).multiplyScalar(0.5).sub(origin)) < 0) n.negate();
+    return n;
+  };
+  const outline: [number, number][] = [];
+  for (let i = 0; i < centers.length; i++) {
+    const cur = centers[i];
+    const n0 = outward(cur, centers[(i + centers.length - 1) % centers.length]);
+    const n1 = outward(cur, centers[(i + 1) % centers.length]);
+    const a0 = Math.atan2(n0.y, n0.x);
+    let sweep = Math.atan2(n1.y, n1.x) - a0;
+    while (sweep > Math.PI) sweep -= Math.PI * 2;
+    while (sweep < -Math.PI) sweep += Math.PI * 2;
+    const steps = 8;
+    for (let k = 0; k <= steps; k++) {
+      const t = a0 + sweep * (k / steps);
+      outline.push([cur.x + Math.cos(t) * Ro, cur.y + Math.sin(t) * Ro]);
+    }
+  }
+  const ring = (r: number, x: number, y: number, n = 24): [number, number][] =>
     Array.from({ length: n }, (_, i) => {
       const a = (i / n) * Math.PI * 2;
       return [x + r * Math.cos(a), y + r * Math.sin(a)] as [number, number];
     });
-  return holedPlate(verts, [ring(16, cx, 0), ...bolts.map((b) => ring(3.2, b.x, b.y, 16))], () => [stack.gasket0, stack.gasket0 + C.gasketT]);
+  return holedPlate(
+    outline,
+    [ring(16, cx, 0), ...centers.map((c) => ring(holeR, c.x, c.y, 16))],
+    () => [stack.gasket0, stack.gasket0 + C.gasketT],
+  );
 }
 /**
  * Cam-flange cover 930 105 196 00 (Kat 502 p.70 Bild 103-10 and p.74 Bild 103-15, #31).
@@ -183,9 +208,24 @@ export function camFlangeCoverPart(s: 1 | -1) {
       const a = (i / n) * Math.PI * 2;
       return [x + r * Math.cos(a), y + r * Math.sin(a)] as [number, number];
     });
-  const seatPlan = rimPts(3.6);
+  const seatPlan = (() => {
+    const pts: [number, number][] = [];
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      let r = radAt(a, 3.6);
+      const ca = Math.cos(a), sa = Math.sin(a);
+      // Local lug under the spring washer. The upper rim stays notched, so the head is not buried in it.
+      for (const b of bolts) {
+        const bx = (b.x - cx) / C.boltR, by = b.y / C.boltR;
+        if (bx * ca + by * sa > Math.cos(0.16)) r = Math.max(r, C.boltR + 4.8);
+      }
+      pts.push([cx + Math.cos(a) * r, Math.sin(a) * r]);
+    }
+    return pts;
+  })();
   const notchPlan = rimPts(6.5);
-  p.add(holedPlate(seatPlan, [ring(C.rimInner, cx, 0)], () => [stack.cover0, seatZ]), 'castAlu');
+  // Shank clearance. The lug keeps metal under the washer; the hole keeps the M6 shank out of the cover.
+  p.add(holedPlate(seatPlan, [ring(C.rimInner, cx, 0), ...bolts.map((b) => ring(3.6, b.x, b.y, 16))], () => [stack.cover0, seatZ]), 'castAlu');
   p.add(holedPlate(notchPlan, [ring(C.rimInner, cx, 0)], () => [seatZ, rimTop]), 'castAlu');
   p.add(coverGasketGeom(s), 'gasket');
   // 999 701 468 40, 67.5 × 75.4 × 4. The torus fills the groove: OD on the body, ID on the root.
