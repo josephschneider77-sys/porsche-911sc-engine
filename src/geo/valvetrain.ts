@@ -1075,7 +1075,12 @@ export function camHousing(s: 1 | -1) {
   }
   p.add(yToZ(lathe([[CAM.boreR, -2], [30, -2], [30, 3], [CAM.boreR, 3]], 28)).translate(cx, 0, (cap0 + cap1) / 2), 'machinedAlu');
   // pulley-end pad for the chain-housing end studs (y ≈ 62). Kept above the cam bore so the shaft can enter from this end.
-  p.add(boxMM([X(250), 40, CH_Z1 - 16], [X(330), 78, CH_Z1]), 'castAlu');
+  // The round cam-end cover reaches y ≈ 47. The pad is recessed there instead of flattening the cover.
+  {
+    let pad: THREE.BufferGeometry = boxMM([X(250), 40, CH_Z1 - 16], [X(330), 78, CH_Z1]);
+    pad = csgSub(pad, yToZ(cyl(CAM_COVER.rimR + 2, 14, 40)).translate(cx, 0, CH_Z1 - 5));
+    p.add(pad, 'castAlu');
+  }
   // Three-screw seat for cam-flange cover 930 105 196 00. Small on purpose: a spigot (right bank
   // only, where the chain plane sits further out), a flange, a notched O-ring lip and three bosses.
   camChainSeat(p, s);

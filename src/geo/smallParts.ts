@@ -11,8 +11,8 @@ import { partPose, seat, probe } from './probe';
 import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CAM_COVER, CAM_COVER_BODY, camCoverAngles, camCoverBolt, camCoverSeatZ, camNoseStack, holedPlate, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
 import { LIP_Z } from './stations';
-import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
-import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, VAC_T, VAC_LIMIT } from './induction';
+import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
+import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, TEE_AIR_INJ, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const X = V(1, 0, 0), Y = V(0, 1, 0), Z = V(0, 0, 1);
@@ -99,52 +99,18 @@ export function chainLidGasket(s: 1 | -1) {
   geom.translate(0, t / 2, 0);
   return new Part().add(geom, 'gasket');
 }
-/** Keep a polygon outboard of the chain-box wall (the back plate ends at x·s = 254 and the cam-end wall reaches about 258) and under the left pulley pad. */
-function clipCoverPlan(pts: [number, number][], s: 1 | -1) {
-  const x0 = 258.8;
-  const out: [number, number][] = [];
-  const inside = (q: [number, number]) => q[0] * s >= x0;
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[i], b = pts[(i + 1) % pts.length];
-    const ka = inside(a), kb = inside(b);
-    const hit = (): [number, number] => {
-      const t = (x0 * s - a[0]) / (b[0] - a[0]);
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-    };
-    if (ka && kb) out.push(b);
-    else if (ka && !kb) out.push(hit());
-    else if (!ka && kb) { out.push(hit()); out.push(b); }
-  }
-  return clipUnderPad(out, s);
-}
-/** Keep a polygon under the left pulley pad (y = 40). */
-function clipUnderPad(pts: [number, number][], s: 1 | -1) {
-  if (s > 0) return pts;
-  const y0 = 39.2;
-  const out: [number, number][] = [];
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[i], b = pts[(i + 1) % pts.length];
-    const ka = a[1] <= y0, kb = b[1] <= y0;
-    const hit = (): [number, number] => {
-      const t = (y0 - a[1]) / (b[1] - a[1]);
-      return [a[0] + (b[0] - a[0]) * t, y0];
-    };
-    if (ka && kb) out.push(b);
-    else if (ka && !kb) out.push(hit());
-    else if (!ka && kb) { out.push(hit()); out.push(b); }
-  }
-  return out;
-}
 /** Triangular 3-hole gasket (#29) on the cover's inboard face. Centre opening plus one hole per screw. */
 function coverGasketGeom(s: 1 | -1) {
   const stack = camNoseStack(s);
   const cx = CAM_X * s;
   const C = CAM_COVER;
   const bolts = camCoverAngles(s).map((d) => camCoverBolt(s, d));
-  const verts = clipCoverPlan(bolts.map((b) => {
+  // Vertex far enough that each M6 hole (r 3.2) stays inside the triangle with a land.
+  const reach = C.boltR + 8;
+  const verts = bolts.map((b) => {
     const dx = b.x - cx, dy = b.y, L = Math.hypot(dx, dy);
-    return [cx + (dx / L) * (C.boltR + 8), (dy / L) * (C.boltR + 8)] as [number, number];
-  }), s);
+    return [cx + (dx / L) * reach, (dy / L) * reach] as [number, number];
+  });
   const ring = (r: number, x: number, y: number, n = 28): [number, number][] =>
     Array.from({ length: n }, (_, i) => {
       const a = (i / n) * Math.PI * 2;
@@ -189,13 +155,15 @@ export function camFlangeCoverPart(s: 1 | -1) {
     const ca = Math.cos(a), sa = Math.sin(a);
     let r = C.rimR;
     if (!notched) return r;
+    // Stay outside the bore so the notch and the inner hole stay separate contours.
+    const floor = C.rimInner + 1.4;
     for (const b of bolts) {
       const bx = b.x - cx, by = b.y;
       const bdot = bx * ca + by * sa;
       const disc = bdot * bdot - (bx * bx + by * by - headR * headR);
       if (disc <= 0) continue;
       const near = bdot - Math.sqrt(disc);
-      if (near > 1 && near < r) r = near;
+      if (near < r) r = Math.max(near, floor);
     }
     return r;
   };
@@ -213,14 +181,13 @@ export function camFlangeCoverPart(s: 1 | -1) {
       const a = (i / n) * Math.PI * 2;
       return [x + r * Math.cos(a), y + r * Math.sin(a)] as [number, number];
     });
-  const seatPlan = clipCoverPlan(rimPts(false), s);
-  const notchPlan = clipCoverPlan(rimPts(true), s);
+  const seatPlan = rimPts(false);
+  const notchPlan = rimPts(true);
   p.add(holedPlate(seatPlan, [ring(C.rimInner, cx, 0), ...bolts.map((b) => ring(3.3, b.x, b.y, 16))], () => [stack.cover0, seatZ]), 'castAlu');
   p.add(holedPlate(notchPlan, [ring(C.rimInner, cx, 0)], () => [seatZ, rimTop]), 'castAlu');
   p.add(coverGasketGeom(s), 'gasket');
-  // 999 701 468 40, 67.5 × 75.4 × 4, sitting in the groove (lands stay solid either side).
-  // Section is held inside the body so the ring stays clear of the chain-case back wall.
-  const ringR = (C.bodyR + C.grooveRoot) / 2, tubeR = (C.bodyR - C.grooveRoot) / 2 - 0.85;
+  // 999 701 468 40, 67.5 × 75.4 × 4. The torus fills the groove: OD on the body, ID on the root.
+  const ringR = (C.bodyR + C.grooveRoot) / 2, tubeR = (C.bodyR - C.grooveRoot) / 2;
   p.add(torus(ringR, tubeR, 10, 48), 'rubber', [cx, 0, stack.cover0 + g0 + C.grooveW / 2]);
   return p.g;
 }
@@ -339,7 +306,8 @@ def('oil-return-tubes', () => { const p = new Part(); const L = 150; p.add(cyl(7
   () => [1, -1].flatMap((s) => [s > 0 ? [CYL_Z[1], CYL_Z[2]] : [CYL_Z[4], CYL_Z[5]], s > 0 ? [CYL_Z[2], CYL_Z[3]] : [CYL_Z[5], CYL_Z[6]]].map(([a, b2]) => M(V(s * (DECK_X + 6), -78, (a + b2) / 2), V(s, 0, 0)))));
 def('oil-pump-seals', () => oring(9, 1.5), () => OIL_PUMP.seals.map(([x, y, z], i) => M(V(x, y, z), i < 2 ? Y : Z)));
 
-def('oil-cooler-seals', () => oring(5, 1), () => [[-84, 49], [-84, 75]].map(([x, z]) => M(V(x, 101.05, z), Y)));
+def('oil-cooler-seals', () => oring(9.75, 1.25, 'copper'), () => OIL_COOLER.ports.filter((q) => q[2] === 0).map(([y, z]) => M(V(OIL_COOLER.faceX - 1.45, y, z), X)));
+def('oil-cooler-seal-riser', () => oring(11.25, 1.75, 'copper'), () => OIL_COOLER.ports.filter((q) => q[2] === 1).map(([y, z]) => M(V(OIL_COOLER.faceX - 1.95, y, z), X)));
 
 // ===== cylinders / heads =====
 def('cyl-base-gaskets', () => washer(48.6, 52, 0.25, 'gasket'), () => CYLS.map((c) => posed(`cylinder-${c}`, [0.05, 0, 0], [1, 0, 0])));
@@ -375,7 +343,7 @@ for (const [id, y, R] of [['injector-orings-a', 8, 7.4], ['injector-orings-b', 1
   def(id, () => oring(R, 1.4), () => CYLS.map((c) => posed(`injector-${c}`, [0, y, 0], [0, 1, 0])));
 
 // ===== ignition / cooling =====
-def('distributor-oring', () => oring(21.5, 1.8), () => [M(V(DIST.x, DIST.clampTop + 0.2, DIST.z), Y)]);
+def('distributor-oring', () => oring(13.2, 1.55), () => [M(V(...distW(0, 63.1, 0)), V(...DIST_AXIS))]);
 def('ignition-lead-holders', () => { const p = new Part(); p.add(box(14, 10, 20).translate(0, 5, 0), 'blackPlastic'); return p; }, () => [-1, 1].flatMap((s) => [-60, 60].map((z) => onSurf('upper-air-guide', V(s * 132, 400, z), V(0, -1, 0)))));
 def('shroud-speed-nuts', () => { const p = new Part(); p.add(box(18, 1, 22).translate(0, 0.5, 0), 'darkSteel'); return p; }, () => LIP_Z.right.map((z) => M(V(SHROUD.bx - SHROUD.lipW / 2, SHROUD.skirtY, z), V(0, -1, 0))));
 def('shroud-cover-plate', () => { const p = new Part(); const g = extrudeC(roundRect(60, 40, 5), 1.5); g.rotateX(Math.PI / 2); g.translate(0, 0.75, 0); p.add(g, 'satinBlack'); return p; }, () => [onSurf('upper-air-guide', V(50, 400, -120), V(0, -1, 0))]);
@@ -396,6 +364,8 @@ def('cold-start-valve', () => {
   // the shanks run into the holes cut in the plenum boss.
   p.add(lathe([[7.2, 0], [14, 0], [14, 2], [7.2, 2]], 24), 'gasket');
   p.add(box(44, 3.2, 14).translate(0, 3.6, 0), 'castAlu');
+  // Intermediate piece 911 110 264 00 (107-10 #32): a machined collar between the flange and the valve body.
+  p.add(lathe([[12.2, 12], [15.2, 12], [15.2, 18], [12.2, 18]], 24), 'machinedAlu');
   p.add(lathe([[0.1, 2], [12, 2], [12, 8], [0.1, 8]], 24), 'castAlu');
   p.add(torus(11, 1.3, 6, 24).rotateX(Math.PI / 2).translate(0, 8.5, 0), 'rubber');
   p.add(lathe([[0.1, 9], [12, 9], [12, 42], [8, 46], [0.1, 46]], 24), 'zincPlate');
@@ -410,7 +380,35 @@ def('cold-start-valve', () => {
   csvPortLocalGeometry(p);
   return p;
 }, () => [csvPoseMatrix()]);
-def('aux-air-valve', () => { const p = new Part(); p.add(lathe([[0.1, 0], [20, 0], [20, 30], [0.1, 30]], 28), 'castAlu'); p.add(cylBetween([0, 16, 0], [26, 16, 0], 5.5, 12), 'castAlu'); p.add(cylBetween([0, 16, 0], [-26, 16, 0], 5.5, 12), 'castAlu'); for (const k of [-1, 1]) { p.add(hexNut(10, 4).translate(k * 24, 5, 0), 'zincPlate'); p.add(lathe([[3.2, 0.15], [5.5, 0.15], [5.5, 1.05], [3.2, 1.05]], 12).translate(k * 24, 0, 0), 'darkSteel'); } p.add(box(52, 2, 12).translate(0, 1.2, 0), 'zincPlate'); return p; }, () => [aavMatrix()]);
+def('aux-air-valve', () => {
+  const p = new Part();
+  // Bosch auxiliary-air regulator 911 606 102 04. Rectangular body; barbs stay at local x ±26 so the hose seats do not move.
+  p.add(boxMM([-16, 2, -12], [16, 30, 12]), 'castAlu');
+  p.add(boxMM([-14, 0, -10], [14, 2.4, 10]), 'zincPlate');
+  p.add(cylBetween([16, 16, 0], [26, 16, 0], 9, 14), 'castAlu');
+  p.add(cylBetween([-16, 16, 0], [-26, 16, 0], 9, 14), 'castAlu');
+  for (const k of [-1, 1]) {
+    p.add(hexNut(10, 4).translate(k * 14, 5, 0), 'zincPlate');
+    p.add(lathe([[3.2, 0.15], [5.5, 0.15], [5.5, 1.05], [3.2, 1.05]], 12).translate(k * 14, 0, 0), 'darkSteel');
+  }
+  return p;
+}, () => [aavMatrix()]);
+def('additional-air-valve', () => {
+  const p = new Part();
+  // 911 110 273 00 (107-10 #39, tags -80). Support #40 and two spring washers #41. Vacuum barb is ADD_AIR_VAC.
+  const [tx, ty, tz] = ADD_AIR_VAC.tip;
+  // Flywheel of the right-bank injector ribbon. The support hangs in that same pocket.
+  p.add(boxMM([90, 292, -236], [118, 308, -214]), 'castAlu');
+  p.add(cylBetween([90, 300, -224], [78, 300, -224], 8, 12), 'castAlu');
+  p.add(cylBetween([118, 300, -224], [130, 300, -224], 8, 12), 'castAlu');
+  p.add(cylBetween([104, 300, -214], [tx, ty, tz], 3.4, 10), 'brass');
+  p.add(boxMM([96, 268, -232], [112, 294, -218]), 'zincPlate');
+  for (const x of [100, 108]) {
+    p.add(hexNut(8, 3).translate(x, 270, -225), 'zincPlate');
+    p.add(lathe([[2.6, 0], [4.6, 0], [4.6, 1], [2.6, 1]], 12).translate(x, 268.2, -225), 'darkSteel');
+  }
+  return p;
+}, () => [new THREE.Matrix4()]);
 def('aux-air-plumbing', () => auxAirPlumbingPart(), () => [new THREE.Matrix4()]);
 def('vacuum-limiter', () => { const p = new Part(); p.add(lathe([[0.1, 0], [16, 0], [16, 20], [0.1, 20]], 24), 'satinBlack'); p.add(cylBetween([0, 10, 0], [22, 10, 0], 3.6, 10), 'blackPlastic'); p.add(cyl(4.2, 5, 12).translate(0, 23, 0), 'zincPlate'); p.add(hexNut(10, 5).translate(0, 28, 0), 'zincPlate'); p.add(lathe([[3.6, 20], [6.2, 20], [6.2, 21.3], [3.6, 21.3]], 12), 'darkSteel'); return p; }, () => [M(V(...VAC_LIMIT.origin), Y)]);
 def('vacuum-fittings', () => {
@@ -422,29 +420,74 @@ def('vacuum-fittings', () => {
   t.name = 'fitting:vac-t';
   t.add(mesh(cylBetween([ox - 14, oy, oz], [ox + 14, oy, oz], 3.6, 10), 'blackPlastic'));
   t.add(mesh(cylBetween([ox, oy, oz], [ox, oy, oz + 16], 3.6, 10), 'blackPlastic'));
-  t.add(mesh(cylBetween([ox, oy, oz + 16], [ox, oy, oz + 28], 2.8, 10), 'brass'));
+  // Elbow up. The hose seat is vacTPorts().plusZ; a straight leg would meet the throttle flange.
+  t.add(mesh(cylBetween([ox, oy, oz + 16], [ox, oy, oz + 22], 2.8, 10), 'brass'));
+  t.add(mesh(cylBetween([ox, oy, oz + 20], [10, 274, 76], 2.8, 8), 'brass'));
+  // Last 8 mm is along +Y so the hose seat is a flat face on vacTPorts().plusZ.
+  t.add(mesh(cylBetween([10, 274, 76], [10, 282, 76], 2.8, 8), 'brass'));
+  // Spare −Z leg of the tee. The diverter hose seats on the handoff nipple, not here.
+  t.add(mesh(cylBetween([ox, oy, oz], [ox, oy, oz - 14], 2.8, 8), 'brass'));
   // Rings around the barbs, inboard of each tip so the hose ray meets the barb face.
   const xRing = torus(4.2, 0.7, 6, 14).rotateY(Math.PI / 2);
   t.add(mesh(xRing, 'zincPlate', [ox - 4, oy, oz]));
   t.add(mesh(xRing.clone(), 'zincPlate', [ox + 10, oy, oz]));
-  t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, oy, oz + 20]));
+  t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, 276, 78]));
+  t.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ox, oy, oz - 6]));
   p.g.add(t);
+  // Handoff nipple for Bottom End's air-hose-vacuum. No hose mesh leaves this barb. Top stays under the shell.
+  const inj = new THREE.Group();
+  inj.name = 'fitting:vac-airinj';
+  const [ix, iy, iz] = TEE_AIR_INJ.point;
+  inj.add(mesh(cylBetween([ix, iy + 6, iz], [ix, iy, iz], 2.8, 10), 'brass'));
+  inj.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ix, iy + 2.2, iz]));
+  p.g.add(inj);
+  p.g.add(vacuumCluster().g);
   p.g.add(vacuumHosesPart().g);
   return p;
 }, () => [new THREE.Matrix4()]);
-def('airbox-clamps', () => { const p = new Part(); const R = SNOUT_R + 2.2; p.add(torus(R, 1.15, 8, 28).rotateX(Math.PI / 2), 'zincPlate'); p.add(box(4, 5, 4).translate(R + 2, 0, 0), 'zincPlate'); p.add(hexNut(7, 3).translate(R + 3.2, 3, 0), 'zincPlate'); return p; }, () => airboxSnoutSamples().map(({ p, dir }) => M(V(...p), V(...dir), Y)));
+def('airbox-clamps', () => {
+  const p = new Part();
+  // S 85/9. The meter clamp is this prototype scaled to S 131/9.
+  // Major radius leaves about 1.5 mm of air on both the Ø85 boot and, once scaled, the Ø131 boot.
+  const R = 42.5 + 3.0;
+  p.add(torus(R, 1.15, 8, 28).rotateX(Math.PI / 2), 'zincPlate');
+  p.add(box(4, 5, 4).translate(R + 2, 0, 0), 'zincPlate');
+  p.add(hexNut(7, 3).translate(R + 3.2, 3, 0), 'zincPlate');
+  return p;
+}, () => airGuideClampMatrices());
 def('injection-banjos', () => banjoProto(), () => injectorBanjoMatrices());
-def('injection-line-rings', () => washer(4.1, 6.2, 1, 'copper'), () => sealRingFrames().map(({ p, n }) => M(V(...p), V(...n))));
+def('injection-line-rings', () => washer(4, 5.75, 1.2, 'copper'), () => sealRingFrames().map(({ p, n }) => M(V(...p), V(...n))));
 def('injection-line-bracket', () => {
   const p = new Part();
-  const h = LINE_CLIP.y1 - LINE_CLIP.y0;
-  // Backplate outboard of the ribbon. Fingers reach toward the tubes and stop 6 mm short.
-  p.add(box(1.8, h, LINE_CLIP.depth).translate(0, h / 2, 0), 'zincPlate');
-  p.add(box(8, 1.5, LINE_CLIP.depth).translate(4.6, 8, 0), 'zincPlate');
-  p.add(box(8, 1.5, LINE_CLIP.depth).translate(4.6, h - 8, 0), 'zincPlate');
-  p.add(hexNut(8, 3.2).translate(-3, 6, 0), 'zincPlate');
+  // One fitting: angle bracket #26, U-clamp #27, nut #28, spring washer #29,
+  // plus the blower-hose clamps from 108-10 (the blower itself is not modelled).
+  const g = new THREE.Group();
+  g.name = 'fitting:line-bracket';
+  const put = (geo: THREE.BufferGeometry, mat: 'zincPlate' | 'darkSteel') => g.add(mesh(geo, mat));
+  put(box(28, 2.2, 18).translate(0, 1.1, 0), 'zincPlate');
+  put(box(3, 16, 18).translate(-12, 10, 0), 'zincPlate');
+  put(box(16, 3, 4).translate(-2, 16, -7), 'zincPlate');
+  put(box(16, 3, 4).translate(-2, 16, 7), 'zincPlate');
+  put(box(16, 3, 18).translate(-2, 12, 0), 'zincPlate');
+  put(hexNut(10, 3.2).translate(6, 4.6, 0), 'zincPlate');
+  put(lathe([[3.2, 2.2], [5.4, 2.2], [5.4, 3.3], [3.2, 3.3]], 12).translate(6, 0, 0), 'zincPlate');
+  // 2×8/15 on the cyl 2–3 side, 2×11/15 and 12/15 beside them. Positions are E.
+  put(torus(8, 0.9, 6, 16).rotateY(Math.PI / 2).translate(22, 24, -8), 'zincPlate');
+  put(torus(8, 0.9, 6, 16).rotateY(Math.PI / 2).translate(22, 24, 10), 'zincPlate');
+  put(torus(11, 0.9, 6, 16).rotateY(Math.PI / 2).translate(22, 36, 0), 'zincPlate');
+  p.g.add(g);
   return p;
-}, () => [M(V(LINE_CLIP.x, LINE_CLIP.y0, LINE_CLIP.z), Y, X)]);
+}, () => [M(V(LINE_CLIP.x, LINE_CLIP.y, LINE_CLIP.z), Y, X)]);
+def('afm-screws', () => {
+  const p = new Part();
+  // Washer, compression spring, M6×25 pan head. The head stands on the spring; nothing enters the lid.
+  p.add(lathe([[3.3, 0], [6.5, 0], [6.5, 1.2], [3.3, 1.2]], 16), 'zincPlate');
+  p.add(spring(3.4, 0.7, 1.4, 8, 5), 'darkSteel');
+  p.add(lathe([[2.8, 8.2], [5.6, 8.2], [5.6, 11.2], [2.2, 12.4], [2.2, 8.2]], 16), 'zincPlate');
+  return p;
+}, () => afmScrewMatrices());
+def('throttle-housing', () => throttleHousingPart(), () => [new THREE.Matrix4()]);
+def('air-guide', () => { const p = new Part(); p.addObj(airGuidePart()); return p; }, () => [new THREE.Matrix4()]);
 def('wur-lines', () => { const p = new Part(); p.addObj(wurLinesPart()); return p; }, () => [new THREE.Matrix4()]);
 def('throttle-linkage', () => { const p = new Part(); p.add(box(16, 2, 12).translate(0, 1, 0), 'zincPlate'); for (const k of [-1, 1]) p.add(lathe([[3.2, 2], [5.2, 2], [5.2, 9], [3.2, 9]], 12).translate(k * 5, 0, 0), 'bronze'); p.add(box(14, 3, 3.5).translate(7, 11, 0), 'zincPlate'); p.add(lathe([[3, 9], [6.5, 9], [6.5, 10.4], [3, 10.4]], 12), 'zincPlate'); p.add(cylBetween([7, 11, 0], [24, 16, 32], 2.1, 8), 'zincPlate'); p.add(spring(2.2, 0.65, 6, 18, 7).translate(-6, 0, 3), 'darkSteel'); for (const k of [-1, 1]) { p.add(hexNut(8, 3.2).translate(k * 5, 11, 0), 'zincPlate'); p.add(lathe([[2.5, 2], [4, 2], [4, 3.1], [2.5, 3.1]], 10).translate(k * 5, 0, 0), 'darkSteel'); } return p; }, () => [M(V(42, 236.6, 114), Y, X)]);
 def('airbox-straps', () => { const p = new Part(); p.add(box(16, 1.6, 86).translate(0, 0.8, 0), 'zincPlate'); p.add(hexNut(8, 3.2).translate(0, 3.4, 0), 'zincPlate'); p.add(lathe([[3.2, 1.6], [5.2, 1.6], [5.2, 2.4], [3.2, 2.4]], 12), 'darkSteel'); return p; }, () => [-90, 90].map((x) => M(V(x, airCleanerLayout().crown + 1.8, AIRBOX.z), Y, X)));

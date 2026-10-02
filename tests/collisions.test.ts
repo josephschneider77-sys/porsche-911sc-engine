@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { findCollisions, findIntraPartHits, erodedSolidsClash, isMating, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
+import { findCollisions, findIntraPartHits, erodedSolidsClash, allowedClash, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
 import { rayHit } from './hw';
-import { OIL_COOLER } from '../src/geo/aux';
+import { OIL_COOLER, DIST, DIST_AXIS, distW } from '../src/geo/aux';
 
 const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|timing-chain|cam-sprocket)-(left|right)$/;
 const EXHAUST = /^(heat-exchanger-(left|right)|muffler)$/;
@@ -58,7 +58,7 @@ describe('assembled-pose interference', () => {
     expect(bare.map(([, , why]) => why)).toEqual([]);
   });
   it('no part pair intersects unless it is a listed mating / known-simplified pair', () => {
-    const bad = hits.filter((h) => !isMating(h.a, h.b)).map((h) => `${h.a} x ${h.b} (${h.tris} tri pairs)`);
+    const bad = hits.filter((h) => !allowedClash(h)).map((h) => `${h.a} x ${h.b} (${h.tris} tri pairs)`);
     expect(bad).toEqual([]);
   });
   it('cam drive (chain boxes, covers, tensioners, chains, sprockets) never touches the exhaust', () => {
@@ -76,16 +76,35 @@ describe('assembled-pose interference', () => {
       });
 
   const coolerPair = (id: string) => hits.some((h) => (h.a === 'oil-cooler' && h.b === id) || (h.b === 'oil-cooler' && h.a === id));
-  it('oil-cooler mounting feet meet the left-case bosses flush and do not interpenetrate', () => {
+  it('oil-cooler flange meets the right-case cheek and does not interpenetrate', () => {
+    expect(OIL_COOLER.ports).toHaveLength(3);
+    const big = OIL_COOLER.ports.filter((q) => q[2] === 1);
+    expect(big).toHaveLength(1);
+    expect(big[0][0]).toBe(Math.min(...OIL_COOLER.ports.map((q) => q[0])));
     expect(coolerPair('crankcase-left')).toBe(false);
     expect(coolerPair('crankcase-right')).toBe(false);
-    const seatY = OIL_COOLER.footTop - OIL_COOLER.foot;
-    for (const [x, z] of OIL_COOLER.studs) {
-      const hit = rayHit('crankcase-left', new THREE.Vector3(x, seatY + 2, z), new THREE.Vector3(0, -1, 0), 8);
-      expect(hit, `cooler stud (${x}, ${z})`).toBeTruthy();
-      expect(hit!.distance, `seat under (${x}, ${z})`).toBeCloseTo(2, 1);
-      expect(hit!.normal.y, `seat normal (${x}, ${z})`).toBeGreaterThan(0.99);
+    const faceX = OIL_COOLER.faceX;
+    for (const [y, z] of OIL_COOLER.studs) {
+      const hit = rayHit('crankcase-right', new THREE.Vector3(faceX + 2, y, z), new THREE.Vector3(-1, 0, 0), 8);
+      expect(hit, `cooler stud (${y}, ${z})`).toBeTruthy();
+      expect(hit!.distance, `seat at (${y}, ${z})`).toBeCloseTo(2, 1);
+      expect(hit!.normal.x, `seat normal (${y}, ${z})`).toBeGreaterThan(0.99);
     }
-    expect(clearance('oil-cooler', 'crankcase-left')).toBeLessThan(0.6);
+    expect(clearance('oil-cooler', 'crankcase-right')).toBeLessThan(0.6);
+  });
+
+  it('distributor lug seats on the left-case pad and the body does not enter the case', () => {
+    const pair = (list: { a: string; b: string }[]) => list.filter((h) =>
+      (h.a === 'distributor' && h.b === 'crankcase-left') || (h.b === 'distributor' && h.a === 'crankcase-left'));
+    expect(pair(hits)).toEqual([]);
+    expect(pair(findCollisions(0.5))).toEqual([]);
+    expect(pair(findCollisions(0))).toEqual([]);
+    const seat = distW(DIST.stud[0], 97.5, DIST.stud[1]);
+    const axis = new THREE.Vector3(...DIST_AXIS);
+    const origin = new THREE.Vector3(...seat).addScaledVector(axis, 6);
+    const hit = rayHit('crankcase-left', origin, axis.clone().negate(), 14);
+    expect(hit, 'stud pad at local t 97.5').toBeTruthy();
+    expect(hit!.distance).toBeCloseTo(6, 0);
+    expect(hit!.normal.dot(axis)).toBeGreaterThan(0.9);
   });
 });

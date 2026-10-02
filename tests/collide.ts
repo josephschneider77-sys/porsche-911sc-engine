@@ -9,8 +9,9 @@ import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PARTS } from '../src/data/parts';
 import { fastenerSets } from '../src/geo/fasteners';
 import { SMALL_SPECS } from '../src/data/smallSpec';
+import { HOUSING_Z0, tensionerLayout } from '../src/geo/core';
 
-export interface Hit { a: string; b: string; tris: number; box: THREE.Box3 }
+export interface Hit { a: string; b: string; tris: number; box: THREE.Box3; samples: THREE.Vector3[] }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
 
 const _reach = new THREE.Vector3();
@@ -127,14 +128,17 @@ export function findCollisions(tol = 1, only?: (id: string) => boolean): Hit[] {
     for (let j = i + 1; j < solids.length; j++) {
       const A = solids[i], B = solids[j];
       if (!A.box.intersectsBox(B.box)) continue;
-      let tris = 0; const box = new THREE.Box3(); const seg = new THREE.Line3(), n1 = new THREE.Vector3(), n2 = new THREE.Vector3(), v0 = new THREE.Vector3();
+      let tris = 0; const box = new THREE.Box3(); const samples: THREE.Vector3[] = [];
+      const seg = new THREE.Line3(), n1 = new THREE.Vector3(), n2 = new THREE.Vector3(), v0 = new THREE.Vector3();
       A.bvh.bvhcast(B.bvh, I, {
         intersectsTriangles(t1: any, t2: any) {
           if (!trianglesClash(t1, t2, n1, n2, v0, seg)) return false;
-          tris++; box.expandByPoint(seg.start).expandByPoint(seg.end); return tris >= 400;
+          tris++; box.expandByPoint(seg.start).expandByPoint(seg.end);
+          if (samples.length < 400) samples.push(seg.start.clone().add(seg.end).multiplyScalar(0.5));
+          return tris >= 400;
         },
       } as any);
-      if (tris) hits.push({ a: A.id, b: B.id, tris, box });
+      if (tris) hits.push({ a: A.id, b: B.id, tris, box, samples });
     }
   return hits;
 }
@@ -312,7 +316,6 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('alternator', 'fan-pulley|fan-impeller', 'pressed: impeller and pulley on the alternator shaft'),
   pair('fan-housing', 'fan-impeller', 'seated: impeller running inside the fan housing'),
   pair('fan-belt', 'fan-pulley|crank-pulley', 'seated: belt in the pulley grooves'),
-  pair('distributor-clamp', 'distributor|crankcase-left', 'seated: clamp around the distributor shank and on its case pad'),
   pair('fan-hub', 'fan-impeller|alternator', 'pressed: fan hub on the alternator shaft and the impeller on the hub'),
   pair('warm-up-regulator', 'crankcase-left', 'JOINT regulator flange on the case pad'),
   pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),
@@ -328,7 +331,8 @@ export const MATING: [RegExp, RegExp, string][] = [
   ...sameSide('cam-housing', 'chain-housing', 'JOINT cam-housing end face gasketed into the chain box'),
   ...sameSide('camshaft', 'cam-sprocket', 'JOINT sprocket on cam nose'),
   ...sameSide('timing-chain', 'cam-sprocket|chain-tensioner', 'JOINT chain on cam sprocket / idler / guide ramps'),
-  ...sameSide('chain-tensioner', 'chain-housing', 'JOINT idler shaft and adjuster seated in housing bosses'),
+  // chain-tensioner × chain-housing is not a blanket pair. allowedClash permits only the
+  // idler-shaft and adjuster-stud seats; a rail boss or the strap through a wall still fails.
   ...sameSide('chain-housing', 'chain-housing-lid', 'JOINT cover on housing studs'),
   pair('intermediate-shaft', 'timing-chain', 'JOINT chain seated on the intermediate sprockets'),
   pair('heat-exchanger', 'head', 'JOINT primaries in the exhaust ports'),
@@ -354,7 +358,6 @@ export const TOP_END_WHY = new Set<string>([
   'JOINT cam-housing end face gasketed into the chain box',
   'JOINT sprocket on cam nose',
   'JOINT chain on cam sprocket / idler / guide ramps',
-  'JOINT idler shaft and adjuster seated in housing bosses',
   'JOINT cover on housing studs',
   'JOINT primaries in the exhaust ports',
   'JOINT keyed flange on the cam nose, dowel into the sprocket',
@@ -385,3 +388,27 @@ for (const [a, b] of [['case-through-bolts', 'case-through-stud-nut'], ['case-th
 export const isFastenerJoint = (a: string, b: string) => FASTENER_JOINTS.has(`${a}|${b}`) || FASTENER_JOINTS.has(`${b}|${a}`);
 export const isMating = (a: string, b: string) =>
   isFastenerJoint(a, b) || MATING.some(([x, y]) => (x.test(a) && y.test(b)) || (x.test(b) && y.test(a)));
+
+/** Idler shaft in its housing boss, or the adjuster stud in its boss. Nothing else between these two parts. */
+function tensionerSeatSample(s: 1 | -1, p: THREE.Vector3) {
+  const T = tensionerLayout(s);
+  const shaft = Math.hypot(p.x - T.pivot.x, p.y - T.pivot.y) < 13.5 && p.z > HOUSING_Z0 - 1 && p.z < T.z + 4;
+  const stud = Math.hypot(p.x - T.ear.x, p.y - T.ear.y) < 9.2 && p.z > HOUSING_Z0 - 1 && p.z < T.adjZ + 20;
+  return shaft || stud;
+}
+function tensionerHousingPair(h: Hit): 1 | -1 | 0 {
+  const ids = [h.a, h.b];
+  const ten = ids.find((id) => /^chain-tensioner-(left|right)$/.test(id));
+  const box = ids.find((id) => /^chain-housing-(left|right)$/.test(id));
+  if (!ten || !box || ten.endsWith('left') !== box.endsWith('left')) return 0;
+  return ten.endsWith('left') ? -1 : 1;
+}
+/**
+ * A listed mating pair, or the idler-shaft / adjuster-stud seats only.
+ * Rail bosses, the strap, the sleeve and the nut are not covered.
+ */
+export function allowedClash(h: Hit): boolean {
+  const s = tensionerHousingPair(h);
+  if (s) return h.samples.length > 0 && h.samples.every((p) => tensionerSeatSample(s, p));
+  return isMating(h.a, h.b);
+}

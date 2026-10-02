@@ -2,13 +2,15 @@
 
 Source of truth: Porsche parts catalogue Kat 502. Page numbers are the PDF page labels printed on the sheets (Bild 103-05 on p.66, Bild 103-10 on p.70, Bild 103-15 on p.74). Photos decide finish and colour only.
 
+This model is engine type **930/04** (1978 US, not California). It is not 930/03 (RoW) and not the California engine. Engine-type pages: PDF pp. 4 and 7.
+
 ## Chain-end cam cover (was the lid washer)
 
 | Item | Part number | Where |
 |---|---|---|
 | Gasket #29 | 930 105 197 05 | p.70 Bild 103-10 #29 and p.74 Bild 103-15 #29. Triangular, three holes, between the cam housing and the cover. |
 | Round seal #30 | 999 701 468 40 | Same sheets, #30. 67.5 × 75.4 × 4, in the groove on the cover's outside diameter. |
-| Cover #31 | 930 105 196 00 | Same sheets, #31. Deep cast body, raised rim, three screw lugs notched into that rim, on the cam axis at the chain end of the cam housing. |
+| Cover #31 | 930 105 196 00 | Same sheets, #31. One part number, both banks. Deep cast body, raised rim, three screw lugs notched into that rim at 0/120/240°, on the cam axis at the chain end of the cam housing. |
 | Spring washer #32 | N 012 226 5 | Same sheets, #32. One under each of the three screws. |
 | Combination screw #33 | 900 075 341 02 | Same sheets, #33. M6×25, three per bank, into the seat added on the cam housing. |
 | Thrust washer #34 | (existing line) | Same sheets, #34. On the cam nose, outboard of the cover. |
@@ -24,10 +26,10 @@ Stack on the cam nose: cam housing → #29 → #30 → #31 → #34 → #35 → #
 | Guide rail, right, idler-to-cam run | 911 105 222 05 | p.74 Bild 103-15 #2, quantity 1. Brown. Full length of that run, two bolt slots, bolted to bosses on the housing. |
 | Guide rail, right, the other two | 911 105 222 06 | p.74 Bild 103-15 #2, quantity 2. |
 | Guide rail, left | 911 105 222 06 | p.70 Bild 103-10 #2, quantity 3. |
-| Bolt | 901 105 226 03 | p.70 #3 and p.74 #3, quantity 4 per side in the book. The model uses six (two through each rail, including the idler-to-cam rail) so that rail is bolted to a housing boss. |
+| Bolt | 901 105 226 03 | p.70 #3 and p.74 #3, quantity 4 per side. Two pass through the idler-to-cam rail (222 05 on the right) and one through each of the other two rails. |
 | Sealing ring | 900 123 066 30 | p.70 #4 and p.74 #4, quantity 4 per side, under those bolt heads. |
 
-The drawings show ribbed blocks with ramped ends and two C-shaped bolt slots. The rails are not thin strips on separate carriers.
+The drawings show ribbed blocks with ramped ends and C-shaped bolt slots. The rails are not thin strips on separate carriers. Kat 502 lists four bolts per bank, not two per rail.
 
 ## Chain adjuster and idler
 
@@ -35,7 +37,7 @@ The drawings show ribbed blocks with ramped ends and two C-shaped bolt slots. Th
 |---|---|---|
 | Idler arm #5 | 901 105 505 02 / 901 105 506 02 | p.70 Bild 103-10 and p.74 Bild 103-15, #5. |
 | Idler sprocket #6 | 901 105 055 00 | Same sheets, #6. Solid web, rounded roller-chain teeth. |
-| Chain adjuster #10 | 930 105 049 00 | Same sheets, #10. Straight cylinder. The strap is a long flat arm: an eye at the cylinder foot, outside the body, past the top, to an eye on the stud. |
+| Chain adjuster #10 | 930 105 049 00 | Same sheets, #10. Straight cylinder. The strap is a long flat arm: an eye at the cylinder foot, outside the body, past the top, to an eye on the stud. The arm stays inside the chain box. |
 | Spacer sleeve #10A | 930 105 513 00 | p.76 Bild 103-15 #10A. On the stud, between the housing and the strap eye. |
 | Bleeder #25 | 930 105 573 00 | Same sheets, #25, on the side of the cylinder. |
 | Sealing ring #26 | A 6.5×9.5 | p.76 Bild 103-15 #26, the bleeder ring. Bild 103-10 #26 gives the same ring as 900 123 005 30. |
@@ -50,3 +52,15 @@ The drawings show ribbed blocks with ramped ends and two C-shaped bolt slots. Th
 | Lid, right #7 | 930 105 064 10 | p.66 Bild 103-05 #7. Same pan. 930 105 064 01 on the same position is the Turbo lid. |
 | Sealing ring | 900 123 007 30 | p.66 Bild 103-05, unnumbered line under the lid. |
 | Screw plugs | N 016 155 3 / N 016 155 4 | Same sheet, unnumbered lines. They seat on the round bosses. |
+
+## Intake and fuel
+
+Shapes, part numbers and quantities for the intake and fuel system follow Porsche catalogue **Kat 502 USA 911 '83** (the PDF is not stored in this repo). Photos are used only for finish and colour. Where a page gives no millimetre dimension, the model scales the drawing and marks the result **E** in `docs/engine-spec.md`.
+
+| Illustration | PDF page | What this model takes from it |
+|---|---|---|
+| 106-00 | 97 | Air distributor and intake pipes. Housing **911 110 106 13** (#9, 49-state, not the California 911 110 106 15) is the tray, with the snout on lid **930 110 184 00** (#14). Six pipes **911 110 420 06 / 470 06 / 480 06 / 440 06 / 450 06 / 490 06** (#1–#6). Cylinder 6 is **911 110 490 06**, not the California/Japan 911 110 420 06. Sleeves **928 110 158 01** (#10). Struts **911 110 133 02** (#18) and **911 110 269 00** (#19, tags -80), buffers **911 110 154 00** (#20). Pipe 3 is drawn with two studs; the text extract has no 3A line. |
+| 107-00 | 106 | Mixture control unit. Fuel distributor **911 110 967 00** (#1): waisted lower housing with vertical ribs, separate upper housing, joint at mid-height, hex outlet towers about 15 mm proud (E), raised hub at the top centre. Outlet circle Ø76 mm (E, from the A 8×11.5 ring on this page). Air-flow meter **911 110 965 00** (#2). The centre fitting is screw socket **911 110 160 01** (107-10 #49) for control-pressure line #51, not a seventh banjo. |
+| 107-10 | 110 (drawing), 111–113 (text) | Fuel circuit, throttle, air guide, auxiliary air, vacuum. US regulator **911 606 102 04** (#36, remark USA), not RoW 911 606 102 01. Additional air valve **911 110 273 00** (#39, tags -80) with support **911 110 274 01** (#40). Throttle housing **930 110 248 02** (#4) with O-ring 67.5×4 (#6) and a ported-vacuum nipple for the EGR hose. Air guide **930 110 358 05** (#18). Nine vacuum hose pieces in three sizes; thermo valve is illustration 17A (no text line). Reducing socket **930 110 273 02** (#17). T-piece **999 137 004 40** (#14) has a spare branch for the diverter-valve hose. Cold-start intermediate piece **911 110 264 00** (#32). Fuel line **930 110 502 00** (#51) leaves screw socket #49 on the distributor hub (union nut) for the warm-up connection piece #52. Fuel line **930 110 513 00** (#61) runs from the warm-up banjo to the return-side M12 connection piece (#57). |
+
+Group 107-15 (1980–83) is not used. The breather hose 901 107 394 00 and the heater hoses are left off. Illustrations 108-00 (air injection) and 202-05 (EGR) are not in the checklist extract. Hose **999 239 003 40** #31 (diverter valve to the manifold tee) and #16 (EGR, 770 mm, to the throttle nipple) are not part of the nine-piece 107-10 harness. This model only seats those two hoses.

@@ -32,6 +32,36 @@ export const bankZ = (s: 1 | -1) => (s === 1 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : 
  * Chain well stays at the pulley end (+Z): that is where the cam-drive chain housings bolt on.
  */
 const CASE_CAST: MatKey = 'sandCast';
+/**
+ * Drop loft triangles that sit inside the cast distributor boss. The open skin cannot be CSG'd.
+ * The boss flange (r 16–38) covers this opening, so the cut edge is not a hole in the case.
+ * Axis matches DIST in aux.ts.
+ */
+function punchDistributor(g: THREE.BufferGeometry) {
+  const src = g.index ? g.toNonIndexed() : g;
+  const P = src.getAttribute('position');
+  const o = new THREE.Vector3(-36.2, 26.5, 216);
+  const aim = new THREE.Vector3(-150, 168, 150);
+  const A = aim.sub(o).normalize();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), w = new THREE.Vector3();
+  const near = (p: THREE.Vector3) => {
+    const t = w.copy(p).sub(o).dot(A);
+    const r = w.copy(o).addScaledVector(A, t).distanceTo(p);
+    // Bore through the shank, plus the skin under the hold-down lug (r 45, t 93–104).
+    if (t >= 12 && t <= 102 && r < 18) return true;
+    return t >= 93 && t <= 104 && r < 45;
+  };
+  const pos: number[] = [];
+  for (let i = 0; i < P.count; i += 3) {
+    a.fromBufferAttribute(P, i); b.fromBufferAttribute(P, i + 1); c.fromBufferAttribute(P, i + 2);
+    if (near(a) || near(b) || near(c)) continue;
+    pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.computeVertexNormals();
+  return out;
+}
 export function crankcaseHalf(s: 1 | -1) {
   const p = new Part();
   const z0 = CASE_Z.flywheel, z1 = CASE_Z.pulley;
@@ -115,9 +145,9 @@ export function crankcaseHalf(s: 1 | -1) {
     }
     return y;
   };
-  const loft = (section: (z: number) => [number, number][], zA: number, zB: number) => {
+  const loft = (section: (z: number) => [number, number][], zA: number, zB: number, punch = false) => {
     const n = section(zA).length;
-    p.add(paramSurface((u, v) => {
+    let g = paramSurface((u, v) => {
       const z = zA + (zB - zA) * u;
       const sec = section(z);
       const f = Math.min(n - 1e-4, v * n);
@@ -125,7 +155,9 @@ export function crankcaseHalf(s: 1 | -1) {
       const t = f - i;
       const a = sec[i], b = sec[(i + 1) % n];
       return [(a[0] + (b[0] - a[0]) * t) * s, a[1] + (b[1] - a[1]) * t, z];
-    }, 64, n * 3), CAST);
+    }, 64, n * 3);
+    if (punch) g = punchDistributor(g);
+    p.add(g, CAST);
   };
   // Skin stays outside the crank/rod swing. Chords of a 4-point loop cut back into the bay,
   // so each section is subdivided and pushed out to r 86 (rod swing peaks near r 73).
@@ -178,7 +210,7 @@ export function crankcaseHalf(s: 1 | -1) {
       q = underTab(q[0], q[1], z);
       return clearGear(q[0], q[1], z);
     });
-  }, z0 + 6, z1 - 6);
+  }, z0 + 6, z1 - 6, s < 0);
   loft((z) => {
     // Oil-pump cover and pickup (z -175..-120): skin stays below the nuts and the pump body.
     const open: [number, number][] = [[12, -100], [40, -86], [62, -104], [74, -118], [46, -124], [16, -116]];
@@ -259,10 +291,19 @@ export function crankcaseHalf(s: 1 | -1) {
   // Sump is a wall, not a plug. Inner edge stays ~14 mm inside the outer skin so the crank bay,
   // intermediate shaft and oil pump are open; the outer skin still carries the sump studs and plugs.
   // The wall top (y −108 at the split) sits below the shaft, so the Ø32 land is not buried in it.
-  addProfile([
+  // Outer peak is x 90 at y −102. The cooler pad (below) takes that bulge from the
+  // flywheel end through the sump: the flange face is x 82, so the skin stops at 81.2.
+  const sumpWall: [number, number][] = [
     [0, -108], [0, -120], [16, -128], [42, -126], [74, -116], [90, -102], [82, -88], [66, -78],
     [54, -84], [68, -98], [70, -110], [44, -116], [22, -112], [12, -106],
-  ], z0 + 4, z1 - 4, CAST);
+  ];
+  const sumpWallPad = sumpWall.map(([x, y]) => [Math.min(x, 81.2), y] as [number, number]);
+  if (s > 0) {
+    addProfile(sumpWallPad, z0 + 4, 8, CAST);
+    addProfile(sumpWall, 8, z1 - 4, CAST);
+  } else {
+    addProfile(sumpWall, z0 + 4, z1 - 4, CAST);
+  }
   // Lower edge stays inboard of the oil-pump cover nuts (y ≈ -88, |x| ≈ 28) at the flywheel main.
   const WEB: [number, number][] = [
     [0, 96], [24, 92], [50, 70], [50, 46], [40, 36], [40, -28], [26, -50], [22, -68], [22, -108], [0, -112],
@@ -410,22 +451,72 @@ export function crankcaseHalf(s: 1 | -1) {
     // Low enough that the cap stays inside the fan-shroud collar. Matches THERMO in aux.ts.
     p.add(cyl(24, 22, 28), CAST, [96, 99, 176]);
     p.add(cyl(20, 2.2, 32), 'machinedAlu', [96, 108.9, 176]);
+    // Oil-cooler pad is added after the interior cut (see below). A boolean on this
+    // cheek spiked into the cooler.
   } else {
     p.add(boxMM([-76, 108, 108], [-30, 122, 190]), CAST);
-    p.add(boxMM([-80, 56, 118], [-36, 108, 188]), CAST);
+    // Shoulder cone (r 13.2 → 16.4 around local t 92–95) used to enter this block,
+    // which reached r 14.5 inside the bore. punchDistributor only drops outer-shell
+    // triangles, so the bore is cut out of the block itself. Ends stay outside the
+    // solid so the subtraction is an open tunnel, not a wall across the shank.
+    {
+      const o = new THREE.Vector3(-36.2, 26.5, 216);
+      const A = new THREE.Vector3(-150, 168, 150).sub(o).normalize();
+      const at = (t: number) => o.clone().addScaledVector(A, t);
+      const a = at(25), b = at(115);
+      const cheek = boxMM([-80, 56, 118], [-36, 108, 188]);
+      p.add(csgSub(cheek, cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 17.5, 24)), CAST);
+    }
     // spot-faced pad under the left half for the 101-05 #22/#23 M10 stud nut (E position)
     p.add(cyl(10, 8, 20), CAST, [-40, -127, -186]);
     p.add(cyl(10, 28, 16, 16), CAST, [-40, -109, -186]);
     // warm-up regulator flange underside is y = 116.2 (WUR.flangeTop - 5). Screws thread down into this pad.
     p.add(boxMM([-72, 114.8, -198], [-48, 116.2, -142]), 'machinedAlu');
     p.add(boxMM([-76, 46, -202], [-44, 114.8, -138]), CAST);
-    // distributor clamp spacer bottoms at y = 107 (DIST.caseY). Stay inboard of the cooler feet (x >= -81).
-    p.add(boxMM([-80.2, 105.4, 99], [-64, 107, 115]), 'machinedAlu');
-    p.add(boxMM([-80.2, 52, 99], [-64, 105.4, 115]), CAST);
-    // Cooler pads are added after the interior cut. The distributor bore (r 36 at z 146) reaches the z 112 stud.
+    // Cast distributor boss, blended out of the pulley-end skin. Same axis as DIST in aux.ts.
+    // The flange (r 16–38) covers the skin opening. The hold-down stud lands on its own pad,
+    // not on a box corner. Mouth face is local t 93, just behind the distributor shoulder.
+    {
+      const o = new THREE.Vector3(-36.2, 26.5, 216);
+      const Y = new THREE.Vector3(-150, 168, 150).sub(o).normalize();
+      const hint = new THREE.Vector3(-1, 0.08, 0.42);
+      const X = hint.clone().addScaledVector(Y, -hint.dot(Y)).normalize();
+      const Z = new THREE.Vector3().crossVectors(X, Y);
+      const m = new THREE.Matrix4().makeBasis(X, Y, Z).setPosition(o);
+      // Flange grows to r 50 so it covers the r 45 skin opening under the lug.
+      const boss = lathe([
+        [16.4, 40], [22, 40], [28, 62], [42, 76], [50, 84], [50, 93],
+        [17.2, 93], [16.4, 88], [16.4, 40],
+      ], 32);
+      boss.applyMatrix4(m);
+      // Notch only where the flange would cover a through-bolt or enter the fan mouth.
+      // The rest of the collar still spans r 18–30.
+      const bossHold = new THREE.Group();
+      bossHold.add(new THREE.Mesh(boss));
+      subtractSolids(bossHold, [
+        boxMM([-140, 48, 163], [-103, 78, 191]),
+        boxMM([-115, 58, 200], [-40, 125, 228]),
+        // The r 50 flange would enter the fan mouth and the shroud horn.
+        boxMM([-130, 80, 218], [-50, 155, 255]),
+      ]);
+      p.add((bossHold.children[0] as THREE.Mesh).geometry, CAST);
+      // Same local stud as DIST.stud in aux.ts: +X, the vacuum-can side.
+      const atStud = (y: number) => new THREE.Vector3(28, y, 2).applyMatrix4(m);
+      const s0 = atStud(70), s1 = atStud(90), s2 = atStud(97.5);
+      p.add(cylBetween([s0.x, s0.y, s0.z], [s1.x, s1.y, s1.z], 12, 16), CAST);
+      p.add(cylBetween([s1.x, s1.y, s1.z], [s2.x, s2.y, s2.z], 11, 16), 'machinedAlu');
+    }
   }
-  // round sump boss (strainer cover seats here)
-  p.add(yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), CAST, [0, -126, -10]);
+  // round sump boss (strainer cover seats here). The right half is faced back to x 81.2
+  // where the cooler flange crosses it (flange face x 82); the plate itself is inside r 80.
+  const sumpBoss = yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2);
+  sumpBoss.translate(0, -126, -10);
+  // Both halves carry a half of this disk, and each half still reaches x ≈ 84.
+  // The cooler flange owns x ≥ 82, so the disk stops at 81.2.
+  const holder = new THREE.Group();
+  holder.add(new THREE.Mesh(sumpBoss));
+  subtractSolids(holder, [boxMM([81.2, -140, -120], [120, -100, 40])]);
+  p.add((holder.children[0] as THREE.Mesh).geometry, CAST);
   hollowCaseInterior(p, s);
   // 60 T running tunnel. The hollow above opens the bay; these cutters finish the bearing
   // seats and the gear pocket (tips stop at z 204.7). Plane clip, so it still cuts meshes
@@ -514,8 +605,16 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
   }
   // Fan-collar tab relief (solid chain-well strips; the shoulder loft is ducked in the section).
   cuts.push(yToZ(cyl(22, 36, 20)).translate(s * 39, 84.2, 200));
-  // Distributor shank on the left, and spot-faces for the oil-pump cover nuts.
-  if (s < 0) cuts.push(cyl(36, 56, 28).translate(-98, 118, 146));
+  // Distributor bore on the left. Opens the chain-well solids the shaft passes through.
+  // The cast boss is a lathe, so this cutter does not touch it. Keep in step with DIST in aux.ts.
+  if (s < 0) {
+    const o = [-36.2, 26.5, 216], aim = [-150, 168, 150];
+    const d = [aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]];
+    const L = Math.hypot(d[0], d[1], d[2]);
+    const u = d.map((v) => v / L);
+    const at = (t: number): [number, number, number] => [o[0] + u[0] * t, o[1] + u[1] * t, o[2] + u[2] * t];
+    cuts.push(cylBetween(at(-6), at(96), 14.6, 24));
+  }
   const nutPockets: [number, number][] = s < 0 ? [[-10, -116], [30, -116]] : [[30, -116], [38, -56]];
   for (const [x, y] of nutPockets) cuts.push(yToZ(cyl(14, 36, 16)).translate(x, y, -166));
   // Every pocket in one pass. A second pass sees BufferGeometry and skips the flange,
@@ -546,13 +645,32 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
     p.add(yToX(cyl(CASE_LUG.r, CASE_LUG.x, 16)), CASE_CAST, [s * CASE_LUG.x / 2, y, z]);
     p.add(yToX(cyl(CASE_LUG.r - 0.8, 1.2, 14)), 'machinedAlu', [s * (CASE_LUG.x - 0.6), y, z]);
   }
-  if (s < 0) {
-    // Foot underside is y 95. The supporting pad stops 0.2 mm under it (a coplanar rim counts as a hit).
-    // The bright spot the stud ray sees is r 3.8, inside the foot's r 4.5 hole, and its top is exactly y 95.
-    for (const sz of [36, 62, 88, 112]) {
-      p.add(cyl(5.5, 1.2, 24), 'machinedAlu', [-89, 94.2, sz]);
-      p.add(cyl(3.8, 0.4, 16), 'machinedAlu', [-89, 94.8, sz]);
-      p.add(boxMM([-94.2, 50, sz - 6], [-83, 93.8, sz + 6]), CASE_CAST);
+  if (s > 0) {
+    // Flywheel-end cooler pad. Face is exactly OIL_COOLER.faceX (82). Keep these
+    // studs and ports in step with OIL_COOLER in aux.ts. Holes live in the profile
+    // so the pad never enters the interior boolean (that spike reached the cooler).
+    // Shape X = −world Z after rotateY(+90).
+    const face = 82, xRoot = 66;
+    const y0 = -240, y1 = -84, z0 = -206, z1 = 6;
+    const zMid = (z0 + z1) / 2, yMid = (y0 + y1) / 2;
+    const studs = [[-216, -182], [-216, -19], [-108, -182], [-108, -19]] as const;
+    const ports = [[-140, -150, 0], [-140, -50, 0], [-200, -100, 1]] as const;
+    const sh = roundRect(z1 - z0, y1 - y0, 16, -zMid, yMid);
+    for (const [y, z] of studs) sh.holes.push(circlePath(5.2, -z, y) as THREE.Path);
+    for (const [y, z, big] of ports) sh.holes.push(circlePath(big ? 10 : 9, -z, y) as THREE.Path);
+    const cheek = extrude(sh, face - xRoot, 0, 8);
+    cheek.rotateY(Math.PI / 2);
+    cheek.translate(xRoot, 0, 0);
+    p.add(cheek, CASE_CAST);
+    for (const [y, z] of studs) {
+      // Boss blends into the cheek and stops 1 mm behind the spot face.
+      p.add(yToX(lathe([[4.2, 0], [11, 0], [11, 6], [6.2, 11], [4.2, face - xRoot - 1]], 16)), CASE_CAST, [xRoot, y, z]);
+      // Spot disk, exactly x = face, inside the flange hole (r 4.5). Extruded, not a
+      // cylinder: a 0.8 mm cylinder inverts under the 1 mm clash erosion.
+      const disk = extrude(circleShape(3.2), 3.2, 0, 10);
+      disk.rotateY(Math.PI / 2);
+      disk.translate(face - 3.2, y, z);
+      p.add(disk, 'machinedAlu');
     }
   }
 }
@@ -1146,19 +1264,20 @@ export const CAM_NOSE = {
  */
 export const CAM_COVER = {
   t: 10, hub: 4.1, gasketT: 0.4, land: 2.2,
-  boreR: 18, bodyR: 33.2, grooveRoot: 29.2, grooveW: 3.6,
-  boltR: 42, rimR: 47.2, rimInner: 32.6, notchHalf: 0.22, notchFloor: 46.4,
-  pocketR: 25.5, seatFaceR: 46,
+  boreR: 18,
+  // 999 701 468 40 is 67.5 × 75.4 × 4. The groove root is the ring ID, the body is the ring OD.
+  bodyR: 37.7, grooveRoot: 33.75, grooveW: 4,
+  boltR: 42, rimR: 47.2, rimInner: 37.7, notchHalf: 0.22, notchFloor: 46.4,
+  pocketR: 25.5, seatFaceR: 47.2,
 };
 /** Axial depth of the grooved body: inboard land, groove, outboard land. */
 export const CAM_COVER_BODY = CAM_COVER.land * 2 + CAM_COVER.grooveW;
 /**
- * Three screw stations. Right bank is 120° apart. Left bank drops the upper screw
- * so the M6 seat probe (4.2 mm) stays under the y = 40 pulley pad, and every probe
- * stays outboard of the chain-case back wall.
+ * Three screw stations, the same on both banks. 930 105 196 00 is one part number.
+ * The pulley pad and the chain-box back plate are cut back so the round cover fits.
  */
-export function camCoverAngles(s: 1 | -1): number[] {
-  return s > 0 ? [0, 120, 240] : [0, 132, 228];
+export function camCoverAngles(_s: 1 | -1): number[] {
+  return [0, 120, 240];
 }
 /** Outboard face the cover screws sit on. Kept under the duplex chain, just inboard of the thrust washer. */
 export function camCoverSeatZ(s: 1 | -1) {
@@ -1440,13 +1559,16 @@ export function tensionerLayout(s: 1 | -1) {
   const plunger = reach - ADJ.body - ADJ.dome; // exposed plunger length
   const adj = adjBase.clone().add(axis.clone().multiplyScalar(ADJ.body)); // top of the body (plunger exits here)
   const perp = new THREE.Vector2(-axis.y, axis.x).multiplyScalar(s); // toward the chain / box interior
-  const outside = perp.clone().negate(); // away from the chain, the side the strap runs on
-  // Flat strap: eye on a foot lug, then outside the body, past the top, to the stud eye.
-  const strapOff = 23;
-  const footEye = adjBase.clone().add(outside.clone().multiplyScalar(strapOff));
-  const ear = adjBase.clone().add(axis.clone().multiplyScalar(ADJ.body + 16)).add(outside.clone().multiplyScalar(strapOff));
+  const outside = perp.clone().negate(); // away from the chain
+  // Beside the body, on the chain side (the outer side is the box wall). Slid 15 mm up the
+  // cylinder so the foot eye clears the inner-edge flange. On the right the arm occupies the
+  // same z as the body, so the strap sits 9 mm below the body axis, still clear of the Ø24.4 barrel.
+  const along = 15;
+  const footEye = adjBase.clone().add(perp.clone().multiplyScalar(22)).add(axis.clone().multiplyScalar(along));
+  const ear = footEye.clone().add(axis.clone().multiplyScalar(ADJ.body + 16));
+  const strapDrop = s > 0 ? 9 : 0;
   const z = CHAIN_Z[s], adjZ = z + ADJ.zOff[s];
-  return { idler, idlerR, pivot, tail, contact, adj, adjBase, axis, perp, outside, footEye, ear, reach, plunger, dir, up, z, adjZ, adjLen: ADJ.body };
+  return { idler, idlerR, pivot, tail, contact, adj, adjBase, axis, perp, outside, footEye, ear, reach, plunger, dir, up, z, adjZ, strapZ: adjZ - strapDrop, adjLen: ADJ.body };
 }
 /**
  * Root-gap centre of sprocketRingShape, as a fraction of the tooth pitch.
@@ -1589,23 +1711,41 @@ export function guideRails(s: 1 | -1) {
   // without entering the sprocket.
   const nSlack = outward(ca, cb);
   if (nSlack.dot(new THREE.Vector2(CAM_X * s, 0).sub(ca.clone().lerp(cb, 0.5))) > 0) nSlack.negate();
+  // Kat 502 #3 is four bolts per bank: one in each short rail, two in the idler-to-cam rail.
+  // Those two sit at the cam end, where the housing boss misses the idler arm (z 240–250).
+  // camBow lifts the shoe off the sprocket teeth at that same end.
   return [
-    { a: up1, b: up2, n: nUp, f0: 0.53, f1: 0.82, mat: black, bolted: true },
-    { a: sa, b: sb, n: outward(sa, sb), f0: s > 0 ? 0.55 : 0.2, f1: s > 0 ? 0.8 : 0.45, mat: black, bolted: true },
-    // Two slots on the idler half. A bolt nearer the cam would put its boss through the flange cover.
-    { a: ca, b: cb, n: nSlack, f0: s > 0 ? 0.06 : 0.1, f1: s > 0 ? 0.9 : 0.94, mat: (s > 0 ? 'railBrown' : black) as MatKey, bolted: true, boltU: (s > 0 ? [0.17, 0.4] : [0.57, 0.81]) as [number, number] },
+    // Stop short of the cover-stud pillar on the top wall.
+    { a: up1, b: up2, n: nUp, f0: 0.53, f1: 0.71, mat: black, bolted: true, boltU: [0.5] },
+    { a: sa, b: sb, n: outward(sa, sb), f0: s > 0 ? 0.55 : 0.2, f1: s > 0 ? 0.8 : 0.45, mat: black, bolted: true, boltU: [0.5] },
+    {
+      a: ca, b: cb, n: nSlack,
+      f0: s > 0 ? 0.1 : -0.03, f1: s > 0 ? 1.06 : 0.9,
+      mat: (s > 0 ? 'railBrown' : black) as MatKey, bolted: true,
+      // Two 6.6 mm holes at the cam end. Centres sit where the boss clears the idler
+      // arm, and the block stops before the outer face enters the chain-box wall.
+      boltU: (s > 0 ? [0.802, 0.927] : [0.075, 0.204]) as number[],
+      camBow: 1.2, camAt: (s > 0 ? 1 : 0) as 0 | 1,
+    },
   ];
 }
 /** Bolt stations as a fraction of each rail, in the full-height middle so the head has a flat seat. */
-function railBoltU(r: { boltU?: [number, number] }) {
+function railBoltU(r: { boltU?: number[] }) {
   return r.boltU ?? [0.22, 0.78];
 }
 /** Ribbed guide-rail block. `halfZ` covers the duplex chain; the bolt head seats on the +Z face. */
-export const RAIL = { halfZ: 7.2, thick: 10, rib: 1.8, slotD: 5.4, slotW: 9, slotLand: 2, padR: 8.2, padT: 1.6 };
+export const RAIL = { halfZ: 7.2, thick: 10, rib: 1.8, slotD: 6.6, slotW: 6.6, slotLand: 1.7, padR: 8.2, padT: 1.6 };
 /** Curved U-channel shoe. `inner` is the gap from the pitch line to the shoe face; `bow` pulls the middle in. */
 export const RAIL_SHOE = { inner: 4.9, thick: 6.5, bow: 0.55 };
 /** Distance from the pitch line to the shoe's inner face at fraction u along the rail (0 at the start). */
 export function railInner(u: number) { return RAIL_SHOE.inner - RAIL_SHOE.bow * Math.sin(Math.PI * u); }
+/** Extra shoe offset at the cam end so the rib clears the sprocket teeth. Zero along the rest of the rail. */
+function railBow(r: { camBow?: number; camAt?: 0 | 1 }, u: number) {
+  if (!r.camBow) return 0;
+  const camU = r.camAt ? u : 1 - u;
+  const k = Math.max(0, (camU - 0.78) / 0.22);
+  return r.camBow * k * k;
+}
 /** Forged idler-arm leg: waisted bar from one eye to the next, local +X along the leg. */
 function armLinkShape(L: number, rA: number, rB: number) {
   const dip = Math.min(rA, rB) * 0.36;
@@ -1647,43 +1787,81 @@ export function holedPlate(outer: [number, number][], holes: [number, number][][
   );
   const flat = [...contour, ...rings.flat()];
   const N = flat.length;
-  const pos = new Float32Array(N * 6);
-  flat.forEach(([x, y], i) => {
+  const base = flat.map(([x, y]) => {
     const [z0, z1] = zAt(x, y);
-    pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z0;
-    const j = (i + N) * 3;
-    pos[j] = x; pos[j + 1] = y; pos[j + 2] = z1;
+    return { x, y, z0, z1 };
   });
+  // Caps and walls do not share vertices. A shared edge averages the wall normal into the
+  // flat face and the plate renders as triangular streaks.
+  const pos: number[] = [];
   const idx: number[] = [];
+  for (const p of base) pos.push(p.x, p.y, p.z0);
+  for (const p of base) pos.push(p.x, p.y, p.z1);
   for (const [a, b, c] of faces) idx.push(a, c, b, a + N, b + N, c + N);
-  const band = (ring: [number, number][], start: number) => {
-    const m = ring.length;
+  const addWall = (ringStart: number, m: number) => {
     for (let i = 0; i < m; i++) {
-      const i0 = start + i, i1 = start + ((i + 1) % m);
-      idx.push(i0, i1, i1 + N, i0, i1 + N, i0 + N);
+      const A = base[ringStart + i], B = base[ringStart + ((i + 1) % m)];
+      const v = pos.length / 3;
+      pos.push(A.x, A.y, A.z0, B.x, B.y, B.z0, B.x, B.y, B.z1, A.x, A.y, A.z1);
+      idx.push(v, v + 1, v + 2, v, v + 2, v + 3);
     }
   };
-  band(contour, 0);
+  addWall(0, contour.length);
   let start = contour.length;
-  for (const ring of rings) { band(ring, start); start += ring.length; }
+  for (const ring of rings) { addWall(start, ring.length); start += ring.length; }
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
 }
+/** Slide a rail-bolt centre off the idler arm and its pivot. The slot and the housing boss follow. */
+function clearOfArm(x: number, y: number, s: 1 | -1) {
+  const T = tensionerLayout(s);
+  let bx = x, by = y;
+  const boss = 5.6, need = 3;
+  const width = (t: number, rA: number, rB: number) => {
+    const u = Math.max(0, Math.min(1, t));
+    return (1 - u) * rA + u * rB - Math.min(rA, rB) * 0.36 * Math.sin(Math.PI * u);
+  };
+  for (let n = 0; n < 8; n++) {
+    let worst = 0, wx = 0, wy = 0;
+    const consider = (cx: number, cy: number, gap: number) => {
+      const short = need - gap;
+      if (short <= worst) return;
+      const d = Math.hypot(bx - cx, by - cy) || 1;
+      worst = short; wx = (bx - cx) / d; wy = (by - cy) / d;
+    };
+    for (const [ax, ay, bx2, by2, rA, rB] of [
+      [T.pivot.x, T.pivot.y, T.idler.x, T.idler.y, 12, 16],
+      [T.idler.x, T.idler.y, T.tail.x, T.tail.y, 15, 7],
+    ] as const) {
+      const dx = bx2 - ax, dy = by2 - ay, L2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((bx - ax) * dx + (by - ay) * dy) / L2));
+      const cx = ax + dx * t, cy = ay + dy * t;
+      consider(cx, cy, Math.hypot(bx - cx, by - cy) - width(t, rA, rB) - boss);
+    }
+    consider(T.pivot.x, T.pivot.y, Math.hypot(bx - T.pivot.x, by - T.pivot.y) - 11 - boss);
+    consider(T.idler.x, T.idler.y, Math.hypot(bx - T.idler.x, by - T.idler.y) - 16 - boss);
+    if (worst <= 0) break;
+    bx += wx * Math.min(worst, 1.5);
+    by += wy * Math.min(worst, 1.5);
+  }
+  return { x: bx, y: by };
+}
 /** Where a rail bolt passes through a slot: XY on the slot, Z on the +Z face of the block. */
-function railBoltAt(r: ReturnType<typeof guideRails>[number], f: number, zChain: number) {
+function railBoltAt(r: ReturnType<typeof guideRails>[number], f: number, zChain: number, s: 1 | -1) {
   const u = (f - r.f0) / (r.f1 - r.f0);
   const q = r.a.clone().lerp(r.b, f);
-  const off = railInner(u) + RAIL.rib + RAIL.thick - RAIL.slotLand - RAIL.slotD / 2;
+  const off = railInner(u) + railBow(r, u) + RAIL.rib + RAIL.thick - RAIL.slotLand - RAIL.slotD / 2;
   const bolt = q.add(r.n.clone().multiplyScalar(off));
-  return new THREE.Vector3(bolt.x, bolt.y, zChain + RAIL.halfZ + RAIL.padT);
+  const c = clearOfArm(bolt.x, bolt.y, s);
+  return new THREE.Vector3(c.x, c.y, zChain + RAIL.halfZ + RAIL.padT);
 }
 /** Rail bolts (#3): through the slots of every rail, head on the +Z face. */
 export function railBolts(s: 1 | -1) {
   const z = CHAIN_Z[s];
-  return guideRails(s).filter((r) => r.bolted).flatMap((r) => railBoltU(r).map((u) => r.f0 + (r.f1 - r.f0) * u).map((f) => railBoltAt(r, f, z)));
+  return guideRails(s).filter((r) => r.bolted).flatMap((r) => railBoltU(r).map((u) => r.f0 + (r.f1 - r.f0) * u).map((f) => railBoltAt(r, f, z, s)));
 }
 export function chainTensioner(s: 1 | -1) {
   const p = new Part();
@@ -1763,22 +1941,22 @@ export function chainTensioner(s: 1 | -1) {
     sh.holes.push(circlePath(4.3, len, 0) as THREE.Path);
     const strap = extrudeC(sh, 3.2, 0.15, 2);
     strap.rotateZ(Math.atan2(dy, dx));
-    strap.translate(eyeA.x, eyeA.y, T.adjZ);
+    strap.translate(eyeA.x, eyeA.y, T.strapZ);
     p.add(strap, 'castAlu');
     // Foot lug: pin through the eye, bridged out from the cylinder foot.
-    p.add(yToZ(cyl(4.7, 7.2, 16)), 'castAlu', [eyeA.x, eyeA.y, T.adjZ]);
+    p.add(yToZ(cyl(4.7, 7.2, 16)), 'castAlu', [eyeA.x, eyeA.y, T.strapZ]);
     const span = Math.hypot(eyeA.x - T.adjBase.x, eyeA.y - T.adjBase.y);
-    const lug = boxMM([Rbody - 1, -3.4, -2.4], [span - 3.2, 3.4, 2.4]);
+    const lug = boxMM([4, -3.4, -2.4], [span - 3.2, 3.4, 2.4]);
     lug.rotateZ(Math.atan2(eyeA.y - T.adjBase.y, eyeA.x - T.adjBase.x));
-    lug.translate(T.adjBase.x, T.adjBase.y, T.adjZ);
+    lug.translate(T.adjBase.x, T.adjBase.y, T.strapZ);
     p.add(lug, 'castAlu');
   }
   const strapHalf = 1.6, sleeveLen = 9;
-  const sleeve0 = T.adjZ - strapHalf - sleeveLen;
+  const sleeve0 = T.strapZ - strapHalf - sleeveLen;
   p.add(yToZ(closedLathe([[4.25, 0], [7.4, 0], [7.4, sleeveLen], [4.25, sleeveLen]], 18)).translate(T.ear.x, T.ear.y, sleeve0), 'polishedSteel');
-  p.add(yToZ(cyl(4, T.adjZ + strapHalf + 12 - (HOUSING_Z0 + 4), 10)), 'zincPlate', [T.ear.x, T.ear.y, (T.adjZ + strapHalf + 12 + HOUSING_Z0 + 4) / 2]);
-  p.add(yToZ(cyl(8, 1.6, 16)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + strapHalf + 0.8]);
-  p.add(yToZ(hexNut(13, 6.5)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + strapHalf + 1.6 + 3.25]);
+  p.add(yToZ(cyl(4, T.strapZ + strapHalf + 12 - (HOUSING_Z0 + 4), 10)), 'zincPlate', [T.ear.x, T.ear.y, (T.strapZ + strapHalf + 12 + HOUSING_Z0 + 4) / 2]);
+  p.add(yToZ(cyl(8, 1.6, 16)), 'zincPlate', [T.ear.x, T.ear.y, T.strapZ + strapHalf + 0.8]);
+  p.add(yToZ(hexNut(13, 6.5)), 'zincPlate', [T.ear.x, T.ear.y, T.strapZ + strapHalf + 1.6 + 3.25]);
   // Guide rails (#2): ribbed blocks, ramped ends, two bolt slots cut as real holes. No carrier strips.
   const railMesh = (r: ReturnType<typeof guideRails>[number]) => {
     const A = r.a.clone().lerp(r.b, r.f0), B = r.a.clone().lerp(r.b, r.f1);
@@ -1788,8 +1966,9 @@ export function chainTensioner(s: 1 | -1) {
     const steps = 24;
     const st = (i: number) => {
       const u = i / steps;
-      const taper = Math.min(1, u * 6, (1 - u) * 6);
-      const crest = railInner(u);
+      const ramp = r.camBow ? 18 : 6;
+      const taper = Math.min(1, u * ramp, (1 - u) * ramp);
+      const crest = railInner(u) + railBow(r, u);
       return { c: A.clone().lerp(B, u), crest, taper, u };
     };
     const inner: [number, number][] = [], outer: [number, number][] = [];
@@ -1802,29 +1981,23 @@ export function chainTensioner(s: 1 | -1) {
     }
     const footprint = [...inner, ...outer.reverse()];
     const boltF = railBoltU(r).map((u) => r.f0 + (r.f1 - r.f0) * u);
-    const slotOff = (u: number) => railInner(u) + RAIL.rib + RAIL.thick - RAIL.slotLand - RAIL.slotD / 2;
     const holes: [number, number][][] = boltF.map((f) => {
-      const u = (f - r.f0) / (r.f1 - r.f0);
-      const c = r.a.clone().lerp(r.b, f);
-      const cx = c.x + n.x * slotOff(u);
-      const cy = c.y + n.y * slotOff(u);
+      const at = railBoltAt(r, f, z, s);
       const hw = RAIL.slotW / 2, hd = RAIL.slotD / 2;
-      return [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([lx, ly]) => [cx + dir.x * lx + n.x * ly, cy + dir.y * lx + n.y * ly] as [number, number]);
+      return [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([lx, ly]) => [at.x + dir.x * lx + n.x * ly, at.y + dir.y * lx + n.y * ly] as [number, number]);
     });
     const block = holedPlate(footprint, holes, (x, y) => {
       const u = ((x - A.x) * dir.x + (y - A.y) * dir.y) / len;
-      const taper = Math.min(1, Math.max(0, u) * 6, Math.max(0, 1 - u) * 6);
+      const ramp = r.camBow ? 18 : 6;
+      const taper = Math.min(1, Math.max(0, u) * ramp, Math.max(0, 1 - u) * ramp);
       const k = 0.55 + 0.45 * taper;
       return [z - RAIL.halfZ * k, z + RAIL.halfZ * k];
     });
     p.add(block, r.mat);
     if (r.bolted) {
       for (const f of boltF) {
-        const u = (f - r.f0) / (r.f1 - r.f0);
-        const c = r.a.clone().lerp(r.b, f);
-        const bx = c.x + n.x * slotOff(u);
-        const by = c.y + n.y * slotOff(u);
-        p.add(yToZ(cyl(RAIL.padR, RAIL.padT + 0.4, 20)), r.mat, [bx, by, z + RAIL.halfZ + (RAIL.padT - 0.4) / 2]);
+        const at = railBoltAt(r, f, z, s);
+        p.add(yToZ(cyl(RAIL.padR, RAIL.padT + 0.4, 20)), r.mat, [at.x, at.y, z + RAIL.halfZ + (RAIL.padT - 0.4) / 2]);
       }
     }
     const prism = (rad0: (s: ReturnType<typeof st>) => number, rad1: (s: ReturnType<typeof st>) => number, z0: (s: ReturnType<typeof st>) => number, z1: (s: ReturnType<typeof st>) => number) => {
@@ -1919,8 +2092,16 @@ function outlineBolts(o: [number, number][], every: number, skip?: (x: number, y
 /** Cover-stud stations (19 per engine, 103-05 #3: 10 right / 9 left), 4 mm inside the box outline, clear of the open chain passage. */
 export function chainCoverBolts(s: 1 | -1) {
   const o = chainOutline(s, 0), want = s > 0 ? 10 : 9;
-  for (let every = 50; every < 120; every += 0.25) {
-    const b = outlineBolts(o, every, inPassage(s));
+  const T = tensionerLayout(s);
+  // Studs stay off the adjuster strap. A stud on the eye bulge would pin the strap to the wall.
+  const nearStrap = (x: number, y: number) => {
+    const dx = T.ear.x - T.footEye.x, dy = T.ear.y - T.footEye.y, L2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((x - T.footEye.x) * dx + (y - T.footEye.y) * dy) / L2));
+    return Math.hypot(x - (T.footEye.x + dx * t), y - (T.footEye.y + dy * t)) < 20;
+  };
+  const skip = (x: number, y: number) => inPassage(s)(x, y) || nearStrap(x, y);
+  for (let every = 50; every < 140; every += 0.25) {
+    const b = outlineBolts(o, every, skip);
     if (b.length === want) return b.map((q) => ({ x: q.x - q.nx * 4, y: q.y - q.ny * 4 }));
   }
   throw new Error('chainCoverBolts: no spacing gives the catalogue count');
@@ -1932,7 +2113,7 @@ export function chainHousingStuds(s: 1 | -1) {
   return [...[226, 247, 268].map((z) => ({ x, y: yTop - 10, z })), ...(s > 0 ? [224.5, 236, 274] : [252, 263, 274]).map((z) => ({ x, y: yBot + 13.5, z }))];
 }
 /** Chain-housing cover plate: bottom face just above the housing lip (bevel 0.8), nut seat = flat top face. */
-export const CHAIN_LID = { z0: HOUSING_Z1 + 1.1, t: 4.5, top: HOUSING_Z1 + 1.1 + 4.5 + 0.8 };
+export const CHAIN_LID = { z0: HOUSING_Z1 + 1.1, t: 4.5, top: HOUSING_Z1 + 1.1 + 7.6 };
 function shapeFrom(o: [number, number][], holes: [number, number][][] = []) {
   const sh = polyShape(o);
   for (const h of holes) { const p = new THREE.Path(); const r = h.slice().reverse(); p.moveTo(r[0][0], r[0][1]); r.slice(1).forEach(([x, y]) => p.lineTo(x, y)); p.closePath(); sh.holes.push(p); }
@@ -1967,7 +2148,14 @@ export function chainHousing(s: 1 | -1) {
   const T = tensionerLayout(s);
   // back wall at the case face (inboard of the cam-housing end) + front ring in front of the cam-housing end
   const backPoly = chainCaseFace(s);
-  p.add(extrude(shapeFrom(backPoly), 4, 0, 8), 'castAlu', [0, 0, HOUSING_Z0]);
+  // The round cam-end cover crosses this plate. Cut the plate back instead of flattening the cover.
+  {
+    const stack = camNoseStack(s);
+    let back: THREE.BufferGeometry = extrude(shapeFrom(backPoly), 4, 0, 8);
+    const cut = yToZ(cyl(CAM_COVER.rimR + 1.8, 30, 48)).translate(CAM_X * s, 0, (stack.gasket0 - HOUSING_Z0) + 8);
+    back = csgSub(back, cut);
+    p.add(back, 'castAlu', [0, 0, HOUSING_Z0]);
+  }
   // outboard of CAM_END_X the cam-housing end face itself closes the back of the box (gasketed joint)
   // side walls: full depth inboard of the cam-housing end, from the cam-end ring outboard of it
   wallStrip(p, wall, 5, CAM_HOUSING_END_Z + 1, HOUSING_Z1 - 5);
@@ -2084,20 +2272,33 @@ export function chainHousing(s: 1 | -1) {
   p.add(yToZ(cyl(12, CHAIN_Z[s] - 16 - HOUSING_Z0, 18)), 'castAlu', [T.pivot.x, T.pivot.y, (HOUSING_Z0 + CHAIN_Z[s] - 16) / 2]);
   // Stud boss stops at the spacer sleeve (#10A) under the adjuster strap eye.
   {
-    const bossTop = T.adjZ - 10.6;
+    const bossTop = T.strapZ - 10.6;
     p.add(yToZ(cyl(8, bossTop - HOUSING_Z0, 16)), 'castAlu', [T.ear.x, T.ear.y, (HOUSING_Z0 + bossTop) / 2]);
   }
-  // Seat under every guide-rail bolt so the rail is bolted to the housing, not floating.
+  // Seat under every guide-rail bolt. The top meets the rail's underside so the rail is clamped, not floating.
   for (const q of railBolts(s)) {
-    const z1 = CHAIN_Z[s] - RAIL.halfZ - 1.5;
+    const z1 = q.z - RAIL.padT - 2 * RAIL.halfZ;
     const h = z1 - HOUSING_Z0;
-    if (h > 2) p.add(yToZ(cyl(6.4, h, 14)), 'castAlu', [q.x, q.y, HOUSING_Z0 + h / 2]);
+    if (h > 2) p.add(yToZ(cyl(5.6, h, 14)), 'castAlu', [q.x, q.y, HOUSING_Z0 + h / 2]);
   }
   // ears for the cam-housing end studs, bridged back to the top wall
   for (const [x, y] of END_STUDS[s]) {
     const h = END_PAD.z1 - END_PAD.z0, zc = (END_PAD.z0 + END_PAD.z1) / 2;
     p.add(yToZ(cyl(END_PAD.r, h, 24)), 'castAlu', [x, y, zc]);
-    p.add(boxMM([x - 7, 44, END_PAD.z0], [x + 7, y, END_PAD.z1]), 'castAlu');
+    // The bridge stays above the round cam-end cover (rim r 47.2).
+    p.add(boxMM([x - 7, 52, END_PAD.z0], [x + 7, y, END_PAD.z1]), 'castAlu');
+  }
+  // The cam-end rail and the adjuster body stand in the corners of the box. Nick the
+  // inner wall there so they sit in the cavity instead of in the casting.
+  {
+    const nick = (x: number, y: number, r: number, z0: number, z1: number) =>
+      yToZ(cyl(r, z1 - z0, 24)).translate(x, y, (z0 + z1) / 2);
+    const top = s > 0 ? [178, 30] : [-216, 36];
+    cutGroup(p.g,
+      nick(286 * s, -58, 18, 230, 278),
+      nick(top[0], top[1], 14, 230, 278),
+      nick(152 * s, -138, 16, 220, 270),
+    );
   }
   return p.g;
 }
@@ -2139,7 +2340,7 @@ export function chainHousingLid(s: 1 | -1) {
   const p = new Part();
   const o = chainOutline(s, 3);
   const z0 = CHAIN_LID.z0, top = CHAIN_LID.top;
-  const fieldT = 0.8;
+  const fieldT = 3;
   p.add(extrude(shapeFrom(o), fieldT, 0, 8), 'castAlu', [0, 0, z0]);
   wallStrip(p, o.concat([o[0]]), 7, z0, top);
   // Cross step along the upper part of the outer face, above the deep field.

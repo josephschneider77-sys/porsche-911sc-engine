@@ -36,12 +36,12 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'fan-housing': { strap: 1, clamp: 1, washer: 2, nut: 2 },
   'fan-pulley': { shim: 1 },
   'upper-air-guide': { socket: 1 },
-  'airbox-struts': { strutA: 1, strutB: 1, buffer: 4 },
+  'airbox-struts': { strutA: 1, strutB: 1, buffer: 2 },
   'mixture-control-unit': { distributor: 1, meter: 1 },
   'fuel-lines': { line: 6, fuelA: 1, fuelB: 1, fuelC: 1 },
   'warm-up-regulator': { conn: 2, ring: 2 },
-  'distributor': { cap: 1 },
-  'ignition-leads': { coil: 1, plug: 1, line: 1 },
+  'distributor': { cap: 1, pin: 1, connector: 7 },
+  'ignition-leads': { coil: 1, plug: 1, line: 1, right: 1 },
   'spark-plug': { connector: 1 },
   'flywheel': { ring: 1 },
   // small-part prototypes
@@ -61,8 +61,11 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'vacuum-limiter': { sleeve: 1, bolt: 1, spring: 1 },
   'vacuum-fittings': { clamp: 5, socket: 1 },
   'injection-line-bracket': { clamp: 1, nut: 1, spring: 1 },
+  'afm-screws': { spring: 1, washer: 1 },
+  'throttle-housing': { spring: 1, oring: 1 },
   'cold-start-valve': { oring: 1, piece: 1, gasket: 1, screw: 2, spring: 2 },
-  'aux-air-valve': { spring: 2, screw: 2, support: 1, spring2: 2 },
+  'aux-air-valve': { spring: 2, screw: 2 },
+  'additional-air-valve': { support: 1, spring2: 2 },
   'aux-air-plumbing': { clamp: 7, pipe: 1, conn: 1 },
   'wur-lines': { socket: 1, ring2: 1, tube: 1, conn: 1, ring3: 1, banjo: 3, ring: 6 },
   'throttle-linkage': { bracket: 1, sleeve: 2, lever: 2, washer: 1, spring: 4, nut: 4, rod: 1, spring2: 1 },
@@ -183,7 +186,7 @@ export const CLAIMS: Claim[] = [
   C('103-15#43', 'intermediate-shaft'), C('103-15#44', 'ishaft-circlips', 'item', 2), C('103-15#45', 'ishaft-circlips', 'item', 1), C('103-15#46', 'ishaft-thrust'),
   C('103-15#47', 'ishaft-bearings'), C('103-15#48', 'ishaft-stopper'), C('103-15#49', 'ishaft-circlips', 'item', 1),
   // ---- 104-00 oil pump / cooler
-  C('104-00#1', 'oil-pump'), C('104-00#2', 'oil-pump-seals', 'item', 2), C('104-00#3', 'oil-pump-seals', 'item', 4), C('104-00#4', 'oil-pump-nuts', 'tab'),
+  C('104-00#1', 'oil-pump'), C('104-00#2', 'oil-pump-seals', 'item', 1), C('104-00#2', 'oil-cooler-seal-riser'), C('104-00#3', 'oil-pump-seals', 'item', 2), C('104-00#3', 'oil-cooler-seals'), C('104-00#4', 'oil-pump-nuts', 'tab'),
   C('104-00#5', 'oil-pump-nuts', 'item', 3), C('104-00#5', 'oil-cooler-nuts', 'item', 4), C('104-00#6', 'oil-pump', 'shaft'), C('104-00#8', 'oil-cooler'), C('104-00#9', 'oil-cooler-nuts', 'spring'),
   // ---- 105-00 fan / 902-05 alternator
   C('105-00#1', 'fan-housing'), C('105-00#2', 'fan-housing', 'strap'), C('105-00#4', 'fan-nuts', 'spring'), C('105-00#5', 'fan-nuts'), C('105-00#6', 'fan-impeller'),
@@ -209,13 +212,17 @@ export const CLAIMS: Claim[] = [
   C('107-00#1', 'mixture-control-unit', 'distributor'), C('107-00#2', 'mixture-control-unit', 'meter'),
   C('107-10#7', 'vacuum-limiter'), C('107-10#8', 'vacuum-limiter', 'sleeve'), C('107-10#9', 'vacuum-limiter', 'bolt'), C('107-10#10', 'vacuum-limiter', 'spring'),
   C('107-10#12', 'vacuum-fittings', 'clamp', 4), C('107-10#14', 'vacuum-fittings'), C('107-10#15', 'vacuum-fittings', 'clamp', 1), C('107-10#17', 'vacuum-fittings', 'socket'),
+  C('107-10#1#900 067 089 02', 'afm-screws'), C('107-10#2', 'afm-screws', 'spring'), C('107-10#3', 'afm-screws', 'washer'),
+  C('107-10#4#930 110 248 02', 'throttle-housing'), C('107-10#5', 'throttle-housing', 'spring'), C('107-10#6', 'throttle-housing', 'oring'),
+  C('107-10#18', 'air-guide'),
   C('107-10#19', 'airbox-clamps', 'item', 1), C('107-10#20', 'airbox-clamps', 'item', 1),
   C('107-10#21', '^injector-\\d$'), C('107-10#22', 'injector-orings-c'), C('107-10#23', 'fuel-lines', 'line', 3), C('107-10#23#911 110 093 12', 'fuel-lines', 'line', 3),
   C('107-10#24', 'injection-line-rings'), C('107-10#25', 'injection-banjos'), C('107-10#26', 'injection-line-bracket'), C('107-10#27', 'injection-line-bracket', 'clamp'),
   C('107-10#28', 'injection-line-bracket', 'nut'), C('107-10#29', 'injection-line-bracket', 'spring'),
   C('107-10#30', 'cold-start-valve'), C('107-10#31', 'cold-start-valve', 'oring'), C('107-10#32', 'cold-start-valve', 'piece'), C('107-10#33', 'cold-start-valve', 'gasket'),
   C('107-10#34', 'cold-start-valve', 'screw'), C('107-10#35', 'cold-start-valve', 'spring'),
-  C('107-10#36', 'aux-air-valve'), C('107-10#37', 'aux-air-valve', 'spring'), C('107-10#38', 'aux-air-valve', 'screw'), C('107-10#40', 'aux-air-valve', 'support'), C('107-10#41', 'aux-air-valve', 'spring2'),
+  C('107-10#36', 'aux-air-valve'), C('107-10#37', 'aux-air-valve', 'spring'), C('107-10#38', 'aux-air-valve', 'screw'),
+  C('107-10#39', 'additional-air-valve'), C('107-10#40', 'additional-air-valve', 'support'), C('107-10#41', 'additional-air-valve', 'spring2'),
   C('107-10#43', 'aux-air-plumbing'), C('107-10#44', 'aux-air-plumbing', 'clamp', 4), C('107-10#45', 'aux-air-plumbing', 'clamp', 2), C('107-10#46', 'aux-air-plumbing', 'pipe'),
   C('107-10#47', 'aux-air-plumbing', 'conn'), C('107-10#48', 'aux-air-plumbing', 'clamp', 1),
   C('107-10#49', 'wur-lines', 'socket'), C('107-10#50', 'wur-lines', 'ring2'), C('107-10#51', 'wur-lines', 'tube'), C('107-10#52', 'wur-lines', 'conn'), C('107-10#53', 'wur-lines', 'ring3'),
@@ -237,7 +244,9 @@ export const CLAIMS: Claim[] = [
   // ---- 901-00 ignition
   C('901-00#4', 'distributor-oring'), C('901-00#5', 'distributor-nut', 'washer'), C('901-00#6', 'distributor-nut', 'spring'), C('901-00#7', 'distributor-nut'),
   C('901-00#8', 'distributor', 'cap'), C('901-00#9', 'ignition-leads', 'line'), C('901-00#16', 'spark-plug-*'), C('901-00#17', 'ignition-leads'),
+  C('901-00#17A', 'ignition-leads', 'right'),
   C('901-00#18', 'ignition-leads', 'coil'), C('901-00#19', 'ignition-leads', 'plug'), C('901-00#21', 'spark-plug-*', 'connector'), C('901-00#22', 'ignition-lead-holders'),
+  C('901-00#23', 'distributor', 'connector'), C('901-00#35', 'distributor', 'pin'),
 ];
 
 const range = (ill: string, pos: (string | number)[], why: string): NotApplicable[] => pos.map((p) => ({ line: `${ill}#${p}`, why }));
@@ -257,17 +266,14 @@ export const NOT_APPLICABLE: NotApplicable[] = [
   ...range('106-00', ['-#999 239 018 40', '-#999 181 022 51'], 'bulk hose sold by the metre (qty *), cut to length on assembly'),
   ...range('107-00', [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], 'internal part of the mixture control unit (fuel distributor + air-flow meter), modelled as one unit'),
   { line: '107-00#15', why: 'parts kit (no separate item)' },
-  ...range('107-10', [1, 2, 3, 4, 5, 6], 'internal part of the air-flow meter flap / nozzle assembly inside the mixture control unit'),
-  { line: '107-10#-#930 110 292 00', why: 'internal stopper of the air-flow meter flap assembly' },
-  { line: '107-10#-#930 110 292 00#2', why: 'internal stopper of the air-flow meter flap assembly' },
+  { line: '107-10#-#930 110 292 00', why: 'stopper with no illustration in Kat 502 fig 107-10; not placed on the 930/04 flap housing' },
+  { line: '107-10#-#930 110 292 00#2', why: 'stopper with no illustration in Kat 502 fig 107-10; not placed on the 930/04 flap housing' },
   ...['N 020 359 1', 'N 020 353 5', '999 181 709 50'].map((pn) => ({ line: `107-10#-#${pn}`, why: 'bulk hose sold by the metre (qty *), cut to length on assembly' })),
-  { line: '107-10#18', why: 'air guide inside the air-flow meter funnel (internal to the mixture control unit)' },
-  { line: '107-10#39', why: 'additional air valve: alternative to the auxiliary air regulator #36 (modelled) on this engine' },
   { line: '301-00#-#915 116 911 00', why: 'repair kit (no separate item)' },
   { line: '901-00#10', why: 'dust cover under the distributor cap (internal, hidden by the cap)' },
   ...range('901-00', [11, 12, 13, 14, 15, 20], 'ignition coil and its mounting / tower cap: ' + BODY + ' (left rear wing)'),
   ...range('901-00', [24, 25, 26], 'capacitive-discharge switch unit and its screws: ' + BODY),
-  ...range('901-00', [27, 29, 31, 32, 33, 34, 35], 'steering lock / ignition switch: ' + BODY + ' (steering column)'),
+  ...range('901-00', [27, 29, 31, 32, 33, 34], 'steering lock / ignition switch: ' + BODY + ' (steering column)'),
   { line: '901-00#-#999 190 123 02', why: 'blind rivets for the steering-lock rosette: ' + BODY },
   ...range('902-05', [2, 4, 5], 'alternator mounting support inside the fan housing, modelled as part of the alternator / fan-housing castings'),
   { line: '902-05#-#928 603 910 00', why: 'diode plate: internal to the alternator' },
@@ -277,7 +283,7 @@ export const NOT_APPLICABLE: NotApplicable[] = [
 
 /** Lines still not modelled (reported by the doc generator; the test requires this list to match reality). */
 export const STILL_MISSING: NotApplicable[] = [
-  { line: '105-05#3', why: 'air guide 911 106 406 00: location not identified in the photo references, not modelled' },
+  { line: '105-05#3', why: 'air duct for the front oil cooler (911 106 406 00, trade 911 106 406 01), right front fender, not on the engine and not the CIS intake air guide' },
 ];
 
 /** Groups covered by this checklist (108-00 air injection is not on this US 49-state/ROW reference engine set; see docs). */
