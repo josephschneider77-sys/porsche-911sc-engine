@@ -8,6 +8,7 @@ import {
   Part, V3, lathe, boxMM, cyl, cylBetween, extrude, roundRect, circlePath, hexNut, tube, torus, mesh, cutGroup, csgSub,
 } from './util';
 import { CYL_Z, INTAKE_PORT, INJ, bankOf } from '../data/layout';
+import { DIST_VAC_NIPPLE } from './aux';
 
 const CYLS = [1, 2, 3, 4, 5, 6] as const;
 
@@ -62,8 +63,6 @@ export const AFM_AUX = { tip: [28, 280, -64] as V3, axis: [1, 0, 0] as V3 };
 export const PLENUM_AUX = { tip: [32, 180, -134] as V3, axis: [0, 0, -1] as V3 };
 /** Manifold-vacuum nipple on the plenum lid, downstream of the throttle. */
 export const MANIFOLD_VAC = { tip: [-30, 268, 40] as V3, axis: [0, 1, 0] as V3 };
-/** Distributor vacuum-advance nipple, outboard end of the can (aux.ts distributor). */
-export const DIST_VAC = { tip: [-168, 150, 146] as V3, axis: [-1, 0, 0] as V3 };
 /** Auxiliary air valve mount. Prototype +Y is world −Z; the two barbs are prototype ±X. */
 export const AAV_MOUNT = { origin: [52, 200, -95.6] as V3, normal: [0, 0, -1] as V3 };
 /** Vacuum T-piece and limiter origins (world mm). smallParts poses the fittings here. */
@@ -756,18 +755,18 @@ export function aavPorts() {
 }
 
 /**
- * Rubber / vacuum hose. `ahead` is the collinear run past the straight lead; keep it short
- * where a long lead would enter the shroud (the auxiliary-air valve's lower barb).
+ * Rubber / vacuum hose. `ahead` / `aheadB` are the collinear runs past each straight lead.
+ * Keep the far end short where a long run would enter the shroud or the chain housing.
  */
-function hoseCentre(a: FuelEnd, b: FuelEnd, mids: V3[], ahead = 10): V3[] {
+function hoseCentre(a: FuelEnd, b: FuelEnd, mids: V3[], ahead = 10, aheadB = ahead): V3[] {
   const A = norm(a.axis), B = norm(b.axis);
   const lead = 8;
   const a1 = add(a.point, A, lead);
   const b1 = add(b.point, B, lead);
-  return filleted([a1, add(a.point, A, lead + ahead), ...mids, add(b.point, B, lead + ahead), b1], 10);
+  return filleted([a1, add(a.point, A, lead + ahead), ...mids, add(b.point, B, lead + aheadB), b1], 10);
 }
 
-function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5, ahead = 10) {
+function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5, ahead = 10, aheadB = ahead) {
   const A = norm(a.axis), B = norm(b.axis);
   const lead = 8;
   const start = add(a.point, A, 0.35);
@@ -776,7 +775,7 @@ function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5,
   const b1 = add(b.point, B, lead);
   addNamed(p, id, cylBetween(start, a1, r, 8), 'rubber');
   addNamed(p, id, cylBetween(end, b1, r, 8), 'rubber');
-  const pts = hoseCentre(a, b, mids, ahead);
+  const pts = hoseCentre(a, b, mids, ahead, aheadB);
   addNamed(p, id, tube(pts, r, 7, Math.max(16, pts.length * 3)), 'rubber');
   return pts;
 }
@@ -821,7 +820,7 @@ export function serviceHoses(): FuelLineDef[] {
     { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
     { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: endOf('vacuum-fittings', t.minusX.tip, t.minusX.axis) },
     { id: 'vac-limiter', part: 'vacuum-fittings', a: endOf('vacuum-fittings', t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
-    { id: 'vac-distributor', part: 'vacuum-fittings', a: endOf('vacuum-fittings', t.plusZ.tip, t.plusZ.axis), b: endOf('distributor', DIST_VAC.tip, DIST_VAC.axis) },
+    { id: 'vac-distributor', part: 'vacuum-fittings', a: endOf('vacuum-fittings', t.plusZ.tip, t.plusZ.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
   ];
 }
 
@@ -845,8 +844,25 @@ export function vacuumHosesPart() {
   addHose(p, mani.id, mani.a, mani.b, [[-22, 274, 52]], 3.2);
   // Limiter barb points +X, so the hose runs past it and turns back into the tip.
   addHose(p, lim.id, lim.a, lim.b, [[70, 268, 40], [108, 270, -20], [108, 268, -72]], 3.2);
-  // Left of the cap (cap reaches about x −135) and above the lead that drops at y 188.
-  addHose(p, dist.id, dist.a, dist.b, [[-40, 278, 110], [-190, 240, 130], [-186, 200, 146]], 3.2);
+  // Leave the T toward the pulley and cross above the plenum. The drop is in the open
+  // bay at x −220, z 200: pulley of the shroud wing, flywheel of the chain housing,
+  // and outboard of the cap, the clips and the leads. The can-end run stays short.
+  const nip = DIST_VAC_NIPPLE;
+  const out = 12;
+  const approach: V3 = [
+    nip.point[0] + nip.dir[0] * out - 30,
+    nip.point[1] + nip.dir[1] * out + 16,
+    nip.point[2] + nip.dir[2] * out,
+  ];
+  addHose(p, dist.id, dist.a, dist.b, [
+    [-40, 278, 115],
+    [-130, 290, 140],
+    [-200, 270, 160],
+    [-220, 250, 200],
+    [-220, 180, 202],
+    [-220, 140, 202],
+    approach,
+  ], 3.2, 10, 4);
   return p;
 }
 
