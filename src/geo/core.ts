@@ -954,8 +954,8 @@ export function cylinder() {
 // ---------------------------------------------------------------- cylinder head (103-00), local: combustion face at x=0, outer +X
 /**
  * Single-cylinder head: finned body (fins stacked along the cylinder axis, like the barrel), a machined spigot that
- * drops into the barrel, a hemispherical chamber, intake port up / exhaust port down with 2-stud flanges, spark-plug
- * boss on the exhaust side, and the cam-housing face with the two valve-spring wells and four studs.
+ * drops into the barrel, a hemispherical chamber, intake port up / exhaust port down with 2-stud flanges, an M14
+ * plug bore from the chamber up to the cam-housing face, and that face with the two valve-spring wells and four studs.
  */
 export const HEAD_W = HEAD_OUT_X - CYL_TOP_X; // 61
 /** Cut faces from the plug bore must point into the hole, not back into the casting. */
@@ -1030,18 +1030,17 @@ export function cylinderHead() {
   p.add(epg, 'castAlu', [34, -57.75, 0]); // flange face y -63.5
   p.add(cylBetween([34, -44, 0], [34, -54, 0], 20, 24), 'castAlu');
   p.add(yToZ(cyl(15.4, 1, 32)).rotateX(Math.PI / 2), 'bore', [34, -62.6, 0]);
-  // Spark-plug boss on the exhaust side, beside the gap between the valves.
-  // Washer seat is 30 mm out along the axis, past the open exhaust valve. Intake flange is not part of this cut.
+  // M14 bore on the intake side, coaxial with the upper-cover hole. The exhaust
+  // flange below is only the port plate: nothing is bored through it.
   const [pdx, pdy, pdz] = sparkDirHead();
   const plugDir = new THREE.Vector3(pdx, pdy, pdz);
   const plugTip = new THREE.Vector3(SPARK_TIP.x, SPARK_TIP.y, SPARK_Z);
   const along = (t: number): V3 => [plugTip.x + plugDir.x * t, plugTip.y + plugDir.y * t, plugTip.z + plugDir.z * t];
-  // Plug boss. Its outer end is the washer spot-face. The M14 bore (minor diameter)
-  // runs from the chamber through that face. Past the face, a wrench well opens
-  // through the casting so the hex is not buried in the head wall.
+  // Washer spot-face at the end of the 19 mm reach. The minor bore runs from the
+  // chamber through that face. The wrench well continues out of the casting so
+  // the hex and the ceramic are not buried in the head wall.
   const seatT = -SPARK_SEAT_Y;
   const minorR = SPARK_MINOR_D / 2;
-  p.add(cylBetween(along(8), along(seatT), 13, 20), 'castAlu');
   // cam-housing studs (103-00 #7) are added with the hardware (fasteners.ts, HEAD_HW.camStud)
   // Separate passes. One boolean that includes the chamber sphere leaves the guide solid,
   // and a pocket that ends on the guide bore leaves a coplanar cap in the stem.
@@ -1108,9 +1107,10 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
 }
 
 /**
- * Upper / lower valve cover (103-05 positions 17 and 19), engine coords. Kat 502 draws two closed lids
- * on the camshaft housing: a cast pan on a seat flange, bolt ears, and separate gaskets (18, 20).
- * The upper lid carries the machined bosses; the lower lid carries the stiffening ribs. No connector hole.
+ * Upper / lower valve cover (103-05 positions 17 and 19), engine coords. Kat 502 draws the upper lid
+ * (901 105 115 03) with two round plug holes one cylinder pitch apart and a half-round opening at one
+ * end, each on a collar, and the lower lid (930 105 116) as a ribbed pan with no holes. The holes are
+ * cut in pocketValveCover, coaxial with the plug bore. The lower lid keeps the stiffening ribs.
  */
 /** Valve-cover cavity: half-width at the seat (w0 + 8 bevel = 26) and how much the v5 hollow pan top rose (z 13.5 -> 22). */
 export const VC_CAV = { w0: 18 }, VC_RAISE = 8.5;
@@ -1169,14 +1169,12 @@ export function valveCover(s: 1 | -1, upper: boolean) {
     }
   }
   if (upper) {
-    // two machined round bosses
-    for (const yy of [-len * 0.2, len * 0.2]) {
-      loc.add(yToZ(lathe([[0, 0], [12, 0], [12, 2], [15, 3], [18, 5], [18, 0]].reverse().map(([r, z]) => [r, z] as [number, number]), 36)), 'castAlu', [0, yy, 13.5 + VC_RAISE]);
-      loc.add(yToZ(lathe([[0, 0], [16.5, 0], [16.5, 0.8], [12, 0.8], [11.5, -2], [0, -2]], 36)), 'machinedAlu', [0, yy, 18.6 + VC_RAISE]);
-    }
-    // raised cast PORSCHE lettering along the flat top
+    // Raised cast PORSCHE lettering on the flat top, in the gap between plug holes.
+    // Right holes sit near local Y −60 and +58; left holes sit near +16 and −102.
     // reads correctly from each bank's own side (letter-up toward +Y, advance toward the viewer's right)
-    raisedText(loc, 'PORSCHE', s > 0 ? 1 : 13.6, 0, 2.1, 13.2 + VC_RAISE, 1.3, 1.5, s, -s);
+    const letterY = s > 0 ? -4 : -44;
+    // Holes are centred at local x −8. The lettering sits on the head side of them.
+    raisedText(loc, 'PORSCHE', s > 0 ? 12 : 22, letterY, 1.65, 13.2 + VC_RAISE, 1.3, 1.5, s, -s);
   } else {
     // lower covers: low longitudinal stiffening ribs
     for (const dx of [-8, 8]) loc.add(boxMM([dx - 1.2, -len / 2 + 20, 13 + VC_RAISE], [dx + 1.2, len / 2 - 20, 15.5 + VC_RAISE]), 'castAlu');

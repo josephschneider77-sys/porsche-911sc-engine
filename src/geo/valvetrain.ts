@@ -12,7 +12,7 @@ import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, circlePath, polyShape,
   extrude, extrudeC, hexNut, tube, csgSub, csgUnion, dropDegenerate, woodruffGeom, cutGroup, subtractSolids, roundRect,
 } from './util';
-import { CAM_X, CAM_HOUSING_OUT_X, CYL_Z, CYL_TOP_X, HEAD_OUT_X, COVER_BOOT_HOLE, SPARK_TIP, SPARK_Z, SPARK_BOOT_Y, sparkDirHead } from '../data/layout';
+import { CAM_X, CAM_HOUSING_OUT_X, CYL_Z, CYL_TOP_X, HEAD_OUT_X, SPARK_HOLE_R, plugTipEngine, plugAxisEngine } from '../data/layout';
 import { HEAD_HW } from './hwLayout';
 import { CH_Z0, CH_Z1, VC_EARS, VC_EDGE, CAM_NOSE, CHAIN_Z, bankZ, coverMatrix } from './core';
 import {
@@ -1313,9 +1313,36 @@ export function camHousing(s: 1 | -1) {
   // After every cut. The tower bore is open past the shaft, so the seat probe
   // (r 4.2 on the screw, r 5.2 on the nut) was looking down the hole.
   addRockerSpotFaces(p, s);
-  // Last cut. A boolean in the main group left the boot well open on the left
-  // bank. The plane clipper caps the hole.
-  subtractSolids(p.g, plugBootClearance(s));
+  // Air around the plug from the head face to just inside the cover. Radius 10
+  // clears the ceramic (r 7.8) and the connector tube (r 7.6). The axis passes
+  // 36.3 mm from the cam centre; the journal is r 23.35, so this cutter stays
+  // 2.9 mm off the shaft. Short capped segments: one long cylinder's side
+  // planes shaved the journal cheek, and a box wide enough for the tube cut
+  // into the journal so the new face crossed the shaft.
+  // Cylinder 6 leaves the rail and crosses the flywheel end cap. From t = 116
+  // (4 mm off the journal) the passage is r 22 so the cap clears the cover
+  // collar (r 18) and the seal flange.
+  const plugAir: THREE.BufferGeometry[] = [];
+  for (const c of s > 0 ? [1, 2, 3] : [4, 5, 6]) {
+    const tip = plugTipEngine(c);
+    const axis = plugAxisEngine(c);
+    const at = (t: number): [number, number, number] => [
+      tip[0] + axis[0] * t, tip[1] + axis[1] * t, tip[2] + axis[2] * t,
+    ];
+    const tEnd = c === 6 ? 176 : 148;
+    for (let t = 60; t < Math.min(116, tEnd) - 2; t += 16) {
+      plugAir.push(cylBetween(at(t), at(Math.min(t + 18, 118)), 10, 16));
+    }
+    // Cylinder 6's collar (r 18) enters the flywheel cap at t ≈ 122. A 10 mm
+    // hole leaves the cap face against that collar. r 22 from t 116 is 4 mm
+    // off the journal and clears the collar after erosion.
+    if (c === 6) {
+      for (let t = 116; t < tEnd - 2; t += 16) plugAir.push(cylBetween(at(t), at(Math.min(t + 18, tEnd)), 22, 16));
+    } else {
+      for (let t = 116; t < tEnd - 2; t += 16) plugAir.push(cylBetween(at(t), at(Math.min(t + 18, tEnd)), 10, 16));
+    }
+  }
+  subtractSolids(p.g, plugAir);
   return p.g;
 }
 /**
@@ -1434,23 +1461,6 @@ function addShaftTowers(p: Part, s: 1 | -1) {
  * a cylinder at the shaft radius is subtracted from each cutter so the tower bore
  * still closes around the shaft.
  */
-/**
- * The provisional plug aim puts the terminal boot against the cam-housing wall.
- * Open a short well on that same axis so the boot has air. Radius 10 mm around
- * a 6.4 mm boot leaves enough that 1 mm of erosion on each mesh still misses.
- * The cut moves with SPARK_TIP / SPARK_TILT / SPARK_PITCH.
- */
-function plugBootClearance(s: 1 | -1): THREE.BufferGeometry[] {
-  const [dx, dy, dz] = sparkDirHead();
-  const dir = new THREE.Vector3(s * dx, dy, s * dz);
-  const cyls = s > 0 ? [1, 2, 3] as const : [4, 5, 6] as const;
-  return cyls.map((c) => {
-    const tip = new THREE.Vector3(s * (CYL_TOP_X + SPARK_TIP.x), SPARK_TIP.y, CYL_Z[c] + s * SPARK_Z);
-    const a = tip.clone().addScaledVector(dir, 46);
-    const b = tip.clone().addScaledVector(dir, 88);
-    return cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 11, 14);
-  });
-}
 /** Cylinders along the arm, clear of the shaft, so the side face is not left against the forging. */
 function armClearance(s: 1 | -1): THREE.BufferGeometry[] {
   const cuts: THREE.BufferGeometry[] = [];
@@ -1504,8 +1514,7 @@ function rockerPocketCutters(s: 1 | -1): THREE.BufferGeometry[] {
 /**
  * Recessed pockets on the inside of the cover. The cutter is the rocker and valve
  * envelope clipped to the pan interior, so the outer shell, the lettering and the
- * ribs stay closed. `COVER_BOOT_HOLE` adds a round connector hole outside the
- * gasket; it is off until the plug entry is decided.
+ * ribs stay closed. The upper lid then gets the three plug openings.
  */
 /**
  * The cover group is already in engine space. cutGroup bakes each mesh's world
@@ -1562,7 +1571,6 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
     end.applyMatrix4(frame);
     cuts.push(end);
   }
-  if (COVER_BOOT_HOLE && !upper) cuts.push(...bootHoleCutters(s));
   // Open the pan first. The blister is added after, so this pocket cannot take
   // the skin off the ceiling.
   if (cuts.length) subtractSolids(root, cuts);
@@ -1570,7 +1578,111 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   for (const g of [...relief.caps, ...relief.land]) extra.add(g, 'castAlu');
   root.add(extra.g);
   subtractSolids(extra.g, [...studHoles, under]);
+  if (upper) addPlugOpenings(root, s);
   return root;
+}
+/**
+ * Cover-local point where the plug axis crosses the cover plane at local z.
+ * The cover normal has no Z component, so every cylinder on a bank meets a
+ * given z at the same distance along the bore. Cylinder 6's crossing is past
+ * the flywheel end of the rail.
+ */
+export function plugCoverLocal(cyl: number, z: number): THREE.Vector3 {
+  const s: 1 | -1 = cyl <= 3 ? 1 : -1;
+  const tip = new THREE.Vector3(...plugTipEngine(cyl));
+  const axis = new THREE.Vector3(...plugAxisEngine(cyl));
+  const frame = coverMatrix(s, true);
+  const origin = new THREE.Vector3().setFromMatrixPosition(frame);
+  const n = new THREE.Vector3().setFromMatrixColumn(frame, 2);
+  const t = (z - tip.clone().sub(origin).dot(n)) / axis.dot(n);
+  return tip.clone().addScaledVector(axis, t).applyMatrix4(frame.clone().invert());
+}
+/**
+ * Three plug openings in the upper lid. Two are round holes one cylinder pitch
+ * apart. The third is the end opening: on the right it notches the pulley end
+ * (cylinder 1); on the left the staggered bore is past the rail, so cylinder 6
+ * gets a boss on the flywheel end, webbed back to the pan. Each opening has a
+ * cast collar. The hole is coaxial with the head bore. The lower lid is not cut.
+ */
+function addPlugOpenings(root: THREE.Object3D, s: 1 | -1) {
+  const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+  const collarR = 18;
+  const extra = new Part();
+  const cuts: THREE.BufferGeometry[] = [];
+  const frame = coverMatrix(s, true);
+  for (const c of cyls) {
+    const tip = new THREE.Vector3(...plugTipEngine(c));
+    const axis = new THREE.Vector3(...plugAxisEngine(c));
+    const at = (z: number) => {
+      const local = plugCoverLocal(c, z);
+      return local.applyMatrix4(frame);
+    };
+    const a = at(2.2);
+    const b = at(27);
+    extra.add(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], collarR, 28), 'castAlu');
+    const cutA = at(-2);
+    const cutB = at(36);
+    cuts.push(cylBetween([cutA.x, cutA.y, cutA.z], [cutB.x, cutB.y, cutB.z], SPARK_HOLE_R, 24));
+  }
+  if (s < 0) {
+    // Cylinder 6's collar sits past the rail. A web on the outside of the pan
+    // joins the collar wall (not the bore) to the flywheel end.
+    // Outboard of the valve tips (they sit near local y −170) and off the housing.
+    const end = new THREE.Vector3(0, -200, 24).applyMatrix4(frame);
+    const boss = plugCoverLocal(6, 16).applyMatrix4(frame);
+    const axis = new THREE.Vector3(...plugAxisEngine(6));
+    const side = new THREE.Vector3(0, 0, 1).cross(axis).normalize();
+    if (side.dot(end.clone().sub(boss)) < 0) side.negate();
+    const attach = boss.clone().addScaledVector(side, 15);
+    extra.add(cylBetween([end.x, end.y, end.z], [attach.x, attach.y, attach.z], 7, 12), 'castAlu');
+  }
+  root.add(extra.g);
+  subtractSolids(root, cuts);
+  // The collar reaches the cam-side studs. Keep the nut face (local z 7) clear
+  // out to the washer probe, or those nuts sit in the collar.
+  const nutClear: THREE.BufferGeometry[] = [];
+  for (const yy of VC_EARS(true, s)) for (const xx of [-VC_EDGE, VC_EDGE]) {
+    const g = yToZ(cyl(7.6, 28, 20));
+    g.translate(xx, yy, 7.3 + 14);
+    g.applyMatrix4(frame);
+    nutClear.push(g);
+  }
+  subtractSolids(root, nutClear);
+  flipCoverHoleNormals(root, s);
+}
+/** Hole-wall normals must point into the bore so erosion moves the seat off the seal flange. */
+function flipCoverHoleNormals(root: THREE.Object3D, s: 1 | -1) {
+  const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+  const bores = cyls.map((c) => ({
+    tip: new THREE.Vector3(...plugTipEngine(c)),
+    axis: new THREE.Vector3(...plugAxisEngine(c)),
+  }));
+  const v = new THREE.Vector3(), radial = new THREE.Vector3();
+  root.updateMatrixWorld(true);
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    if (!mesh.geometry.attributes.normal) mesh.geometry.computeVertexNormals();
+    const P = mesh.geometry.attributes.position, N = mesh.geometry.attributes.normal;
+    const nm = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
+    const inv = nm.clone().invert();
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
+      for (const b of bores) {
+        const rel = v.clone().sub(b.tip);
+        const t = rel.dot(b.axis);
+        radial.copy(rel).addScaledVector(b.axis, -t);
+        const r = radial.length();
+        // Wall of the machined hole. Force the normal at the axis so erosion
+        // walks the seat off the seal flange, whatever the boolean winding did.
+        if (t > 100 && t < 175 && Math.abs(r - SPARK_HOLE_R) < 2.2) {
+          radial.negate().normalize().applyMatrix3(inv);
+          N.setXYZ(i, radial.x, radial.y, radial.z);
+          break;
+        }
+      }
+    }
+  });
 }
 /**
  * Per rocker: the cover-local box the forging occupies above the housing, plus a
@@ -1699,19 +1811,6 @@ function coverRelief(s: 1 | -1, upper: boolean) {
   }
   return { caps, pockets, railCuts, land };
 }
-/** Round holes on the plug axis, through the lower cover, outside the gasket when the flag is on. */
-function bootHoleCutters(s: 1 | -1): THREE.BufferGeometry[] {
-  const [dx, dy, dz] = sparkDirHead();
-  const dir = new THREE.Vector3(s * dx, dy, s * dz).normalize();
-  const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
-  return cyls.map((c) => {
-    const tip = new THREE.Vector3(s * (CYL_TOP_X + SPARK_TIP.x), SPARK_TIP.y, CYL_Z[c] + s * SPARK_Z);
-    const a = tip.clone().addScaledVector(dir, -SPARK_BOOT_Y - 10);
-    const b = tip.clone().addScaledVector(dir, -SPARK_BOOT_Y + 14);
-    return cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 9, 16);
-  });
-}
-
 /** Valve head in engine space at `crank`, for the piston-clearance sweep. */
 export function valveHeadEngine(cyl: number, side: 1 | -1, crank: number): THREE.BufferGeometry {
   const pose = trainPose(cyl, side, crank);

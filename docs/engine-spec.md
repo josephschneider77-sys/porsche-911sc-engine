@@ -81,7 +81,7 @@ The part numbers come from the Porsche Classic parts catalogue **Kat 002, 911 19
 | | 9/13/14 | Housing / filter / lid | 911 110 106 13 / 911 110 185 02 / 930 110 184 00 |
 | **107-00 Mixture control unit** | 1/2 | Fuel distributor / air-flow meter | 911 110 967 00 / 911 110 965 00 |
 | **107-10 K-Jetronic** | 21 / 23 / 54 | Injector ×6 / injection lines / warm-up valve | 911 110 225 01 / 911 110 093 11-12 / 911 606 105 09 |
-| **901-00 Ignition** | 1 / 16 | Distributor / spark plugs ×6 | 930 602 021 04 / 999 170 170 90 |
+| **901-00 Ignition** | 1 / 16 | Distributor / spark plugs ×6 | 930 602 021 04 / 999 170 055 90 |
 | **202-00 Exhaust (SC)** | 1 / 26 | Silencer / heat exchangers ×2 | 930 111 022 00 / 930 211 025 01 |
 | **301-00 Clutch** | 1 / 2 / 5 | Pressure plate / disc / ring gear | 915 116 001 27 / 915 116 011 19 / 911 116 239 00 |
 
@@ -382,7 +382,7 @@ Closed valves meet the 45° seat with no gap. At the assembled crank (cylinder 1
 
 ### Tests
 
-`tests/valvetrain.test.ts` checks lash, nose lift (at least 10 mm, above the previous 6.71 / 5.57 mm), the pad crown on the base circle within 0.05 mm, lobe-peak versus the Ø47.1 bore, the open bore from the chain end, the left/right mirror, the left valve cover against the cam-housing seat, the cam dowel, a closed cover shell (no ray from inside the pan misses the roof), the plug axis clear of the exhaust flange and 2.5 mm off the heat exchanger, and that every rocker sub-mesh on a station is one connected piece. Cover studs sit in the gaps between those shafts, because the old ear line ran through the intake shaft. The plug aim (56° outboard, 14° along the row, tip at head-local 12, −18, 12) is provisional; `COVER_BOOT_HOLE` stays off until the entry is decided. The 19 mm shoe is wider than the gap to the next lobe, so the wings outside this lobe are cut back clear of the peak radius. The left flywheel journal sits just outboard of the cylinder-6 shoe; the right bank's station would land on that shoe. The plug boot ends just behind the terminal nut, short of the housing rail. The shoe face is the posed lobe normal, 0.04 mm off the polar point.
+`tests/valvetrain.test.ts` checks lash, nose lift (at least 10 mm, above the previous 6.71 / 5.57 mm), the pad crown on the base circle within 0.05 mm, lobe-peak versus the Ø47.1 bore, the open bore from the chain end, the left/right mirror, the left valve cover against the cam-housing seat, the cam dowel, a closed cover shell (no ray from inside the pan misses the roof), the plug axis clear of the exhaust flange and 2.5 mm off the heat exchanger, the electrode 1.5 mm off the piston at TDC and clear of both valve heads, and that every rocker sub-mesh on a station is one connected piece. Cover studs sit in the gaps between those shafts, because the old ear line ran through the intake shaft. The plug axis is `SPARK_AXIS` (35.95° above horizontal, 36.79° off the cylinder axis, 8.98° off the upper-cover normal), through the upper cover. The 19 mm shoe is wider than the gap to the next lobe, so the wings outside this lobe are cut back clear of the peak radius. The left flywheel journal sits just outboard of the cylinder-6 shoe; the right bank's station would land on that shoe. The connector is a straight tube, a seal flange in the upper-cover hole, and a 90° elbow. The shoe face is the posed lobe normal, 0.04 mm off the polar point.
 
 ## 12. Batch 2 — rotating assembly
 

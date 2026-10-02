@@ -1,6 +1,6 @@
 import { SystemKey } from './catalog';
 import * as THREE from 'three';
-import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ, SPARK_Z, SPARK_TIP, SPARK_ROLL, SPARK_NIPPLE_Y, sparkDirHead } from './layout';
+import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ, SPARK_Z, SPARK_TIP, SPARK_NIPPLE_Y, sparkDirHead, sparkRoll } from './layout';
 import { FASTENER_SPECS } from './fastenerSpec';
 import { SMALL_SPECS, smallRef } from './smallSpec';
 
@@ -66,7 +66,7 @@ function perCylinder(): PartDef[] {
       id: `head-${c}`, name: `Cylinder head ${c}`, system: 'heads', asset: 'cylinder-head',
       position: [CYL_TOP_X * s, 0, z], rotation: bankRot(c), explode: [s * 400, 0, 0],
       catalog: [{ ill: '103-00', pos: '1', pn: '930 104 029 08', qty: 6, note: 'Without valves' }],
-      description: 'Individual single-cylinder cast aluminium head with a hemispherical chamber, two valves in a V, intake port on top and exhaust port below. The spark plug sits low on the exhaust side.',
+      description: 'Individual single-cylinder cast aluminium head with a hemispherical chamber, two valves in a V, intake port on top and exhaust port below. The spark plug is threaded in an M14 bore from the chamber up to the cam-housing face, coaxial with the upper valve-cover hole. The exhaust flange is the port plate only.',
       specs: { Valves: '2 (1 in / 1 ex)', 'Intake valve': 'Ø49 mm', 'Exhaust valve': 'Ø41.5 mm', 'Valve angle': '~28° in / ~32° ex (est.)' },
     });
     out.push({
@@ -83,15 +83,15 @@ function perCylinder(): PartDef[] {
     const [dx, dy, dz] = sparkDirHead();
     const axis = new THREE.Vector3(s * dx, dy, s * dz);
     const qPlug = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), axis);
-    // Local +Y spin, applied before the axis alignment, turns a hex flat toward the barrel.
-    qPlug.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), SPARK_ROLL));
+    // Local +Y spin, applied before the axis alignment, points the elbow off the lid.
+    qPlug.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), sparkRoll(s)));
     const euler = new THREE.Euler().setFromQuaternion(qPlug, 'XYZ');
     const zRot: Vec3 = [euler.x, euler.y, euler.z];
     out.push({
       id: `spark-plug-${c}`, name: `Spark plug, cyl. ${c}`, system: 'ignition', asset: 'spark-plug',
       position: [(CYL_TOP_X + SPARK_TIP.x) * s, SPARK_TIP.y, z + SPARK_Z * s], rotation: zRot, explode: [s * 380, -220, 0],
-      catalog: [{ ill: '901-00', pos: '16', pn: '999 170 170 90', qty: 6, note: '1978 (−79): 145 EA 0,8. Kat 502 also lists 999 170 136 90 for the same position.' }, { ill: '901-00', pos: '21', pn: '911 602 315 00', note: 'Plug connector' }],
-      description: 'Bosch W-series plug, one per cylinder. M14×1.25 thread, 19 mm reach, gasket seat, 20.8 mm hex, ribbed ceramic and a terminal nut the boot grips. The part origin is the electrode tip. Local −Y runs from the tip toward the terminal. Tilt and pitch are SPARK_TILT and SPARK_PITCH and are not final.',
+      catalog: [{ ill: '901-00', pos: '16', pn: '999 170 055 90', qty: 6, note: '999 170 165 90 is the other line at this position.' }, { ill: '901-00', pos: '21', pn: '911 602 315 00', note: 'Plug connector: straight tube, seal flange, 90° elbow' }],
+      description: 'Bosch W-series plug, one per cylinder, entered through the upper valve cover. M14×1.25 thread, 19 mm reach, gasket seat, 20.8 mm hex, ribbed ceramic. The connector (911 602 315 00) is a straight tube on the terminal, a round seal flange in the cover hole, and a 90° elbow. The part origin is 0.65 mm piston-side of the centre electrode; the ground strap outer face is 0.75 mm past the origin. Local −Y runs toward the terminal. The axis is SPARK_AXIS: 35.95° above horizontal, 36.79° off the cylinder axis.',
       specs: { Thread: 'M14 x 1.25', Reach: '19 mm', Hex: '20.8 mm', Gap: '0.7 mm', 'Terminal (plug-local)': `(0, ${SPARK_NIPPLE_Y}, 0)` },
     });
     out.push({
@@ -130,7 +130,9 @@ function perBank(): PartDef[] {
         id: `valve-cover-${up ? 'upper' : 'lower'}-${b}`, name: `Valve cover, ${up ? 'upper' : 'lower'} ${b}`, system: 'heads',
         asset: `valve-cover-${up ? 'upper' : 'lower'}-${b}`, explode: [s * 560, up ? 160 : -160, 0],
         catalog: [up ? { ill: '103-05', pos: '17', pn: '901 105 115 03', qty: 2, note: 'Gasket #18 930 105 194 00' } : { ill: '103-05', pos: '19', pn: '930 105 116 00', qty: 2, note: 'Gasket #20 930 105 195 01' }],
-        description: `${up ? 'Upper (intake-side)' : 'Lower (exhaust-side)'} ribbed valve cover sealing the rocker gallery of the camshaft housing.`,
+        description: up
+          ? 'Upper (intake-side) valve cover. Two round plug holes one cylinder pitch apart, plus the end opening, each with a cast collar between the rocker pockets. The lower cover has no plug holes.'
+          : 'Lower (exhaust-side) ribbed valve cover sealing the rocker gallery. No plug holes.',
         specs: { Material: 'Cast alloy', Fasteners: 'Nuts on studs' },
       });
     }

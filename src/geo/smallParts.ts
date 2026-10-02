@@ -9,9 +9,9 @@ import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
 import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
-import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
+import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf, SPARK_HOLE_R } from '../data/layout';
 import { LIP_Z, chainLidStations } from './stations';
-import { railJogs, joggedSheet } from './valvetrain';
+import { railJogs, joggedSheet, plugCoverLocal } from './valvetrain';
 import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
 import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, VAC_T, VAC_LIMIT } from './induction';
 
@@ -145,14 +145,52 @@ for (const s of BANKS) {
       const e = VC_EXT(s);
       // The rocker crosses the outboard rail. The hole and the outer edge jog
       // out together, so the rail stays one closed ring and the arm is in the opening.
-      const g = joggedSheet(w, L + e, 52, L - 14 + e, railJogs(s, up), 0.4);
+      let g = joggedSheet(w, L + e, 52, L - 14 + e, railJogs(s, up), 0.4);
       g.translate(0, -e / 2, -0.25);
-      return new Part().add(g, 'gasket');
+      // The end scallop (cylinder 1) crosses the pulley-end rail. Open it.
+      if (up) {
+        const notches = (s > 0 ? [1, 2, 3] : [4, 5, 6]).flatMap((c) => {
+          const loc = plugCoverLocal(c, -0.25);
+          if (Math.abs(loc.y) > 200 || Math.abs(loc.x) > 24) return [];
+          return [yToZ(cyl(SPARK_HOLE_R + 1, 6, 16)).translate(loc.x, loc.y, -0.25)];
+        });
+        if (notches.length) g = csgSub(g, ...notches);
+      }
+      const part = new Part().add(g, 'gasket');
+      // Upper gasket (930 105 194): bridges across the window where the plug
+      // collars sit. The bridge is holed for the connector tube, smaller than
+      // the collar, so the collar bears on gasket rather than on open oil space.
+      // Cylinder 6's opening is past the rail, so it has no bridge.
+      if (up) {
+        for (const c of (s > 0 ? [1, 2, 3] : [4, 5])) {
+          const loc = plugCoverLocal(c, -0.25);
+          if (Math.abs(loc.y) > 160 || Math.abs(loc.x) > 18) continue;
+          const sh = roundRect(40, 18, 2, loc.x, loc.y);
+          sh.holes.push(circlePath(SPARK_HOLE_R - 1, loc.x, loc.y) as THREE.Path);
+          part.add(extrudeC(sh, 0.4).translate(0, 0, -0.25), 'gasket');
+        }
+      }
+      return part;
     }, () => [coverMatrix(s, up).clone()]);
   }
   def(`cam-end-cover-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [27, 0], [27, 1], [25, 3], [0.1, 3]], 36), 'castAlu'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc, 0, CH_Z0 - 60), Z)]);
   // Clear of the Ø46.7 journals (centre distance 30 mm). The old offset of 24 mm ran through the journals.
-  def(`cam-splash-tube-${b}`, () => new Part().add(cyl(3.5, CH_Z1 - CH_Z0 - 40, 14).translate(0, (CH_Z1 - CH_Z0 - 40) / 2, 0), 'steel'), () => [M(V((CAM_X - 22) * s, 26, CH_Z0 + 20), Z)]);
+  // The plug axis crosses this x at about y 29. Break the tube there; the gaps are
+  // shorter than the perforated run, and y 26 stays clear of the valve stems.
+  def(`cam-splash-tube-${b}`, () => {
+    const p = new Part();
+    const z0 = CH_Z0 + 20;
+    const z1 = CH_Z1 - 20;
+    const gaps = (s > 0 ? [1, 2, 3] : [4, 5, 6]).map((c) => CYL_Z[c] + s * 44);
+    let cursor = z0;
+    for (const zc of gaps.sort((a, b) => a - b)) {
+      const a = zc - 18;
+      if (a > cursor + 6) p.add(cyl(3.5, a - cursor, 12).translate(0, (cursor - z0) + (a - cursor) / 2, 0), 'steel');
+      cursor = Math.max(cursor, zc + 18);
+    }
+    if (z1 > cursor + 6) p.add(cyl(3.5, z1 - cursor, 12).translate(0, (cursor - z0) + (z1 - cursor) / 2, 0), 'steel');
+    return p;
+  }, () => [M(V((CAM_X - 22) * s, 26, CH_Z0 + 20), Z)]);
   def(`cam-housing-stoppers-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, -4], [5, -4], [5, 0], [5.5, 0], [5.5, 1.2], [0.1, 1.2]], 18), 'steel'); return p; }, () => [-1, 1].map((k) => onSurf(`cam-housing-${b}`, V(Xc - 24 * s, 24 * k, CH_Z0 - 60), Z)));
   def(`cam-oil-banjo-${b}`, () => { const p = banjo(); p.add(lathe([[5, 21], [8, 21], [8, 22.5], [5, 22.5]], 20), 'brass'); p.add(lathe([[5, 22.5], [8, 22.5], [8, 24], [5, 24]], 20), 'brass'); p.add(lathe([[0.1, 24], [6, 24], [6, 32], [0.1, 32]], 16), 'zincPlate'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc - 14 * s, -36, CH_Z0 - 80), Z, V(s, 0, 0))]);
 }
@@ -174,7 +212,7 @@ export function adjusterCover(s: 1 | -1) {
   }
   throw new Error('adjusterCover: no spot');
 }
-def('cam-temp-switch', () => sender(9, 10, 19), () => [onSurf('cam-housing-left', V(-CAM_X + 14, 36, CH_Z0 - 80), Z)]);
+def('cam-temp-switch', () => sender(9, 10, 19), () => [onSurf('cam-housing-left', V(-CAM_X + 14, 58, CH_Z0 - 80), Z)]);
 
 // ===== crank nose / flywheel =====
 const CN = CRANK_NOSE;

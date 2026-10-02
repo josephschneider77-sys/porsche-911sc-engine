@@ -1061,10 +1061,10 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 14 | N 012 241 8 | Spring washer | 2 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 15 | 900 076 025 02 | Hexagon nut | 2 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 15 | 900 076 064 02 | Hexagon nut | 2 | alt | alternative to 901-00 #15 |
-| 16 | 999 170 055 90 | Spark plug | 6 | excluded | model years 80-: not a 1978 engine |
-| 16 | 999 170 165 90 | Spark plug | 6 | excluded | model years 80-: not a 1978 engine |
-| 16 | 999 170 170 90 | Spark plug | 6 | modelled | `spark-plug-*` |
-| 16 | 999 170 136 90 | Spark plug | 6 | alt | alternative to 901-00 #16 |
+| 16 | 999 170 055 90 | Spark plug | 6 | modelled | `spark-plug-*` |
+| 16 | 999 170 165 90 | Spark plug | 6 | alt | alternative to 901-00 #16 |
+| 16 | 999 170 170 90 | Spark plug | 6 | excluded | not the plug this model uses (999 170 055 90) |
+| 16 | 999 170 136 90 | Spark plug | 6 | excluded | not the plug this model uses (999 170 055 90) |
 | 16 | 999 170 128 90 | Spark plug | 6 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 17 | 911 609 011 07 | Set of ignition cables | 1 | modelled | `ignition-leads` |
 | 18 | 911 609 061 07 | Ignition lead | 1 | modelled | `ignition-leads` coil |

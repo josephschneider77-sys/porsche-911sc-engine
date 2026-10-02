@@ -11,7 +11,7 @@ import { fastenerSets } from '../src/geo/fasteners';
 import { SMALL_SPECS } from '../src/data/smallSpec';
 import { SHAFT, rockerStations } from '../src/geo/valvetrain';
 import { coverMatrix } from '../src/geo/core';
-import { SPARK_MINOR_D, SPARK_PROJ, SPARK_REACH, SPARK_SEAT_Y } from '../src/data/layout';
+import { SPARK_MINOR_D, SPARK_PROJ, SPARK_REACH, SPARK_SEAT_Y, SPARK_HOLE_R, SPARK_FLANGE_T } from '../src/data/layout';
 
 export interface Hit { a: string; b: string; tris: number; box: THREE.Box3 }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
@@ -134,6 +134,8 @@ function solid(id: string, asset: string, pos: number[] | undefined, rot: number
  *   rocker shaft × cam-housing bore — cylinder of the shaft, radial allowance 0.45 mm
  *   valve-cover gasket × cam-housing land — cover-local |z| under 0.45 mm
  *   spark plug × head — M14 minor bore along the 19 mm reach, and the washer spot-face
+ *   spark plug × upper cover — connector seal flange in the machined hole.
+ *     The tube and the elbow stay clear of the hole edge; only this flange seats.
  */
 const SHAFT_SEAT_R = 0.45;
 const GASKET_SEAT_Z = 0.45;
@@ -191,6 +193,22 @@ function narrowSeat(a: string, b: string, p: THREE.Vector3): boolean {
     if (t >= t0 && t <= tThread && radial <= minorR + PLUG_SEAT_TOL) return true;
     const tSeat = -SPARK_SEAT_Y;
     if (Math.abs(t - tSeat) <= PLUG_SEAT_TOL && radial <= 11.2 + PLUG_SEAT_TOL && radial >= minorR - PLUG_SEAT_TOL) return true;
+  }
+  const cover = /^valve-cover-upper-(left|right)$/.test(a) ? a : /^valve-cover-upper-(left|right)$/.test(b) ? b : '';
+  if (plug && cover) {
+    const n = Number(plug.slice(-1));
+    const right = cover.endsWith('right');
+    if ((n <= 3) !== right) return false;
+    const fr = plugAxis(plug);
+    if (!fr) return false;
+    _seat.copy(p).sub(fr.tip);
+    const t = _seat.dot(fr.axis);
+    const radial = Math.hypot(
+      _seat.x - t * fr.axis.x, _seat.y - t * fr.axis.y, _seat.z - t * fr.axis.z,
+    );
+    // Seal flange of 911 602 315 00 in the cover hole. The window is the
+    // cylindrical wall only: 0.35 mm along the bore and 0.35 mm radially.
+    if (Math.abs(t - SPARK_FLANGE_T) <= 0.35 && Math.abs(radial - SPARK_HOLE_R) <= 0.35) return true;
   }
   return false;
 }

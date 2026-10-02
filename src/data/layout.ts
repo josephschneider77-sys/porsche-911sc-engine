@@ -56,38 +56,54 @@ export function pinX(cyl: number, crankDeg = 0): { pinX: number; throwXY: [numbe
 }
 
 /**
- * Spark plug axis, head-local. One plug per cylinder. These numbers are the whole
- * aim and they are not final — the entry direction is still being checked.
- * `COVER_BOOT_HOLE` is the matching switch for a round connector hole in a cover,
- * outside the gasket, and it stays off until that is decided.
+ * Spark plug axis, head-local, from the electrode up to the upper valve cover.
+ * Kat 502 illustration 103-05 (PDF p.66) draws lid 901 105 115 03 with two round
+ * holes about one cylinder pitch apart and a half-round opening at one end.
+ * The plug is threaded in a bore coaxial with that hole. Illustration 901-00
+ * (PDF p.582) is the plug and the connector.
  *
- * Provisional until the catalogue audit of the plug entry. Not a photo decision.
- * Tip (12, −8, 28), 58° outboard, 24° along the row. The shell clears both valve
- * heads, the exhaust-flange plate and the cam-housing stud nuts. The heat
- * exchanger stays well clear. The terminal boot meets the cam-housing wall, so
- * the housing is relieved on this same axis.
+ * The upper-cover plane on the right bank has normal (0.742, 0.671, 0), 42.1°
+ * above horizontal. The datum is head-local (2.36, −20, 34): the centre electrode
+ * is 0.65 mm behind it and the ground strap's outer face is 0.75 mm in front, so
+ * that face is 2.3 mm clear of the piston crown at TDC. The cover hole is 51 mm
+ * rearward of the cylinder centre and 8 mm toward the cam side of the lid (local
+ * x −8), which keeps the ceramic off the M10 barrel nuts. The same head bore,
+ * mirrored on the left, leans forward.
  *
- * partPose: position is the electrode tip. The quaternion maps plug-local (0, −1, 0)
- * onto the engine axis (s·dx, dy, s·dz), with SPARK_ROLL about local +Y applied first.
- * A plug-local point (0, y, 0) is tip + (−y) · axis in the engine frame.
+ * Axis, datum → hole, head frame (0.8009, 0.5871, 0.1181):
+ *   35.95° above horizontal
+ *   36.79° off the cylinder axis (+X)
+ *   8.98° off the cover normal
+ * Path length from the datum to the cover face (local z 24) is 144 mm. Cylinders
+ * 1–3 lean rearward and 4–6 forward. Cylinder 6's station falls past the flywheel
+ * end of the cover rail (the rail is centred on the cam housing, not on the
+ * staggered left bank), so that opening is a boss on the end of the upper-left
+ * lid, still on this axis. The seal rail is not lengthened.
+ *
+ * partPose: position is this datum, 0.65 mm piston-side of the centre electrode.
+ * The quaternion maps plug-local (0, −1, 0) onto the engine axis (s·dx, dy, s·dz).
+ * `sparkRoll` spins about local +Y first. A plug-local point (0, y, 0) is
+ * datum + (−y) · axis in the engine frame.
  */
-export const SPARK_TIP = { x: 12, y: -8 };
-export const SPARK_Z = 28;
-/** Radians. Lean about +Z from straight down (−Y), outboard as the plug leaves the chamber. */
-export const SPARK_TILT = 58 * Math.PI / 180;
+export const SPARK_TIP = { x: 2.36, y: -20 };
+export const SPARK_Z = 34;
+/** Along-row offset of the cover hole from the cylinder centre, mm. Rearward on the right bank. */
+export const SPARK_ROW = 51;
+/** Unit axis in the head frame, from the electrode datum toward the cover hole. */
+export const SPARK_AXIS: [number, number, number] = [0.8009, 0.5871, 0.1181];
+export function sparkDirHead(): [number, number, number] {
+  return SPARK_AXIS;
+}
 /**
- * Radians. Along-row lean, toward the neighbouring cylinder.
- * Provisional: 58° outboard and 24° along the row. Not a catalogue decision.
+ * Radians. Local +Y spin applied before the axis alignment.
+ * 280° on the right lays the ground strap flat in the chamber so the outer face
+ * stays off the crown. 100° is that roll plus a half turn, which mirrors it on
+ * the left bank. The bore is 9° off the cover normal, so the 90° elbow leaves
+ * nearly in the plane of the lid; the lead approaches from outside the cover.
  */
-export const SPARK_PITCH = 24 * Math.PI / 180;
-/** Radians. Spin about the plug axis so a hex flat faces the barrel fins. */
-export const SPARK_ROLL = 0;
-/**
- * Round connector hole in the cover, outside the gasket rail.
- * Off until the entry direction is decided. When on, the hole is cut in the lower
- * cover (exhaust side) on the plug axis, outboard of the gasket.
- */
-export const COVER_BOOT_HOLE = false;
+export function sparkRoll(s: 1 | -1): number {
+  return (s > 0 ? 280 : 100) * Math.PI / 180;
+}
 /** Bosch W-series: M14×1.25, 19 mm reach, gasket seat. */
 export const SPARK_REACH = 19;
 /** How far the centre electrode projects past the shell end, mm. */
@@ -99,31 +115,45 @@ export const SPARK_SEAT_Y = -(SPARK_PROJ + SPARK_REACH);
 /** Hex across flats, mm. */
 export const SPARK_HEX_AF = 20.8;
 /**
- * Plug-local Y of the terminal nut the boot grips.
+ * Plug-local Y of the terminal nut the connector grips.
  * Engine point = tip + (−SPARK_NIPPLE_Y) · axis.
  */
 export const SPARK_NIPPLE_Y = -70;
 /**
- * Plug-local Y inside the boot, where the lead ends. The boot surrounds the terminal nut;
- * this point is in that rubber, not past it.
+ * Distance along the axis from the tip to the connector's seal flange.
+ * That station is the cover-face crossing (local z of the outer skin).
  */
+export const SPARK_FLANGE_T = 144;
+/** Machined through-hole in the upper cover, mm radius. The seal flange is 0.12 mm larger. */
+export const SPARK_HOLE_R = 13;
+/** Connector tube outer radius, mm. It clears the cover hole; only the flange seats. */
+export const SPARK_TUBE_R = 7.6;
+/** Elbow bend radius, mm. The outlet runs in plug-local +X, off the lid. */
+export const SPARK_BEND_R = 16;
 /**
- * Plug-local Y inside the boot, where the lead ends. The boot surrounds the terminal nut
- * and stops just behind it: further along the axis the housing rail is 5.6 mm from the
- * centre, and a longer boot goes through that rail.
+ * Plug-local point the ignition lead enters: the elbow outlet, 8 mm past the bend.
+ * The straight tube ends 12 mm outside the flange; the quarter bend drops another
+ * `SPARK_BEND_R` and turns to +X.
  */
-export const SPARK_BOOT_Y = -72;
+export const SPARK_MOUTH: [number, number, number] = [SPARK_BEND_R + 8, -(SPARK_FLANGE_T + 12) - SPARK_BEND_R, 0];
 /**
- * Head-local distance along the axis from the tip to the end of the wrench well.
- * The casting is thicker than the 19 mm reach, so the spot-face is not yet the
- * outside of the head. The well is the counterbore from that face out through
- * the casting; the hex sits in it. It is not a final plug angle.
+ * Head-local distance along the axis from the tip to where the wrench well
+ * leaves the casting. The hex and the ceramic are inside it; past this station
+ * the plug is in the rocker gallery, not in the head.
  */
-export const SPARK_WELL_T = 92;
-/** Unit axis in the head frame, from the electrode tip toward the boot. */
-export function sparkDirHead(): [number, number, number] {
-  const c = Math.cos(SPARK_TILT);
-  return [Math.sin(SPARK_TILT), -c * Math.cos(SPARK_PITCH), -c * Math.sin(SPARK_PITCH)];
+export const SPARK_WELL_T = 78;
+/** Electrode tip in the engine frame. */
+export function plugTipEngine(cyl: number): [number, number, number] {
+  const s = cyl <= 3 ? 1 : -1;
+  return [s * (CYL_TOP_X + SPARK_TIP.x), SPARK_TIP.y, CYL_Z[cyl] + s * SPARK_Z];
+}
+/** Unit axis in the engine frame, tip toward the cover. Left heads mirror X and Z. */
+export function plugAxisEngine(cyl: number): [number, number, number] {
+  const s = cyl <= 3 ? 1 : -1;
+  const [dx, dy, dz] = SPARK_AXIS;
+  const x = s * dx, y = dy, z = s * dz;
+  const L = Math.hypot(x, y, z);
+  return [x / L, y / L, z / L];
 }
 export const INTAKE_PORT = { x: CYL_TOP_X + 26, y: 65 }; // runner flange seats on the head intake flange (top y 65)
 /** Injector seat in the intake runner (runner-local, right bank) and its axis. */

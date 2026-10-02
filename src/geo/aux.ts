@@ -8,7 +8,7 @@ import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
   polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
 } from './util';
-import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ, SPARK_BOOT_Y, SPARK_MINOR_D, SPARK_PROJ, SPARK_SEAT_Y, SPARK_HEX_AF, SPARK_NIPPLE_Y, COVER_BOOT_HOLE } from '../data/layout';
+import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ, SPARK_MINOR_D, SPARK_PROJ, SPARK_SEAT_Y, SPARK_HEX_AF, SPARK_NIPPLE_Y, SPARK_FLANGE_T, SPARK_HOLE_R, SPARK_TUBE_R, SPARK_BEND_R, SPARK_MOUTH } from '../data/layout';
 import { buildPlenumBox, AIR_NECK, BOX, LID_Y, WUR_FACES, runnerTunnelCutters, DIST_VAC } from './induction';
 export { INTAKE_PORT, INJ };
 export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './induction';
@@ -1075,7 +1075,7 @@ function alongEdge(x: number, y: number, z0: number, z1: number, ribs: number[])
  * beside the head, and runs back under the head in the gap below the oil returns. The last
  * segment leaves that gap at the bank end and follows the plug axis into the boot.
  */
-function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: number, boot: THREE.Vector3, axis: THREE.Vector3): V3[] {
+function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: number, boot: THREE.Vector3): V3[] {
   const lane = [1, 2, 3, 4, 5, 6].indexOf(c) % 3;
   // Right: past the cam-housing end cap (z -182) and in front of the shroud end plate (z -203).
   // Left: the wing ends at z 172 and the horn fills the corner above it, so the drop is at z 192,
@@ -1089,8 +1089,8 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
   const yUnder = -98 - lane * 6;
   const yHigh = Math.max(yLoom, wingTop(xLoom) + 8, wingTop(s * 180) + 8);
   const ribs = s > 0 ? [-150, -30, 90] : [-185, -90, 30];
-  // The terminal sits in the cover pocket. With the boot hole off, the wire stops
-  // outside the cover wall, abreast of the boot, instead of crossing that wall.
+  // The elbow leaves nearly in the plane of the lid. Rise outboard of the cover,
+  // then come in to the mouth. A chord from under the head crosses the lid.
   // Inboard shroud line, under the horizontal run of the intake runners (their centreline is y 206 until |x| 160).
   const xRail = xLoom;
   const zRailEnd = s > 0 ? zDrop : 162;
@@ -1113,11 +1113,11 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
     ...outStep,
     ...(s > 0 ? [] : [[xUnder, yUnder, 172] as V3, [xUnder, yUnder, zDrop] as V3]),
     [xUnder, yUnder, zDrop],
-    // Outside the lower-cover wall (it reaches about |x| 360).
-    [s * 396, yUnder, zDrop],
-    [s * 396, boot.y, zDrop],
-    [s * 396, boot.y, boot.z],
-    ...(COVER_BOOT_HOLE ? [[boot.x, boot.y, boot.z] as V3] : []),
+    // Out at the open end of the bank, rise outboard of both lids, run along, then in.
+    [s * 372, yUnder, zDrop],
+    [s * 372, boot.y, zDrop],
+    [s * 372, boot.y, boot.z],
+    [boot.x, boot.y, boot.z],
   ];
 }
 /**
@@ -1133,9 +1133,11 @@ export function plugLeadPoints(c: number, i: number, pose = partPose(`spark-plug
   const xLoom = s * (124 + lane * 8);
   const yLoom = wingTop(xLoom) + 9;
   const zRail = CYL_Z[c] + s * 34;
-  // Main's route. The boot point follows the plug pose (local -Y is the terminal axis).
-  const boot = new THREE.Vector3(0, SPARK_BOOT_Y, 0).applyMatrix4(pose);
-  const axis = new THREE.Vector3(0, -1, 0).transformDirection(pose).normalize();
+  // Elbow outlet. The bore is nearly normal to the lid, so the elbow lies in the
+  // cover plane. Arrive from 28 mm outside the lid, then the last segment enters the mouth.
+  const mouth = new THREE.Vector3(...SPARK_MOUTH).applyMatrix4(pose);
+  const outward = new THREE.Vector3(s * 0.742, 0.671, 0);
+  const ahead = mouth.clone().addScaledVector(outward, 28);
   const at = (r: number, y: number): V3 => [DIST.x + r * Math.cos(a), y, DIST.z + r * Math.sin(a)];
   const ribsL = [-185, -90, 30];
   const ribsR = [-150, -30, 90];
@@ -1162,7 +1164,8 @@ export function plugLeadPoints(c: number, i: number, pose = partPose(`spark-plug
       ...alongEdge(xLoom, yLoom, -166, zRail, ribsR),
     );
   }
-  const drop = bootDrop(s, c, xLoom, yLoom, zRail, boot, axis);
+  const drop = bootDrop(s, c, xLoom, yLoom, zRail, ahead);
+  drop.push([mouth.x, mouth.y, mouth.z]);
   // Right slot has room for a broad bend. The left drop stays tight so it does not enter the horn.
   // The under-head lane is below the boot. Do not lift it: that run is the clearance gap.
   return densify([...filleted(corners, 12), ...filleted(drop, s > 0 ? 12 : 6).slice(1)], 12);
@@ -1236,16 +1239,19 @@ function washerAnnulus(yBack: number, yFace: number, rIn: number, rOut: number, 
  * Bosch W-series plug. Local +Y is the firing end (electrode tip at the origin);
  * the terminal is along −Y. Thread M14×1.25, 19 mm reach, drawn at the minor
  * diameter minus 0.12 mm so it sits in the head bore without burying the shell.
- * The crush washer's seat face is plug-local y = SPARK_SEAT_Y. The boot surrounds
- * the terminal nut (SPARK_NIPPLE_Y); the lead ends at SPARK_BOOT_Y, inside that boot.
+ * The crush washer's seat face is plug-local y = SPARK_SEAT_Y. The connector
+ * (911 602 315 00) is a straight tube over the terminal, a round seal flange at
+ * the cover hole, and a 90° elbow the lead enters.
  */
 export function sparkPlug() {
   const p = new Part();
   const threadR = SPARK_MINOR_D / 2 - 0.12;
   const shellEnd = -SPARK_PROJ;
   const seat = SPARK_SEAT_Y;
-  // Centre electrode, nickel-steel, 0.7 mm under the ground strap.
-  p.add(lathe([[0.15, 0], [1.25, 0], [1.25, shellEnd - 1.2], [0.15, shellEnd - 1.2]], 16), 'polishedSteel');
+  // Centre electrode. The tip is 0.65 mm behind the datum; the strap's inner face
+  // is 0.05 mm in front of the datum, so the gap is 0.70 mm.
+  const tipY = -0.65;
+  p.add(lathe([[0.15, tipY], [1.25, tipY], [1.25, shellEnd - 1.2], [0.15, shellEnd - 1.2]], 16), 'polishedSteel');
   // Shell and thread. Grooves are the 1.25 mm pitch; the crest stays inside the bore.
   const thread: [number, number][] = [[1.6, shellEnd], [threadR, shellEnd]];
   const pitch = 1.25;
@@ -1261,9 +1267,12 @@ export function sparkPlug() {
   // Reversed so the shell normals point out of the metal. The other winding
   // erodes the crest outward into the bore.
   p.add(lathe(thread.slice().reverse(), 32), 'steel');
-  // Ground electrode: a J-strap from the shell rim, face 0.7 mm past the centre tip.
-  p.add(boxMM([-1.25, shellEnd, threadR - 1.7], [1.25, 1.15, threadR - 0.15]), 'steel');
-  p.add(boxMM([-1.25, 0.7, -1.5], [1.25, 1.9, threadR - 0.15]), 'steel');
+  // Ground electrode. The foot crosses the centre electrode; its outer face is the
+  // metal closest to the piston (0.75 mm past the datum). The leg stays at the
+  // shell rim, inside the bore, and does not reach that face.
+  p.add(boxMM([-0.55, shellEnd, threadR - 1.6], [0.55, -0.4, threadR - 0.15]), 'steel');
+  p.add(boxMM([-0.55, -1.0, 0.7], [0.55, 0.05, threadR - 0.15]), 'steel');
+  p.add(boxMM([-0.55, 0.05, -0.7], [0.55, 0.75, 0.9]), 'steel');
   // Sealing washer. The face at y = seat − 0.05 meets the spot-face. The inner edge
   // stays 1.5 mm off the minor-bore corner so the seat erosion does not bridge it.
   const washerIn = threadR + 1.7;
@@ -1287,15 +1296,35 @@ export function sparkPlug() {
   }
   ribs.push([4.2, insEnd + 2.4], [2.5, insEnd], [0.4, insEnd]);
   p.add(lathe(ribs, 24), 'ceramic');
-  // Terminal stud and nut. The boot's bore is smaller than the nut, so the rubber grips it.
+  // Terminal stud and nut. The connector bore is smaller than the nut's corners, so it grips.
   p.add(cyl(2.0, 7, 12).translate(0, SPARK_NIPPLE_Y + 3.2, 0), 'steel');
   p.add(hexNut(8, nutH).translate(0, SPARK_NIPPLE_Y, 0), 'darkSteel');
-  // Boot grips the terminal nut (across-corners ≈ 4.6 mm) and ends just behind it.
-  // A boot out to t ≈ 90 runs through the cam-housing rail, which passes 5.6 mm from the axis.
-  p.add(lathe([
-    [3.0, SPARK_NIPPLE_Y + 3.4], [6.4, SPARK_NIPPLE_Y + 3.4],
-    [6.4, SPARK_NIPPLE_Y - 4.2], [3.6, SPARK_NIPPLE_Y - 6.8], [2.0, SPARK_NIPPLE_Y - 6.8],
-  ], 20), 'rubber');
+  // Straight tube from just over the terminal nut out past the cover. Inner radius
+  // clears the ceramic and grips the nut. Outer radius clears the cover hole.
+  const yTube0 = SPARK_NIPPLE_Y + 2;
+  const yJoin = -(SPARK_FLANGE_T + 12);
+  const tubeProf: [number, number][] = [
+    [4.3, yTube0], [SPARK_TUBE_R, yTube0], [SPARK_TUBE_R, yJoin], [4.3, yJoin],
+  ];
+  p.add(lathe(tubeProf.slice().reverse(), 24), 'blackPlastic');
+  // Seal flange in the cover hole. 0.12 mm larger than the hole, so the only
+  // contact with the lid is this narrow cylindrical seat.
+  const fy = -SPARK_FLANGE_T;
+  const fr = SPARK_HOLE_R + 0.12;
+  const flangeProf: [number, number][] = [
+    [SPARK_TUBE_R - 0.4, fy - 1.15], [fr, fy - 1.15], [fr, fy + 1.15], [SPARK_TUBE_R - 0.4, fy + 1.15],
+  ];
+  p.add(lathe(flangeProf.slice().reverse(), 32), 'rubber');
+  // 90° elbow. Starts on the axis at yJoin, travelling toward −Y, and leaves
+  // along local +X. Centre of the bend is (SPARK_BEND_R, yJoin).
+  const R = SPARK_BEND_R;
+  const bend: V3[] = [];
+  for (let i = 0; i <= 8; i++) {
+    const ang = Math.PI + (i / 8) * (Math.PI / 2);
+    bend.push([R + R * Math.cos(ang), yJoin + R * Math.sin(ang), 0]);
+  }
+  bend.push([SPARK_MOUTH[0], SPARK_MOUTH[1], SPARK_MOUTH[2]]);
+  p.add(tube(bend, SPARK_TUBE_R, 10, 8), 'blackPlastic');
   return p.g;
 }
 

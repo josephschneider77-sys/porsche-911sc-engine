@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import {
   CAM, PEAK_R, LASH, PAD_LEN, EYE_LEN, PAD_W, FIRE_CRANK, ASSEMBLED_CRANK, trainPose, camshaft, camWebZ, lobeRadius,
-  rockerStations,
+  rockerStations, plugCoverLocal,
 } from '../src/geo/valvetrain';
-import { CAM_X } from '../src/data/layout';
+import { CAM_X, SPARK_TIP, SPARK_Z, SPARK_AXIS, SPARK_HOLE_R, SPARK_FLANGE_T, sparkDirHead, sparkRoll, plugTipEngine, plugAxisEngine } from '../src/data/layout';
 import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1, coverMatrix } from '../src/geo/core';
-import { SPARK_TIP, SPARK_Z, sparkDirHead, COVER_BOOT_HOLE } from '../src/data/layout';
+import { crownSurfaceX, PISTON_DECK, VALVE_DIA, VALVE_FACE, stemDirLocal } from '../src/geo/valveGeom';
 import { ASSET_BUILDERS } from '../src/geo/assets';
 import { rayHit } from './hw';
 import { clearance } from './collide';
@@ -112,14 +112,40 @@ describe('top-end batch 1', () => {
 
   it('trims the left valve cover to the cam-housing seat, matching the right cover', () => {
     const box = (id: string) => new THREE.Box3().setFromObject(ASSET_BUILDERS[id]());
-    for (const u of ['upper', 'lower'] as const) {
-      const L = box(`valve-cover-${u}-left`), R = box(`valve-cover-${u}-right`);
-      expect(L.min.z, `${u} flywheel end`).toBeCloseTo(R.min.z, 0);
-      expect(L.max.z, `${u} pulley end`).toBeCloseTo(R.max.z, 0);
-      expect(L.min.z, u).toBeGreaterThan(CH_Z0 - 1);
-      expect(L.max.z, u).toBeLessThan(CH_Z1 + 1);
-      expect(R.max.z - R.min.z, `${u} length`).toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
-    }
+    const lowerL = box('valve-cover-lower-left'), lowerR = box('valve-cover-lower-right');
+    expect(lowerL.min.z, 'lower flywheel end').toBeCloseTo(lowerR.min.z, 0);
+    expect(lowerL.max.z, 'lower pulley end').toBeCloseTo(lowerR.max.z, 0);
+    expect(lowerL.min.z).toBeGreaterThan(CH_Z0 - 1);
+    expect(lowerL.max.z).toBeLessThan(CH_Z1 + 1);
+    // The seal lip (cover-local z under 3) stays on the cam-housing rail on both
+    // banks. The upper-left cylinder-6 plug boss is past that rail; it is not
+    // part of the seal, and the rail itself is not lengthened.
+    const lip = (id: string, s: 1 | -1) => {
+      const root = ASSET_BUILDERS[id]();
+      const inv = coverMatrix(s, true).clone().invert();
+      const b = new THREE.Box3();
+      const v = new THREE.Vector3();
+      root.updateMatrixWorld(true);
+      root.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const P = mesh.geometry.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
+          const local = v.clone().applyMatrix4(inv);
+          // The cylinder-6 boss is past local |y| 186. The seal is the lip inside the rail.
+          if (local.z < 3 && Math.abs(local.y) < 184) b.expandByPoint(v);
+        }
+      });
+      return b;
+    };
+    const lipL = lip('valve-cover-upper-left', -1), lipR = lip('valve-cover-upper-right', 1);
+    expect(Math.abs(lipL.min.z - lipR.min.z), 'upper seal flywheel end').toBeLessThan(2);
+    expect(Math.abs(lipL.max.z - lipR.max.z), 'upper seal pulley end').toBeLessThan(2);
+    expect(lipL.min.z).toBeGreaterThan(CH_Z0 - 1);
+    expect(lipL.max.z).toBeLessThan(CH_Z1 + 1);
+    const upperL = box('valve-cover-upper-left');
+    expect(upperL.min.z, 'cylinder-6 plug boss past the rail').toBeLessThan(CH_Z0 - 20);
   });
 
   it('keeps every rocker sub-mesh in one connected piece per station', () => {
@@ -188,13 +214,16 @@ describe('top-end batch 1', () => {
     // Camshafts stay on that baseline. Covers, housings and rockers are higher because the
     // stud holes, rocker pockets and line bore are real cuts; a deleted window (the old
     // 2.8 mm triangle cull) jumps a cover well past these ceilings.
+    // Upper lids after the plug holes, collars and nut-face clearance measured
+    // 3804 (right) and 3640 (left).
+    // Housings after the plug air passages measured 9529 (right) and 9786 (left).
     const baseline: Record<string, number> = {
-      'valve-cover-upper-right': 2700,
+      'valve-cover-upper-right': 3900,
       'valve-cover-lower-right': 3600,
-      'valve-cover-upper-left': 2500,
+      'valve-cover-upper-left': 3750,
       'valve-cover-lower-left': 3360,
-      'cam-housing-right': 8800,
-      'cam-housing-left': 9000,
+      'cam-housing-right': 9529,
+      'cam-housing-left': 9786,
       'camshaft-right': 357,
       'camshaft-left': 317,
       'rockers-right': 2750,
@@ -233,21 +262,75 @@ describe('top-end batch 1', () => {
     }
   });
 
-  it('does not open windows in the valve covers', () => {
-    // Rays from inside the pan toward the roof, clear of the stud ears.
-    // A deleted patch lets the ray out; the stud holes are outside this grid.
-    expect(COVER_BOOT_HOLE).toBe(false);
+  it('opens the upper cover only on the plug holes', () => {
+    // Rays from inside the pan toward the roof. The lower lid is closed.
+    // An upper-lid ray may miss only when it passes through a plug hole.
+    const holeAt = (s: 1 | -1) => (s > 0 ? [1, 2, 3] : [4, 5, 6]).map((c) => plugCoverLocal(c, 22));
     for (const s of [1, -1] as const) for (const upper of [true, false]) {
       const id = `valve-cover-${upper ? 'upper' : 'lower'}-${s > 0 ? 'right' : 'left'}`;
       const frame = coverMatrix(s, upper);
       const origin = new THREE.Vector3(0, 0, 8).applyMatrix4(frame);
+      const holes = upper ? holeAt(s) : [];
       let missed = 0;
       for (let ix = -2; ix <= 2; ix++) for (let iy = -3; iy <= 3; iy++) {
+        const local = new THREE.Vector3(ix * 6, iy * 40, 22);
+        const throughHole = holes.some((h) => Math.hypot(local.x - h.x, local.y - h.y) < SPARK_HOLE_R + 4);
+        if (throughHole) continue;
         const target = new THREE.Vector3(ix * 6, iy * 40, 30).applyMatrix4(frame);
         const dir = target.clone().sub(origin).normalize();
         if (!rayHit(id, origin, dir, 60)) missed++;
       }
       expect(missed, id).toBe(0);
+      if (upper) {
+        const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+        for (const c of cyls) {
+          const tip = new THREE.Vector3(...plugTipEngine(c));
+          const axis = new THREE.Vector3(...plugAxisEngine(c));
+          const start = tip.clone().addScaledVector(axis, SPARK_FLANGE_T - 18);
+          expect(rayHit(id, start, axis, 36), `${id} plug bore cyl ${c}`).toBeNull();
+        }
+      }
+    }
+  });
+
+  it('keeps the electrode 1.5 mm off the piston at TDC and clear of both valve heads', () => {
+    const tip = new THREE.Vector3(SPARK_TIP.x, SPARK_TIP.y, SPARK_Z);
+    const crown = crownSurfaceX(tip.y, tip.z);
+    expect(crown).not.toBeNull();
+    expect(tip.x - (crown! - PISTON_DECK)).toBeGreaterThanOrEqual(1.5);
+    // Ground-strap outer face. 2.2 mm survives the 1 mm erosion on each mesh; 1.5 mm is the floor.
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(...SPARK_AXIS).normalize());
+    q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), sparkRoll(1)));
+    for (const corner of [[0, 0.75, 0], [0.55, 0.75, -0.7], [-0.55, 0.75, 0.9]] as const) {
+      const p = new THREE.Vector3(...corner).applyQuaternion(q).add(tip);
+      const c = crownSurfaceX(p.y, p.z);
+      expect(c, `strap ${corner}`).not.toBeNull();
+      const gap = p.x - (c! - PISTON_DECK);
+      expect(gap, `strap ${corner}`).toBeGreaterThanOrEqual(2.2);
+      const rf = Math.sqrt(Math.max(0, 76 * 76 - p.y * p.y - p.z * p.z)) - 62;
+      expect(p.x, `strap roof ${corner}`).toBeLessThan(rf - 0.2);
+    }
+    const dir = new THREE.Vector3(...SPARK_AXIS).normalize();
+    const elev = Math.atan2(dir.y, Math.hypot(dir.x, dir.z)) * 180 / Math.PI;
+    const offAxis = Math.acos(Math.min(1, dir.x)) * 180 / Math.PI;
+    expect(elev).toBeCloseTo(35.95, 1);
+    expect(offAxis).toBeCloseTo(36.79, 1);
+    for (const side of [1, -1] as const) {
+      const face = side > 0
+        ? new THREE.Vector3(VALVE_FACE.in.x, VALVE_FACE.in.y, VALVE_FACE.in.z)
+        : new THREE.Vector3(VALVE_FACE.ex.x, VALVE_FACE.ex.y, VALVE_FACE.ex.z);
+      const stem = stemDirLocal(side);
+      const R = (side > 0 ? VALVE_DIA.in : VALVE_DIA.ex) / 2;
+      for (const lift of [0, 11.2]) {
+        const seat = face.clone().addScaledVector(stem, lift);
+        for (let t = 0; t <= 26; t += 2) {
+          const p = tip.clone().addScaledVector(dir, t);
+          const rel = p.clone().sub(seat);
+          const axial = rel.dot(stem);
+          const radial = Math.sqrt(Math.max(0, rel.lengthSq() - axial * axial));
+          if (axial > -4 && axial < 8) expect(radial, `side ${side} lift ${lift} t ${t}`).toBeGreaterThan(R + 6.6);
+        }
+      }
     }
   });
 
