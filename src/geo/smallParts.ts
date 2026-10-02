@@ -237,7 +237,8 @@ def('oil-return-tubes', () => { const p = new Part(); const L = 150; p.add(cyl(7
   () => [1, -1].flatMap((s) => [s > 0 ? [CYL_Z[1], CYL_Z[2]] : [CYL_Z[4], CYL_Z[5]], s > 0 ? [CYL_Z[2], CYL_Z[3]] : [CYL_Z[5], CYL_Z[6]]].map(([a, b2]) => M(V(s * (DECK_X + 6), -78, (a + b2) / 2), V(s, 0, 0)))));
 def('oil-pump-seals', () => oring(9, 1.5), () => OIL_PUMP.seals.map(([x, y, z], i) => M(V(x, y, z), i < 2 ? Y : Z)));
 
-def('oil-cooler-seals', () => oring(11.25, 1.75), () => OIL_COOLER.ports.map(([y, z]) => M(V(OIL_COOLER.faceX - 1.7, y, z), X)));
+def('oil-cooler-seals', () => oring(9.75, 1.25, 'copper'), () => OIL_COOLER.ports.filter((q) => q[2] === 0).map(([y, z]) => M(V(OIL_COOLER.faceX - 1.45, y, z), X)));
+def('oil-cooler-seal-riser', () => oring(11.25, 1.75, 'copper'), () => OIL_COOLER.ports.filter((q) => q[2] === 1).map(([y, z]) => M(V(OIL_COOLER.faceX - 1.95, y, z), X)));
 
 // ===== cylinders / heads =====
 def('cyl-base-gaskets', () => washer(48.6, 52, 0.25, 'gasket'), () => CYLS.map((c) => posed(`cylinder-${c}`, [0.05, 0, 0], [1, 0, 0])));

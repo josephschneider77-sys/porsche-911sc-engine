@@ -477,56 +477,113 @@ function swapSkirt(sk: THREE.Shape, t: number, s: 1 | -1, bx: number) {
 
 // ---------------------------------------------------------------- 104-00 lubrication: crankcase oil cooler
 /**
- * 911 107 041 00, bolted to the right crankcase in the fan stream (Stomski /
- * Pelican: shroud wraps over it; two upper M8 nuts and the lower nuts, reached
- * from the right rear wheel). Published core 195 × 140 × 80 mm for 911 107 041
- * 02 / 00. The stack here is trimmed to the space above the right-cylinder fins
- * and under the shroud wing: 96 mm along Z, 62 mm tall, 70 mm outboard of the
- * case face. Horizontal fins at 1.25 mm pitch (no published fin count; the
- * full 140 mm core height would not fit under the shroud). Studs and
- * ports are [y, z]; the case bores in core.ts use the same numbers.
- * One cut stub on the outboard tank is the engine end of the tank-to-cooler
- * hose. The hose, the wheel-well thermostat and the front-fender cooler are
- * off the engine and are not drawn.
+ * 911 107 041 00 on the right crankcase at the flywheel end, beside the ring
+ * gear (joe-engineer longblock sealing photos: the pad and the three seals sit
+ * on the right case next to the flywheel, under the cylinder barrels). 104-00
+ * draws the cooler on the crankcase, not in the fan shroud. Published core
+ * 195 × 140 × 80 mm (911 107 041 00 / 02). Behr plate-and-fin: plates stacked
+ * in Y so the air gaps run along Z, the fan's flow direction.
+ * Studs and ports are [y, z]; the case pad in core.ts uses the same numbers.
+ * The third port number is 1 for the 26×19 ring under the riser, 0 for a 22×17.
+ * The suction riser ends in a cut stub of hose 911 107 233 00. The wheel-well
+ * thermostat's pressure line meets an on-engine hard line along the case
+ * bottom; that hard line is not drawn.
  */
+const BEHR: Record<string, [number, number, number, number][]> = {
+  B: [[0, 0, 0, 6], [0, 6, 3, 6], [3, 6, 4, 5], [4, 5, 4, 3.4], [4, 3.4, 3, 3], [3, 3, 0, 3], [0, 0, 3, 0], [3, 0, 4, 1], [4, 1, 4, 2.6], [4, 2.6, 3, 3]],
+  E: [[4, 0, 0, 0], [0, 0, 0, 6], [0, 6, 4, 6], [0, 3, 3, 3]],
+  H: [[0, 0, 0, 6], [4, 0, 4, 6], [0, 3, 4, 3]],
+  R: [[0, 0, 0, 6], [0, 6, 3, 6], [3, 6, 4, 5], [4, 5, 4, 3.4], [4, 3.4, 3, 3], [3, 3, 0, 3], [2, 3, 4, 0]],
+};
 export const OIL_COOLER = {
-  /** Case spot face, and the flange's inboard face. 0.2 mm off the surrounding cheek. */
-  faceX: 102,
+  /** Case spot face, and the flange's inboard face. The cheek ends on this plane. */
+  faceX: 82,
   /** Flange thickness along +X. Nut face is faceX + foot. */
   foot: 8,
-  y0: 76, y1: 138,
-  z0: 30, z1: 126,
-  /** Outboard face of the end tank. */
-  x1: 172,
-  /** Two upper, two lower. [y, z]. */
-  studs: [[128, 44], [128, 112], [88, 44], [88, 112]] as [number, number][],
-  /** 36 mm apart so the Ø26 rings (999 704 173 50) do not meet. [y, z]. */
-  ports: [[104, 60], [104, 96]] as [number, number][],
-  finPitch: 1.25,
+  /** Core, 140 mm tall, below the right-bank oil-return tubes (those sit at y −78). */
+  y0: -232, y1: -92,
+  /** Core, 195 mm along Z. Flywheel end is beside the ring gear (gear face z −221). */
+  z0: -198, z1: -3,
+  /** Outboard face of the pressed cover. 80 mm from the flange face. Stays inboard of the plug leads (inner surface x ≈ 166). */
+  x1: 162,
+  /** Four stud ears. [y, z]. Inset from the core edge so the hole stays on the flange. Same as the case pad. */
+  studs: [[-216, -182], [-216, -19], [-108, -182], [-108, -19]] as [number, number][],
+  /**
+   * Three ports, 150 mm end to end in Z. [y, z, big].
+   * big 1 = 999 704 173 50 (26×19), under the riser. Same numbers as the case pad.
+   * big 0 = 999 704 172 50 (22×17).
+   */
+  ports: [[-190, -170, 1], [-172, -95, 0], [-154, -20, 0]] as [number, number, number][],
+  /** Plate pitch. No published fin count. */
+  finPitch: 2.3,
 };
 export function oilCooler() {
   const p = new Part();
   const C = OIL_COOLER;
   const yMid = (C.y0 + C.y1) / 2, zMid = (C.z0 + C.z1) / 2;
-  const plate = roundRect(C.z1 - C.z0, C.y1 - C.y0, 5);
+  // Cast flange, inset so the four stud ears read past the plate.
+  const plate = roundRect(C.z1 - C.z0 - 6, C.y1 - C.y0 - 6, 10);
   // rotateY(+90) sends shape +X to world −Z, so a hole's shape-x is zMid − worldZ.
-  for (const [y, z] of C.studs) plate.holes.push(circlePath(4.5, zMid - z, y - yMid) as THREE.Path);
-  for (const [y, z] of C.ports) plate.holes.push(circlePath(7.2, zMid - z, y - yMid) as THREE.Path);
+  // Bearing probe sits at r 5.2, so the hole stays under that and still clears the stud (r 3.84).
+  for (const [y, z] of C.studs) plate.holes.push(circlePath(5.0, zMid - z, y - yMid) as THREE.Path);
+  for (const [y, z, big] of C.ports) plate.holes.push(circlePath(big ? 9.7 : 8.7, zMid - z, y - yMid) as THREE.Path);
   p.add(extrudeC(plate, C.foot).rotateY(Math.PI / 2), 'castAlu', [C.faceX + C.foot / 2, yMid, zMid]);
-  // Header and end tank. Fins stay between the nut rows so the M8 nuts stay reachable.
-  const yA = 98, yB = 118, zA = 36, zB = 120;
-  p.add(boxMM([C.faceX + C.foot, yA - 2, zA], [C.faceX + C.foot + 10, yB + 2, zB]), 'castAlu');
-  p.add(boxMM([C.x1 - 14, yA - 4, zA - 2], [C.x1, yB + 4, zB + 2]), 'castAlu');
-  for (let y = yA; y < yB; y += C.finPitch) {
-    p.add(boxMM([C.faceX + C.foot + 10, y, zA + 2], [C.x1 - 14, y + 0.55, zB - 2]), 'machinedAlu');
+  for (const [y, z] of C.studs) {
+    const ear = circleShape(15);
+    ear.holes.push(circlePath(5.0) as THREE.Path);
+    p.add(extrudeC(ear, C.foot).rotateY(Math.PI / 2), 'castAlu', [C.faceX + C.foot / 2, y, z]);
   }
-  for (const z of [52, 78, 104]) {
-    p.add(cylBetween([C.faceX + C.foot + 10, (yA + yB) / 2, z], [C.x1 - 14, (yA + yB) / 2, z], 2.6, 10), 'castAlu');
+  // End tanks and the fin stack start on the flange's outboard face. Each stud ear
+  // carries an M8 nut (tip ≈ x 100), so the core is notched r 13 around the four studs.
+  const xA = C.faceX + C.foot, xB = C.x1 - 2.6;
+  const zTank = 14;
+  const nutCut = C.studs.map(([y, z]) => yToX(cyl(13, 28, 16)).translate(xA + 6, y, z));
+  const cutNuts = (geo: THREE.BufferGeometry) => csgSub(geo, ...nutCut);
+  p.add(cutNuts(boxMM([xA, C.y0 + 1, C.z0], [xB, C.y1 - 1, C.z0 + zTank])), 'castAlu');
+  p.add(cutNuts(boxMM([xA, C.y0 + 1, C.z1 - zTank], [xB, C.y1 - 1, C.z1])), 'castAlu');
+  const zFin0 = C.z0 + zTank, zFin1 = C.z1 - zTank;
+  const zSpans = (y0: number, y1: number): [number, number][] => {
+    let spans: [number, number][] = [[zFin0, zFin1]];
+    for (const [sy, sz] of C.studs) {
+      if (y1 < sy - 13 || y0 > sy + 13) continue;
+      const a = sz - 13, b = sz + 13;
+      spans = spans.flatMap(([u, v]) => {
+        const out: [number, number][] = [];
+        if (v <= a || u >= b) return [[u, v]];
+        if (u < a - 0.4) out.push([u, a]);
+        if (v > b + 0.4) out.push([b, v]);
+        return out;
+      });
+    }
+    return spans.filter(([u, v]) => v - u > 1.5);
+  };
+  for (let y = C.y0 + 3; y < C.y1 - 3.2; y += C.finPitch) {
+    for (const [u, v] of zSpans(y, y + 0.55)) p.add(boxMM([xA + 2, y, u], [xB, y + 0.55, v]), 'machinedAlu');
   }
-  // Cut stub: tank-to-cooler hose, stopped at the fitting. Off-engine past the hex.
-  const sy = (yA + yB) / 2, sz = zB - 16;
-  p.add(yToX(lathe([[3.2, 0], [5.5, 0], [5.5, 18], [3.2, 18]], 16)), 'castAlu', [C.x1, sy, sz]);
-  p.add(yToX(hexNut(17, 5)), 'yellowZinc', [C.x1 + 11, sy, sz]);
+  // Pressed cover: three ribs and a stamped BEHR label.
+  const cover = boxMM([C.x1 - 2.4, C.y0 + 2, C.z0 + 2], [C.x1, C.y1 - 2, C.z1 - 2]);
+  const plaque = boxMM([C.x1 - 1.3, yMid - 14, zMid - 28], [C.x1 + 1, yMid + 14, zMid + 28]);
+  p.add(csgSub(cover, plaque), 'castAlu');
+  for (const y of [yMid - 36, yMid, yMid + 36]) {
+    p.add(boxMM([C.x1 - 0.3, y - 2.2, C.z0 + 10], [C.x1 + 1.6, y + 2.2, C.z1 - 10]), 'castAlu');
+  }
+  const sc = 1.8, adv = 6.4 * sc;
+  const zWord = zMid - 1.5 * adv;
+  for (const [i, ch] of [...'BEHR'].entries()) {
+    for (const [ax, ay, bx, by] of BEHR[ch]) {
+      const zA = zWord + i * adv + ax * sc, yA = yMid + (ay - 3) * sc;
+      const zB = zWord + i * adv + bx * sc, yB = yMid + (by - 3) * sc;
+      p.add(cylBetween([C.x1 + 0.15, yA, zA], [C.x1 + 0.15, yB, zB], 0.55, 5), 'machinedAlu');
+    }
+  }
+  // Suction riser, Ø22. Steps out past the M8 nuts, then up the flywheel end.
+  const big = C.ports.find((q) => q[2] === 1)!;
+  const rx = xA + 28, rz = big[1] + 12, yTop = -36;
+  p.add(cylBetween([xA + 2, big[0], big[1]], [rx, big[0] + 10, rz], 8, 12), 'castAlu');
+  p.add(cylBetween([rx, big[0] + 8, rz], [rx, yTop, rz], 11, 18), 'castAlu');
+  // Barb, then a square-cut stub of 911 107 233 00. No hex fitting.
+  p.add(lathe([[7.2, 0], [11.2, 0], [11.2, 3], [8.4, 5], [8.4, 9], [11.6, 11], [11.6, 13], [7.2, 15]], 20), 'machinedAlu', [rx, yTop, rz]);
+  p.add(cyl(9.2, 28, 18), 'rubber', [rx, yTop + 29, rz]);
   return p.g;
 }
 /**
