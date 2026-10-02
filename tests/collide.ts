@@ -329,7 +329,6 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('heater-blower', 'heater-blower-support', 'seated: blower foot on the support arm'),
   pair('air-pump', 'air-pump-pulley', 'pressed: pump pulley on the air-pump shaft'),
   pair('air-pump-belt', 'air-pump-pulley|fan-pulley', 'seated: air-injection belt in the outer pulley grooves'),
-  pair('air-hose-vacuum', 'vacuum-fittings', 'seated: air-injection vacuum hose on the spare tee branch TEE_AIR_INJ'),
   pair('air-hose-vacuum', 'air-diverter', 'seated: air-injection vacuum hose on the diverter vacuum nipple'),
   pair('egr-hose-long', 'throttle-housing', 'seated: EGR vacuum hose on the throttle ported-vacuum nipple'),
   pair('crankcase-right', 'ishaft-cover', 'threaded: intermediate-shaft cover on three crankcase studs, gasket face seated on the pulley-end pad'),

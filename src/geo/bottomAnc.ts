@@ -596,8 +596,8 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     ];
     const vac = TEE_AIR_INJ.point;
     const vacAxis = TEE_AIR_INJ.axis;
-    // Axis points out of the spare branch (down). The last three points are that axis
-    // and stay put: the tee end is shared with the vac-airinj stub. The run up to
+    // Axis points out of the spare branch (down). The last three points stay on that
+    // axis and end on the TEE_AIR_INJ barb. Nothing else uses that barb. The run up to
     // below(48) stays off z −16 so it misses the fuel lines, and it leaves the
     // diverter nipple inboard of the support ear.
     const below = (d: number): V3 => [
