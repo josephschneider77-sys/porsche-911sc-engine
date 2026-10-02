@@ -1,5 +1,5 @@
 /**
- * Teardown step 14 (chain covers off): the cam nut is still on, the chain is seated on the
+ * Teardown step 15 (chain covers off): the cam nut is still on, the chain is seated on the
  * cam sprocket, the idler bush has its shaft, and the timing-cover gasket fills the flange joint.
  */
 import { describe, it, expect } from 'vitest';
@@ -68,10 +68,10 @@ function distToPoly(pts: [number, number][], x: number, y: number) {
   return best;
 }
 
-describe('step 14, cam nut still seated', () => {
-  it('keeps the nut, washer, sprocket and flange on through step 14, nut off first', () => {
+describe('step 15, cam nut still seated', () => {
+  it('keeps the nut, washer, sprocket and flange on through step 15, nut off first', () => {
     for (const b of ['right', 'left']) {
-      for (let n = 0; n <= 14; n++) {
+      for (let n = 0; n <= 15; n++) {
         expect(removedAfter(n).has(`cam-nut-${b}`), `${b} step ${n}`).toBe(false);
         expect(removedAfter(n).has(`cam-sprocket-${b}`)).toBe(false);
         expect(removedAfter(n).has(`cam-flange-${b}`)).toBe(false);
@@ -232,9 +232,9 @@ describe('idler sprocket shaft', () => {
 describe('timing cover gasket', () => {
   it('stays on the flange after the cover comes off and leaves on the next step', () => {
     expect(stepIndexOf('chain-lid-gasket-right')).toBe(stepIndexOf('chain-tensioner-right'));
-    expect(removedAfter(14).has('chain-housing-lid-right')).toBe(true);
-    expect(removedAfter(14).has('chain-lid-gasket-right')).toBe(false);
-    expect(removedAfter(15).has('chain-lid-gasket-right')).toBe(true);
+    expect(removedAfter(15).has('chain-housing-lid-right')).toBe(true);
+    expect(removedAfter(15).has('chain-lid-gasket-right')).toBe(false);
+    expect(removedAfter(16).has('chain-lid-gasket-right')).toBe(true);
   });
 
   it.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('the case gasket stops where the cam housing closes the box, %s', (s) => {

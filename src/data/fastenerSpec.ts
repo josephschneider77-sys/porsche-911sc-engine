@@ -122,7 +122,7 @@ export const FASTENER_SPECS: FastenerSpec[] = [
   ...b2((b) => ({ id: `adjuster-cover-screws-${b}`, name: `Chain-adjuster cover screws, ${b}`, count: 3, step: 'chain-covers', follows: `chain-housing-lid-${b}`, size: 'M6 combination screw + spring washer',
     catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '32/33', pn: '—', qty: 3 }],
     description: 'Three screws holding the adjuster cover on the lid.' })),
-  { id: 'oil-cooler-nuts', name: 'Oil-cooler nuts', count: 4, step: 'shroud', follows: 'oil-cooler', size: 'M8 nut + spring washer',
+  { id: 'oil-cooler-nuts', name: 'Oil-cooler nuts', count: 4, step: 'oil-cooler', follows: 'oil-cooler', size: 'M8 nut + spring washer',
     catalog: [{ ill: '104-00', pos: '5/9', pn: '900 076 025 02', qty: 7, note: '4 of the 7 #5 nuts; spring washers #9 N 012 241 8 x4' }], description: 'Four M8 nuts and spring washers on the cooler flange studs. The studs stand in the right-case pad.' },
   { id: 'distributor-nut', name: 'Distributor hold-down nut', count: 1, step: 'distributor', follows: 'distributor', size: 'M8 nut + washer + spring washer',
     catalog: [{ ill: '901-00', pos: '5-7', pn: '—', qty: 1 }], description: 'Washer, spring washer and nut (901-00 #5–#7) on the case stud through the cast hold-down lug.' },

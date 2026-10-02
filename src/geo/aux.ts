@@ -7,7 +7,7 @@ import { partPose } from './probe';
 import { frame } from './instancing';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
-  polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
+  polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup, subtractSolids,
 } from './util';
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
 import { buildPlenumBox, AIR_NECK, BOX, LID_Y, WUR_CONN, runnerTunnelCutters } from './induction';
@@ -475,6 +475,9 @@ export function upperAirGuide() {
   // hot air outlet socket (#4) on the end plate, left, with its flange
   p.add(yToZ(lathe([[30, 0], [34, 0], [34, 40], [30, 40]], 32)), 'shroudRed', [-170, 118, zA - t - 40]);
   p.add(yToZ(lathe([[30, 0], [44, 0], [44, 2], [30, 2]], 32)), 'shroudRed', [-170, 118, zA - t - 2]);
+  // Pocket over the oil cooler (right deck, flywheel end). Air from the shroud
+  // tunnel drops through this opening onto the fins. The cap closes the outside.
+  subtractSolids(p.g, [boxMM([103, 70, -212], [262, 175, -146])]);
   return p.g;
 }
 function swapSkirt(sk: THREE.Shape, t: number, s: 1 | -1, bx: number) {
@@ -487,18 +490,21 @@ function swapSkirt(sk: THREE.Shape, t: number, s: 1 | -1, bx: number) {
 
 // ---------------------------------------------------------------- 104-00 lubrication: crankcase oil cooler
 /**
- * 911 107 041 00 on the right crankcase at the flywheel end, beside the ring
- * gear (joe-engineer longblock sealing photos: the pad and the three seals sit
- * on the right case next to the flywheel, under the cylinder barrels). 104-00
- * draws the cooler on the crankcase, not in the fan shroud. Published core
- * 195 × 140 × 80 mm (911 107 041 00 / 02). Kat 502 104-00: a separate flange
- * plate, taller than the core, on four M8 studs. Two upper ports and one
- * lower port are in the flange face. A Ø14 tube runs along the lower edge
- * and ends in a spigot pointing away from the case. No vertical riser.
- * Behr plate-and-fin: plates stacked in Y so the edges read on top. The
- * stamp sits on the side panel. Studs and ports are [y, z]; the case pad
- * in core.ts uses the same numbers. The third port number is 1 for the
- * 26×19 ring (104-00 #2) and 0 for a 22×17 (104-00 #3).
+ * 911 107 041 00 on the RIGHT case half, flywheel end. The mount face is the
+ * deck plane x = 103 (normal +X). The core runs outboard (+X), parallel to
+ * the cylinders, in the pocket between cyl 3 (fins end z −146) and the ring
+ * gear (starts z −213). Air through the fins is top to bottom (−Y).
+ *
+ * Real core is 195 (X) × 140 (Y) × 80 (Z). This model's cyl-3-to-ring gap is
+ * only about 65 mm, against about 100 mm on the car, so a real 80 mm depth
+ * hits the flywheel and Top End's cam housing, cover, cam and banjo. The
+ * model-fit envelope is x 103–248, y −62..78, z −210..−150: core about
+ * 137 × 140 × 60, real height kept, depth and length shortened. Do not grow
+ * it until that gap is opened — other teams own those parts.
+ *
+ * Studs and ports are [y, z]. The case pad in core.ts uses the same numbers.
+ * The third port number is 1 for the 26×19 ring (104-00 #2) and 0 for a
+ * 22×17 (104-00 #3).
  */
 const BEHR: Record<string, [number, number, number, number][]> = {
   B: [[0, 0, 0, 6], [0, 6, 3, 6], [3, 6, 4, 5], [4, 5, 4, 3.4], [4, 3.4, 3, 3], [3, 3, 0, 3], [0, 0, 3, 0], [3, 0, 4, 1], [4, 1, 4, 2.6], [4, 2.6, 3, 3]],
@@ -507,90 +513,104 @@ const BEHR: Record<string, [number, number, number, number][]> = {
   R: [[0, 0, 0, 6], [0, 6, 3, 6], [3, 6, 4, 5], [4, 5, 4, 3.4], [4, 3.4, 3, 3], [3, 3, 0, 3], [2, 3, 4, 0]],
 };
 export const OIL_COOLER = {
-  /** Case spot face, and the flange's inboard face. The cheek ends on this plane. */
-  faceX: 82,
+  /** Case spot face, and the flange's inboard face. The pad ends on this plane. */
+  faceX: 103,
   /** Flange thickness along +X. Nut face is faceX + foot. */
   foot: 8,
-  /** Flange plate, just taller than the core. The four studs sit in its corners. */
-  fy0: -236, fy1: -88,
-  fz0: -202, fz1: 1,
+  /** Upright flange, about 160 tall, as deep as the core. Four studs in the corners. */
+  fy0: -72, fy1: 88,
+  fz0: -210, fz1: -150,
   /**
-   * Core, 140 tall × 195 long × 80 deep (published 195 × 140 × 80). Nearly as
-   * tall as the flange, and longer than it is deep. Corner pockets clear the nuts.
+   * Core inside the model-fit envelope. Long axis +X (137 mm outboard of the
+   * 8 mm flange), height the real 140, depth 60 instead of the real 80.
    */
-  y0: -232, y1: -92,
-  z0: -198, z1: -3,
-  /** Outboard end plate. 80 mm from the flange's outboard face (x 90). */
-  x1: 170,
-  /** Four corner studs. [y, z]. Same as the case pad. */
-  studs: [[-216, -182], [-216, -19], [-108, -182], [-108, -19]] as [number, number][],
+  y0: -62, y1: 78,
+  z0: -210, z1: -150,
+  /** Outboard end plate. Envelope stops at x 248 so the cam housing (x 262) stays clear. */
+  x1: 248,
+  /** Four corner studs, two upper and two lower. [y, z]. Same as the case pad. */
+  studs: [[72, -198], [72, -162], [-56, -198], [-56, -162]] as [number, number][],
   /**
-   * Ports in the flange face. [y, z, big]. Two upper (#3, 22×17) and one
-   * lower (#2, 26×19). Same numbers as the case pad.
+   * Ports in the flange face. [y, z, big]. Two upper (#3) side by side along Z,
+   * one lower (#2). Same numbers as the case pad.
    */
-  ports: [[-140, -150, 0], [-140, -50, 0], [-200, -100, 1]] as [number, number, number][],
-  /** Plate 1.8 mm, dark gap 0.7 mm. Pitch about 2.5 mm. */
-  finPitch: 2.5,
+  ports: [[20, -191, 0], [20, -169, 0], [-30, -180, 1]] as [number, number, number][],
+  /** Plates in the X-Y plane, stacked along Z. Pitch about 2.6 mm. */
+  finPitch: 2.6,
 };
 export function oilCooler() {
   const p = new Part();
   const C = OIL_COOLER;
   const yMidF = (C.fy0 + C.fy1) / 2, zMidF = (C.fz0 + C.fz1) / 2;
-  const yMid = (C.y0 + C.y1) / 2;
-  // Separate end flange, taller than the core, with the four stud holes and the oil ports.
-  // rotateY(+90) sends shape +X to world −Z, so a hole's shape-x is zMidF − worldZ.
-  // Bearing probe sits at r 5.2, so each stud hole stays under that and still clears the stud (r 3.84).
+  // Separate end flange. rotateY(+90) sends shape +X to world −Z, so a hole's
+  // shape-x is zMidF − worldZ. Inboard face lands on x = faceX.
+  // Bearing probe sits at r 5.2, so each stud hole stays under that.
   const plate = roundRect(C.fz1 - C.fz0, C.fy1 - C.fy0, 8);
-  for (const [y, z] of C.studs) plate.holes.push(circlePath(5.0, zMidF - z, y - yMidF) as THREE.Path);
+  for (const [y, z] of C.studs) plate.holes.push(circlePath(4.8, zMidF - z, y - yMidF) as THREE.Path);
   for (const [y, z, big] of C.ports) plate.holes.push(circlePath(big ? 9.7 : 8.7, zMidF - z, y - yMidF) as THREE.Path);
   p.add(extrudeC(plate, C.foot).rotateY(Math.PI / 2), 'castAlu', [C.faceX + C.foot / 2, yMidF, zMidF]);
-  // Plate-and-fin core, outboard of the flange. The M8 nuts stand on the flange face, so the
-  // inboard 10 mm is a header with a pocket at each stud. Fins fill the rest of the 80 mm depth.
-  const xFace = C.faceX + C.foot, xNut = xFace + 13, xSkin = C.x1 - 2.2;
+  // Header just outboard of the flange. Pockets leave the M8 nuts in open air.
+  const xFace = C.faceX + C.foot, xNut = xFace + 16, xSkin = C.x1 - 2.2;
   const header = boxMM([xFace, C.y0, C.z0], [xNut, C.y1, C.z1]);
-  const bigPort = C.ports.find((q) => q[2] === 1)!;
   const pockets = C.studs.map(([y, z]) => {
-    const g = cyl(9.5, 20, 16);
+    const g = cyl(10, 28, 16);
     g.rotateZ(Math.PI / 2);
     g.translate((xFace + xNut) / 2, y, z);
     return g;
   });
-  // Groove for the lower-port tube so the header does not swallow it.
-  const chase = cyl(8, 56, 12);
-  chase.translate((xFace + xNut) / 2, bigPort[0] - 28, bigPort[1]);
+  const bigPort = C.ports.find((q) => q[2] === 1)!;
+  // Chase so the return elbow can leave the lower port without sitting in the header.
+  const chase = cylBetween([xFace + 2, bigPort[0], bigPort[1]], [xFace + 10, C.y0 - 8, bigPort[1]], 9, 12);
   p.add(csgSub(header, ...pockets, chase), 'castAlu');
-  const zTank = 14;
-  const zFin0 = C.z0 + zTank, zFin1 = C.z1 - zTank;
+  // Smooth side panels on ±Z (the tanks). Fins are X-Y plates stacked along Z,
+  // so the air path is top to bottom and the side faces stay closed.
+  const zTank = 5;
   for (const [z0, z1] of [[C.z0, C.z0 + zTank], [C.z1 - zTank, C.z1]] as [number, number][]) {
-    p.add(boxMM([xNut, C.y0 + 4, z0], [xSkin - 10, C.y1 - 4, z1]), 'castAlu');
+    p.add(boxMM([xNut - 1, C.y0, z0], [xSkin, C.y1, z1]), 'castAlu');
   }
-  const plateT = 1.8, gapT = C.finPitch - 1.8;
-  for (let y = C.y0 + 1.2; y + plateT < C.y1 - 1.0; y += C.finPitch) {
-    p.add(boxMM([xNut, y, zFin0], [xSkin - 0.4, y + plateT, zFin1]), 'machinedAlu');
-    const gy = y + plateT;
-    if (gy + gapT < C.y1 - 1.0) p.add(boxMM([xNut + 1.2, gy, zFin0 + 0.5], [xSkin - 1.6, gy + gapT, zFin1 - 0.5]), 'darkSteel');
+  const plateT = 1.5;
+  const zFin0 = C.z0 + zTank - 0.2, zFin1 = C.z1 - zTank + 0.2;
+  for (let z = zFin0; z + plateT < zFin1; z += C.finPitch) {
+    p.add(boxMM([xNut, C.y0 + 1.4, z], [xSkin - 0.3, C.y1 - 1.4, z + plateT]), 'machinedAlu');
   }
-  // Far end plate. Inset so the plate edges still show, and clear of the bottom tube.
-  p.add(boxMM([C.x1 - 2.0, C.y0 + 6, C.z0 + 4], [C.x1, C.y1 - 6, C.z1 - 4]), 'castAlu');
-  // Side label on the −Z face. Glyphs run toward −X so BEHR reads from outside that face.
-  const sc = 1.6, adv = 6.4 * sc;
-  const xWordEnd = (xNut + xSkin) / 2 + 1.5 * adv;
-  const zStamp = C.z0 - 1.35;
-  p.add(boxMM([xWordEnd - 4 * adv - 2, yMid - 12, C.z0 - 1.1], [xWordEnd + 4, yMid + 12, C.z0 + 0.3]), 'castAlu');
+  // Outboard end plate.
+  p.add(boxMM([C.x1 - 2.2, C.y0 + 3, C.z0 + 2], [C.x1, C.y1 - 3, C.z1 - 2]), 'castAlu');
+  // BEHR stamp on the flywheel side panel, near the outboard end, readable from −Z.
+  const sc = 1.35, adv = 6.2 * sc;
+  const xWord = C.x1 - 46, yWord = 14, zStamp = C.z0 - 0.7;
   for (const [i, ch] of [...'BEHR'].entries()) {
     for (const [ax, ay, bx, by] of BEHR[ch]) {
-      const xA = xWordEnd - (i * adv + ax * sc), yA = yMid + (ay - 3) * sc;
-      const xB = xWordEnd - (i * adv + bx * sc), yB = yMid + (by - 3) * sc;
-      p.add(cylBetween([xA, yA, zStamp], [xB, yB, zStamp], 0.5, 5), 'machinedAlu');
+      const xA = xWord + i * adv + ax * sc, yA = yWord + ay * sc;
+      const xB = xWord + i * adv + bx * sc, yB = yWord + by * sc;
+      p.add(cylBetween([xA, yA, zStamp], [xB, yB, zStamp], 0.45, 5), 'machinedAlu');
     }
   }
-  // Ø14 tube along the lower edge, from the flange to a spigot pointing away from the case (+X).
-  const big = C.ports.find((q) => q[2] === 1)!;
-  const ty = C.y0 - 7, tz = big[1];
-  const x0 = C.faceX + C.foot - 1, xTip = C.x1 + 12;
-  p.add(cylBetween([x0, ty, tz], [xTip, ty, tz], 7, 16), 'castAlu');
-  p.add(cylBetween([C.x1 + 2, ty, tz], [C.x1 + 6, ty, tz], 8.2, 12), 'castAlu');
-  p.add(cylBetween([C.faceX + C.foot + 2, big[0], big[1]], [C.faceX + C.foot + 6, ty + 2, tz], 6, 10), 'castAlu');
+  // Ø14 return along the bottom face. Centre y −73 puts the crown at y −66,
+  // under the heat-exchanger port plane (y −64). Spigot points +X.
+  const big = bigPort;
+  const ty = -73, tz = big[1];
+  p.add(cylBetween([xFace + 1, big[0], tz], [xFace + 12, ty, tz], 6.2, 12), 'castAlu');
+  // Stop short of the cam housing (x 262) so the spigot stays in the pocket.
+  p.add(cylBetween([xFace + 8, ty, tz], [C.x1 + 4, ty, tz], 7, 16), 'castAlu');
+  p.add(cylBetween([C.x1 - 2, ty, tz], [C.x1 + 2, ty, tz], 7.6, 12), 'castAlu');
+  return p.g;
+}
+/**
+ * Cap 911 106 406 00 (105-05 #3) over the cooler pocket. With the shroud on,
+ * this is the piece that shows; the fins stay inside the opened air guide.
+ * The lip and the flywheel panel are the seats the shroud screws lost when
+ * the pocket was opened. Keep those faces exactly on the old screw stations.
+ */
+export function oilCoolerCap() {
+  const p = new Part();
+  // Top of the pocket. Inset from the shroud cut (x 103–262, z −212..−146) by more than 2 mm.
+  p.add(boxMM([124, 132, -204], [256, 140, -154]), 'shroudRed');
+  // Outer cheek, in the opened skirt, clear of the lip-screw washer (reaches x ≈ 251.5).
+  p.add(boxMM([258, 108, -206], [260, 134, -154]), 'shroudRed');
+  // Lip for the right skirt screw at z −185 and its speed nut. Top is y 105.5, underside y 102.
+  p.add(boxMM([240, 102, -196], [252, 105.5, -174]), 'shroudRed');
+  // Flywheel face for the end-plate screws that sat on the shroud plate (x 118, 170, 210, 244).
+  p.add(boxMM([108, 104, -203.5], [252, 128, -200]), 'shroudRed');
   return p.g;
 }
 /**
@@ -1331,11 +1351,16 @@ function wingTop(x: number) {
   return ay + (by - ay) * u + (x < 0 ? t : 0);
 }
 /** Straight run along a shroud edge, hopping the wing ribs so the wire stays on the skin. */
-function alongEdge(x: number, y: number, z0: number, z1: number, ribs: number[]): V3[] {
+function alongEdge(x: number, y: number, z0: number, z1: number, ribs: number[], hop = 8): V3[] {
   const dir = Math.sign(z1 - z0) || 1;
   const pts: V3[] = [[x, y, z0]];
+  const reach = hop > 8 ? hop + 14 : 12;
   for (const z of ribs.filter((z) => (z - z0) * dir > 6 && (z1 - z) * dir > 6).sort((p, q) => (p - q) * dir)) {
-    pts.push([x, y, z - dir * 12], [x, y + 8, z], [x, y, z + dir * 12]);
+    // A plateau, not a single peak, when the hop has to clear a rib the spline would otherwise flatten.
+    const arch: V3[] = hop > 8
+      ? [[x, y, z - dir * reach], [x, y + hop, z - dir * 8], [x, y + hop, z + dir * 8], [x, y, z + dir * reach]]
+      : [[x, y, z - dir * 12], [x, y + hop, z], [x, y, z + dir * 12]];
+    pts.push(...arch);
   }
   pts.push([x, y, z1]);
   return pts;
@@ -1349,16 +1374,16 @@ function alongEdge(x: number, y: number, z0: number, z1: number, ribs: number[])
  */
 function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: number, boot: THREE.Vector3, axis: THREE.Vector3): V3[] {
   const lane = [1, 2, 3, 4, 5, 6].indexOf(c) % 3;
-  // Right: past the cam-housing end cap (z -182) and in front of the shroud end plate (z -203).
-  // Left: the wing ends at z 172 and the horn fills the corner above it, so the drop is at z 192,
-  // x -216, where the sheet has ended and the chain housing (z 212) has not started.
-  const zDrop = s > 0 ? -190 : 192 + lane * 4;
+  // Right: the cooler pocket fills x 103–262, z −212..−146. The drop stays on the
+  // wing until z −140, crosses above the cap, then goes aft and outboard of the
+  // cam-oil banjo before joining the under-head run. Left: the wing ends at
+  // z 172 and the horn fills the corner, so the drop is at z 192, x −216.
+  const zDrop = s > 0 ? -140 : 192 + lane * 4;
   const xOut = s * (214 + lane * 4); // left drop, inboard of the cam housing
-  // Right bank sits outboard of the oil-cooler cover (x 170), above the heat-exchanger
-  // shell. The old run at x 170 was what kept the core from reaching its depth.
-  const xUnder = s > 0 ? 200 + lane * 6 : s * (170 + lane * 10);
+  // Right under-run stays inboard of the primary pipes (they reach x ≈ 217 at y −100).
+  const xUnder = s > 0 ? 184 + lane * 4 : s * (170 + lane * 10);
   // The rail is the inboard shroud line. Out past |x| ≈ 160 the runners drop through the wing.
-  // Below the oil-return tubes (centre y -78, radius 7) and above the heat-exchanger shell.
+  // Below the cooler return (centre y −73, radius 7) and above the heat-exchanger shell.
   const yUnder = Math.max(-98 - lane * 6, boot.y + 18);
   const yHigh = Math.max(yLoom, wingTop(xLoom) + 8, wingTop(s * 180) + 8);
   const ribs = s > 0 ? [-150, -30, 90] : [-185, -90, 30];
@@ -1368,12 +1393,15 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
   // Inboard shroud line, under the horizontal run of the intake runners (their centreline is y 206 until |x| 160).
   const xRail = xLoom;
   const zRailEnd = s > 0 ? zDrop : 162;
-  // Right: the wing sheet runs to z -200, so the only way off it is just outside the skirt
-  // (x 252). Peak a few millimetres out, then slant back under the head. Not a vertical cage.
-  const zSlot = -192 - lane * 3;
-  const xPeak = 266 + lane * 3;
+  // Right bypass. The cam-oil banjo stands off the housing cap (about x 269–300,
+  // y −45..−27, z −218..−186) and the heat-exchanger seam reaches x ≈ 275.
+  // Cross above the cap (y 164), drop at x ≥ 308 and z ≤ −230, then come in
+  // under the cooler. A drop at x 274, z −200 runs through the banjo.
+  const zBy = -230 - lane * 5;
+  const xPeak = 308 + lane * 6;
+  const yOver = Math.max(yHigh, 164);
   const outStep: V3[] = s > 0
-    ? [[214, yHigh, zSlot + 4], [xPeak, yHigh - 6, zSlot], [xPeak - 6, 92, zSlot], [206, 64, zSlot], [xUnder, yUnder, zDrop]]
+    ? [[xPeak, yOver, -142], [xPeak, yOver, zBy], [xPeak, yUnder, zBy], [xUnder, yUnder, zBy]]
     : [
         // Down on the inboard line first. The runners are overhead here; moving out at y 168 crosses them.
         [xRail, yHigh, zRailEnd],
@@ -1381,9 +1409,12 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
         [xOut, 64, zDrop],
         [s * 196, yUnder, 176],
       ];
+  // Right: the bridge arrives at z −168. Run out to this cylinder (hopping the wing
+  // ribs — a straight run at yHigh cuts the rib at z 90), then back to the drop.
+  const rightOut = s > 0 ? alongEdge(xRail, yHigh, -160, zRail, ribs, 16) : [];
   return [
-    [xRail, yHigh, zRail],
-    ...alongEdge(xRail, yHigh, zRail, zRailEnd, ribs),
+    ...(s > 0 ? rightOut : [[xRail, yHigh, zRail] as V3]),
+    ...alongEdge(xRail, yHigh, zRail, zRailEnd, ribs, s > 0 ? 16 : 8),
     ...outStep,
     ...(s > 0 ? [] : [[xUnder, yUnder, 172] as V3]),
     [xUnder, yUnder, boot.z],
@@ -1430,17 +1461,21 @@ export function plugLeadPoints(c: number, i: number, pose = partPose(`spark-plug
   if (s < 0) {
     corners.push([xLoom, yLoom, zRail]);
   } else {
-    // One bridge over the roof at the flywheel end, then the right-hand holders.
+    // One bridge over the roof at the flywheel end, above the cooler opening, then the right-hand holders.
+    // Stop at the flywheel-end bridge. bootDrop runs out to the cylinder and back,
+    // hopping the wing ribs. A straight leg to zRail cut the rib at z 90.
     corners.push(
       [xB, yB, -168],
       [n * 8, 172, -176],
       [xLoom, yLoom + 6, -168],
-      [xLoom, yLoom, zRail],
     );
   }
   const drop = bootDrop(s, c, xLoom, yLoom, zRail, boot, axis);
   // Cap end is filleted at 25 mm. The plug drop stays tighter so it misses the horn.
-  const pts = densify([...filleted(corners, 25), ...filleted(drop, s > 0 ? 16 : 8).slice(1)], 12);
+  // Left drop repeats the last corner, so that duplicate is dropped. Right drop starts
+  // at the bridge (z −160), which is not in the corners.
+  const dropped = filleted(drop, s > 0 ? 16 : 8);
+  const pts = densify([...filleted(corners, 25), ...(s > 0 ? dropped : dropped.slice(1))], 12);
   const floor = boot.y;
   for (const p of pts) if (p[1] < floor) p[1] = floor;
   return pts;
