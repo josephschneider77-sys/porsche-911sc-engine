@@ -1722,18 +1722,14 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   flattenWorld(root);
   // Main's pan. No rocker-clearance box on the roof.
   const frame = coverMatrix(s, upper);
-  const studHoles = vcStuds(upper, s).map((st) => {
-    const g = yToZ(cyl(6.4, 90, 16));
-    g.translate(st.x, st.y, 5);
-    g.applyMatrix4(frame);
-    return g;
-  });
+  // The stud bore is already in the cover (valveCover). Cutting it again leaves
+  // a zero-area sliver on the ear top, and the nut probe reads that as the seat.
   // Boolean scraps from the lip hang below the seat and into the housing.
   // Drop everything under the gasket. The lip itself stays at z ≥ 0.
   // The gasket occupies cover-local z −0.45..−0.05. Keep the cover above it.
   const under = boxMM([-140, -260, -90], [140, 260, -0.02]);
   under.applyMatrix4(frame);
-  const cuts = [...studHoles, under];
+  const cuts = [under];
   // The chain-end stud (engine z ≈ 220, axis +Z) embeds back through the pulley
   // end of the upper cover. Open that end around the stud. The side rails are
   // untouched: the cut is only the existing sprocket-end notch, widened in x.
