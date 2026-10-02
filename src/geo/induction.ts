@@ -34,18 +34,18 @@ export const BOX = {
 };
 /** Top face of the distributor lid. The 1.2 mm extrude bevel sits outside the profile (y1). */
 export const LID_Y = BOX.y1 + 1.2;
-/** Rubber sleeve 928 110 158 01. OD and length E from FVD 911 110 885 02 and reassembly-19. */
+/** Rubber sleeve 928 110 158 01. OD E from FVD 911 110 885 02. Length 32 mm is inside the 30–35 mm band (E). */
 export const SLEEVE = {
   od: 47,
-  len: 50,
+  len: 32,
   /** ID equals the 44 mm stub and the runner spigot. The rubber is stretched on; the walls coincide. */
   id: 44,
-  /** Metal-to-metal gap inside the sleeve (E). Each end is covered by 21 mm of rubber. */
+  /** Metal-to-metal gap inside the sleeve (E). Each end is covered by 12 mm of rubber. */
   gap: 8,
 };
 export const STUB_TIP_X = BOX.faceX + BOX.stubLen; // 105.5
 export const RUNNER_TIP_X = STUB_TIP_X + SLEEVE.gap; // 113.5
-export const SLEEVE_IN_X = STUB_TIP_X - (SLEEVE.len - SLEEVE.gap) / 2; // 84.5
+export const SLEEVE_IN_X = STUB_TIP_X - (SLEEVE.len - SLEEVE.gap) / 2; // 93.5
 /** Air-flow-meter opening on the box top (the venturi sits here). */
 export const AFM_PORT = { x: -14, z: -64, r: 22 };
 /**
@@ -357,9 +357,9 @@ export function bootFrames() {
     return { c, origin: [s * SLEEVE_IN_X, BOX.stubY, z] as V3, axis: [s, 0, 0] as V3 };
   });
 }
-/** Two worm-drive clamps per sleeve. Screw housing points up (+Y), as in reassembly-19. */
+/** Two worm-drive clamps per sleeve. Screw housing points up (+Y). Stations sit on the 32 mm sleeve. */
 export function clampFrames() {
-  return bootFrames().flatMap(({ origin, axis }) => [12, 38].map((t) => ({
+  return bootFrames().flatMap(({ origin, axis }) => [8, 24].map((t) => ({
     origin: add(origin, axis, t),
     axis,
     up: [0, 1, 0] as V3,
@@ -506,6 +506,16 @@ export function buildPlenumBox() {
   p.add(cylBetween([PLENUM_AUX.tip[0], PLENUM_AUX.tip[1], -94], PLENUM_AUX.tip, 4.6, 12), 'brass');
   // Manifold-vacuum nipple on the lid, downstream of the throttle.
   p.add(cylBetween([MANIFOLD_VAC.tip[0], y1 - 0.8, MANIFOLD_VAC.tip[2]], MANIFOLD_VAC.tip, 3.4, 10), 'brass');
+  // Tray lip on the top edge of the distributor box (housing 911 110 106 13). The pulley edge
+  // stays outside the throttle flange (r 42 about y 222). 4 × 6 mm, E.
+  const lip = 4;
+  const yL0 = y1 - 6;
+  p.add(boxMM([-faceX, yL0, z0 - lip], [faceX, y1, z0]), 'castAlu');
+  p.add(boxMM([-faceX, yL0, z1], [-44, y1, z1 + lip]), 'castAlu');
+  p.add(boxMM([44, yL0, z1], [faceX, y1, z1 + lip]), 'castAlu');
+  for (const s of [1, -1] as const) {
+    p.add(boxMM([s * faceX, yL0, z0 + 6], [s * (faceX + lip), y1, z1 - 6]), 'castAlu');
+  }
   const cuts = [
     ...BOX.stubZ.flatMap((z) => [1, -1].map((s) => cylBetween([s * (faceX - 16), stubY, z], [s * (faceX + stubLen + 2), stubY, z], portId / 2, 20))),
     cylBetween([0, THROTTLE.y, z1 - 16], [0, THROTTLE.y, z1 + 4], 28, 20),
@@ -548,6 +558,25 @@ export function intakeRunner(c: number) {
   const bossA = origin.clone().addScaledVector(ax, 4);
   const bossB = origin.clone().addScaledVector(ax, 32);
   p.add(cylBetween(bossA.toArray() as V3, bossB.toArray() as V3, 15, 16), 'castAlu');
+  // Rubber seat sleeve in the injector bore (106-00 #29 / #30 sit on the injector; this band is the visible seat).
+  {
+    const Yax = ax.clone().normalize();
+    const ref = Math.abs(Yax.y) < 0.9 ? v(0, 1, 0) : v(1, 0, 0);
+    const Xx = new THREE.Vector3().crossVectors(Yax, ref).normalize();
+    const Zz = new THREE.Vector3().crossVectors(Xx, Yax).normalize();
+    const m = new THREE.Matrix4().makeBasis(Xx, Yax, Zz).setPosition(origin.clone().addScaledVector(Yax, 8));
+    const seat = lathe([[8, 0], [11.4, 0], [11.4, 10], [8, 10]], 16);
+    seat.applyMatrix4(m);
+    p.add(seat, 'rubber');
+  }
+  // Casting web on the side of the riser. Length changes with the cylinder so the six pipes read as different castings.
+  const rib = 8 + (c % 3) * 5;
+  const side = c % 2 === 0 ? 1 : -1;
+  p.add(boxMM([-3, 26, side * 14], [3, 26 + rib, side * 22]), 'castAlu');
+  // Pipe 3 (911 110 480 06) carries two M8×20 studs on the side of the riser. No 3A row in the text extract.
+  if (c === 3) {
+    for (const yStud of [30, 42]) p.add(cylBetween([0, yStud, 14], [0, yStud, 34], 4, 12), 'darkSteel');
+  }
   const boreA = origin.clone().addScaledVector(ax, -2);
   const boreB = origin.clone().addScaledVector(ax, 120);
   return cutGroup(p.g, cylBetween(boreA.toArray() as V3, boreB.toArray() as V3, 12, 16));
@@ -788,13 +817,27 @@ export function mixtureControlUnit() {
   p.add(lathe([[r + 4, 4.8], [46, 4.8], [46, 6], [r + 4, 6]], 36).translate(x, base, z), 'blackPaint');
   p.add(lathe([[0.2, 0], [r - 4, 0], [r - 4, 1.4], [0.2, 1.4]], 28).translate(x, base + 16, z), 'brass');
   p.add(cyl(3.2, 5, 10).translate(x, base + 18, z), 'steel');
-  // Fuel distributor: one roughly square block (Kat 502 p106). Central cover, towers in a ring.
-  p.add(boxMM([FD.x0, FD.y0, FD.z0], [FD.x1, FD.y1, FD.z1]), 'zincPlate');
-  p.add(cyl(16, 3, 24).translate(FD_CX, FD.y1 + 1.5, FD_CZ), 'zincPlate');
-  p.add(lathe([[2, FD.y1 + 3], [5, FD.y1 + 3], [5, FD.y1 + 6], [2, FD.y1 + 6]], 12).translate(FD_CX, 0, FD_CZ), 'darkSteel');
-  for (const b of INJ_BANJOS) {
-    p.add(cylBetween([b.face[0], FD.y1 - 2, b.face[2]], b.face, 6.2, 14), 'zincPlate');
+  // Fuel distributor 911 110 967 00 (Kat 502 p106). Same 80 × 40 × 88 footprint.
+  // Lower body, castellated upper housing, raised ring, towers, plunger cover, side inlet.
+  p.add(boxMM([FD.x0, FD.y0, FD.z0], [FD.x1, FD.y1 - 8, FD.z1]), 'zincPlate');
+  p.add(boxMM([FD.x0 + 3, FD.y1 - 14, FD.z0 + 3], [FD.x1 - 3, FD.y1, FD.z1 - 3]), 'zincPlate');
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const cx = FD_CX + 30 * Math.cos(a);
+    const cz = FD_CZ + 30 * Math.sin(a);
+    p.add(boxMM([cx - 3.5, FD.y1 - 6, cz - 3.5], [cx + 3.5, FD.y1 + 1, cz + 3.5]), 'zincPlate');
   }
+  // Raised ring, outer Ø78 so it stays inside the 80 mm block. Towers stand on it.
+  p.add(lathe([[22, FD.y1], [39, FD.y1], [39, FD.y1 + 4], [22, FD.y1 + 4]], 36).translate(FD_CX, 0, FD_CZ), 'zincPlate');
+  // Stepped control-plunger cover in the middle of the ring.
+  p.add(lathe([
+    [12, FD.y1 + 4], [12, FD.y1 + 7.5], [7, FD.y1 + 7.5], [7, FD.y1 + 11], [3.2, FD.y1 + 11], [3.2, FD.y1 + 15],
+  ], 18).translate(FD_CX, 0, FD_CZ), 'darkSteel');
+  for (const b of INJ_BANJOS) {
+    p.add(cylBetween([b.face[0], FD.y1 + 2, b.face[2]], b.face, 6.2, 14), 'zincPlate');
+  }
+  // Side inlet boss on the +X face. Outer face at x −64, inside the air-flow meter.
+  p.add(cylBetween([FD.x1 - 6, 286, FD_CZ], [-64, 286, FD_CZ], 8, 16), 'zincPlate');
   // The four rings the text does not list (cylinders 1 and 4), so every eye matches the drawing.
   for (const c of [1, 4]) {
     const i = PORT_CYL.indexOf(c);
@@ -881,7 +924,7 @@ function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5,
 }
 
 /** Band around a hose. Major radius leaves 0.2 mm of air on the tube, so the wire does not cut it. */
-function hoseClampAt(p: Part, pts: V3[], u: number, hoseR: number) {
+function hoseClampAt(p: Part, pts: V3[], u: number, hoseR: number, gap = 1.8) {
   const n = pts.length - 1;
   const f = Math.min(0.98, Math.max(0.02, u)) * n;
   const i = Math.min(n - 1, Math.floor(f));
@@ -891,7 +934,7 @@ function hoseClampAt(p: Part, pts: V3[], u: number, hoseR: number) {
   const tan = p1.clone().sub(p0);
   if (tan.lengthSq() < 1e-8) return;
   tan.normalize();
-  const g = torus(hoseR + 0.9, 0.7, 6, 16);
+  const g = torus(hoseR + gap, 0.7, 6, 16);
   g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), tan));
   g.translate(c.x, c.y, c.z);
   p.add(g, 'zincPlate');
@@ -902,8 +945,76 @@ function vacTPorts() {
   return {
     minusX: { tip: [ox - 14, oy, oz] as V3, axis: [-1, 0, 0] as V3 },
     plusX: { tip: [ox + 14, oy, oz] as V3, axis: [1, 0, 0] as V3 },
-    plusZ: { tip: [ox, oy, oz + 28] as V3, axis: [0, 0, 1] as V3 },
+    // Elbow turns the leg up. A straight Ø9 hose will not fit between this tip and the throttle flange (z 96).
+    plusZ: { tip: [10, 282, 76] as V3, axis: [0, 1, 0] as V3 },
   };
+}
+
+/**
+ * Nine vacuum hoses in three sizes (Kat 502 fig 107-10, bulk hose sold by the metre).
+ * Small r 3.2 (3.2×7), medium r 4.5 (Ø9), large r 7 (8×14). Tips are the hose seats.
+ * Thermo valve is illustration 17A (no text-extract line). The additional-air vacuum barb is ADD_AIR_VAC.
+ */
+/**
+ * Additional-air vacuum barb. The valve sits flywheel of the right-bank injector ribbon
+ * (that ribbon is z −148, y ≤ 278) so the Ø9 hose never crosses it.
+ */
+export const ADD_AIR_VAC = { tip: [104, 300, -210] as V3, axis: [0, 0, 1] as V3 };
+const VAC_THERMO = {
+  inn: { tip: [20, 300, -158] as V3, axis: [0, 0, 1] as V3 },
+  dist: { tip: [4, 300, -176] as V3, axis: [-1, 0, 0] as V3 },
+  sock: { tip: [32, 300, -176] as V3, axis: [1, 0, 0] as V3 },
+};
+const VAC_SOCK = {
+  small: { tip: [46, 300, -176] as V3, axis: [-1, 0, 0] as V3 },
+  large: { tip: [70, 300, -176] as V3, axis: [1, 0, 0] as V3 },
+};
+const VAC_BLOCK = {
+  large: { tip: [88, 300, -176] as V3, axis: [-1, 0, 0] as V3 },
+  med: { tip: [104, 300, -196] as V3, axis: [0, 0, -1] as V3 },
+  u1: { tip: [104, 312, -176] as V3, axis: [0, 1, 0] as V3 },
+  u2: { tip: [128, 312, -176] as V3, axis: [0, 1, 0] as V3 },
+  j1: { tip: [157, 300, -192] as V3, axis: [0, 0, 1] as V3 },
+  j2: { tip: [157, 300, -180] as V3, axis: [0, 0, -1] as V3 },
+};
+
+function fittingGroup(name: string, parts: [THREE.BufferGeometry, string][]) {
+  const g = new THREE.Group();
+  g.name = name;
+  for (const [geo, mat] of parts) g.add(mesh(geo, mat as 'blackPlastic'));
+  return g;
+}
+
+/** Thermo valve 17A, reducing socket #17, and the couplings the nine hoses seat on. */
+export function vacuumCluster() {
+  const p = new Part();
+  // Flywheel of the injector ribbon (z −148) and above it (y ≤ 278), so the bodies miss the lines.
+  p.g.add(fittingGroup('fitting:vac-thermo', [
+    [boxMM([12, 292, -184], [28, 308, -166]), 'blackPlastic'],
+    [cylBetween([20, 300, -166], VAC_THERMO.inn.tip, 3.2, 10), 'brass'],
+    [cylBetween([12, 300, -176], VAC_THERMO.dist.tip, 3.2, 10), 'brass'],
+    [cylBetween([28, 300, -176], VAC_THERMO.sock.tip, 4.2, 10), 'brass'],
+  ]));
+  p.g.add(fittingGroup('fitting:vac-socket', [
+    [boxMM([52, 292, -184], [66, 308, -166]), 'blackPlastic'],
+    [cylBetween([52, 300, -176], VAC_SOCK.small.tip, 4.2, 10), 'brass'],
+    [cylBetween([66, 300, -176], VAC_SOCK.large.tip, 6.4, 12), 'brass'],
+  ]));
+  p.g.add(fittingGroup('fitting:vac-block', [
+    [boxMM([96, 292, -184], [112, 308, -168]), 'blackPlastic'],
+    [cylBetween([96, 300, -176], VAC_BLOCK.large.tip, 6.4, 12), 'brass'],
+    [cylBetween([104, 300, -184], VAC_BLOCK.med.tip, 4.2, 10), 'brass'],
+    [cylBetween([104, 308, -176], VAC_BLOCK.u1.tip, 6.4, 12), 'brass'],
+    [cylBetween([112, 300, -176], [128, 308, -176], 6.4, 12), 'brass'],
+    [cylBetween([128, 308, -176], VAC_BLOCK.u2.tip, 6.4, 10), 'brass'],
+  ]));
+  p.g.add(fittingGroup('fitting:vac-jumper', [
+    [boxMM([150, 292, -210], [164, 308, -196]), 'blackPlastic'],
+    [cylBetween([157, 300, -196], VAC_BLOCK.j1.tip, 6.4, 10), 'brass'],
+    [boxMM([150, 292, -176], [164, 308, -162]), 'blackPlastic'],
+    [cylBetween([157, 300, -176], VAC_BLOCK.j2.tip, 6.4, 10), 'brass'],
+  ]));
+  return p;
 }
 function vacLimitPort() {
   const [ox, oy, oz] = VAC_LIMIT.origin;
@@ -915,12 +1026,22 @@ export function serviceHoses(): FuelLineDef[] {
   const aav = aavPorts();
   const t = vacTPorts();
   const lim = vacLimitPort();
+  const on = (point: V3, axis: V3, part = 'vacuum-fittings') => endOf(part, point, axis);
   return [
     { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis) },
     { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
-    { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: endOf('vacuum-fittings', t.minusX.tip, t.minusX.axis) },
-    { id: 'vac-limiter', part: 'vacuum-fittings', a: endOf('vacuum-fittings', t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
-    { id: 'vac-distributor', part: 'vacuum-fittings', a: endOf('vacuum-fittings', t.plusZ.tip, t.plusZ.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
+    // Three small hoses (3.2×7): manifold, limiter, distributor.
+    { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: on(t.minusX.tip, t.minusX.axis) },
+    { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
+    { id: 'vac-distributor', part: 'vacuum-fittings', a: on(VAC_THERMO.dist.tip, VAC_THERMO.dist.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
+    // Three medium hoses (Ø9): T to thermo valve 17A, thermo to the reducing socket, socket cluster to the additional air valve.
+    { id: 'vac-thermo', part: 'vacuum-fittings', a: on(t.plusZ.tip, t.plusZ.axis), b: on(VAC_THERMO.inn.tip, VAC_THERMO.inn.axis) },
+    { id: 'vac-socket', part: 'vacuum-fittings', a: on(VAC_THERMO.sock.tip, VAC_THERMO.sock.axis), b: on(VAC_SOCK.small.tip, VAC_SOCK.small.axis) },
+    { id: 'vac-addair', part: 'vacuum-fittings', a: endOf('additional-air-valve', ADD_AIR_VAC.tip, ADD_AIR_VAC.axis), b: on(VAC_BLOCK.med.tip, VAC_BLOCK.med.axis) },
+    // Three large hoses (8×14): socket to the block, the parallel run off the block, and the jumper.
+    { id: 'vac-large-a', part: 'vacuum-fittings', a: on(VAC_SOCK.large.tip, VAC_SOCK.large.axis), b: on(VAC_BLOCK.large.tip, VAC_BLOCK.large.axis) },
+    { id: 'vac-large-b', part: 'vacuum-fittings', a: on(VAC_BLOCK.u1.tip, VAC_BLOCK.u1.axis), b: on(VAC_BLOCK.u2.tip, VAC_BLOCK.u2.axis) },
+    { id: 'vac-large-c', part: 'vacuum-fittings', a: on(VAC_BLOCK.j1.tip, VAC_BLOCK.j1.axis), b: on(VAC_BLOCK.j2.tip, VAC_BLOCK.j2.axis) },
   ];
 }
 
@@ -928,23 +1049,32 @@ export function auxAirPlumbingPart() {
   const p = new Part();
   const lines = serviceHoses().filter((h) => h.part === 'aux-air-plumbing');
   const meter = lines[0], mani = lines[1];
-  const meterPts = addHose(p, meter.id, meter.a, meter.b, [[50, 274, -86]]);
-  // Lower barb points down at the shroud roof (y 153.5). Stay under the valve body (r 20
-  // about y 200) and above the roof, then come up onto the plenum pipe past the body.
-  const maniPts = addHose(p, mani.id, mani.a, mani.b, [[48, 164, -128], [32, 168, -148]], 5, 2);
-  for (const u of [0.25, 0.62]) hoseClampAt(p, meterPts, u, 5);
-  for (const u of [0.3, 0.7]) hoseClampAt(p, maniPts, u, 5);
+  // Hose line #43 is about Ø25 (clamps S 25/9). Straight past the meter barb, then down
+  // pulley of the injector ribbon (z −148) and left of the vacuum limiter.
+  addHose(p, meter.id, meter.a, meter.b, [[40, 280, -120], [48, 248, -124], [52, 238, -116]], 12.5, 4, 8);
+  // The lower pipe runs between the regulator and the shroud roof (y 153.5). Ø25 does not fit.
+  // This piece is Ø12 (r 6). Clamp S 22/9 is the catalogue's smaller band on the connecting pipe.
+  addHose(p, mani.id, mani.a, mani.b, [[52, 164, -124], [36, 170, -146]], 6, 2, 8);
   return p;
 }
 
 export function vacuumHosesPart() {
   const p = new Part();
-  const lines = serviceHoses().filter((h) => h.part === 'vacuum-fittings');
-  const [mani, lim, dist] = lines;
-  addHose(p, mani.id, mani.a, mani.b, [[-22, 274, 52]], 3.2);
-  // Limiter barb points +X, so the hose runs past it and turns back into the tip.
-  addHose(p, lim.id, lim.a, lim.b, [[70, 268, 40], [108, 270, -20], [108, 268, -72]], 3.2);
-  // Left of the cap (cap reaches about x −135) and above the lead that drops at y 188.
+  const byId = Object.fromEntries(serviceHoses().filter((h) => h.part === 'vacuum-fittings').map((h) => [h.id, h]));
+  const small = (id: string, mids: V3[], ahead = 8, lead = 6) => {
+    const h = byId[id];
+    return addHose(p, id, h.a, h.b, mids, 3.2, ahead, lead);
+  };
+  const med = (id: string, mids: V3[]) => {
+    const h = byId[id];
+    return addHose(p, id, h.a, h.b, mids, 4.5, 6, 5);
+  };
+  const large = (id: string, mids: V3[], ahead = 4, lead = 4) => {
+    const h = byId[id];
+    return addHose(p, id, h.a, h.b, mids, 7, ahead, lead, lead, 6);
+  };
+  small('vac-manifold', [[-22, 274, 52]]);
+  small('vac-limiter', [[70, 268, 40], [108, 270, -20], [108, 268, -72]]);
   // End on DIST_VAC_NIPPLE. The last bend is derived from its point and dir so a can
   // change (930/04 shallow can, nipple on the rim) only needs the waypoints adjusted.
   const nip = DIST_VAC_NIPPLE;
@@ -953,12 +1083,28 @@ export function vacuumHosesPart() {
     nip.point[1] + nip.dir[1] * 36 + 28,
     nip.point[2] + nip.dir[2] * 36,
   ];
+  const dist = byId['vac-distributor'];
+  // Stay flywheel of the ribbon until the pulley side, then the bend that was already clear of the cap.
+  // Under the injector ribbon, then above the duct, then the bend that clears the distributor cap.
   addHose(p, dist.id, dist.a, dist.b, [
-    [6, 278, 93],
+    [-24, 248, -188],
+    [-8, 248, -120],
+    [-8, 326, -120],
+    [-8, 326, 55],
     [-20, 300, 110],
     [-150, 240, nip.point[2]],
     approach,
   ], 3.2, 1, 3, 8, 6);
+  // Up off the T before the throttle flange (z 96), then above the duct and the injector lines.
+  const thermo = byId['vac-thermo'];
+  addHose(p, thermo.id, thermo.a, thermo.b, [[-32, 312, 70], [-32, 312, -148], [22, 304, -148]], 4.5, 4, 6, 3, 4);
+  const sock = byId['vac-socket'];
+  addHose(p, sock.id, sock.a, sock.b, [], 4.5, 1, 2);
+  const add = byId['vac-addair'];
+  addHose(p, add.id, add.a, add.b, [], 4.5, 1, 2, 2, 4);
+  large('vac-large-a', [], 1, 3);
+  large('vac-large-b', [[104, 320, -176], [128, 320, -176]], 1, 3);
+  large('vac-large-c', [], 1, 2);
   return p;
 }
 

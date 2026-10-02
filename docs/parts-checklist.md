@@ -16,11 +16,11 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 
 | status | lines |
 |---|---|
-| modelled | 425 |
+| modelled | 426 |
 | N/A (with reason) | 142 |
 | alternative rows | 230 |
 | excluded (not this engine) | 196 |
-| **MISSING** | 2 |
+| **MISSING** | 1 |
 | countable lines (all but excluded) | 799 |
 
 ## 101-05: Crankcase, left
@@ -916,10 +916,10 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 37 | N 012 226 5 | Spring washer | 2 | modelled | `aux-air-valve` spring |
 | 38 | N 014 740 2 | Pan-head screw | 2 | modelled | `aux-air-valve` screw |
 | 36 | N 014 740 2 | Pan-head screw | 2 | alt | alternative to 107-10 #36 |
-| 39 | 911 110 273 00 | Additional air valve | 1 | **MISSING** | additional air valve 911 110 273 00: not an alternative to the auxiliary air regulator; added with the air-distributor rebuild |
+| 39 | 911 110 273 00 | Additional air valve | 1 | modelled | `additional-air-valve` |
 | 39 | 911 110 273 01 | Additional air valve | 1 | excluded | model years 81-: not a 1978 engine |
-| 40 | 911 110 274 01 | Support | 1 | modelled | `aux-air-valve` support |
-| 41 | N 012 226 5 | Spring washer | 2 | modelled | `aux-air-valve` spring2 |
+| 40 | 911 110 274 01 | Support | 1 | modelled | `additional-air-valve` support |
+| 41 | N 012 226 5 | Spring washer | 2 | modelled | `additional-air-valve` spring2 |
 | 43 | 911 110 276 02 | Hose line | 1 | modelled | `aux-air-plumbing` |
 | 44 | N 024 162 1 | Hose clamp | 4 | modelled | `aux-air-plumbing` clamp × 4 |
 | 45 | N 024 141 2 | Hose clamp | 2 | modelled | `aux-air-plumbing` clamp × 2 |

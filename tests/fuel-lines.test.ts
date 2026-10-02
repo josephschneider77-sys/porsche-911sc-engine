@@ -72,7 +72,7 @@ describe('1978 CIS fuel lines', () => {
     expect(BOX.stubZ[2] - BOX.stubZ[1]).toBe(50);
     expect(BOX.portId).toBe(38);
     expect(SLEEVE.od).toBe(47);
-    expect(SLEEVE.len).toBe(50);
+    expect(SLEEVE.len).toBe(32);
     expect(AIRBOX.len).toBe(402);
     expect(AIRBOX.wid).toBe(181);
     expect(AIRBOX.h).toBe(41.4);

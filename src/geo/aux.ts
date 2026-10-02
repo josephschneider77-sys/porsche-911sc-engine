@@ -75,11 +75,11 @@ export function airboxSnoutSamples(): { p: V3; dir: V3 }[] {
 }
 function airboxSnoutPoints(): V3[] {
   const A = AIRBOX;
-  // On the lower cap, just below the equator, so the tube stays in this half.
+  // On the lid (930 110 184 00), just above the equator, so the snout belongs to the upper half.
   const x0 = -(A.half + A.wall);
-  const y = A.yMid - 18;
+  const y = A.yMid + 16;
   const z = A.z;
-  return [[x0 + 1, y, z], [x0 - 28, y + 2, z - 8], [x0 - 62, y + 2, z - 28]];
+  return [[x0 + 1, y, z], [x0 - 28, y + 4, z - 8], [x0 - 62, y + 8, z - 28]];
 }
 export const SNOUT_R = 14;
 /** Exhaust port centre at the head flange; y puts the 7.2 mm heat-exchanger flange flush under the head flange (y -63.5). */
@@ -869,7 +869,6 @@ export function plenum() {
   const yB = shellBottom(z);
   p.add(cylBetween([x, BOX.y1 - 1, z], [x, yB, z], r, 24), 'blackPlastic');
   p.add(lathe([[r, 0], [flange, 0], [flange, 3.2], [r, 3.2]], 28).translate(x, yB - 3.2, z), 'blackPlastic');
-  p.add(tube(airboxSnoutPoints(), SNOUT_R, 16, 24), 'blackPlastic');
   return p.g;
 }
 export function airFilter() {
@@ -922,6 +921,8 @@ export function airCleanerLid() {
   }
   const crown = A.yMid + A.b + A.wall;
   p.add(boxMM([-36, crown - 0.6, A.z - 14], [36, crown + 0.5, A.z + 14]), 'yellowZinc');
+  // Intake snout on lid #14. The first sample sits in the cap; the rest of the tube is outside it.
+  p.add(tube(airboxSnoutPoints(), SNOUT_R, 16, 24), 'blackPlastic');
   return p.g;
 }
 /** Warm-up regulator (107-10 #54) on the left case top near the flywheel end: flange, body, vacuum can, two screws. */
@@ -940,30 +941,46 @@ export function warmUpRegulator() {
   p.add(lathe([[4.4, 0], [7.4, 0], [7.4, 1.2], [4.4, 1.2]], 14).translate(cx, cy, cz), 'copper');
   return p.g;
 }
-/** Air-cleaner strut nut seats. y is the foot top the M8 nut bears on; the stud reaches the plenum. Under the drum. */
-export const AIRBOX_STRUTS = [[-62, 258, -22], [62, 258, -22], [-62, 258, 72], [62, 258, 72]] as V3[];
+/**
+ * Four M8 nut seats (106-00 #24) in two pairs on the flywheel side of the lid.
+ * Strut A (911 110 133 02) is the straight column. Strut B (911 110 269 00, tags -80) is the angled brace.
+ * One bonded rubber buffer (911 110 154 00) sits on each strut.
+ */
+export const AIRBOX_STRUTS = [[-62, 258, -18], [-48, 258, -6], [52, 258, -18], [66, 258, -6]] as V3[];
+function strutFoot(studs: V3[], yTop: number) {
+  const xs = studs.map((s) => s[0]);
+  const zs = studs.map((s) => s[2]);
+  let foot: THREE.BufferGeometry = boxMM([Math.min(...xs) - 8, LID_Y, Math.min(...zs) - 8], [Math.max(...xs) + 8, yTop, Math.max(...zs) + 8]);
+  for (const [x, , z] of studs) foot = csgSub(foot, cylBetween([x, LID_Y - 2, z], [x, yTop + 2, z], 5, 12));
+  const sole = foot.index ? foot.toNonIndexed() : foot;
+  sole.computeVertexNormals();
+  return sole;
+}
+function bufferAt(p: Part, x: number, z: number, yMetal: number) {
+  const top = Math.min(shellBottom(z - 8), shellBottom(z), shellBottom(z + 8));
+  p.add(cylBetween([x, yMetal, z], [x, top - 6, z], 7, 14), 'rubber');
+  const disk = extrude(circleShape(7), 3.2, 0, 8);
+  disk.rotateX(-Math.PI / 2);
+  disk.translate(x, top - 3.2, z);
+  p.add(faceNormals(disk), 'rubber');
+}
 export function airboxStruts() {
   const p = new Part();
-  for (const [x, y, z] of AIRBOX_STRUTS) {
-    // Column sits inboard of the stud so the M8 nut face at (x, y) stays clear.
-    const inward = x > 0 ? -1 : 1;
-    const ux = x + inward * 12;
-    const xLo = Math.min(x, ux) - 8, xHi = Math.max(x, ux) + 8;
-    // Foot sits on the lid face. The stud (on the plenum) passes through the hole.
-    const foot = boxMM([xLo, LID_Y, z - 8], [xHi, y, z + 8]);
-    const cut = csgSub(foot, cylBetween([x, 251, z], [x, y + 2, z], 5, 12));
-    const sole = cut.index ? cut.toNonIndexed() : cut;
-    sole.computeVertexNormals();
-    p.add(sole, 'zincPlate');
-    // Pad top meets the shell at its lowest point over the disk. The shell rises away from that point.
-    const top = Math.min(shellBottom(z - 6), shellBottom(z), shellBottom(z + 6));
-    p.add(boxMM([ux - 2.2, y, z - 2.2], [ux + 2.2, top - 16, z + 2.2]), 'zincPlate');
-    p.add(cylBetween([ux, y + 1, z], [ux, top - 8, z], 6, 16), 'rubber');
-    const disk = extrude(circleShape(6), 3.2, 0, 8);
-    disk.rotateX(-Math.PI / 2);
-    disk.translate(ux, top - 3.2, z);
-    p.add(faceNormals(disk), 'rubber');
-  }
+  const left = [AIRBOX_STRUTS[0], AIRBOX_STRUTS[1]];
+  const right = [AIRBOX_STRUTS[2], AIRBOX_STRUTS[3]];
+  p.add(strutFoot(left, 258), 'zincPlate');
+  p.add(strutFoot(right, 258), 'zincPlate');
+  // Straight strut, inboard of its two studs.
+  const lx = -55, lz = -12;
+  const lTop = shellBottom(lz);
+  p.add(boxMM([lx - 3, 258, lz - 3], [lx + 3, lTop - 20, lz + 3]), 'zincPlate');
+  bufferAt(p, lx, lz, lTop - 20);
+  // Angled strut. Top stays flywheel of the air-guide clamp ring and pulley of the meter duct.
+  const rx0 = 58, rz0 = -14;
+  const rx1 = 68, rz1 = 2;
+  const rTop = shellBottom(rz1);
+  p.add(cylBetween([rx0, 258, rz0], [rx1, rTop - 22, rz1], 3.2, 12), 'zincPlate');
+  bufferAt(p, rx1, rz1, rTop - 22);
   return p.g;
 }
 
