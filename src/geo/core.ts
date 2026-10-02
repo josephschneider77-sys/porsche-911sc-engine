@@ -31,6 +31,36 @@ export const bankZ = (s: 1 | -1) => (s === 1 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : 
  * Chain well stays at the pulley end (+Z): that is where the cam-drive chain housings bolt on.
  */
 const CASE_CAST: MatKey = 'sandCast';
+/**
+ * Drop loft triangles that sit inside the cast distributor boss. The open skin cannot be CSG'd.
+ * The boss flange (r 16–38) covers this opening, so the cut edge is not a hole in the case.
+ * Axis matches DIST in aux.ts.
+ */
+function punchDistributor(g: THREE.BufferGeometry) {
+  const src = g.index ? g.toNonIndexed() : g;
+  const P = src.getAttribute('position');
+  const o = new THREE.Vector3(-36.2, 26.5, 216);
+  const aim = new THREE.Vector3(-150, 168, 150);
+  const A = aim.sub(o).normalize();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), w = new THREE.Vector3();
+  const near = (p: THREE.Vector3) => {
+    const t = w.copy(p).sub(o).dot(A);
+    const r = w.copy(o).addScaledVector(A, t).distanceTo(p);
+    // Bore through the shank, plus the skin under the hold-down lug (r 45, t 93–104).
+    if (t >= 12 && t <= 102 && r < 18) return true;
+    return t >= 93 && t <= 104 && r < 45;
+  };
+  const pos: number[] = [];
+  for (let i = 0; i < P.count; i += 3) {
+    a.fromBufferAttribute(P, i); b.fromBufferAttribute(P, i + 1); c.fromBufferAttribute(P, i + 2);
+    if (near(a) || near(b) || near(c)) continue;
+    pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.computeVertexNormals();
+  return out;
+}
 export function crankcaseHalf(s: 1 | -1) {
   const p = new Part();
   const z0 = CASE_Z.flywheel, z1 = CASE_Z.pulley;
@@ -114,9 +144,9 @@ export function crankcaseHalf(s: 1 | -1) {
     }
     return y;
   };
-  const loft = (section: (z: number) => [number, number][], zA: number, zB: number) => {
+  const loft = (section: (z: number) => [number, number][], zA: number, zB: number, punch = false) => {
     const n = section(zA).length;
-    p.add(paramSurface((u, v) => {
+    let g = paramSurface((u, v) => {
       const z = zA + (zB - zA) * u;
       const sec = section(z);
       const f = Math.min(n - 1e-4, v * n);
@@ -124,7 +154,9 @@ export function crankcaseHalf(s: 1 | -1) {
       const t = f - i;
       const a = sec[i], b = sec[(i + 1) % n];
       return [(a[0] + (b[0] - a[0]) * t) * s, a[1] + (b[1] - a[1]) * t, z];
-    }, 64, n * 3), CAST);
+    }, 64, n * 3);
+    if (punch) g = punchDistributor(g);
+    p.add(g, CAST);
   };
   // Skin stays outside the crank/rod swing. Chords of a 4-point loop cut back into the bay,
   // so each section is subdivided and pushed out to r 86 (rod swing peaks near r 73).
@@ -177,7 +209,7 @@ export function crankcaseHalf(s: 1 | -1) {
       q = underTab(q[0], q[1], z);
       return clearGear(q[0], q[1], z);
     });
-  }, z0 + 6, z1 - 6);
+  }, z0 + 6, z1 - 6, s < 0);
   loft((z) => {
     // Oil-pump cover and pickup (z -175..-120): skin stays below the nuts and the pump body.
     const open: [number, number][] = [[12, -100], [40, -86], [62, -104], [74, -118], [46, -124], [16, -116]];
@@ -422,16 +454,57 @@ export function crankcaseHalf(s: 1 | -1) {
     // cheek spiked into the cooler.
   } else {
     p.add(boxMM([-76, 108, 108], [-30, 122, 190]), CAST);
-    p.add(boxMM([-80, 56, 118], [-36, 108, 188]), CAST);
+    // Shoulder cone (r 13.2 → 16.4 around local t 92–95) used to enter this block,
+    // which reached r 14.5 inside the bore. punchDistributor only drops outer-shell
+    // triangles, so the bore is cut out of the block itself. Ends stay outside the
+    // solid so the subtraction is an open tunnel, not a wall across the shank.
+    {
+      const o = new THREE.Vector3(-36.2, 26.5, 216);
+      const A = new THREE.Vector3(-150, 168, 150).sub(o).normalize();
+      const at = (t: number) => o.clone().addScaledVector(A, t);
+      const a = at(25), b = at(115);
+      const cheek = boxMM([-80, 56, 118], [-36, 108, 188]);
+      p.add(csgSub(cheek, cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 17.5, 24)), CAST);
+    }
     // spot-faced pad under the left half for the 101-05 #22/#23 M10 stud nut (E position)
     p.add(cyl(10, 8, 20), CAST, [-40, -127, -186]);
     p.add(cyl(10, 28, 16, 16), CAST, [-40, -109, -186]);
     // warm-up regulator flange underside is y = 116.2 (WUR.flangeTop - 5). Screws thread down into this pad.
     p.add(boxMM([-72, 114.8, -198], [-48, 116.2, -142]), 'machinedAlu');
     p.add(boxMM([-76, 46, -202], [-44, 114.8, -138]), CAST);
-    // distributor clamp spacer bottoms at y = 107 (DIST.caseY).
-    p.add(boxMM([-80.2, 105.4, 99], [-64, 107, 115]), 'machinedAlu');
-    p.add(boxMM([-80.2, 52, 99], [-64, 105.4, 115]), CAST);
+    // Cast distributor boss, blended out of the pulley-end skin. Same axis as DIST in aux.ts.
+    // The flange (r 16–38) covers the skin opening. The hold-down stud lands on its own pad,
+    // not on a box corner. Mouth face is local t 93, just behind the distributor shoulder.
+    {
+      const o = new THREE.Vector3(-36.2, 26.5, 216);
+      const Y = new THREE.Vector3(-150, 168, 150).sub(o).normalize();
+      const hint = new THREE.Vector3(-1, 0.08, 0.42);
+      const X = hint.clone().addScaledVector(Y, -hint.dot(Y)).normalize();
+      const Z = new THREE.Vector3().crossVectors(X, Y);
+      const m = new THREE.Matrix4().makeBasis(X, Y, Z).setPosition(o);
+      // Flange grows to r 50 so it covers the r 45 skin opening under the lug.
+      const boss = lathe([
+        [16.4, 40], [22, 40], [28, 62], [42, 76], [50, 84], [50, 93],
+        [17.2, 93], [16.4, 88], [16.4, 40],
+      ], 32);
+      boss.applyMatrix4(m);
+      // Notch only where the flange would cover a through-bolt or enter the fan mouth.
+      // The rest of the collar still spans r 18–30.
+      const bossHold = new THREE.Group();
+      bossHold.add(new THREE.Mesh(boss));
+      subtractSolids(bossHold, [
+        boxMM([-140, 48, 163], [-103, 78, 191]),
+        boxMM([-115, 58, 200], [-40, 125, 228]),
+        // The r 50 flange would enter the fan mouth and the shroud horn.
+        boxMM([-130, 80, 218], [-50, 155, 255]),
+      ]);
+      p.add((bossHold.children[0] as THREE.Mesh).geometry, CAST);
+      // Same local stud as DIST.stud in aux.ts: +X, the vacuum-can side.
+      const atStud = (y: number) => new THREE.Vector3(28, y, 2).applyMatrix4(m);
+      const s0 = atStud(70), s1 = atStud(90), s2 = atStud(97.5);
+      p.add(cylBetween([s0.x, s0.y, s0.z], [s1.x, s1.y, s1.z], 12, 16), CAST);
+      p.add(cylBetween([s1.x, s1.y, s1.z], [s2.x, s2.y, s2.z], 11, 16), 'machinedAlu');
+    }
   }
   // round sump boss (strainer cover seats here). The right half is faced back to x 81.2
   // where the cooler flange crosses it (flange face x 82); the plate itself is inside r 80.
@@ -531,8 +604,16 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
   }
   // Fan-collar tab relief (solid chain-well strips; the shoulder loft is ducked in the section).
   cuts.push(yToZ(cyl(22, 36, 20)).translate(s * 39, 84.2, 200));
-  // Distributor shank on the left, and spot-faces for the oil-pump cover nuts.
-  if (s < 0) cuts.push(cyl(36, 56, 28).translate(-98, 118, 146));
+  // Distributor bore on the left. Opens the chain-well solids the shaft passes through.
+  // The cast boss is a lathe, so this cutter does not touch it. Keep in step with DIST in aux.ts.
+  if (s < 0) {
+    const o = [-36.2, 26.5, 216], aim = [-150, 168, 150];
+    const d = [aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]];
+    const L = Math.hypot(d[0], d[1], d[2]);
+    const u = d.map((v) => v / L);
+    const at = (t: number): [number, number, number] => [o[0] + u[0] * t, o[1] + u[1] * t, o[2] + u[2] * t];
+    cuts.push(cylBetween(at(-6), at(96), 14.6, 24));
+  }
   const nutPockets: [number, number][] = s < 0 ? [[-10, -116], [30, -116]] : [[30, -116], [38, -56]];
   for (const [x, y] of nutPockets) cuts.push(yToZ(cyl(14, 36, 16)).translate(x, y, -166));
   // Every pocket in one pass. A second pass sees BufferGeometry and skips the flange,

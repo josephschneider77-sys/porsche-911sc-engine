@@ -72,7 +72,7 @@ export const SMALL_SPECS: SmallSpec[] = [
   S('intake-boot-clamps', 'Intake sleeve hose clamps', 12, 'intake', 'plenum', [], 'Hose clamp', 'Hose clamps (106-00 #11), two per sleeve. Band stands 0.2 mm off the rubber.'),
   ...(['a', 'b', 'c'] as const).map((k) => S(`injector-orings-${k}`, `Injector O-rings (${k === 'a' ? '106-00 #29' : k === 'b' ? '106-00 #30' : '107-10 #22'})`, 6, 'cis', 'injector-1', [], 'O-ring', 'Injector sealing O-rings, one per injector. The ring sits on the Ø12 body.')),
   // --- ignition / cooling
-  S('distributor-oring', 'Distributor O-ring', 1, 'distributor', 'distributor', ['distributor', 'distributor-clamp', 'crankcase-left'], 'O-ring', 'O-ring (901-00 #4) on the distributor shank.'),
+  S('distributor-oring', 'Distributor O-ring', 1, 'distributor', 'distributor', ['distributor', 'crankcase-left'], 'O-ring', 'O-ring (901-00 #4) on the distributor shank.'),
   S('ignition-lead-holders', 'Ignition cable holders', 4, 'distributor', 'distributor', ['upper-air-guide'], 'Cable holder', 'Cable holders (901-00 #22) for the ignition leads on the shroud.'),
   S('shroud-speed-nuts', 'Shroud speed nuts', 5, 'shroud', 'upper-air-guide', ['upper-air-guide', 'shroud-screws'], 'Speed nut', 'Speed nuts (105-05 #2) under the right-hand shroud lip screws.'),
   S('shroud-cover-plate', 'Shroud cover plate', 1, 'shroud', 'upper-air-guide', ['upper-air-guide'], 'Cover plate', 'Cover plate (105-05 #6) over the shroud roof opening.'),

@@ -40,8 +40,8 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'mixture-control-unit': { distributor: 1, meter: 1 },
   'fuel-lines': { line: 6, fuelA: 1, fuelB: 1, fuelC: 1 },
   'warm-up-regulator': { conn: 2, ring: 2 },
-  'distributor': { cap: 1 },
-  'ignition-leads': { coil: 1, plug: 1, line: 1 },
+  'distributor': { cap: 1, pin: 1, connector: 7 },
+  'ignition-leads': { coil: 1, plug: 1, line: 1, right: 1 },
   'spark-plug': { connector: 1 },
   'flywheel': { ring: 1 },
   // small-part prototypes
@@ -241,7 +241,9 @@ export const CLAIMS: Claim[] = [
   // ---- 901-00 ignition
   C('901-00#4', 'distributor-oring'), C('901-00#5', 'distributor-nut', 'washer'), C('901-00#6', 'distributor-nut', 'spring'), C('901-00#7', 'distributor-nut'),
   C('901-00#8', 'distributor', 'cap'), C('901-00#9', 'ignition-leads', 'line'), C('901-00#16', 'spark-plug-*'), C('901-00#17', 'ignition-leads'),
+  C('901-00#17A', 'ignition-leads', 'right'),
   C('901-00#18', 'ignition-leads', 'coil'), C('901-00#19', 'ignition-leads', 'plug'), C('901-00#21', 'spark-plug-*', 'connector'), C('901-00#22', 'ignition-lead-holders'),
+  C('901-00#23', 'distributor', 'connector'), C('901-00#35', 'distributor', 'pin'),
 ];
 
 const range = (ill: string, pos: (string | number)[], why: string): NotApplicable[] => pos.map((p) => ({ line: `${ill}#${p}`, why }));
@@ -268,7 +270,7 @@ export const NOT_APPLICABLE: NotApplicable[] = [
   { line: '901-00#10', why: 'dust cover under the distributor cap (internal, hidden by the cap)' },
   ...range('901-00', [11, 12, 13, 14, 15, 20], 'ignition coil and its mounting / tower cap: ' + BODY + ' (left rear wing)'),
   ...range('901-00', [24, 25, 26], 'capacitive-discharge switch unit and its screws: ' + BODY),
-  ...range('901-00', [27, 29, 31, 32, 33, 34, 35], 'steering lock / ignition switch: ' + BODY + ' (steering column)'),
+  ...range('901-00', [27, 29, 31, 32, 33, 34], 'steering lock / ignition switch: ' + BODY + ' (steering column)'),
   { line: '901-00#-#999 190 123 02', why: 'blind rivets for the steering-lock rosette: ' + BODY },
   ...range('902-05', [2, 4, 5], 'alternator mounting support inside the fan housing, modelled as part of the alternator / fan-housing castings'),
   { line: '902-05#-#928 603 910 00', why: 'diode plate: internal to the alternator' },

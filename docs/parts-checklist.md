@@ -16,12 +16,12 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 
 | status | lines |
 |---|---|
-| modelled | 426 |
-| N/A (with reason) | 142 |
+| modelled | 429 |
+| N/A (with reason) | 141 |
 | alternative rows | 230 |
 | excluded (not this engine) | 196 |
 | **MISSING** | 1 |
-| countable lines (all but excluded) | 799 |
+| countable lines (all but excluded) | 801 |
 
 ## 101-05: Crankcase, left
 
@@ -1065,12 +1065,14 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 16 | 999 170 162 90 | Spark plug | 6 | modelled | `spark-plug-*` |
 | 16 | 999 170 128 90 | Spark plug | 6 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 17 | 911 609 011 07 | Set of ignition cables | 1 | modelled | `ignition-leads` |
+| 17A | 911 609 010 07 | Set of ignition cables | 1 | modelled | `ignition-leads` right |
 | 18 | 911 609 061 07 | Ignition lead | 1 | modelled | `ignition-leads` coil |
 | 19 | 911 609 510 00 | Cable plug | 1 | modelled | `ignition-leads` plug |
 | 19 | PCG 609 510 00 | Cable plug | 1 | alt | alternative to 901-00 #19 |
 | 20 | 999 659 001 40 | Water protection cap | 1 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 21 | 911 602 315 00 | Spark plug connector | 6 | modelled | `spark-plug-*` connector |
 | 22 | 901 609 591 00 | Cable holder | 4 | modelled | `ignition-lead-holders` |
+| 23 | 122 035 281 | Suppression connector | 7 | modelled | `distributor` connector |
 | 24 | 930 602 702 00 | Switch unit | 1 | N/A | capacitive-discharge switch unit and its screws: body-mounted, not part of the engine assembly |
 | 25 | N 014 703 2 | Pan-head screw | 3 | N/A | capacitive-discharge switch unit and its screws: body-mounted, not part of the engine assembly |
 | 26 | 900 031 011 02 | Washer | 3 | N/A | capacitive-discharge switch unit and its screws: body-mounted, not part of the engine assembly |
@@ -1084,7 +1086,7 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 33 | 911 613 169 01 | Washer | 1 | alt | alternative to 901-00 #33 |
 | 34 | 911 613 160 00 | Rosette | 1 | N/A | steering lock / ignition switch: body-mounted, not part of the engine assembly (steering column) |
 | - | 999 190 123 02 | Blind rivet | 2 | N/A | blind rivets for the steering-lock rosette: body-mounted, not part of the engine assembly |
-| 35 | 930 602 922 00 | Pin | 1 | N/A | steering lock / ignition switch: body-mounted, not part of the engine assembly (steering column) |
+| 35 | 930 602 922 00 | Pin | 1 | modelled | `distributor` pin |
 | 36 | 930 602 422 02 | Pinion | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 
 ## 902-05: Generator / starter
