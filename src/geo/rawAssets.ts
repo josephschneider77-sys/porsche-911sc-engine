@@ -58,6 +58,7 @@ export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
   'fan-belt': A.fanBelt,
   'upper-air-guide': A.upperAirGuide,
   'oil-cooler': A.oilCooler,
+  'oil-cooler-cap': A.oilCoolerCap,
   'oil-thermostat': A.oilThermostat,
   'breather-lid': A.breatherLid,
   'sump-plate': A.sumpPlate,

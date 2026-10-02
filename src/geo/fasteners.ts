@@ -285,7 +285,11 @@ export function fastenerGroup(f: FSet): THREE.Object3D { return instancedGroup(f
 /** Stud geometry (engine frame) for a set's stud items: from inside the threaded part up into/through the nut. */
 export function studGeometry(f: FSet, it: FItem): THREE.BufferGeometry {
   const d = DIM[f.M];
-  const top = headHeight(f) - (f.kind === 'barrel' ? 3 : f.kind === 'cap' ? d.h * 0.4 : -1.5);
+  // The barrel nut mesh is a 2 mm collar so it clears the plug connector. The stud
+  // still reaches the old 13 mm barrel height: that rod is part of the crankcase GLB.
+  const wt = (f.washer || f.tab ? d.wt : 0) + (f.spring ? springT(f) : 0);
+  const rise = f.kind === 'barrel' ? wt + 13 : headHeight(f);
+  const top = rise - (f.kind === 'barrel' ? 3 : f.kind === 'cap' ? d.h * 0.4 : -1.5);
   const bot = -(f.grip + f.embed);
   const g = cyl(f.M / 2 * 0.96, top - bot, 10); g.translate(0, (top + bot) / 2, 0);
   return g.applyMatrix4(itemMatrix(it));

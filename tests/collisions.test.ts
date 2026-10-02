@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { findCollisions, findIntraPartHits, erodedSolidsClash, isMating, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
 import { rayHit } from './hw';
-import { OIL_COOLER, DIST, DIST_AXIS, distW } from '../src/geo/aux';
+import { OIL_COOLER, oilCooler, DIST, DIST_AXIS, distW } from '../src/geo/aux';
 import { cylinder, conrod } from '../src/geo/core';
+import { SMALL_GEOM } from '../src/geo/smallParts';
 import { valveHeadEngine, trainPose, FIRE_CRANK } from '../src/geo/valvetrain';
 import { crownSurfaceX, stemPointLocal, stemDirLocal } from '../src/geo/valveGeom';
 import { bankOf, CYL_Z, CYL_TOP_X, DECK_X, pinX } from '../src/data/layout';
@@ -80,22 +81,87 @@ describe('assembled-pose interference', () => {
         expect(clearance(`${part}-${sd}`, `heat-exchanger-${sd}`)).toBeGreaterThanOrEqual(10);
       });
 
-  const coolerPair = (id: string) => hits.some((h) => (h.a === 'oil-cooler' && h.b === id) || (h.b === 'oil-cooler' && h.a === id));
-  it('oil-cooler flange meets the right-case cheek and does not interpenetrate', () => {
+  it('oil cooler mounts on the right-case deck pad', () => {
+    expect(OIL_COOLER.faceX).toBe(103);
     expect(OIL_COOLER.ports).toHaveLength(3);
     const big = OIL_COOLER.ports.filter((q) => q[2] === 1);
+    const upper = OIL_COOLER.ports.filter((q) => q[2] === 0);
     expect(big).toHaveLength(1);
-    expect(big[0][0]).toBe(Math.min(...OIL_COOLER.ports.map((q) => q[0])));
-    expect(coolerPair('crankcase-left')).toBe(false);
-    expect(coolerPair('crankcase-right')).toBe(false);
-    const faceX = OIL_COOLER.faceX;
+    expect(upper).toHaveLength(2);
+    expect(big[0][0]).toBeLessThan(Math.min(...upper.map((q) => q[0])));
+    expect(Math.abs(upper[0][0] - upper[1][0])).toBeLessThan(1);
+    const alongX = new THREE.Vector3(1, 0, 0);
+    const face = rayHit('oil-cooler', new THREE.Vector3(90, 8, -180), alongX, 30);
+    expect(face, 'flange inboard face').toBeTruthy();
+    expect(Math.abs(90 + face!.distance - 103)).toBeLessThan(0.2);
+    expect(Math.abs(face!.normal.x)).toBeGreaterThan(0.99);
+    const pad = rayHit('crankcase-right', new THREE.Vector3(120, 8, -180), new THREE.Vector3(-1, 0, 0), 40);
+    expect(pad, 'case deck pad').toBeTruthy();
+    expect(Math.abs(120 - pad!.distance - 103)).toBeLessThan(0.2);
+    expect(pad!.normal.x).toBeGreaterThan(0.99);
     for (const [y, z] of OIL_COOLER.studs) {
-      const hit = rayHit('crankcase-right', new THREE.Vector3(faceX + 2, y, z), new THREE.Vector3(-1, 0, 0), 8);
-      expect(hit, `cooler stud (${y}, ${z})`).toBeTruthy();
-      expect(hit!.distance, `seat at (${y}, ${z})`).toBeCloseTo(2, 1);
-      expect(hit!.normal.x, `seat normal (${y}, ${z})`).toBeGreaterThan(0.99);
+      const blocked = rayHit('oil-cooler', new THREE.Vector3(102, y, z), alongX, 10);
+      expect(blocked, `stud hole (${y}, ${z})`).toBeNull();
+      // Beside the tap the pad face is still x = 103. On the stud axis the ray enters the hole.
+      const seat = rayHit('crankcase-right', new THREE.Vector3(120, y + 6, z), new THREE.Vector3(-1, 0, 0), 40);
+      expect(seat, `stud pad (${y}, ${z})`).toBeTruthy();
+      expect(Math.abs(120 - seat!.distance - 103)).toBeLessThan(0.2);
+      expect(seat!.normal.x).toBeGreaterThan(0.99);
+      const bore = rayHit('crankcase-right', new THREE.Vector3(120, y, z), new THREE.Vector3(-1, 0, 0), 40);
+      expect(bore, `stud tap (${y}, ${z})`).toBeTruthy();
+      const boreX = 120 - bore!.distance;
+      expect(boreX, `tap bottom (${y}, ${z})`).toBeGreaterThan(88);
+      expect(boreX, `tap is open at the face (${y}, ${z})`).toBeLessThan(96);
     }
-    expect(clearance('oil-cooler', 'crankcase-right')).toBeLessThan(0.6);
+    for (const [y, z, isBig] of OIL_COOLER.ports) {
+      const id = isBig ? 'oil-cooler-seal-riser' : 'oil-cooler-seals';
+      const placed = SMALL_GEOM[id].items().map((m) => ({
+        p: new THREE.Vector3().setFromMatrixPosition(m),
+        n: new THREE.Vector3().setFromMatrixColumn(m, 1).normalize(),
+      }));
+      const seal = placed.find((s) => Math.abs(s.p.y - y) < 0.5 && Math.abs(s.p.z - z) < 0.5);
+      expect(seal, `seal at (${y}, ${z})`).toBeTruthy();
+      expect(seal!.p.x).toBeLessThan(103);
+      expect(seal!.p.x).toBeGreaterThan(99);
+      expect(seal!.n.x).toBeGreaterThan(0.99);
+    }
+    const g = oilCooler();
+    const box = new THREE.Box3().setFromObject(g);
+    expect(box.min.z).toBeGreaterThanOrEqual(-213);
+    expect(box.max.z).toBeLessThanOrEqual(-146);
+    const corePts: THREE.Vector3[] = [];
+    g.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const arr = mesh.geometry.getAttribute('position');
+      mesh.updateWorldMatrix(true, false);
+      for (let i = 0; i < arr.count; i++) {
+        const v = new THREE.Vector3().fromBufferAttribute(arr, i).applyMatrix4(mesh.matrixWorld);
+        if (v.y < -62 || v.y > 80) continue;
+        corePts.push(v);
+      }
+    });
+    const core = new THREE.Box3().setFromPoints(corePts);
+    const near = (xTarget: number) => {
+      const acc = new THREE.Vector3();
+      const hit = corePts.filter((v) => Math.abs(v.x - xTarget) < 1.5);
+      for (const v of hit) acc.add(v);
+      return hit.length ? acc.multiplyScalar(1 / hit.length) : null;
+    };
+    const a = near(core.min.x), b = near(core.max.x);
+    expect(a && b, 'core end centroids').toBeTruthy();
+    const axis = b!.clone().sub(a!).normalize();
+    const ang = Math.acos(Math.min(1, Math.abs(axis.dot(alongX)))) * 180 / Math.PI;
+    expect(ang).toBeLessThan(5);
+    // Model-fit length is 137 mm against a 140 mm height, so X is not the longest box edge.
+    expect(box.max.x - box.min.x).toBeGreaterThan(box.max.z - box.min.z);
+  });
+
+  const COOLER_TOUCHED = ['oil-cooler', 'oil-cooler-nuts', 'oil-cooler-seals', 'oil-cooler-seal-riser', 'oil-cooler-cap', 'crankcase-right', 'upper-air-guide', 'ignition-leads', 'shroud-screws', 'shroud-end-screws', 'shroud-speed-nuts'];
+  for (const tol of [0, 0.5]) it(`cooler parts the mount touches are clear at ${tol} mm`, () => {
+    const touched = new Set(COOLER_TOUCHED);
+    const bad = findCollisions(tol).filter((h) => (touched.has(h.a) || touched.has(h.b)) && !isMating(h.a, h.b));
+    expect(bad.map((h) => `${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
   });
 
   it('distributor lug seats on the left-case pad and the body does not enter the case', () => {

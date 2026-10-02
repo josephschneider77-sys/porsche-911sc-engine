@@ -16,11 +16,11 @@ Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) 
 
 | status | lines |
 |---|---|
-| modelled | 430 |
+| modelled | 431 |
 | N/A (with reason) | 141 |
 | alternative rows | 230 |
 | excluded (not this engine) | 199 |
-| **MISSING** | 1 |
+| **MISSING** | 0 |
 | countable lines (all but excluded) | 802 |
 
 ## 101-05: Crankcase, left
@@ -757,7 +757,7 @@ Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) 
 | 1 | 930 106 041 13 | Air guide | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 999 507 003 02 | Speed nut | 5 | modelled | `shroud-speed-nuts` |
 | 2 | 999 507 003 01 | Speed nut | 5 | alt | alternative to 105-05 #2 |
-| 3 | 911 106 406 00 | Air guide | 1 | **MISSING** | air duct for the front oil cooler (911 106 406 00, trade 911 106 406 01), right front fender, not on the engine and not the CIS intake air guide |
+| 3 | 911 106 406 00 | Air guide | 1 | modelled | `oil-cooler-cap` |
 | 4 | 930 106 326 01 | Hot air socket | 1 | modelled | `upper-air-guide` socket |
 | 5 | 911 106 327 00 | Hot air socket | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 6 | 911 106 036 01 | Cover plate | 1 | modelled | `shroud-cover-plate` |

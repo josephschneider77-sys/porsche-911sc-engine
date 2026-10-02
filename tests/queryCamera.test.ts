@@ -17,9 +17,9 @@ describe('URL camera vs teardown step framing', () => {
       .toEqual({ pos: [0, -1050, 80], target: [0, 0, 40] });
   });
 
-  it('cover-gasket is step 14, framed on the right flange', () => {
+  it('cover-gasket is step 15, framed on the right flange', () => {
     const v = viewFromQuery('cover-gasket');
-    expect(v?.step).toBe(14);
+    expect(v?.step).toBe(15);
     expect(v?.pos.every((n) => Number.isFinite(n))).toBe(true);
     expect(v?.target.every((n) => Number.isFinite(n))).toBe(true);
     expect(viewFromQuery(null)).toBeNull();

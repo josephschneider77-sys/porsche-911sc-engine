@@ -81,15 +81,24 @@ export function shroudScrews(): { id: string; kind: Kind; M: number; washer: num
   const { zA, zB, bx, skirtY, t, lipW } = SHROUD;
   const lip: FItem[] = [];
   for (const s of [1, -1]) for (const z of LIP_Z[s > 0 ? 'right' : 'left']) {
-    // keep clear of the injector holes / runners: lip stations between cylinders
-    lip.push({ p: V(s * (bx - lipW / 2), skirtY + t, z), n: V(0, 1, 0), seat: 'upper-air-guide', into: 'upper-air-guide' });
+    // The z −185 right screw sits in the cooler opening; its seat is the cap lip.
+    const onCap = s > 0 && z === -185;
+    const seat = onCap ? 'oil-cooler-cap' : 'upper-air-guide';
+    lip.push({ p: V(s * (bx - lipW / 2), skirtY + t, z), n: V(0, 1, 0), seat, into: seat });
   }
-  const end: FItem[] = [-244, -118, -60, 60, 118, 170, 210, 244].map((x) => ({ p: V(x, Math.abs(x) > 100 ? 116 : 140, zA - t), n: V(0, 0, -1), seat: 'upper-air-guide', into: 'upper-air-guide' }));
+  const end: FItem[] = [-244, -118, -60, 60, 118, 170, 210, 244].map((x) => {
+    // Right flywheel-end screws (x ≥ 118) lost the end plate when the pocket was opened.
+    const onCap = x >= 118;
+    const seat = onCap ? 'oil-cooler-cap' : 'upper-air-guide';
+    return { p: V(x, Math.abs(x) > 100 ? 116 : 140, zA - t), n: V(0, 0, -1), seat, into: seat };
+  });
   const sock: FItem[] = [0, 1, 2, 3].map((i) => { const a = Math.PI / 4 + (i * Math.PI) / 2; return { p: V(-170 + 39 * Math.cos(a), 118 + 39 * Math.sin(a), zA - t - 2), n: V(0, 0, -1), seat: 'upper-air-guide', into: 'upper-air-guide' }; });
   const collar = (a: number): FItem => ({ p: V(132 * Math.cos(a), FAN.y + 132 * Math.sin(a), SHROUD_TAB.z0), n: V(0, 0, -1), seat: 'upper-air-guide', into: 'fan-housing' });
   return [
-    { id: 'shroud-screws', kind: 'combi', M: 6, washer: 5.5, len: 10, items: lip },
-    { id: 'shroud-end-screws', kind: 'combi', M: 6, washer: 6.25, len: 10, items: end },
+    // 3.3 mm: the sheet is 3.5 mm. A 10 mm shank buried 6 mm past it. The cooler-cap
+    // screws pass through clearance holes and stop inside the hole, short of the speed nut.
+    { id: 'shroud-screws', kind: 'combi', M: 6, washer: 5.5, len: 3.3, items: lip },
+    { id: 'shroud-end-screws', kind: 'combi', M: 6, washer: 6.25, len: 3.3, items: end },
     { id: 'shroud-socket-screws', kind: 'pan', M: 6, washer: 7, len: 12, items: sock },
     { id: 'shroud-collar-bolts-a', kind: 'bolt', M: 6, washer: 6.25, len: 16, items: SHROUD_TAB.a.slice(0, 2).map(collar) },
     { id: 'shroud-collar-bolts-b', kind: 'bolt', M: 6, washer: 6.25, len: 16, items: SHROUD_TAB.a.slice(2).map(collar) },
