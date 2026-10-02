@@ -578,10 +578,14 @@ A shaft that leaned toward the fan would put the cap inside the fan housing (z �
 | Rotor axis (unit) | (−0.5890, 0.7324, −0.3416) |
 | Local +X | (−0.7296, −0.3001, 0.6145), outboard and toward the fan |
 | Local +Z | (−0.3476, −0.6112, −0.7111) |
-| Case bore | r 14.6, along the axis from the gear pocket to the mouth |
-| Shank | r 13.2 in the bore, O-ring in the groove, shoulder outside the mouth |
+| Case bore | Cast boss, mouth at local t 93. Collar covers r 18–30. Bore r 16.4 |
+| Shank | r 13.2 in the bore, O-ring in the groove, shoulder just outside the mouth |
 | Pinion | tip r 12, 0.5 mm off the crank wheel (tip r 32.4) |
-| Clamp | steel plate at local y 97.5–102, stud at local (−28, 2), M8 nut |
-| Cap towers | six posts on a 20 mm radius at local y 166, plus the centre coil tower |
+| Clamp | Slotted steel arm. Stud at local (−28, 2) on a cast pad, M8 nut |
+| Cap | Black Bosch cylinder, Ø70, shoulder, two steel spring clips |
+| Towers | Ø14 × 34 mm, flared tips and boots, on a 16 mm radius. Phase unchanged |
+| Vacuum can | Zinc, domed, Ø60 × 30, crimped rim, neck into the housing |
 
-The coil lead and the primary leave the cap and run along the left shroud edge, within about 40 mm of the sheet, and end in cut stubs toward the fan. Each plug lead still starts at its tower and then follows `partPose` of that plug, and it never goes below its boot. The plug-end path stays parametric so a later head can move the plugs.
+`DIST_VAC_NIPPLE` is the hose seat on the dome. Point (−156.13, 102.08, 198.40), direction (−0.7296, −0.3001, 0.6145), away from the diaphragm. A can aimed at the suggested (−145, 97, 209) would meet the left chain-housing gasket, so the nipple is the nearest seat that keeps the Ø60 can clear of that gasket and of the case mouth. The vacuum hose is Intake & Fuel's and ends on `DIST_VAC_NIPPLE`.
+
+The coil lead and the primary leave the cap and end in a clip on the shroud's left pulley-end edge. Plug leads leave the towers on a bend of at least 25 mm, gather, and cross the shroud as a loose bundle. A lead never goes below its boot. Tower phasing and the firing order are unchanged.
