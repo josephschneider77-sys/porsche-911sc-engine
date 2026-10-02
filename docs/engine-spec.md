@@ -1,4 +1,4 @@
-# Porsche 911 SC 3.0 engine (Type 930/03, 1978): spec and parts reference
+# Porsche 911 SC 3.0 engine (Type 930/04, 1978 US): spec and parts reference
 
 This is the brief the procedural model in `src/geo/` is built from. All geometry is modelled from scratch in Three.js. No catalogue scans or copyrighted images are embedded in the app. The catalogue illustrations were used only as a visual reference for part shapes, how parts are grouped, and the exploded layout. Every part's info panel shows its Porsche part number and catalogue illustration/position.
 
@@ -6,7 +6,7 @@ This is the brief the procedural model in `src/geo/` is built from. All geometry
 
 | Item | Value | Source |
 |---|---|---|
-| Engine type | 930/03 (RoW 911 SC coupé/targa 1978-79); 930/04 & /06 US/Cal | Porsche Kat 002 "Summary types" [P1]; production table [S4] |
+| Engine type | 930/04 (1978 US 911 SC, not California). 930/03 is the RoW engine and is not this model. 930/16 is the California engine. | Porsche Kat 502 USA 911 '83, engine-type pages (PDF pp. 4 and 7); illustration 106-00 (p. 97), 107-00 (p. 106), 107-10 (p. 110) |
 | Layout | Air-cooled horizontally opposed 6, dry sump | [S1] [S2] |
 | Displacement | 2994 cc | [S1] [S2] |
 | Bore × stroke | 95.0 × 70.4 mm | [S1] [S2] [S3] |
@@ -20,7 +20,7 @@ This is the brief the procedural model in `src/geo/` is built from. All geometry
 | Bank layout | Cyl. 1-3 right bank, 4-6 left bank; cyl. 1 at the pulley (fan) end | brief / [W1] |
 | Fuel system | Bosch K-Jetronic (CIS): mixture control unit = air-flow meter + fuel distributor | [P1 107-00/107-10] [S2] |
 | Cooling | 11-blade vertical fan on alternator shaft, belt from crank pulley | [S2] [P1 105-00] |
-| Ignition | Breakerless CD, Bosch distributor 930 602 021 04 | [S2] [P1 901-00] |
+| Ignition | Breakerless CD, Bosch distributor 930 602 021 02 | [S2] [P1 901-00] |
 
 ### Dimensions used for modelling (mm)
 Known dimensions are marked **K**. Values estimated from the catalogue illustrations' proportions and the known dimensions are marked *E*.
@@ -82,7 +82,7 @@ The part numbers come from the Porsche Classic parts catalogue **Kat 002, 911 19
 | | 9/13/14 | Housing / filter / lid | 911 110 106 13 / 911 110 185 02 / 930 110 184 00 |
 | **107-00 Mixture control unit** | 1/2 | Fuel distributor / air-flow meter | 911 110 967 00 / 911 110 965 00 |
 | **107-10 K-Jetronic** | 21 / 23 / 54 | Injector ×6 / injection lines / warm-up valve | 911 110 225 01 / 911 110 093 11-12 / 911 606 105 09 |
-| **901-00 Ignition** | 1 / 16 / 21 | Distributor / spark plugs ×6 / connectors ×6 | 930 602 021 04 / 999 170 170 90 / 911 602 315 00 |
+| **901-00 Ignition** | 1 / 16 / 21 | Distributor / spark plugs ×6 / connectors ×6 | 930 602 021 02 / 999 170 170 90 / 911 602 315 00 |
 | **202-00 Exhaust (SC)** | 1 / 26 | Silencer / heat exchangers ×2 | 930 111 022 00 / 930 211 025 01 |
 | **301-00 Clutch** | 1 / 2 / 5 | Pressure plate / disc / ring gear | 915 116 001 27 / 915 116 011 19 / 911 116 239 00 |
 
@@ -148,7 +148,7 @@ The parts were compared against rebuild photos (joe-engineer.com 911 SC rebuild 
 **Compression:** `scripts/export-glb.ts` writes GLBs with gltf-transform `dedup`, `weld` and meshopt compression (`--raw` turns this off). The viewer decodes them with `MeshoptDecoder`.
 
 **Bottom end (PR 1):**
-- Crankcase halves: hollow crank bay whose section changes along the crank (flat top split flange with cast bosses, scalloped bottom edge, sloping shoulder, belly tucking inward, three proud spigot bosses) with seven main saddles plus the nose saddle in the pulley-end chain well. Each saddle is a thick web with a machined half-bore, a locating notch and two stud pads, set inboard of the spigot tunnels; the intermediate shaft has its own bore in every web. Cylinder spigots are open bores in individual bosses, with a machined counterbore ring and four head-stud bosses just outside it. Through-bolt bosses, perimeter nut lobes, oil-passage plugs, the round flywheel seal boss, the part-number pad and the sender / bolt / breather pads are on the cast exterior. The left-case oil-cooler mounting bosses are machined flush with the cooler-foot undersides (y 95), with the pad 0.2 mm under the foot and a spot face inside the stud hole. The crank bay, saddle webs, intermediate-shaft bores and the chain-well plate are open around the rotating parts; the flywheel seal land sits about 2 mm off the flywheel disk. Cast skin is a darker sand-cast tone; the flange, spigots and saddles are bright machined faces. Main shells are steel-backed halves with locating tabs (bearing 1 thrust); bearing 8 is a steel nose bushing.
+- Crankcase halves: hollow crank bay whose section changes along the crank (flat top split flange with cast bosses, scalloped bottom edge, sloping shoulder, belly tucking inward, three proud spigot bosses) with seven main saddles plus the nose saddle in the pulley-end chain well. Each saddle is a thick web with a machined half-bore, a locating notch and two stud pads, set inboard of the spigot tunnels; the intermediate shaft has its own bore in every web. Cylinder spigots are open bores in individual bosses, with a machined counterbore ring and four head-stud bosses just outside it. Through-bolt bosses, perimeter nut lobes, oil-passage plugs, the round flywheel seal boss, the part-number pad and the sender / bolt / breather pads are on the cast exterior. The right-case oil cooler (911 107 041 00) bolts to a cast pad on the right case at the flywheel end, beside the ring gear and below the cylinder barrels (joe-engineer longblock sealing photos; 104-00 shows the cooler on the crankcase). The pad face and a spot face inside each stud hole are exactly on the flange. Kat 502 104-00 draws a separate flange plate, taller than the core, on four M8 studs (nuts #5 and spring washers #9). The oil ports are in the flange face: two upper 999 704 172 50 (item #3) and one lower 999 704 173 50 (item #2). A Ø14 tube runs along the lower edge and ends in a spigot pointing away from the case. There is no vertical riser. The core is still a Behr plate-and-fin stack; plate edges show on the top, and the BEHR stamp is on the side panel. The right-bank plug leads pass outboard of the core. The engine thermostat (930 107 765 00) stays on top of the right case at the pulley end. The wheel-well thermostat's pressure line meets an on-engine hard line along the case bottom; that hard line is not modelled yet. The hose run, the wheel-well thermostat and the front-fender trombone cooler are body-mounted and are not drawn. The crank bay, saddle webs, intermediate-shaft bores and the chain-well plate are open around the rotating parts; the flywheel seal land sits about 2 mm off the flywheel disk. Cast skin is a darker sand-cast tone; the flange, spigots and saddles are bright machined faces. Main shells are steel-backed halves with locating tabs (bearing 1 thrust); bearing 8 is a steel nose bushing.
 - Cylinders: rounded-square fin pack (16 fins, stud notches at the corners) in satin black, with a bare machined skirt and spigot.
 - Heads: fins stacked along the cylinder axis, combustion chamber, spring-well cam face, and port bosses.
 - Pistons: ring belt, recessed skirt, and a domed crown with valve reliefs.
@@ -306,13 +306,13 @@ Joe's request: "every detail, every part". For example, the half-moon (Woodruff)
 - **Crank nose:** Woodruff key, intermediate ring and circlip, removed in that order (circlip and ring first, key last).
 - **Intermediate shaft:** bearings, thrust bearings, circlips and stopper. All come out with the shaft.
 - **Head and valve train:** head studs (24 drawn) and bronze rocker bushes.
-- **Plugs and seals:** cam-housing plugs, the second chain-lid plug and the chain-case plugs, plus oil-cooler O-rings.
+- **Plugs and seals:** cam-housing plugs, the second chain-lid plug and the chain-case plugs, plus the three oil-cooler sealing rings.
 - **Other hardware:** gaskets and sealing rings; WUR, cold-start, aux-air and vacuum-limiter washers; pre-muffler nuts and clamps; sump-plate gaskets; and coil and primary ignition leads.
 
 ### Hollowed and relieved solids
 - **Valve covers:** CSG pans with a real cavity (`VC_CAV`) and solid nut ears (`earCut`). Bosses, lettering and ribs are raised by `VC_RAISE`.
 - **Upper air guide:** cut-outs for the distributor, breather neck, plenum foot and the six injector bores. The skirt is notched at each cylinder.
-- **Breather lid, plenum underside and oil-cooler end tank:** relieved around the distributor. The oil cooler now uses ported spigots with O-ring seals.
+- **Breather lid and plenum underside:** relieved around the distributor. The oil cooler is the right-case crankcase cooler at the flywheel end, not the old left-side block.
 - **Crankcase (PR #8, hollow casting):** kept as merged. v5 adds only proud boss pads for the senders, the right case bolts and the M10 nut.
 
 ### Collision allowlist
@@ -331,7 +331,7 @@ Bottom-end and ancillary overlaps stay only when they are a real joint. Each of 
 ### Parts checklist
 `docs/parts-checklist.md` is generated by `scripts/checklist-doc.ts` from `src/data/checklist.ts`. It lists every catalogue line as one of: modelled (with its source), N/A (with a reason), an alternative row, excluded (other year/model) or MISSING.
 - `tests/checklist.test.ts` checks every claimed quantity against the real instance counts. Nothing can be counted twice.
-- Totals: 418 modelled, 150 N/A, 230 alternative, 199 excluded, 1 missing (105-05 #3 air guide 911 106 406 00; its location has not been identified).
+- Totals are generated in `docs/parts-checklist.md`. The one missing line is 105-05 #3, `911 106 406 00`, the front oil-cooler air duct in the right front fender; superseded in the trade by `911 106 406 01`. It is not the CIS intake air guide and it is not on the engine.
 - Illustration 108-00 (air injection) is outside the checklist and is not modelled. The 1978 USA 930/04 fittings are the position 18 unions and position 19 sealing rings named in the caveats above.
 
 ### Known approximations (E)
@@ -423,7 +423,7 @@ Photo pass on the cooling fan, fan housing, split pulley, Bosch alternator and t
 
 The fan group moved down with the new centre distance. `FAN.y` was 255; it is now 210.33, a drop of 44.67 mm. Fan housing, impeller, hub, pulley, belt, alternator and collar bolts all sit on that axis. The housing lip was reduced to r 136 so the full circle clears the crank pulley and the chain-box gaskets. The shroud mouth is a sleeve on that same axis, z 214–232, radius 146, just engine-side of the band clamp.
 
-- **Upper air guide.** Wings, skirts, screw lips and the flywheel-end plate stay seated on the heads. The fan end is one skin: the flat centre roof eases into a horn whose mouth is a short sleeve on the fan axis, wrapped around the housing barrel just engine-side of the band clamp (z 214–232, radius 146). Where that skin would enter the throttle body, the alternator or the distributor cap it is cut back locally. The distributor moved to x −98, z 146 so the cap clears the lowered alternator; the shroud opening moved with it.
+- **Upper air guide.** Wings, skirts, screw lips and the flywheel-end plate stay seated on the heads. The fan end is one skin: the flat centre roof eases into a horn whose mouth is a short sleeve on the fan axis, wrapped around the housing barrel just engine-side of the band clamp (z 214–232, radius 146). Where that skin would enter the throttle body, the alternator or the distributor cap it is cut back locally. The distributor moved to x −98, z 146 so the cap clears the lowered alternator; the shroud opening moved with it. That upright placement is superseded by §19.
 - **Intake.** The CIS stack stays at the main height. The lowered fan does not move the plenum, air cleaner, mixture unit, runners, boots, fuel lines or linkage. Top-end parts (heads, cam housings, valvetrain, chain drive) are not moved.
 - **Alternator.** Drive-end and rectifier shields are the bright aluminium castings (cooling slots in the drive end, smaller windows on the slip-ring end). The laminated stator is a short inset waist. Copper shows in the windows and does not form the outer silhouette. Brush block, diode plates and the ground-strap stud stay on the slip-ring face.
 - **Fan housing colour.** Albedo #6C6F71, roughness 0.92, environment intensity 0.12, so the lit magnesium reads about #8A8D8F. The impeller keeps its own magnesium finish.
@@ -436,7 +436,7 @@ The crankcase chain well follows that chain-box outline. Bottom End accepts the 
 
 ### Tensioner: sealed, not pressure-fed
 
-The 1978 930/03 chain tensioner is the sealed hydraulic unit **930 105 049 00** (checklist 103-10/15 #10). **930 105 053 00** is the alternate of the same family; **930 105 053 04** is the later supersession of that sealed unit (Stoddard: “Latest Supersession of Hydraulic Tensioner”, supersedes 049) and is excluded from engine 63D onward. The pressure-fed Carrera tensioner is a 1984-on part. The bolt-on update is **930 105 911 00** (left) and **930 105 912 00 / 01** (right), listed N/A in the checklist as an alternative. Wayne Dempsey’s Pelican Project 16 says pressure-fed tensioners were introduced in 1984 and sold as a kit for 1969–1983 engines; an SC through 1983 did not come with them. This model keeps the sealed body: a cast body with a thick mounting lug, a tapered nose and a dark gland, a bleeder screw (the PET bleeder 930 105 573 00 is an internal feature, not a separate fed line) and a steel plunger. There is no oil-feed banjo. The body shape follows the 930 105 053 04 supersession photo (FVD), which is the same sealed family.
+The chain tensioner on this 930/04 is the sealed hydraulic unit **930 105 049 00** (the same sealed unit the 930/03 used) (checklist 103-10/15 #10). **930 105 053 00** is the alternate of the same family; **930 105 053 04** is the later supersession of that sealed unit (Stoddard: “Latest Supersession of Hydraulic Tensioner”, supersedes 049) and is excluded from engine 63D onward. The pressure-fed Carrera tensioner is a 1984-on part. The bolt-on update is **930 105 911 00** (left) and **930 105 912 00 / 01** (right), listed N/A in the checklist as an alternative. Wayne Dempsey’s Pelican Project 16 says pressure-fed tensioners were introduced in 1984 and sold as a kit for 1969–1983 engines; an SC through 1983 did not come with them. This model keeps the sealed body: a cast body with a thick mounting lug, a tapered nose and a dark gland, a bleeder screw (the PET bleeder 930 105 573 00 is an internal feature, not a separate fed line) and a steel plunger. There is no oil-feed banjo. The body shape follows the 930 105 053 04 supersession photo (FVD), which is the same sealed family.
 
 - Dempsey, “Chain Tensioners — Carrera Style”: https://www.pelicanparts.com/techarticles/101_Projects_Porsche_911/16-Carrera_Chain_Tensioner_Install/16-Carrera_Chain_Tensioner_Install.htm
 - Stoddard, 930 105 053 04: https://www.stoddard.com/en/diagrams-porsche-911-1983-eu-3-0sc-coupe-manual-gearbox-5-speed/engine-and-fuel-feed-36/timing-chain-timing-sprocket-rocker-gear-chain-tensioner-4241/93010505304-chain-tensioner-911-from-1965-1983-7013
@@ -490,15 +490,15 @@ K = published figure. E = estimated from the JE / FVD photographs in `photo-ref/
 | Port ID | 38 mm | K | Jim Williams, CIS Primer, Pelican 8327087; JE aluminium-airbox note: 1978–79 US / 1978–83 Euro are 38 mm, US 1980–83 are 34 mm |
 | Port OD | 44 mm | E | Scaled off the sleeve in reassembly-19 |
 | Sleeve OD | 47 mm | E | FVD 911 110 885 02 and reassembly-19 (the sleeve is the fat band on each stub) |
-| Sleeve length | 50 mm | E | Same photo; two worm-drive clamps, screws up |
+| Sleeve length | 32 mm | E | Inside the 30–35 mm band; two worm-drive clamps, screws up |
 | Sleeve ID | 44 mm | E | Same as the stub and the runner spigot; the rubber is stretched on |
-| Metal gap inside the sleeve | 8 mm | E | Each end covered by 21 mm of rubber |
+| Metal gap inside the sleeve | 8 mm | E | Each end covered by 12 mm of rubber |
 | Box width across the stub faces | 155 mm | E | reassembly-19, scaled off the 47 mm sleeves (three sleeves per side, nearly touching) |
 | Stub pitch along the crank | 50 mm | E | reassembly-19: the three stubs are adjacent |
 | Box length along the crank | 190 mm | E | Three pitches plus wall and the cold-start boss |
 | Box height | 78 mm (y 174–252) | E | JE teardown-16 / 18 / 37 / 38; top stays ~30 mm under the air-cleaner drum |
 | Stub length past the face | 28 mm | E | reassembly-19, short straight tubes, axis horizontal |
-| Throttle bore | 26 mm | E | Housing at the pulley end (+Z) |
+| Throttle opening | Ø67.5 mm | K | O-ring 999 701 124 40, 67.5×4 (107-10 #6). The flap housing is a separate part, 930 110 248 02 |
 
 The 1978 car has no cold-start spider. The cold-start valve sprays into the lower chamber through a boss on the flywheel end. The lower air-cleaner shell stays in the housing part (911 110 106 13). The neck and the shell seam from the first pass are closed in §18.
 
@@ -506,15 +506,15 @@ Each runner is its own mesh (`intake-runner-1`…`6`) because the head pitch is 
 
 The paper flange gasket is 0.5 mm thick and sits on the head face (local y 0..0.5). The runner flange (top still at local y 8, the nut face) sits on the gasket. Outline 42 × 72, 2 mm inside the 46 × 76 flange, port hole Ø36, stud holes Ø10.4. The collision test caps erosion on sheets thinner than 0.55 mm so this paper does not turn inside out. The head flange and the stud pattern did not change.
 
-Fuel-line ends, and what they seat on:
+Fuel-line ends (Kat 502, fig 107-10, PDF p. 110; item text pp. 111–113):
 
-- feed: banjo + two washers on the distributor inlet → filter-side hex in `fuel-lines` (the filter is off the engine)
-- six injector lines: distributor outlet banjo → injector nipple face
-- warm-up regulator: two lines (`wur-lines`), banjo + two washers at both ends (1978 distributor with the push valve)
-- cold-start feed: distributor side banjo → cold-start-valve banjo
-- return: M14×1.5 union on the distributor (the copper sealing ring) → tank-side hex in `fuel-lines`
+- six injector lines: banjo on a distributor tower → union nut on the injector's male thread. No sealing ring at the injector. `911 110 093 11` (cylinders 1–3) and `911 110 093 12` (4–6) are one part number per bank, so the hook and the union nut are the same shape. The straight span is the only segment that changes: a single rigid tube cannot both sit on the outlet ring and span the 118 mm head pitch.
+- `#51` `930 110 502 00` (`wur-lines`): union nuts, from screw socket #49 (`911 110 160 01`) on the raised hub at the top centre of the distributor to connection piece #52 on top of the warm-up regulator. This is the control-pressure line. It is not a #59 banjo.
+- `#61` `930 110 513 00`: warm-up banjo #59 → return-side M12 connection piece #57 (the −X face of the distributor). The pulley-face M12 is the other connection piece, line `#62`.
+- `#62` `930 110 514 00`: the other M12, running away from the engine centre and ending on a union nut that is part of the line.
+- `#63` `930 110 570 00`: distributor banjo → cold-start banjo. Both banjos, and the warm-up banjo, are the three #59 bolts, with six A 8×11.5 rings #60.
 
-The filter and the tank are off the engine, so those two hexes are fittings in the line assembly. Each line arrives along the hex axis and stops on the face. Catalogue feature counts in `checklist.ts` are unchanged.
+There is no M14 return union and no feed banjo. Those fittings are not in the 1978 illustration. The tank and filter are off the engine. Catalogue quantity #24 is 8 rings; the drawing shows a ring each side of all six injector eyes (12). The eight listed rings are on cylinders 2, 3, 5 and 6. Cylinders 1 and 4 carry the same A 8×11.5 rings on the distributor so the drawing is complete.
 
 ## 18. Air cleaner and fuel-line routing
 
@@ -535,12 +535,59 @@ The Ø160 × 440 mm open drum is replaced by a flat oval canister, the black hou
 
 The two oval halves meet on the equator: wall, end-cap diameter and lip faces are in contact. Equator vertices keep a horizontal normal so the 1 mm erosion does not walk the edge into the other half, and the triangle test treats an intersection that lies on a shared boundary edge as contact. The outlet neck ends on the outer bottom with its flange on that surface; the skin leaves a Ø44 opening so the tube is not a dead end. The element is centred on the equator.
 
-The six distributor outlets are one row on 17 mm centres (eyes Ø14.6, so neighbours have about 2.4 mm of air). The stubs all leave outboard and fan by about ±15° so the lines gather into the ribbon without crossing. The body is long enough that the end eyes sit on the lid, the warm-up ports stay on the flywheel face, and the return union's hex sits on the pulley face. The six injector lines leave as a ribbon at x −134, 8 mm apart, held by the clip there. They follow the runner about 4 mm off the cast tube. Over the Ø44 spigot the line rises clear of the worm-clamp screws, then a 6 mm centreline bend turns into an 8 mm tube nut. The nut bore is 0.05 mm larger than the line. The steel stops at that nut and stays inside about x ±286. Right-bank lines cross at y 260, just above the plenum lid; cylinder 3 crosses at z −136 so it misses the banjo nuts. The two warm-up-regulator lines drop through the cylinder-6 shroud window (x ≤ −208, z −162/−174, clear of the z −185 wing rib and the hot-air socket screws) and come back inboard under the wing. The cold-start feed, the inlet and the return are short runs off their fittings. A fuel line, a banjo and a clamp are each one solid; distinct solids inside the same part are not allowed to interpenetrate.
+The fuel distributor (107-00 #1, `911 110 967 00`, Kat 502 p. 106) keeps the 80 × 40 × 88 mm footprint (E) and the Ø76 mm outlet circle (E, scaled from the A 8×11.5 ring on that page). The lower housing is waisted (4.5 mm inset, E) with vertical ribs out to the footprint. The upper housing steps in 1.6 mm, so the joint line is at mid-height (y 286). Six hex bosses (across-flats 16 mm, E) stand 15 mm proud of the upper housing (E). A raised hub in the centre carries screw socket #49; control-pressure line #51 leaves upward from that face on a union nut. A side inlet boss stands on the +X face, out to x −64. Stubs leave radially. The warm-up regulator's fuel ports are on top of the regulator (connection piece and one banjo), not on the side.
+
+The injector lines follow the runner about 4 mm off the cast tube, then a 6 mm bend into the union nut. The steel stops at the injector face and stays inside about x ±286. Right-bank lines cross at y 260, just above the plenum lid. The vertical six-line ribbon clip is gone. In its place is the angle bracket #26 with one U-clamp #27, an M6 nut and a spring washer, foot on the plenum lid. The 108-10 blower clamps (2×8/15, 2×11/15, 12/15) are drawn beside that bracket. Group 108-10 is not in the checklist extract, and the blower and the heater hoses are not modelled. A fuel line, a banjo and a clamp are each one solid; distinct solids inside the same part are not allowed to interpenetrate.
+
+The throttle is no longer cast into the plenum. The pulley face has a round opening sized from the 67.5×4 O-ring, and the flap housing `930 110 248 02` (107-10 #4, with spring #5 and four M6 screws) bolts there. The air guide `930 110 358 05` (#18) runs from a meter mouth of Ø131 mm (E, clamp S 131/9) to a throttle inlet of Ø85 mm (E, clamp S 85/9). Six spring-loaded M6×25 screws (#1–#3) stand on the air-flow-meter flange.
 
 The head flange and the bottom end are unchanged. The distributor recess and the ignition-lead paths over the shroud edge are not moved. The canister stays above the alternator (measured clearance about 24 mm); the plenum throttle face (z 128) does not reach the alternator (z ≈ 164).
 
 ### Auxiliary air, vacuum, cold-start seat
 
-The black rubber tube that left the air-meter and stopped near the right-front runner was not the throttle boot (it was Ø15, and it met no spigot). On the K-Jetronic layout that takeoff is metered air for the auxiliary air regulator: after the sensor plate, through the regulator, back into the manifold downstream of the throttle. The meter now has a brass barb. One hose runs to the regulator's upper barb; the lower barb feeds a brass pipe on the plenum's flywheel face, clear of the regulator body and of the shroud roof (y 153.5). The cold-start valve is centred on its boss (y 206, the spray hole). The O-ring sits on the boss face, the flange sits on the ring, and two pan-head screws with spring washers bear on the flange. Their shanks run into Ø5 holes in the boss (shank Ø4.8). The air-meter flange and the distributor bracket sit on the plenum lid face (y 253.2, the bevel above the 252 mm profile). The airbox strut feet sit on that same face, and the rubber pads meet the shell.
+The black rubber tube that left the air-meter and stopped near the right-front runner was not the throttle boot (it was Ø15, and it met no spigot). On the K-Jetronic layout that takeoff is metered air for the auxiliary air regulator: after the sensor plate, through the regulator, back into the manifold downstream of the throttle. The meter now has a brass barb. The regulator is the US body `911 606 102 04` (107-10 #36): a rectangular Bosch casting with barbs about Ø18. The hose from the meter is Ø25 mm (E, clamps S 25/9, #44). The lower pipe into the manifold is Ø12 mm, because the gap above the shroud roof (y 153.5) will not take Ø25; clamp S 22/9 (#48) is the catalogue's smaller band on that run. The additional air valve `911 110 273 00` (#39, tags -80, not the 81- `911 110 273 01`) sits on the flywheel side of the injector-line ribbon, on support `911 110 274 01` (#40). The cold-start valve is centred on its boss (y 206, the spray hole). The O-ring sits on the boss face, the flange sits on the ring, and the intermediate piece `911 110 264 00` (#32) is the machined collar above the flange. Two pan-head screws with spring washers bear on the flange. Their shanks run into Ø5 holes in the boss (shank Ø4.8). The air-meter flange and the distributor bracket sit on the plenum lid face (y 253.2, the bevel above the 252 mm profile).
 
-Vacuum: a nipple on the plenum lid, the T-piece, the limiter's side barb, and a nipple on the distributor vacuum can. Three hoses join those four fittings. The breather tower's neck is the spigot for 901 107 394 00, which the checklist leaves off the engine (the oil tank is body-mounted); there is no breather hose mesh. The heater flexible pipe seats on the left adapter mouth and on a ferrule at the body end. `tests/fuel-lines.test.ts` checks every named line, including these.
+The housing `911 110 106 13` reads as a tray: a 4 × 6 mm lip (E) on the top edge of the distributor box, kept off the throttle flange. The intake snout (r 14) leaves lid `930 110 184 00` (#14) above the equator. The six intake pipes keep their own Z bends. Each has a casting web whose length follows the cylinder. Pipe 3 (`911 110 480 06`) carries two M8×20 studs on the side of the riser; the text extract has no line for them. The injector bore has a rubber seat sleeve (the #29 / #30 rings stay on the injector). Sleeves are 32 mm long (E, inside 30–35 mm), OD 47, ID 44, with 12 mm of rubber on each metal end.
+
+Two struts carry the canister: straight `911 110 133 02` (#18) and angled `911 110 269 00` (#19, tags -80, not the 81- `911 110 132 00`). Four M8 nuts (#24) sit in two pairs on the flywheel side of the lid. Each strut has one bonded rubber buffer `911 110 154 00` (#20).
+
+Vacuum, nine pieces in three sizes (the bulk hoses are sold by the metre, so the checklist does not count cuts): small r 3.2 mm (3.2×7) for the manifold, the limiter and the distributor; medium r 4.5 mm (Ø9) for the thermo valve, the reducing socket and the additional-air signal; large r 7 mm (8×14 OD) for the three short runs on the socket cluster. The thermo valve is illustration 17A. It is not a line in the text extract, so it is drawn and not claimed. The distributor hose still ends on `DIST_VAC_NIPPLE`.
+
+Two further vacuum seats are not part of that nine-piece harness. Illustration 108-00 #31 (`999 239 003 40`, the diverter-valve hose) and illustration 202-05 #16 (the same hose, 770 mm, EGR to the throttle) are outside the checklist extract, so they are not claimed and their long hoses are not drawn here. The T-piece (#14) keeps a spare −Z leg. The diverter-valve hose seats on a nipple at (−86, 328, −16), axis (0, −1, 0). That hose is Bottom End's `air-hose-vacuum` and is not drawn here, so nothing leaves the nipple. The tee already reaches the manifold nipple. The throttle housing carries a ported-vacuum nipple at (36, 230, 146), axis (0, 0, 1), on the pulley side of the lever pad. The breather tower's neck is the spigot for 901 107 394 00, which the checklist leaves off the engine (the oil tank is body-mounted); there is no breather hose mesh. The heater flexible pipe seats on the left adapter mouth and on a ferrule at the body end. `tests/fuel-lines.test.ts` checks every named line, including these.
+
+## 19. Distributor at the left-case pulley end
+
+The upright distributor at x −98, z 146 sat outboard of the case skin and about 65 mm toward the flywheel from the crank drive wheel. On the 930/04 the distributor stands in a bore in the left case half at the pulley end, driven by a helical pinion off the crankshaft gear.
+
+Photos of normally aspirated 911 engines (the SC bay is the same layout) show the body on the left side of the case, leaning outboard toward the left wing, with the cap towers on top. Kat 502 fig 901-00 decides the vacuum unit and the hold-down: a shallow can on a saddle under the cap, and a cast lug at the base. The coil is on the left inner wing, which is bodywork, so the coil lead ends in a cut stub toward the fan.
+
+- Wikimedia, normally aspirated 911 bay (left-side distributor, outboard lean, vacuum can to the left rear, coil on the left wing): https://commons.wikimedia.org/wiki/File:Flickr_-_wbaiv_-_Porsche_911_%22normally_aspirated%22_ie_no_turbosupercharger.jpg
+- Wikimedia, 911 Carrera engine lid: https://commons.wikimedia.org/wiki/File:Porsche_911_Carrera_Motorhaube-20190501-RM-154600.jpg
+- Wikimedia, 911 2.0 engine: https://commons.wikimedia.org/wiki/File:Porsche_911_2.0_003.JPG
+- Wikimedia, 911L at Nottuln: https://commons.wikimedia.org/wiki/File:Nottuln,_Oldtimermuseum,_Porsche_911L_--_2021_--_4496.jpg
+- Stoddard, pinion 930 602 422 03, counterclockwise, 78–83 SC: https://www.stoddard.com/en/distributor-pinion-counterclockwise-rotation-P990031475
+- The crank wheel stays 930 102 115 01, the number already on `crank-gears`. 930 602 422 02 is the 930/03 pinion and is not used.
+
+A shaft that leaned toward the fan would put the cap inside the fan housing (z ≥ 208) or the chain box. The open bay is flywheel of the fan, so the rotor axis points up, outboard, and slightly toward the flywheel. The towers follow that axis. The vacuum can sits on local +X, outboard and toward the fan, and its nipple points along the rotor axis toward the cap.
+
+`DIST` in `src/geo/aux.ts` (the same axis is duplicated in `core.ts` for the bore):
+
+| | Value |
+| --- | --- |
+| Pinion centre | (−36.2, 26.5, 216) |
+| Aim point (direction only) | (−150, 168, 150) |
+| Rotor axis (unit) | (−0.5890, 0.7324, −0.3416) |
+| Local +X | (−0.7296, −0.3001, 0.6145), outboard and toward the fan |
+| Local +Z | (−0.3476, −0.6112, −0.7111) |
+| Case bore | Cast boss, mouth at local t 93. Collar covers r 18–30. Bore r 16.4 |
+| Shank | r 13.2 in the bore, O-ring in the groove, shoulder just outside the mouth |
+| Pinion | tip r 12, 0.5 mm off the crank wheel (tip r 32.4) |
+| Hold-down | Cast lug on the housing base, on the same side as the vacuum can, slotted over the case stud at local (28, 2). Washer, spring washer and M8 nut |
+| Housing | Short neck at the case mouth, then a cast body about 0.75 × the cap. Pinion pin 930 602 922 00 across the gear |
+| Cap | Black Bosch cylinder, Ø70, shoulder ring, two 1.5 mm spring-steel bails |
+| Towers | Ø14 × 34 mm on a 16 mm radius, each with a straight suppression connector 122 035 281 (seven, including the centre tower). Phase unchanged |
+| Vacuum can | Zinc, Ø52 × 22, on a curved steel saddle under the cap rim. Nipple on the rim, toward the cap |
+
+`DIST_VAC_NIPPLE` is the hose seat on that rim nipple. Point (−177.26, 152.72, 173.64), direction (−0.5890, 0.7324, −0.3416), along the rotor axis toward the cap. The vacuum hose is Intake & Fuel's (`induction.ts`). Its distributor end is this nipple, not a copied coordinate.
+
+The coil lead and the primary leave the cap and end in a clip on the shroud's left pulley-end edge. Both plug-lead sets are braided (left 911 609 011 07, right 911 609 010 07), each gathered by a band, and the right set has two ring-terminal pigtails. Plug leads leave the towers on a bend of at least 25 mm. Plug-end runs stay on the current plug pose. A lead never goes below its boot. Tower phasing and the firing order are unchanged.

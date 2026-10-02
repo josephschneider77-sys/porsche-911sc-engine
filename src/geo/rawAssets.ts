@@ -36,7 +36,6 @@ export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
   'cam-sprocket-right': () => C.camSprocket(1),
   'cam-flange-right': () => C.camFlange(1),
   'cam-flange-left': () => C.camFlange(-1),
-  'distributor-clamp': () => A.distributorClamp(),
   'fan-hub': () => A.fanHub(),
   'airbox-struts': () => A.airboxStruts(),
   'warm-up-regulator': () => A.warmUpRegulator(),

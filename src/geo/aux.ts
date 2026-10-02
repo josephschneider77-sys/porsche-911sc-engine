@@ -4,12 +4,13 @@
  */
 import * as THREE from 'three';
 import { partPose } from './probe';
+import { frame } from './instancing';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
   polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
 } from './util';
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ, SPARK_MINOR_D, SPARK_PROJ, SPARK_SEAT_Y, SPARK_HEX_AF, SPARK_NIPPLE_Y, SPARK_FLANGE_T, SPARK_HOLE_R, SPARK_TUBE_R, SPARK_BEND_R, SPARK_MOUTH } from '../data/layout';
-import { buildPlenumBox, AIR_NECK, BOX, LID_Y, WUR_FACES, runnerTunnelCutters, DIST_VAC } from './induction';
+import { buildPlenumBox, AIR_NECK, BOX, LID_Y, WUR_CONN, runnerTunnelCutters } from './induction';
 export { INTAKE_PORT, INJ };
 export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './induction';
 
@@ -75,11 +76,11 @@ export function airboxSnoutSamples(): { p: V3; dir: V3 }[] {
 }
 function airboxSnoutPoints(): V3[] {
   const A = AIRBOX;
-  // On the lower cap, just below the equator, so the tube stays in this half.
+  // On the lid (930 110 184 00), just above the equator, so the snout belongs to the upper half.
   const x0 = -(A.half + A.wall);
-  const y = A.yMid - 18;
+  const y = A.yMid + 16;
   const z = A.z;
-  return [[x0 + 1, y, z], [x0 - 28, y + 2, z - 8], [x0 - 62, y + 2, z - 28]];
+  return [[x0 + 1, y, z], [x0 - 28, y + 4, z - 8], [x0 - 62, y + 8, z - 28]];
 }
 export const SNOUT_R = 14;
 /** Exhaust port centre at the head flange; y puts the 7.2 mm heat-exchanger flange flush under the head flange (y -63.5). */
@@ -263,7 +264,7 @@ export function fanPulley() {
   return p.g;
 }
 export function crankPulley() {
-  // 930/03 RoW, no A/C: one V-groove pressed-steel dish, OD 134 (lip r 67). The belt
+  // 930/04 US, no A/C: one V-groove pressed-steel dish, OD 134 (lip r 67). The belt
   // pitch is FAN.rCrankPulley − 5 = 60, in the valley at z FAN.zBelt. Hub recess still
   // presents a washer face at z 324 for the pulley bolt.
   const p = new Part();
@@ -387,20 +388,24 @@ function addFanMouth(p: Part) {
     }, 160, 80, true), 'shroudRed');
   }
 }
+/** Clearance around the distributor: cap Ø70 + 3 mm, towers, housing, and the shallow can. */
+function distClearanceCuts(): THREE.BufferGeometry[] {
+  const along = (y0: number, y1: number, r: number) => cylBetween(distW(0, y0, 0), distW(0, y1, 0), r, 20);
+  const can = cylBetween(distW(26, 152, 2), distW(54, 152, 2), 30, 16);
+  return [along(40, 100, 36), along(102, 170, 32), along(168, 220, 41), along(204, 252, 29), can];
+}
 export function upperAirGuide() {
   const p = new Part();
   const { zA, zB, t, ax, ay, bx, by, skirtY, lipW } = SHROUD; const len = zB - zA;
   const roof = roundRect(190, len, 6);
-  const cut = new THREE.Path(); // distributor + breather opening
-  const zc0 = (zA + zB) / 2, zCut0 = 100 - zc0, zCut1 = Math.min(205, zB - 3) - zc0; // shape y = engine z - zc0
-  cut.moveTo(-95 + 0.5, zCut0); cut.lineTo(-20, zCut0); cut.lineTo(-20, zCut1); cut.lineTo(-95 + 0.5, zCut1); cut.closePath();
-  roof.holes.push(cut);
   const rg = extrude(roof, t); rg.rotateX(Math.PI / 2); rg.translate(0, ay + t, (zA + zB) / 2);
-  // v5 cut-outs: distributor cap opening (roof + left wing), breather neck, air-distributor foot slot
-  const distCut = boxMM([-175, 130, 90], [-48, 180, 190]), brCut = boxMM([-70, 142, 168], [-40, 176, 200]);
+  // Contoured distributor opening (follows the cap, towers and can), plus the breather neck and the plenum foot.
+  const distCuts = distClearanceCuts(), brCut = boxMM([-70, 142, 168], [-40, 176, 200]);
   // Fan-end of the flat plate meets the alternator. The horn replaces that patch; the cut stays
   // inside the alternator so the roof still runs out to the bell.
-  p.add(csgSub(rg, distCut, brCut, boxMM([-94, 140, -157], [94, 165, -143]), boxMM([-60, 148, 162], [60, 172, 198])), 'shroudRed');
+  // Slot over the warm-up regulator so the two top fuel ports (107-10 #52/#59) and their nuts clear the roof.
+  // Stop at z −128: the cover plate (x 50, z −120) and the stopper (x −50, z −125) still sit on the plate.
+  p.add(csgSub(rg, ...distCuts, brCut, boxMM([-94, 140, -210], [94, 172, -128]), boxMM([-60, 148, 162], [60, 172, 198])), 'shroudRed');
   const slopeLen = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax);
   for (const s of [1, -1] as const) {
     const zs = s > 0 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]];
@@ -440,7 +445,7 @@ export function upperAirGuide() {
       g.applyMatrix4(new THREE.Matrix4().makeBasis(u, n, e).setPosition(c.x, c.y, c.z));
       return g;
     });
-    p.add(csgSub(wg, ...(s < 0 ? [distCut] : []), ...injCuts, ...runnerCuts, ...slots, ...skirtWindows), 'shroudRed');
+    p.add(csgSub(wg, ...(s < 0 ? distCuts : []), ...injCuts, ...runnerCuts, ...slots, ...skirtWindows), 'shroudRed');
     // outer skirt (YZ plate at x = bx) with a hole round each injector, inward screw lip at the bottom
     const sk = new THREE.Shape(); sk.moveTo(skirtY, zA); sk.lineTo(by + 1, zA); sk.lineTo(by + 1, zB - 20); sk.lineTo(skirtY, zB - 20); sk.closePath();
     const injY = INTAKE_PORT.y + INJ.dy + ((bx - (INTAKE_PORT.x + INJ.dx)) / INJ.ux) * INJ.uy;
@@ -460,6 +465,13 @@ export function upperAirGuide() {
   for (const a of SHROUD_TAB.a) p.add(yToZ(cyl(9, SHROUD_TAB.z1 - SHROUD_TAB.z0, 16)), 'shroudRed', [132 * Math.cos(a), FAN.y + 132 * Math.sin(a), (SHROUD_TAB.z0 + SHROUD_TAB.z1) / 2]);
   // raised centre boss on the roof
   p.add(lathe([[0.1, 0], [16, 0], [24, 3.5], [24, 8], [18, 10.5], [0.1, 10.5]], 28), 'shroudRed', [0, 153.5, -22]);
+  // Clip at the left pulley-end bay edge. Coil lead and primary end in the slot, clear of the steel.
+  // Bay-edge clip, outboard of the plug-lead bundle. Coil and primary end in the slot.
+  p.add(boxMM([-312, 154, 178], [-260, 158, 200]), 'steel');
+  p.add(boxMM([-312, 158, 178], [-304, 180, 200]), 'steel');
+  p.add(boxMM([-268, 158, 178], [-260, 180, 200]), 'steel');
+  // Strap back onto the left skirt so the clip is not floating past the sheet.
+  p.add(boxMM([-264, 148, 184], [-236, 156, 196]), 'steel');
   // hot air outlet socket (#4) on the end plate, left, with its flange
   p.add(yToZ(lathe([[30, 0], [34, 0], [34, 40], [30, 40]], 32)), 'shroudRed', [-170, 118, zA - t - 40]);
   p.add(yToZ(lathe([[30, 0], [44, 0], [44, 2], [30, 2]], 32)), 'shroudRed', [-170, 118, zA - t - 2]);
@@ -473,28 +485,114 @@ function swapSkirt(sk: THREE.Shape, t: number, s: 1 | -1, bx: number) {
   return g;
 }
 
-// ---------------------------------------------------------------- 104-00 / 101 lubrication bits
+// ---------------------------------------------------------------- 104-00 lubrication: crankcase oil cooler
+/**
+ * 911 107 041 00 on the right crankcase at the flywheel end, beside the ring
+ * gear (joe-engineer longblock sealing photos: the pad and the three seals sit
+ * on the right case next to the flywheel, under the cylinder barrels). 104-00
+ * draws the cooler on the crankcase, not in the fan shroud. Published core
+ * 195 × 140 × 80 mm (911 107 041 00 / 02). Kat 502 104-00: a separate flange
+ * plate, taller than the core, on four M8 studs. Two upper ports and one
+ * lower port are in the flange face. A Ø14 tube runs along the lower edge
+ * and ends in a spigot pointing away from the case. No vertical riser.
+ * Behr plate-and-fin: plates stacked in Y so the edges read on top. The
+ * stamp sits on the side panel. Studs and ports are [y, z]; the case pad
+ * in core.ts uses the same numbers. The third port number is 1 for the
+ * 26×19 ring (104-00 #2) and 0 for a 22×17 (104-00 #3).
+ */
+const BEHR: Record<string, [number, number, number, number][]> = {
+  B: [[0, 0, 0, 6], [0, 6, 3, 6], [3, 6, 4, 5], [4, 5, 4, 3.4], [4, 3.4, 3, 3], [3, 3, 0, 3], [0, 0, 3, 0], [3, 0, 4, 1], [4, 1, 4, 2.6], [4, 2.6, 3, 3]],
+  E: [[4, 0, 0, 0], [0, 0, 0, 6], [0, 6, 4, 6], [0, 3, 3, 3]],
+  H: [[0, 0, 0, 6], [4, 0, 4, 6], [0, 3, 4, 3]],
+  R: [[0, 0, 0, 6], [0, 6, 3, 6], [3, 6, 4, 5], [4, 5, 4, 3.4], [4, 3.4, 3, 3], [3, 3, 0, 3], [2, 3, 4, 0]],
+};
+export const OIL_COOLER = {
+  /** Case spot face, and the flange's inboard face. The cheek ends on this plane. */
+  faceX: 82,
+  /** Flange thickness along +X. Nut face is faceX + foot. */
+  foot: 8,
+  /** Flange plate, just taller than the core. The four studs sit in its corners. */
+  fy0: -236, fy1: -88,
+  fz0: -202, fz1: 1,
+  /**
+   * Core, 140 tall × 195 long × 80 deep (published 195 × 140 × 80). Nearly as
+   * tall as the flange, and longer than it is deep. Corner pockets clear the nuts.
+   */
+  y0: -232, y1: -92,
+  z0: -198, z1: -3,
+  /** Outboard end plate. 80 mm from the flange's outboard face (x 90). */
+  x1: 170,
+  /** Four corner studs. [y, z]. Same as the case pad. */
+  studs: [[-216, -182], [-216, -19], [-108, -182], [-108, -19]] as [number, number][],
+  /**
+   * Ports in the flange face. [y, z, big]. Two upper (#3, 22×17) and one
+   * lower (#2, 26×19). Same numbers as the case pad.
+   */
+  ports: [[-140, -150, 0], [-140, -50, 0], [-200, -100, 1]] as [number, number, number][],
+  /** Plate 1.8 mm, dark gap 0.7 mm. Pitch about 2.5 mm. */
+  finPitch: 2.5,
+};
 export function oilCooler() {
   const p = new Part();
-  const x0 = -199, x1 = -95, y0 = 74, y1 = 124, z0 = 30, z1 = 148;
-  p.add(boxMM([x0, y0, z0], [x0 + 6, y1, z1]), 'castAlu');
-  p.add(boxMM([x1 - 6, y0, z0], [x1, y1, z1]), 'castAlu');
-  for (let z = z0 + 3; z < z1 - 2; z += 3.2) p.add(boxMM([x0 + 6, y0 + 3, z], [x1 - 6, y1 - 3, z + 0.9]), 'machinedAlu');
-  for (const y of [y0 + 10, (y0 + y1) / 2, y1 - 10]) p.add(cylBetween([x0 + 6, y, (z0 + z1) / 2], [x1 - 6, y, (z0 + z1) / 2], 4, 10), 'castAlu');
-  // oil ports: short spigots from the end tank to the case-top passages (O-rings: smallParts oil-cooler-seals)
-  for (const z of [49, 75]) { p.add(cylBetween([x1, 97, z], [-84, 97, z], 4, 12), 'castAlu'); p.add(cylBetween([-84, 97, z], [-84, 92, z], 4, 12), 'castAlu'); }
-  // four mounting feet on the case top (nuts: fasteners.ts oil-cooler-nuts)
-  // v5: the end tank corner is relieved round the distributor base instead of overlapping it (feet added after the cut)
-  cutGroup(p.g, distRelief(70, 100));
-  for (const [x, z] of OIL_COOLER.studs) {
-    const sh = polyShape(hull([...circlePts(x, z, 8, 12), ...circlePts(x1 + 2, z, 8, 12)]));
-    sh.holes.push(circlePath(4.5, x, z) as THREE.Path); // stud (r 3.84) passes through; the foot stays clear of the case stud
-    p.add(extrudeC(sh, OIL_COOLER.foot).rotateX(Math.PI / 2), 'castAlu', [0, OIL_COOLER.footTop - OIL_COOLER.foot / 2, 0]);
+  const C = OIL_COOLER;
+  const yMidF = (C.fy0 + C.fy1) / 2, zMidF = (C.fz0 + C.fz1) / 2;
+  const yMid = (C.y0 + C.y1) / 2;
+  // Separate end flange, taller than the core, with the four stud holes and the oil ports.
+  // rotateY(+90) sends shape +X to world −Z, so a hole's shape-x is zMidF − worldZ.
+  // Bearing probe sits at r 5.2, so each stud hole stays under that and still clears the stud (r 3.84).
+  const plate = roundRect(C.fz1 - C.fz0, C.fy1 - C.fy0, 8);
+  for (const [y, z] of C.studs) plate.holes.push(circlePath(5.0, zMidF - z, y - yMidF) as THREE.Path);
+  for (const [y, z, big] of C.ports) plate.holes.push(circlePath(big ? 9.7 : 8.7, zMidF - z, y - yMidF) as THREE.Path);
+  p.add(extrudeC(plate, C.foot).rotateY(Math.PI / 2), 'castAlu', [C.faceX + C.foot / 2, yMidF, zMidF]);
+  // Plate-and-fin core, outboard of the flange. The M8 nuts stand on the flange face, so the
+  // inboard 10 mm is a header with a pocket at each stud. Fins fill the rest of the 80 mm depth.
+  const xFace = C.faceX + C.foot, xNut = xFace + 13, xSkin = C.x1 - 2.2;
+  const header = boxMM([xFace, C.y0, C.z0], [xNut, C.y1, C.z1]);
+  const bigPort = C.ports.find((q) => q[2] === 1)!;
+  const pockets = C.studs.map(([y, z]) => {
+    const g = cyl(9.5, 20, 16);
+    g.rotateZ(Math.PI / 2);
+    g.translate((xFace + xNut) / 2, y, z);
+    return g;
+  });
+  // Groove for the lower-port tube so the header does not swallow it.
+  const chase = cyl(8, 56, 12);
+  chase.translate((xFace + xNut) / 2, bigPort[0] - 28, bigPort[1]);
+  p.add(csgSub(header, ...pockets, chase), 'castAlu');
+  const zTank = 14;
+  const zFin0 = C.z0 + zTank, zFin1 = C.z1 - zTank;
+  for (const [z0, z1] of [[C.z0, C.z0 + zTank], [C.z1 - zTank, C.z1]] as [number, number][]) {
+    p.add(boxMM([xNut, C.y0 + 4, z0], [xSkin - 10, C.y1 - 4, z1]), 'castAlu');
   }
+  const plateT = 1.8, gapT = C.finPitch - 1.8;
+  for (let y = C.y0 + 1.2; y + plateT < C.y1 - 1.0; y += C.finPitch) {
+    p.add(boxMM([xNut, y, zFin0], [xSkin - 0.4, y + plateT, zFin1]), 'machinedAlu');
+    const gy = y + plateT;
+    if (gy + gapT < C.y1 - 1.0) p.add(boxMM([xNut + 1.2, gy, zFin0 + 0.5], [xSkin - 1.6, gy + gapT, zFin1 - 0.5]), 'darkSteel');
+  }
+  // Far end plate. Inset so the plate edges still show, and clear of the bottom tube.
+  p.add(boxMM([C.x1 - 2.0, C.y0 + 6, C.z0 + 4], [C.x1, C.y1 - 6, C.z1 - 4]), 'castAlu');
+  // Side label on the −Z face. Glyphs run toward −X so BEHR reads from outside that face.
+  const sc = 1.6, adv = 6.4 * sc;
+  const xWordEnd = (xNut + xSkin) / 2 + 1.5 * adv;
+  const zStamp = C.z0 - 1.35;
+  p.add(boxMM([xWordEnd - 4 * adv - 2, yMid - 12, C.z0 - 1.1], [xWordEnd + 4, yMid + 12, C.z0 + 0.3]), 'castAlu');
+  for (const [i, ch] of [...'BEHR'].entries()) {
+    for (const [ax, ay, bx, by] of BEHR[ch]) {
+      const xA = xWordEnd - (i * adv + ax * sc), yA = yMid + (ay - 3) * sc;
+      const xB = xWordEnd - (i * adv + bx * sc), yB = yMid + (by - 3) * sc;
+      p.add(cylBetween([xA, yA, zStamp], [xB, yB, zStamp], 0.5, 5), 'machinedAlu');
+    }
+  }
+  // Ø14 tube along the lower edge, from the flange to a spigot pointing away from the case (+X).
+  const big = C.ports.find((q) => q[2] === 1)!;
+  const ty = C.y0 - 7, tz = big[1];
+  const x0 = C.faceX + C.foot - 1, xTip = C.x1 + 12;
+  p.add(cylBetween([x0, ty, tz], [xTip, ty, tz], 7, 16), 'castAlu');
+  p.add(cylBetween([C.x1 + 2, ty, tz], [C.x1 + 6, ty, tz], 8.2, 12), 'castAlu');
+  p.add(cylBetween([C.faceX + C.foot + 2, big[0], big[1]], [C.faceX + C.foot + 6, ty + 2, tz], 6, 10), 'castAlu');
   return p.g;
 }
-/** Oil-cooler feet: 4 studs in the left case top (case surface y 95 at x -90). */
-export const OIL_COOLER = { foot: 6, footTop: 101, studs: [[-89, 36], [-89, 62], [-89, 88], [-89, 112]] as [number, number][] };
 /**
  * Oil thermostat on TOP of the right case half at the pulley end.
  * seatY is the nut face (top of the flange). The case pad is at seatY − grip.
@@ -536,8 +634,11 @@ export function oilThermostat() {
 }
 /** Breather tower on the left half: flange top y 132, two M6 nuts (101-10 #36 qty 2). */
 export const BREATHER = { x: -50, seatY: 132, grip: 10, studs: [[-35, 122], [-35, 168]] as [number, number][] };
-/** Clearance prism round the distributor base + clamp (plan hull), height h centred at y. */
-function distRelief(h: number, y: number) { return extrudeC(polyShape(hull([...circlePts(DIST.x, DIST.z, 31, 32), ...circlePts(DIST.stud[0], DIST.stud[1], 11, 12)])), h).rotateX(Math.PI / 2).translate(0, y, 0); }
+/** Clearance prism round the distributor cap (plan), height h centred at y. */
+function distRelief(h: number, y: number) {
+  const c = distW(0, 140, 0);
+  return extrudeC(polyShape(circlePts(c[0], c[2], 34, 28)), h).rotateX(Math.PI / 2).translate(0, y, 0);
+}
 export function breatherLid() {
   const p = new Part();
   // flange in the XZ plane. extrude +Z, rotateX(-90) sends that thickness up; shape Y becomes −Z.
@@ -658,7 +759,8 @@ export function sumpPlate() {
  * Oil pump in the flywheel-end bay. The long axis is across the case (X): the bay between
  * the z −177 and z −118 webs is only ~37 mm deep, so a 2.2× body along Z will not fit.
  * coverFace is the flywheel face of the three mounting ears (oil-pump-nuts, n = −Z).
- * seals: seven O-ring seats, [x, y, z, axis] with axis 'Y' (top ports) or 'Z' (end face).
+ * seals: four O-ring seats, [x, y, z]. The first is the large ring (104-00 #2);
+ * the next two are 104-00 #3. The fourth is the extra 101-10 #24 ring.
  */
 export const OIL_PUMP = {
   // Flywheel face of the cover. M8 nuts stand ~8 mm proud toward −Z and must stay
@@ -668,8 +770,9 @@ export const OIL_PUMP = {
   // the left relief piston and outside the cyl-6 cheek disc.
   studs: [[38, -56], [-10, -116], [30, -116]] as [number, number][],
   seals: [
-    [-14, -64.8, -147], [24, -64.8, -147],
-    [-16, -90, -157.2], [-4, -80, -157.2], [10, -100, -157.2], [16, -88, -157.2], [2, -96, -157.2],
+    [-14, -64.8, -147],
+    [24, -64.8, -147], [-16, -90, -157.2],
+    [16, -88, -157.2],
   ] as [number, number, number][],
 };
 export function oilPump() {
@@ -867,7 +970,6 @@ export function plenum() {
   const yB = shellBottom(z);
   p.add(cylBetween([x, BOX.y1 - 1, z], [x, yB, z], r, 24), 'blackPlastic');
   p.add(lathe([[r, 0], [flange, 0], [flange, 3.2], [r, 3.2]], 28).translate(x, yB - 3.2, z), 'blackPlastic');
-  p.add(tube(airboxSnoutPoints(), SNOUT_R, 16, 24), 'blackPlastic');
   return p.g;
 }
 export function airFilter() {
@@ -920,6 +1022,8 @@ export function airCleanerLid() {
   }
   const crown = A.yMid + A.b + A.wall;
   p.add(boxMM([-36, crown - 0.6, A.z - 14], [36, crown + 0.5, A.z + 14]), 'yellowZinc');
+  // Intake snout on lid #14. The first sample sits in the cap; the rest of the tube is outside it.
+  p.add(tube(airboxSnoutPoints(), SNOUT_R, 16, 24), 'blackPlastic');
   return p.g;
 }
 /** Warm-up regulator (107-10 #54) on the left case top near the flywheel end: flange, body, vacuum can, two screws. */
@@ -929,47 +1033,145 @@ export function warmUpRegulator() {
   p.add(boxMM([-70, WUR.flangeTop - 5, -195], [-50, WUR.flangeTop, -145]), 'zincPlate');
   p.add(boxMM([-74, WUR.flangeTop, -186], [-46, 142, -146]), 'zincPlate');
   p.add(cyl(11, 8, 20), 'zincPlate', [-60, 143, -170]);
-  // brass port bosses ending on WUR_FACES. The banjos (wur-lines) seat on those faces.
-  for (const face of WUR_FACES) p.add(cylBetween([-74, face[1], face[2]], [face[0] + 0.2, face[1], face[2]], 5, 14), 'brass');
+  // Two pads on the top, either side of the dome, for the fuel ports (Kat 502 107-10 #52 and #59).
+  // Outboard of the shroud end-plate screw at x −60 (shank tip z −193) and short of the dome (z −181).
+  p.add(boxMM([-96, 130, -191], [-76, 134, -182]), 'zincPlate');
+  p.add(boxMM([-74, 136, -156], [-48, 142, -126]), 'zincPlate');
+  const [cx, cy, cz] = WUR_CONN.face;
+  p.add(cylBetween([cx, 136, cz], [cx, cy, cz], 5.2, 12), 'brass');
+  p.add(lathe([[4.4, 0], [7.4, 0], [7.4, 1.2], [4.4, 1.2]], 14).translate(cx, cy, cz), 'copper');
   return p.g;
 }
-/** Air-cleaner strut nut seats. y is the foot top the M8 nut bears on; the stud reaches the plenum. Under the drum. */
-export const AIRBOX_STRUTS = [[-62, 258, -22], [62, 258, -22], [-62, 258, 72], [62, 258, 72]] as V3[];
+/**
+ * Four M8 nut seats (106-00 #24) in two pairs on the flywheel side of the lid.
+ * Strut A (911 110 133 02) is the straight column. Strut B (911 110 269 00, tags -80) is the angled brace.
+ * One bonded rubber buffer (911 110 154 00) sits on each strut.
+ */
+export const AIRBOX_STRUTS = [[-62, 258, -18], [-48, 258, -6], [52, 258, -18], [66, 258, -6]] as V3[];
+function strutFoot(studs: V3[], yTop: number) {
+  const xs = studs.map((s) => s[0]);
+  const zs = studs.map((s) => s[2]);
+  let foot: THREE.BufferGeometry = boxMM([Math.min(...xs) - 8, LID_Y, Math.min(...zs) - 8], [Math.max(...xs) + 8, yTop, Math.max(...zs) + 8]);
+  for (const [x, , z] of studs) foot = csgSub(foot, cylBetween([x, LID_Y - 2, z], [x, yTop + 2, z], 5, 12));
+  const sole = foot.index ? foot.toNonIndexed() : foot;
+  sole.computeVertexNormals();
+  return sole;
+}
+function bufferAt(p: Part, x: number, z: number, yMetal: number) {
+  const top = Math.min(shellBottom(z - 8), shellBottom(z), shellBottom(z + 8));
+  p.add(cylBetween([x, yMetal, z], [x, top - 6, z], 7, 14), 'rubber');
+  const disk = extrude(circleShape(7), 3.2, 0, 8);
+  disk.rotateX(-Math.PI / 2);
+  disk.translate(x, top - 3.2, z);
+  p.add(faceNormals(disk), 'rubber');
+}
 export function airboxStruts() {
   const p = new Part();
-  for (const [x, y, z] of AIRBOX_STRUTS) {
-    // Column sits inboard of the stud so the M8 nut face at (x, y) stays clear.
-    const inward = x > 0 ? -1 : 1;
-    const ux = x + inward * 12;
-    const xLo = Math.min(x, ux) - 8, xHi = Math.max(x, ux) + 8;
-    // Foot sits on the lid face. The stud (on the plenum) passes through the hole.
-    const foot = boxMM([xLo, LID_Y, z - 8], [xHi, y, z + 8]);
-    const cut = csgSub(foot, cylBetween([x, 251, z], [x, y + 2, z], 5, 12));
-    const sole = cut.index ? cut.toNonIndexed() : cut;
-    sole.computeVertexNormals();
-    p.add(sole, 'zincPlate');
-    // Pad top meets the shell at its lowest point over the disk. The shell rises away from that point.
-    const top = Math.min(shellBottom(z - 6), shellBottom(z), shellBottom(z + 6));
-    p.add(boxMM([ux - 2.2, y, z - 2.2], [ux + 2.2, top - 16, z + 2.2]), 'zincPlate');
-    p.add(cylBetween([ux, y + 1, z], [ux, top - 8, z], 6, 16), 'rubber');
-    const disk = extrude(circleShape(6), 3.2, 0, 8);
-    disk.rotateX(-Math.PI / 2);
-    disk.translate(ux, top - 3.2, z);
-    p.add(faceNormals(disk), 'rubber');
-  }
+  const left = [AIRBOX_STRUTS[0], AIRBOX_STRUTS[1]];
+  const right = [AIRBOX_STRUTS[2], AIRBOX_STRUTS[3]];
+  p.add(strutFoot(left, 258), 'zincPlate');
+  p.add(strutFoot(right, 258), 'zincPlate');
+  // Straight strut, inboard of its two studs.
+  const lx = -55, lz = -12;
+  const lTop = shellBottom(lz);
+  p.add(boxMM([lx - 3, 258, lz - 3], [lx + 3, lTop - 20, lz + 3]), 'zincPlate');
+  bufferAt(p, lx, lz, lTop - 20);
+  // Angled strut. Top stays flywheel of the air-guide clamp ring and pulley of the meter duct.
+  const rx0 = 58, rz0 = -14;
+  const rx1 = 68, rz1 = 2;
+  const rTop = shellBottom(rz1);
+  p.add(cylBetween([rx0, 258, rz0], [rx1, rTop - 22, rz1], 3.2, 12), 'zincPlate');
+  bufferAt(p, rx1, rz1, rTop - 22);
   return p.g;
 }
 
 // ---------------------------------------------------------------- 901-00 ignition
-/** Distributor hold-down clamp (stud in the left case top at z 116; cast spacer up to the clamp tab). */
-export const DIST = { x: -98, z: 146, clampY: 122, clampT: 5, clampTop: 127, stud: [-72, 107] as [number, number], caseY: 107 };
-export function distributorClamp() {
-  const p = new Part();
-  const sh = polyShape(hull([...circlePts(DIST.x, DIST.z, 29.5, 32), ...circlePts(DIST.stud[0], DIST.stud[1], 9, 12)]));
-  sh.holes.push(circlePath(26.8, DIST.x, DIST.z) as THREE.Path); sh.holes.push(circlePath(4.2, DIST.stud[0], DIST.stud[1]) as THREE.Path);
-  p.add(extrude(sh, DIST.clampT).rotateX(Math.PI / 2), 'steel', [0, DIST.clampTop, 0]);
-  p.add(lathe([[4.2, DIST.caseY], [9, DIST.caseY], [9, DIST.clampY], [4.2, DIST.clampY]], 16), 'castAlu', [DIST.stud[0], 0, DIST.stud[1]]); // spacer boss
-  return p.g;
+/**
+ * 930/04 distributor, left case, pulley end. The crank drive wheel is z 211–223.
+ * `pinion` is the gear centre. `aim` only fixes the shaft direction (up, outboard,
+ * slightly toward the flywheel) so the cap sits in the bay beside the fan housing.
+ * Local +Y is the rotor axis. Local +X is outboard and a little toward the fan,
+ * which is where the vacuum can points.
+ */
+export const DIST = {
+  pinion: [-36.2, 26.5, 216] as V3,
+  aim: [-150, 168, 150] as V3,
+  shankR: 13.2,
+  /** Local Y from the pinion centre along the shaft toward the cap. The case mouth is ~t 88. */
+  mouthY: 92,
+  clampY: 102,
+  clampT: 4.5,
+  /** Stud in the local XZ plane. +X is the vacuum-can side, matching 901-00. */
+  stud: [28, 2] as [number, number],
+  /** Cap top. Towers stand on this face. */
+  towerY: 208,
+  towerR: 16,
+  /** Ø14 posts, 34 mm, with a flared tip. */
+  towerH: 34,
+};
+const distOrigin = new THREE.Vector3(...DIST.pinion);
+const distAxisV = new THREE.Vector3(...DIST.aim).sub(distOrigin).normalize();
+/** Unit rotor axis, pinion toward the cap. */
+export const DIST_AXIS: V3 = [distAxisV.x, distAxisV.y, distAxisV.z];
+/** Local +Y → rotor axis, local +X → outboard / fan side. */
+export const DIST_MAT = frame(distOrigin, distAxisV, new THREE.Vector3(-1, 0.08, 0.42));
+export function distW(x: number, y: number, z: number): V3 {
+  const v = new THREE.Vector3(x, y, z).applyMatrix4(DIST_MAT);
+  return [v.x, v.y, v.z];
+}
+/**
+ * Hose seat on the vacuum-can nipple. The nipple is on the can rim and points
+ * along the rotor axis toward the cap (local +Y). Intake & Fuel's hose ends here.
+ */
+export const DIST_VAC_NIPPLE = {
+  point: distW(39, 190, 2),
+  dir: [DIST_MAT.elements[4], DIST_MAT.elements[5], DIST_MAT.elements[6]] as V3,
+};
+function bake(g: THREE.BufferGeometry) { return g.applyMatrix4(DIST_MAT); }
+function holdDownLug(): THREE.BufferGeometry {
+  const sx = DIST.stud[0], sz = DIST.stud[1];
+  // Shape Y becomes −Z under rotateX(−90), so the stud's shape y is −sz.
+  // The slot runs along the bisector of the fastener seat probes, so the M8
+  // land (r 6.8) stays metal while the arm still reads as a timing slot.
+  const n = distAxisV.clone();
+  const ref = Math.abs(n.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+  const u = new THREE.Vector3().crossVectors(n, ref).normalize();
+  const v = new THREE.Vector3().crossVectors(n, u).normalize();
+  const bis = u.clone().add(v).normalize();
+  const Xc = new THREE.Vector3(DIST_MAT.elements[0], DIST_MAT.elements[1], DIST_MAT.elements[2]);
+  const Zc = new THREE.Vector3(DIST_MAT.elements[8], DIST_MAT.elements[9], DIST_MAT.elements[10]);
+  let lx = bis.dot(Xc), lz = bis.dot(Zc);
+  const ll = Math.hypot(lx, lz) || 1;
+  lx /= ll; lz /= ll;
+  // Prefer the end of the slot that points away from the shank.
+  if (lx * sx + lz * sz < 0) { lx = -lx; lz = -lz; }
+  const studSx = sx, studSy = -sz;
+  const slotEnd: [number, number] = [sx + lx * 18, -(sz + lz * 18)];
+  const dir = Math.atan2(studSy, studSx);
+  const rIn = 14;
+  const sh = polyShape(hull([
+    ...circlePts(rIn * Math.cos(dir - 0.55), rIn * Math.sin(dir - 0.55), 3, 8),
+    ...circlePts(rIn * Math.cos(dir + 0.55), rIn * Math.sin(dir + 0.55), 3, 8),
+    ...circlePts(studSx, studSy, 13, 16),
+    ...circlePts(slotEnd[0], slotEnd[1], 7, 12),
+  ]));
+  // Keyhole: round end under the nut, slot continuing out. Half-width 4.4 stays
+  // off the four seat probes at r 6.8 (they sit 45° off this bisector).
+  const slot = new THREE.Path();
+  const ang = Math.atan2(slotEnd[1] - studSy, slotEnd[0] - studSx);
+  const hw = 4.4;
+  const px = Math.cos(ang + Math.PI / 2) * hw, py = Math.sin(ang + Math.PI / 2) * hw;
+  slot.moveTo(studSx + px, studSy + py);
+  slot.lineTo(slotEnd[0] + px, slotEnd[1] + py);
+  slot.absarc(slotEnd[0], slotEnd[1], hw, ang + Math.PI / 2, ang - Math.PI / 2, true);
+  slot.lineTo(studSx - px, studSy - py);
+  slot.absarc(studSx, studSy, hw, ang - Math.PI / 2, ang + Math.PI / 2, true);
+  slot.closePath();
+  sh.holes.push(slot);
+  const plate = extrude(sh, DIST.clampT);
+  plate.rotateX(-Math.PI / 2);
+  plate.translate(0, DIST.clampY - DIST.clampT, 0);
+  return bake(plate);
 }
 /** Fan hub (105-00 #10): yellow-zinc face plate riveted to the fan, with the inner pulley half, 16-hole ring and boss. */
 export function fanHub() {
@@ -1003,17 +1205,88 @@ export function fanHub() {
 }
 export function distributor() {
   const p = new Part();
-  const x = DIST.x, z = DIST.z;
-  p.add(lathe([[14, 104], [20, 104], [24, 120], [32, 150], [32, 168], [0.1, 168]], 32), 'castAlu', [x, 0, z]);
-  // cap (#8) with 7 towers
-  p.add(lathe([[0.1, 168], [36, 168], [37, 180], [30, 196], [0.1, 198]], 36), 'blackPlastic', [x, 0, z]);
-  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; p.add(cyl(6, 14, 12), 'blackPlastic', [x + 22 * Math.cos(a), 196, z + 22 * Math.sin(a)]); }
-  p.add(cyl(6, 16, 12), 'blackPlastic', [x, 204, z]);
-  // vacuum unit, with the advance nipple the vacuum hose seats on
-  p.add(yToX(cyl(20, 26, 24)), 'zincPlate', [x - 44, 150, z]);
-  p.add(cylBetween([x - 44 - 12, 150, z], DIST_VAC.tip, 3.4, 10), 'brass');
+  // Helical pinion (901-00 #36, CCW 930 602 422 03). Three slices, a small twist, tip r 12.
+  // Centre distance to the crank wheel (tip r 32.4) is 44.9 mm, so the tips stay 0.5 mm apart.
+  for (let i = 0; i < 3; i++) {
+    const slice = extrude(gearShape(14, 9.4, DIST_PINION_TIP, 5), 2.5);
+    slice.rotateX(-Math.PI / 2);
+    slice.translate(0, 0.4 + i * 2.35, 0);
+    slice.rotateY((i - 1) * 0.14);
+    p.add(bake(slice), 'bronze');
+  }
+  p.add(bake(lathe([[4.6, 0], [4.6, 10]], 16)), 'steel');
+  // Pinion pin (901-00 #35, 930 602 922 00) across the gear.
+  p.add(bake(cyl(1.5, 18, 8).rotateZ(Math.PI / 2).translate(0, 4.2, 0)), 'steel');
+  p.add(holdDownLug(), 'castAlu');
+  // Shank in the bore, O-ring groove, shoulder just proud of the case mouth (t 93), then the housing.
+  p.add(bake(lathe([
+    [7.2, 8], [8.4, 12], [DIST.shankR, 18], [DIST.shankR, 60],
+    [11.4, 62.4], [11.4, 67.2], [DIST.shankR, 69.6], [DIST.shankR, 92],
+    [16.4, 94], [16.4, 114],
+    [26, 122], [26, 158], [22, 166], [20, 169],
+  ], 32)), 'castAlu');
+  // Bosch cap (#8): crisp Ø70 skirt, a defined shoulder ring, black. Shell so the rotor sits inside.
+  p.add(bake(lathe([
+    [20, 168], [20, 170],
+    [34.4, 170.6], [37.4, 172.2], [37.4, 175.4], [35.05, 176.6],
+    [35.05, 204.6], [33, 206], [27, 208.2], [18, 210.4],
+    [15, 207.6], [22, 178], [22, 172], [20, 170], [20, 168],
+  ], 48)), 'blackPlastic');
+  // Two spring-steel bails, 1.5 mm, hugging the skirt and hooking the lip and the shoulder ring.
+  for (const side of [1, -1] as const) {
+    const phi = side > 0 ? Math.PI / 2 - 0.14 : -Math.PI / 2 - 0.14;
+    const span = 0.28;
+    const band = lathe([[35.15, 176.8], [36.65, 176.8], [36.65, 204.2], [35.15, 204.2]], 6, phi, span);
+    const over = lathe([
+      [35.15, 202.4], [36.65, 202.4], [36.65, 206.2], [32.4, 208.4], [32.4, 207], [35.15, 204.8],
+    ], 6, phi, span);
+    const under = lathe([
+      [35.15, 175.2], [36.65, 175.2], [38.6, 173.6], [38.6, 171.6], [35.15, 170.8],
+    ], 6, phi, span);
+    p.add(bake(band), 'steel');
+    p.add(bake(over), 'steel');
+    p.add(bake(under), 'steel');
+  }
+  const phase = 0; // tower 0 is local +X: outboard, toward the left wing. Do not rephase.
+  const postProf: [number, number][] = [[9.2, 0], [9.6, 2.2], [7.05, 4], [7.05, 26], [9.2, 32], [7.4, 34]];
+  // Suppression connector 122 035 281: a straight sleeve on the tower, in place of a rubber boot.
+  const connProf: [number, number][] = [[7.4, 8], [8.8, 8], [8.8, 33], [7.4, 33]];
+  for (let i = 0; i < 6; i++) {
+    const a = phase + (i / 6) * Math.PI * 2;
+    const cx = DIST.towerR * Math.cos(a), cz = DIST.towerR * Math.sin(a);
+    const post = lathe(postProf, 16);
+    post.translate(cx, DIST.towerY, cz);
+    p.add(bake(post), 'blackPlastic');
+    const conn = lathe(connProf, 14);
+    conn.translate(cx, DIST.towerY, cz);
+    p.add(bake(conn), 'blackPlastic');
+  }
+  const centre = lathe([[5.6, 0], [6.2, 3], [6.2, 22], [8.2, 28], [6.4, 30]], 14);
+  centre.translate(0, DIST.towerY, 0);
+  p.add(bake(centre), 'blackPlastic');
+  const cConn = lathe([[6.6, 10], [8.4, 10], [8.4, 30], [6.6, 30]], 12);
+  cConn.translate(0, DIST.towerY, 0);
+  p.add(bake(cConn), 'blackPlastic');
+  // Rotor (#3), under the cap, pointing at tower 0.
+  p.add(bake(boxMM([2, 186, -3.2], [18, 190, 3.2])), 'blackPlastic');
+  p.add(bake(boxMM([16, 186.4, -2.2], [22, 189.6, 2.2])), 'brass');
+  p.add(bake(cyl(5, 4, 12).translate(0, 188, 0)), 'blackPlastic');
+  // Vacuum unit (#2): shallow Ø52 × 22 can on a curved saddle under the cap rim.
+  // The nipple is on the rim and points toward the cap. Tip local (39, 190, 2).
+  const saddle = lathe([[26.3, 140], [29.4, 142], [29.4, 164], [26.3, 166]], 20, -1.05, 2.1);
+  p.add(bake(saddle), 'steel');
+  p.add(bake(cylBetween([22, 156, 0], [34, 154, 1], 1.6, 8)), 'steel');
+  const can = yToX(lathe([
+    [0.1, 0], [22, 0.4], [26, 1.2], [26.6, 2.2], [26, 3.4],
+    [25.2, 4.2], [25.2, 17.6],
+    [26, 18.6], [26.6, 19.6], [22, 20.8], [0.1, 22],
+  ], 36));
+  can.translate(28, 152, 2);
+  p.add(bake(can), 'zincPlate');
+  p.add(bake(cylBetween([39, 176, 2], [39, 190, 2], 2.3, 10)), 'zincPlate');
   return p.g;
 }
+const DIST_PINION_TIP = 12;
 /** Circular fillets so a Catmull-Rom tube stays on the polyline instead of bowing off it. */
 function filleted(corners: V3[], radius = 16): V3[] {
   const P = corners.map((q) => new THREE.Vector3(...q));
@@ -1072,25 +1345,26 @@ function alongEdge(x: number, y: number, z0: number, z1: number, ribs: number[])
  * gap beside the cylinder, and the valve covers sit further out than the wire may stray. The open
  * drop is the end of the bank: flywheel end on the right (past cylinder 3), pulley end on the left
  * (past cylinder 4, ahead of the chain housing). The wire stays on the shroud to that end, drops
- * beside the head, and runs back under the head in the gap below the oil returns. The last
- * segment leaves that gap at the bank end and follows the plug axis into the boot.
+ * beside the head, and runs back under the head to the boot. Nothing goes below the boot.
  */
-function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: number, boot: THREE.Vector3): V3[] {
+function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: number, boot: THREE.Vector3, axis: THREE.Vector3): V3[] {
   const lane = [1, 2, 3, 4, 5, 6].indexOf(c) % 3;
   // Right: past the cam-housing end cap (z -182) and in front of the shroud end plate (z -203).
   // Left: the wing ends at z 172 and the horn fills the corner above it, so the drop is at z 192,
   // x -216, where the sheet has ended and the chain housing (z 212) has not started.
   const zDrop = s > 0 ? -190 : 192 + lane * 4;
   const xOut = s * (214 + lane * 4); // left drop, inboard of the cam housing
-  const xUnder = s * (170 + lane * 10);
+  // Right bank sits outboard of the oil-cooler cover (x 170), above the heat-exchanger
+  // shell. The old run at x 170 was what kept the core from reaching its depth.
+  const xUnder = s > 0 ? 200 + lane * 6 : s * (170 + lane * 10);
   // The rail is the inboard shroud line. Out past |x| ≈ 160 the runners drop through the wing.
   // Below the oil-return tubes (centre y -78, radius 7) and above the heat-exchanger shell.
-  // Stay in that gap. Lifting the run up to the boot pushes it through the crankcase.
-  const yUnder = -98 - lane * 6;
+  const yUnder = Math.max(-98 - lane * 6, boot.y + 18);
   const yHigh = Math.max(yLoom, wingTop(xLoom) + 8, wingTop(s * 180) + 8);
   const ribs = s > 0 ? [-150, -30, 90] : [-185, -90, 30];
-  // The elbow leaves nearly in the plane of the lid. Rise outboard of the cover,
-  // then come in to the mouth. A chord from under the head crosses the lid.
+  const approach = boot.clone().addScaledVector(axis, -14);
+  if (approach.y < boot.y + 12) approach.y = boot.y + 12;
+  const yMeet = Math.max(approach.y, boot.y + 16, yUnder);
   // Inboard shroud line, under the horizontal run of the intake runners (their centreline is y 206 until |x| 160).
   const xRail = xLoom;
   const zRailEnd = s > 0 ? zDrop : 162;
@@ -1111,19 +1385,17 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
     [xRail, yHigh, zRail],
     ...alongEdge(xRail, yHigh, zRail, zRailEnd, ribs),
     ...outStep,
-    ...(s > 0 ? [] : [[xUnder, yUnder, 172] as V3, [xUnder, yUnder, zDrop] as V3]),
-    [xUnder, yUnder, zDrop],
-    // Out at the open end of the bank, rise outboard of both lids, run along, then in.
-    [s * 372, yUnder, zDrop],
-    [s * 372, boot.y, zDrop],
-    [s * 372, boot.y, boot.z],
+    ...(s > 0 ? [] : [[xUnder, yUnder, 172] as V3]),
+    [xUnder, yUnder, boot.z],
+    [xUnder, yMeet, boot.z],
+    [approach.x, approach.y, approach.z],
     [boot.x, boot.y, boot.z],
   ];
 }
 /**
  * One plug lead. Leaves its cap tower, rides the shroud edge over that head (through the holders),
- * then drops at the open end of the bank and comes back under the head. The boot end follows
- * `pose` (today's plug, or a later head-local plug) along the plug axis.
+ * then drops at the open end of the bank and comes back under the head to the boot. The boot is the
+ * lowest point. The boot end follows `pose` (today's plug, or a later head-local plug).
  */
 export function plugLeadPoints(c: number, i: number, pose = partPose(`spark-plug-${c}`)): V3[] {
   const s: 1 | -1 = c <= 3 ? 1 : -1;
@@ -1133,42 +1405,45 @@ export function plugLeadPoints(c: number, i: number, pose = partPose(`spark-plug
   const xLoom = s * (124 + lane * 8);
   const yLoom = wingTop(xLoom) + 9;
   const zRail = CYL_Z[c] + s * 34;
-  // Elbow outlet. The bore is nearly normal to the lid, so the elbow lies in the
-  // cover plane. Arrive from 28 mm outside the lid, then the last segment enters the mouth.
-  const mouth = new THREE.Vector3(...SPARK_MOUTH).applyMatrix4(pose);
-  const outward = new THREE.Vector3(s * 0.742, 0.671, 0);
-  const ahead = mouth.clone().addScaledVector(outward, 28);
-  const at = (r: number, y: number): V3 => [DIST.x + r * Math.cos(a), y, DIST.z + r * Math.sin(a)];
-  const ribsL = [-185, -90, 30];
-  const ribsR = [-150, -30, 90];
-  // Leave every tower on the outboard side of the cap. A radial arc at y 180 crosses the air distributor.
-  const xLeft = -132;
-  const yLeft = wingTop(xLeft) + 9;
+  const boot = new THREE.Vector3(0, -92, 0).applyMatrix4(pose);
+  const axis = new THREE.Vector3(0, -1, 0).transformDirection(pose).normalize();
+  // Tower 0 is local +X (outboard). The post sticks out along the rotor axis.
+  // Straight run past the flared tip, then a bend of at least 25 mm as the leads gather.
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const yTip = DIST.towerY + DIST.towerH;
+  const tower = distW(DIST.towerR * ca, DIST.towerY + 4, DIST.towerR * sa);
+  const tip = distW(DIST.towerR * ca, yTip, DIST.towerR * sa);
+  // Bend inboard off the tip. A straight run along the axis would cross the vacuum hose.
+  const n = i - 2.5;
+  const away = distW(DIST.towerR * ca - 30, yTip + 2, DIST.towerR * sa);
+  const gather = distW(-16, yTip - 6, n * 5);
+  // Loose bundle over the left holders (x ≈ −132), spread by the firing index. Not a rail.
+  const xB = -132 + n * 8;
+  const yB = wingTop(xB) + 16;
+  const zJoin = Math.max(48, Math.min(150, away[2]));
   const corners: V3[] = [
-    at(22, 208), at(22, 212),
-    [DIST.x - 30, 204, DIST.z],
-    [xLeft, yLeft + 8, 124],
+    tower, tip, away, gather,
+    [xB, yB + 12, zJoin],
+    [xB, yB, 60],
+    [xB, yB, -60],
   ];
   if (s < 0) {
-    corners.push(...alongEdge(xLeft, yLeft, 112, zRail, ribsL));
-    if (Math.abs(xLoom - xLeft) > 1) corners.push([xLoom, yLoom, zRail]);
+    corners.push([xLoom, yLoom, zRail]);
   } else {
-    // Right bank rides the left shroud edge aft, crosses the flywheel end above the roof, then the right clips.
-    corners.push(...alongEdge(xLeft, yLeft, 112, -168, ribsL));
-    // The flat roof tops out at y 153.5. Lift the crossing so the 7.2 mm wire clears it.
+    // One bridge over the roof at the flywheel end, then the right-hand holders.
     corners.push(
-      [xLeft, yLeft, -178],
-      [-96, 168, -180],
-      [96, 168, -180],
-      [xLoom, yLoom, -178],
-      ...alongEdge(xLoom, yLoom, -166, zRail, ribsR),
+      [xB, yB, -168],
+      [n * 8, 172, -176],
+      [xLoom, yLoom + 6, -168],
+      [xLoom, yLoom, zRail],
     );
   }
-  const drop = bootDrop(s, c, xLoom, yLoom, zRail, ahead);
-  drop.push([mouth.x, mouth.y, mouth.z]);
-  // Right slot has room for a broad bend. The left drop stays tight so it does not enter the horn.
-  // The under-head lane is below the boot. Do not lift it: that run is the clearance gap.
-  return densify([...filleted(corners, 12), ...filleted(drop, s > 0 ? 12 : 6).slice(1)], 12);
+  const drop = bootDrop(s, c, xLoom, yLoom, zRail, boot, axis);
+  // Cap end is filleted at 25 mm. The plug drop stays tighter so it misses the horn.
+  const pts = densify([...filleted(corners, 25), ...filleted(drop, s > 0 ? 16 : 8).slice(1)], 12);
+  const floor = boot.y;
+  for (const p of pts) if (p[1] < floor) p[1] = floor;
+  return pts;
 }
 /** Catmull-Rom bows off a long chord. Points every few centimetres keep the tube on the shroud line. */
 function densify(pts: V3[], step = 24): V3[] {
@@ -1185,25 +1460,80 @@ function densify(pts: V3[], step = 24): V3[] {
   }
   return out;
 }
-/** Ignition lead set (901-00 #17): cap towers along the shroud edge, in the holders, down to each plug boot. */
+/** Metallic braid: two opposite 4-strand helices, dense enough to read at a normal camera distance. */
+function braidedLead(pts: V3[], r = 3.6) {
+  const curve = new THREE.CatmullRomCurve3(pts.map((q) => new THREE.Vector3(...q)), false, 'centripetal');
+  const len = curve.getLength();
+  const radial = 28;
+  const tubular = Math.max(180, Math.ceil(len / 1.6));
+  const g = new THREE.TubeGeometry(curve, tubular, r, radial, false);
+  const pos = g.attributes.position;
+  const stride = radial + 1;
+  const turns = len / 4.5;
+  for (let i = 0; i <= tubular; i++) {
+    const u = i / tubular;
+    for (let j = 0; j <= radial; j++) {
+      const idx = i * stride + j;
+      const v = j / radial;
+      const h1 = Math.max(0, Math.cos((v * 4 - u * turns) * Math.PI * 2)) ** 4;
+      const h2 = Math.max(0, Math.cos((v * 4 + u * turns) * Math.PI * 2)) ** 4;
+      const lift = 0.75 * Math.max(h1, h2);
+      if (lift < 1e-4) continue;
+      // Radial direction is the vertex offset from the centreline sample.
+      const c = curve.getPointAt(u);
+      const vx = pos.getX(idx) - c.x, vy = pos.getY(idx) - c.y, vz = pos.getZ(idx) - c.z;
+      const mag = Math.hypot(vx, vy, vz) || 1;
+      pos.setXYZ(idx, pos.getX(idx) + vx / mag * lift, pos.getY(idx) + vy / mag * lift, pos.getZ(idx) + vz / mag * lift);
+    }
+  }
+  g.computeVertexNormals();
+  return g;
+}
+/** Ignition leads: left set 911 609 011 07 and right set 911 609 010 07, both braided. Plug ends stay on today's plug pose. */
 export function ignitionLeads() {
   const p = new Part();
   const order = [1, 6, 2, 4, 3, 5];
   order.forEach((c, i) => {
     const pts = plugLeadPoints(c, i);
-    p.add(tube(pts, 3.6, 8, Math.max(64, pts.length * 2)), 'blackPlastic');
+    p.add(braidedLead(pts), 'darkSteel');
   });
-  // Coil lead (#18) rides just above the left wing, outboard of the plug loom, then steps out past the flywheel end.
-  const xCoil = -148;
-  const yC = wingTop(xCoil) + 16;
-  const cl: V3[] = [[DIST.x, 212, DIST.z], [DIST.x - 24, 204, DIST.z], [xCoil, yC, 116], [xCoil, yC, -172], [-250, yC, -184]];
-  p.add(tube(cl, 3.6, 8, 64), 'blackPlastic');
-  p.add(cylBetween([-250, yC, -184], [-268, yC + 2, -198], 6, 12), 'blackPlastic');
-  // Primary (#9) sits on the same edge, under the coil lead and clear of the wing skin.
-  const yP = wingTop(xCoil) + 8;
-  const el: V3[] = [[DIST.x - 20, 158, DIST.z + 10], [xCoil, yP, 108], [xCoil, yP, -172], [-240, yP, -184]];
-  p.add(tube(el, 1.8, 6, 48), 'blackPlastic');
-  p.add(cylBetween([-240, yP, -184], [-256, yP + 1, -198], 4, 10), 'blackPlastic');
+  // Band clip on each three-lead set, flat so it clears the runners overhead.
+  // Left trio sits together at z 40 (x −144…−112). Right trio sits together at z −90 (x 124…140).
+  const band = (cx: number, cy: number, cz: number, rx: number, ry: number) => {
+    const g = torus(rx, 1.15, 8, 22);
+    g.scale(1, ry / rx, 1);
+    g.translate(cx, cy, cz);
+    return g;
+  };
+  p.add(band(-128, 165, 40, 20, 8), 'darkSteel');
+  p.add(band(132, 158, -90, 14, 8), 'darkSteel');
+  // Two shield pigtails on the right set, ending in ring terminals.
+  for (const [x, y, z] of [[156, 172, -72], [156, 172, -108]] as [number, number, number][]) {
+    p.add(tube([[146, 164, -90], [x, y, z]], 1.4, 6, 10), 'darkSteel');
+    p.add(torus(4.2, 0.9, 6, 14).rotateY(Math.PI / 2), 'zincPlate', [x, y, z]);
+  }
+  // Coil lead (#18). The coil is on the left inner wing (body), so the lead ends in the
+  // shroud clip at the pulley-end bay edge, not in mid-air.
+  const clipCoil: V3 = [-286, 168, 188];
+  const centre = distW(0, DIST.towerY + 6, 0);
+  const centreOut = distW(-24, DIST.towerY + DIST.towerH + 4, 0);
+  const cl = filleted([
+    centre, centreOut,
+    [-150, 160, 120],
+    [-286, 168, 162],
+    clipCoil,
+  ], 25);
+  p.add(braidedLead(cl), 'darkSteel');
+  // Primary (#9), under the coil lead, into the same clip.
+  const clipPri: V3 = [-286, 164, 188];
+  const body = distW(16, 140, 4);
+  const el = filleted([
+    body,
+    distW(-8, 150, 10),
+    [-286, 164, 150],
+    clipPri,
+  ], 25);
+  p.add(tube(el, 1.8, 6, Math.max(32, el.length * 2)), 'blackPlastic');
   return p.g;
 }
 /** Crush washer: closed annulus, hard face normals so the seat does not erode onto the head. */

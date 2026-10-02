@@ -11165,6 +11165,23 @@
 "auto": ""
 },
 {
+"key": "107-10#36#911 606 102 04",
+"ill": "107-10",
+"pos": "36",
+"pn": "911 606 102 04",
+"desc": "Auxiliary air regulator",
+"qty": "1",
+"tags": [
+"USA",
+"930.04"
+],
+"notes": [
+"US, not California",
+"Kat 502 p110 fig 107-10 pos 36"
+],
+"auto": ""
+},
+{
 "key": "107-10#36#911 606 102 01",
 "ill": "107-10",
 "pos": "36",
@@ -13023,6 +13040,21 @@
 "auto": ""
 },
 {
+"key": "901-00#17A#911 609 010 07",
+"ill": "901-00",
+"pos": "17A",
+"pn": "911 609 010 07",
+"desc": "Set of ignition cables",
+"qty": "1",
+"tags": [
+"/R"
+],
+"notes": [
+"geschirmt"
+],
+"auto": ""
+},
+{
 "key": "901-00#18#911 609 061 07",
 "ill": "901-00",
 "pos": "18",
@@ -13087,6 +13119,17 @@
 "pn": "901 609 591 00",
 "desc": "Cable holder",
 "qty": "4",
+"tags": [],
+"notes": [],
+"auto": ""
+},
+{
+"key": "901-00#23#122 035 281",
+"ill": "901-00",
+"pos": "23",
+"pn": "122 035 281",
+"desc": "Suppression connector",
+"qty": "7",
 "tags": [],
 "notes": [],
 "auto": ""
