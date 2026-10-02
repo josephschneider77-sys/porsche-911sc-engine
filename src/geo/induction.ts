@@ -64,6 +64,26 @@ export const AFM_AUX = { tip: [28, 280, -64] as V3, axis: [1, 0, 0] as V3 };
 export const PLENUM_AUX = { tip: [32, 180, -134] as V3, axis: [0, 0, -1] as V3 };
 /** Manifold-vacuum nipple on the plenum lid, downstream of the throttle. */
 export const MANIFOLD_VAC = { tip: [-30, 268, 40] as V3, axis: [0, 1, 0] as V3 };
+/**
+ * Spare branch of the vacuum tee (107-10 #14). Seat for the diverter-valve hose
+ * 108-00 #31 (999 239 003 40). That illustration is not in the checklist extract,
+ * so the hose mesh stays with Bottom End. The small hose from this tip runs down
+ * to the tee, which already reaches MANIFOLD_VAC.
+ * Axis points out of the fitting, along the hose as it leaves (down).
+ */
+export const TEE_AIR_INJ = {
+  point: [-86, 328, -16] as V3,
+  axis: [0, -1, 0] as V3,
+};
+/**
+ * Ported-vacuum nipple on the throttle housing (107-10 #4). Seat for the EGR hose
+ * 202-05 #16 (999 239 003 40, 770 mm). That illustration is not in the extract.
+ * Point is THROTTLE.y + 8, THROTTLE.zFace + 18. Axis points out toward the pulley.
+ */
+export const THROTTLE_PORTED_VAC = {
+  point: [36, THROTTLE.y + 8, THROTTLE.zFace + 18] as V3,
+  axis: [0, 0, 1] as V3,
+};
 /** Auxiliary air valve mount. Prototype +Y is world −Z; the two barbs are prototype ±X. */
 export const AAV_MOUNT = { origin: [52, 200, -95.6] as V3, normal: [0, 0, -1] as V3 };
 /** Vacuum T-piece and limiter origins (world mm). smallParts poses the fittings here. */
@@ -204,14 +224,17 @@ export function runnerTunnelCutters(s: 1 | -1): THREE.BufferGeometry[] {
 }
 
 // ---------------------------------------------------------------- fuel distributor (Kat 502 p106, fig 107-00 #1)
-// Square block, E 80 × 40 × 88 mm. Outlet circle Ø76 (E, inside the Ø75–85 band scaled from
-// the A 8×11.5 ring drawn on the same page). Towers are short so the nuts stay under the air cleaner.
+// Footprint E 80 × 40 × 88 mm, unchanged so the fuel lines still land.
+// Outlet circle Ø76 (E, scaled from the A 8×11.5 ring on the same page).
+// Lower housing is waisted, with vertical ribs. The joint to the upper housing is at mid-height.
+// Outlet towers are hex bosses 15 mm proud of the upper housing (E, from the drawing).
 const FD = { x0: -150, x1: -70, y0: 266, y1: 306, z0: -120, z1: -32 };
 export const FD_CX = (FD.x0 + FD.x1) / 2;
 export const FD_CZ = (FD.z0 + FD.z1) / 2;
 /** Outlet-circle radius, mm. Ø76 E. */
 export const FD_RING_R = 38;
-const TOWER = 8;
+/** Hex tower height above the upper housing, mm. E from fig 107-00. */
+const TOWER = 15;
 
 /** Cylinder and plan angle (deg from +X) of each injector outlet. Left bank is the −X half. */
 const OUTLETS: { c: number; deg: number }[] = [
@@ -769,8 +792,8 @@ function routeMids(id: string): V3[] {
     mids.push(...bend);
     return mids;
   }
-  // #61 leaves the warm-up banjo outboard of the shroud and climbs to the return-side M12.
-  // Stay under the shroud roof (y 150) until the line is outboard of it, then climb.
+  // #61 (930 110 513 00) is the warm-up return. Fig 107-10 runs it from banjo #59
+  // to the return-side M12 connection piece #57 on the −X face, not the pulley-face outlet (#62).
   // Drop under the shroud slot, step pulley-ward of the plug-lead crossing (z −180, y 168),
   // then climb inside the slot and around the flywheel face of the distributor.
   if (id === 'fuelA') return [[-110, 122, -183], [-110, 122, -158], [-86, 122, -158], [-86, 300, -158], [-176, 300, -162], [-176, 280, -96]];
@@ -817,24 +840,43 @@ export function mixtureControlUnit() {
   p.add(lathe([[r + 4, 4.8], [46, 4.8], [46, 6], [r + 4, 6]], 36).translate(x, base, z), 'blackPaint');
   p.add(lathe([[0.2, 0], [r - 4, 0], [r - 4, 1.4], [0.2, 1.4]], 28).translate(x, base + 16, z), 'brass');
   p.add(cyl(3.2, 5, 10).translate(x, base + 18, z), 'steel');
-  // Fuel distributor 911 110 967 00 (Kat 502 p106). Same 80 × 40 × 88 footprint.
-  // Lower body, castellated upper housing, raised ring, towers, plunger cover, side inlet.
-  p.add(boxMM([FD.x0, FD.y0, FD.z0], [FD.x1, FD.y1 - 8, FD.z1]), 'zincPlate');
-  p.add(boxMM([FD.x0 + 3, FD.y1 - 14, FD.z0 + 3], [FD.x1 - 3, FD.y1, FD.z1 - 3]), 'zincPlate');
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-    const cx = FD_CX + 30 * Math.cos(a);
-    const cz = FD_CZ + 30 * Math.sin(a);
-    p.add(boxMM([cx - 3.5, FD.y1 - 6, cz - 3.5], [cx + 3.5, FD.y1 + 1, cz + 3.5]), 'zincPlate');
+  // Fuel distributor 911 110 967 00 (Kat 502 p106, fig 107-00). Same 80 × 40 × 88 footprint.
+  // Waisted lower housing, joint at mid-height, separate upper housing, hex towers, centre hub.
+  const yJoint = (FD.y0 + FD.y1) / 2;
+  const inset = 4.5;
+  p.add(boxMM([FD.x0, FD.y0, FD.z0], [FD.x1, FD.y0 + 5, FD.z1]), 'zincPlate');
+  p.add(boxMM([FD.x0 + inset, FD.y0 + 5, FD.z0 + inset], [FD.x1 - inset, yJoint - 5, FD.z1 - inset]), 'zincPlate');
+  p.add(boxMM([FD.x0, yJoint - 5, FD.z0], [FD.x1, yJoint, FD.z1]), 'zincPlate');
+  // Vertical ribs fill the waist out to the footprint so the lower housing reads as fluted, not a cube.
+  const ribW = 3.2;
+  for (const xOuter of [FD.x0, FD.x1]) {
+    const sign = xOuter < FD_CX ? -1 : 1;
+    const xIn = xOuter - sign * inset;
+    for (const z of [-112, -100, -78, -56, -44]) {
+      if (sign < 0 && Math.abs(z + 90) < 8) continue;
+      if (sign > 0 && Math.abs(z - FD_CZ) < 12) continue;
+      p.add(boxMM([Math.min(xOuter, xIn), FD.y0, z - ribW / 2], [Math.max(xOuter, xIn), yJoint, z + ribW / 2]), 'zincPlate');
+    }
   }
-  // Raised ring, outer Ø78 so it stays inside the 80 mm block. Towers stand on it.
-  p.add(lathe([[22, FD.y1], [39, FD.y1], [39, FD.y1 + 4], [22, FD.y1 + 4]], 36).translate(FD_CX, 0, FD_CZ), 'zincPlate');
-  // Stepped control-plunger cover in the middle of the ring.
-  p.add(lathe([
-    [12, FD.y1 + 4], [12, FD.y1 + 7.5], [7, FD.y1 + 7.5], [7, FD.y1 + 11], [3.2, FD.y1 + 11], [3.2, FD.y1 + 15],
-  ], 18).translate(FD_CX, 0, FD_CZ), 'darkSteel');
+  for (const zOuter of [FD.z0, FD.z1]) {
+    const sign = zOuter < FD_CZ ? -1 : 1;
+    const zIn = zOuter - sign * inset;
+    for (const x of [-140, -124, -96, -80]) {
+      p.add(boxMM([x - ribW / 2, FD.y0, Math.min(zOuter, zIn)], [x + ribW / 2, yJoint, Math.max(zOuter, zIn)]), 'zincPlate');
+    }
+  }
+  // Upper housing steps in at the joint so the split reads at mid-height.
+  p.add(boxMM([FD.x0 + 1.6, yJoint, FD.z0 + 1.6], [FD.x1 - 1.6, FD.y1, FD.z1 - 1.6]), 'zincPlate');
+  // Raised hub and the control-pressure banjo in the middle of the outlet circle.
+  const hubTop = FD.y1 + 8;
+  p.add(cyl(11, 8, 20).translate(FD_CX, FD.y1 + 4, FD_CZ), 'zincPlate');
+  p.add(lathe([[4.1, 0], [7.3, 0], [7.3, 8], [4.1, 8]], 16).translate(FD_CX, hubTop, FD_CZ), 'brass');
+  p.add(cylBetween([FD_CX, hubTop + 4, FD_CZ], [FD_CX, hubTop + 4, FD_CZ - 12], 2.05, 8), 'brass');
+  p.add(hexNut(12, 4.6).translate(FD_CX, hubTop + 10.3, FD_CZ), 'zincPlate');
   for (const b of INJ_BANJOS) {
-    p.add(cylBetween([b.face[0], FD.y1 + 2, b.face[2]], b.face, 6.2, 14), 'zincPlate');
+    const hex = hexNut(16, TOWER);
+    hex.translate(b.face[0], FD.y1 + TOWER / 2, b.face[2]);
+    p.add(hex, 'zincPlate');
   }
   // Side inlet boss on the +X face. Outer face at x −64, inside the air-flow meter.
   p.add(cylBetween([FD.x1 - 6, 286, FD_CZ], [-64, 286, FD_CZ], 8, 16), 'zincPlate');
@@ -947,6 +989,8 @@ function vacTPorts() {
     plusX: { tip: [ox + 14, oy, oz] as V3, axis: [1, 0, 0] as V3 },
     // Elbow turns the leg up. A straight Ø9 hose will not fit between this tip and the throttle flange (z 96).
     plusZ: { tip: [10, 282, 76] as V3, axis: [0, 1, 0] as V3 },
+    // Spare branch for the diverter signal. The hose seat at the handoff is TEE_AIR_INJ.
+    minusZ: { tip: [ox, oy, oz - 14] as V3, axis: [0, 0, -1] as V3 },
   };
 }
 
@@ -1030,8 +1074,10 @@ export function serviceHoses(): FuelLineDef[] {
   return [
     { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis) },
     { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
-    // Three small hoses (3.2×7): manifold, limiter, distributor.
+    // Three small hoses (3.2×7): manifold, limiter, distributor. The fourth small run is the
+    // spare tee branch up to TEE_AIR_INJ (108-00 #31's manifold end, not a 107-10 cut).
     { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: on(t.minusX.tip, t.minusX.axis) },
+    { id: 'vac-airinj', part: 'vacuum-fittings', a: on(TEE_AIR_INJ.point, TEE_AIR_INJ.axis), b: on(t.minusZ.tip, t.minusZ.axis) },
     { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
     { id: 'vac-distributor', part: 'vacuum-fittings', a: on(VAC_THERMO.dist.tip, VAC_THERMO.dist.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
     // Three medium hoses (Ø9): T to thermo valve 17A, thermo to the reducing socket, socket cluster to the additional air valve.
@@ -1074,6 +1120,8 @@ export function vacuumHosesPart() {
     return addHose(p, id, h.a, h.b, mids, 7, ahead, lead, lead, 6);
   };
   small('vac-manifold', [[-22, 274, 52]]);
+  // Down off the handoff (under the shell, y ≈ 337), then across to the spare tee barb.
+  small('vac-airinj', [[-86, 300, -16], [-86, 286, 10], [6, 274, 28]], 4, 5);
   small('vac-limiter', [[70, 268, 40], [108, 270, -20], [108, 268, -72]]);
   // End on DIST_VAC_NIPPLE. The last bend is derived from its point and dir so a can
   // change (930/04 shallow can, nipple on the rim) only needs the waypoints adjusted.
@@ -1159,6 +1207,13 @@ export function throttleHousingPart() {
   p.add(spring(5.5, 0.55, -8, 8, 4).rotateZ(Math.PI / 2).translate(-18, y, 106), 'darkSteel');
   // Lever pad. Top face y 236.6 is the linkage plate's seat. Nothing of the housing is above it there.
   p.add(boxMM([28, 228, 106], [50, 236.6, 120]), 'castAlu');
+  // Ported-vacuum nipple. Tip and axis are THROTTLE_PORTED_VAC. The last run is +Z
+  // so the seat faces the pulley, where 202-05 #16 arrives. The root cap sits on the lever pad (z 120).
+  {
+    const pv = THROTTLE_PORTED_VAC.point;
+    p.add(cylBetween([pv[0], pv[1], 120], pv, 3.2, 12), 'brass');
+    p.add(torus(4.6, 0.7, 6, 14).translate(pv[0], pv[1], pv[2] - 3), 'zincPlate');
+  }
   // 4 × M6 heads. Angles keep them off the vacuum hose that climbs past the top of the flange.
   for (const a of [0.75, 2.3, 3.95, 5.35]) {
     p.add(hexNut(10, 4).rotateX(Math.PI / 2).translate(36 * Math.cos(a), y + 36 * Math.sin(a), zF + 8), 'zincPlate');

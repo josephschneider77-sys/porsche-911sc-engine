@@ -278,7 +278,7 @@ export const NOT_APPLICABLE: NotApplicable[] = [
 
 /** Lines still not modelled (reported by the doc generator; the test requires this list to match reality). */
 export const STILL_MISSING: NotApplicable[] = [
-  { line: '105-05#3', why: 'air guide 911 106 406 00: location not identified in the photo references, not modelled' },
+  { line: '105-05#3', why: 'air duct for the front oil cooler (911 106 406 00, trade 911 106 406 01), right front fender, not on the engine and not the CIS intake air guide' },
 ];
 
 /** Groups covered by this checklist (108-00 air injection is not on this US 49-state/ROW reference engine set; see docs). */

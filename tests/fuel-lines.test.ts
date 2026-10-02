@@ -152,7 +152,12 @@ describe('1978 CIS fuel lines', () => {
       const verts = lineVertices('fuel-lines', `inj-${c}`);
       if (!verts.length) { bad.push(`inj-${c}: no mesh`); continue; }
       let past = 0;
-      for (const q of verts) past = Math.max(past, q.clone().sub(face).dot(axis));
+      // Only the steel at this injector. The distributor end is a tall hex tower; its
+      // height is not a flare along the injector axis.
+      for (const q of verts) {
+        if (q.distanceTo(face) > 40) continue;
+        past = Math.max(past, q.clone().sub(face).dot(axis));
+      }
       // 8 mm nut, then a 6 mm bend. A 10 mm bend reached about x ±289; a 30 mm lead reached x ±297.
       if (past > 18) bad.push(`inj-${c}: steel ${past.toFixed(1)} mm past the nipple`);
       const reach = qMaxAbsX(verts);
