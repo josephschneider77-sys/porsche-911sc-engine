@@ -64,6 +64,26 @@ export const AFM_AUX = { tip: [28, 280, -64] as V3, axis: [1, 0, 0] as V3 };
 export const PLENUM_AUX = { tip: [32, 180, -134] as V3, axis: [0, 0, -1] as V3 };
 /** Manifold-vacuum nipple on the plenum lid, downstream of the throttle. */
 export const MANIFOLD_VAC = { tip: [-30, 268, 40] as V3, axis: [0, 1, 0] as V3 };
+/**
+ * Spare branch of the vacuum tee (107-10 #14). Seat for the diverter-valve hose
+ * 108-00 #31 (999 239 003 40). That illustration is not in the checklist extract,
+ * so the hose mesh stays with Bottom End. The small hose from this tip runs down
+ * to the tee, which already reaches MANIFOLD_VAC.
+ * Axis points out of the fitting, along the hose as it leaves (down).
+ */
+export const TEE_AIR_INJ = {
+  point: [-86, 328, -16] as V3,
+  axis: [0, -1, 0] as V3,
+};
+/**
+ * Ported-vacuum nipple on the throttle housing (107-10 #4). Seat for the EGR hose
+ * 202-05 #16 (999 239 003 40, 770 mm). That illustration is not in the extract.
+ * Point is THROTTLE.y + 8, THROTTLE.zFace + 18. Axis points out toward the pulley.
+ */
+export const THROTTLE_PORTED_VAC = {
+  point: [36, THROTTLE.y + 8, THROTTLE.zFace + 18] as V3,
+  axis: [0, 0, 1] as V3,
+};
 /** Auxiliary air valve mount. Prototype +Y is world −Z; the two barbs are prototype ±X. */
 export const AAV_MOUNT = { origin: [52, 200, -95.6] as V3, normal: [0, 0, -1] as V3 };
 /** Vacuum T-piece and limiter origins (world mm). smallParts poses the fittings here. */
@@ -769,8 +789,8 @@ function routeMids(id: string): V3[] {
     mids.push(...bend);
     return mids;
   }
-  // #61 leaves the warm-up banjo outboard of the shroud and climbs to the return-side M12.
-  // Stay under the shroud roof (y 150) until the line is outboard of it, then climb.
+  // #61 (930 110 513 00) is the warm-up return. Fig 107-10 runs it from banjo #59
+  // to the return-side M12 connection piece #57 on the −X face, not the pulley-face outlet (#62).
   // Drop under the shroud slot, step pulley-ward of the plug-lead crossing (z −180, y 168),
   // then climb inside the slot and around the flywheel face of the distributor.
   if (id === 'fuelA') return [[-110, 122, -183], [-110, 122, -158], [-86, 122, -158], [-86, 300, -158], [-176, 300, -162], [-176, 280, -96]];
@@ -947,6 +967,8 @@ function vacTPorts() {
     plusX: { tip: [ox + 14, oy, oz] as V3, axis: [1, 0, 0] as V3 },
     // Elbow turns the leg up. A straight Ø9 hose will not fit between this tip and the throttle flange (z 96).
     plusZ: { tip: [10, 282, 76] as V3, axis: [0, 1, 0] as V3 },
+    // Spare branch for the diverter signal. The hose seat at the handoff is TEE_AIR_INJ.
+    minusZ: { tip: [ox, oy, oz - 14] as V3, axis: [0, 0, -1] as V3 },
   };
 }
 
@@ -1030,8 +1052,10 @@ export function serviceHoses(): FuelLineDef[] {
   return [
     { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis) },
     { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
-    // Three small hoses (3.2×7): manifold, limiter, distributor.
+    // Three small hoses (3.2×7): manifold, limiter, distributor. The fourth small run is the
+    // spare tee branch up to TEE_AIR_INJ (108-00 #31's manifold end, not a 107-10 cut).
     { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: on(t.minusX.tip, t.minusX.axis) },
+    { id: 'vac-airinj', part: 'vacuum-fittings', a: on(TEE_AIR_INJ.point, TEE_AIR_INJ.axis), b: on(t.minusZ.tip, t.minusZ.axis) },
     { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
     { id: 'vac-distributor', part: 'vacuum-fittings', a: on(VAC_THERMO.dist.tip, VAC_THERMO.dist.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
     // Three medium hoses (Ø9): T to thermo valve 17A, thermo to the reducing socket, socket cluster to the additional air valve.
@@ -1074,6 +1098,8 @@ export function vacuumHosesPart() {
     return addHose(p, id, h.a, h.b, mids, 7, ahead, lead, lead, 6);
   };
   small('vac-manifold', [[-22, 274, 52]]);
+  // Down off the handoff (under the shell, y ≈ 337), then across to the spare tee barb.
+  small('vac-airinj', [[-86, 300, -16], [-86, 286, 10], [6, 274, 28]], 4, 5);
   small('vac-limiter', [[70, 268, 40], [108, 270, -20], [108, 268, -72]]);
   // End on DIST_VAC_NIPPLE. The last bend is derived from its point and dir so a can
   // change (930/04 shallow can, nipple on the rim) only needs the waypoints adjusted.
@@ -1159,6 +1185,13 @@ export function throttleHousingPart() {
   p.add(spring(5.5, 0.55, -8, 8, 4).rotateZ(Math.PI / 2).translate(-18, y, 106), 'darkSteel');
   // Lever pad. Top face y 236.6 is the linkage plate's seat. Nothing of the housing is above it there.
   p.add(boxMM([28, 228, 106], [50, 236.6, 120]), 'castAlu');
+  // Ported-vacuum nipple. Tip and axis are THROTTLE_PORTED_VAC. The last run is +Z
+  // so the seat faces the pulley, where 202-05 #16 arrives. The root cap sits on the lever pad (z 120).
+  {
+    const pv = THROTTLE_PORTED_VAC.point;
+    p.add(cylBetween([pv[0], pv[1], 120], pv, 3.2, 12), 'brass');
+    p.add(torus(4.6, 0.7, 6, 14).translate(pv[0], pv[1], pv[2] - 3), 'zincPlate');
+  }
   // 4 × M6 heads. Angles keep them off the vacuum hose that climbs past the top of the flange.
   for (const a of [0.75, 2.3, 3.95, 5.35]) {
     p.add(hexNut(10, 4).rotateX(Math.PI / 2).translate(36 * Math.cos(a), y + 36 * Math.sin(a), zF + 8), 'zincPlate');

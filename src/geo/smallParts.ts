@@ -12,7 +12,7 @@ import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSIN
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
 import { LIP_Z, chainLidStations } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD, airCleanerLayout } from './aux';
-import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
+import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, TEE_AIR_INJ, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const X = V(1, 0, 0), Y = V(0, 1, 0), Z = V(0, 0, 1);
@@ -355,12 +355,22 @@ def('vacuum-fittings', () => {
   t.add(mesh(cylBetween([ox, oy, oz + 20], [10, 274, 76], 2.8, 8), 'brass'));
   // Last 8 mm is along +Y so the hose seat is a flat face on vacTPorts().plusZ.
   t.add(mesh(cylBetween([10, 274, 76], [10, 282, 76], 2.8, 8), 'brass'));
+  // Spare −Z barb. The hose from here climbs to TEE_AIR_INJ (108-00 #31's manifold seat).
+  t.add(mesh(cylBetween([ox, oy, oz], [ox, oy, oz - 14], 2.8, 8), 'brass'));
   // Rings around the barbs, inboard of each tip so the hose ray meets the barb face.
   const xRing = torus(4.2, 0.7, 6, 14).rotateY(Math.PI / 2);
   t.add(mesh(xRing, 'zincPlate', [ox - 4, oy, oz]));
   t.add(mesh(xRing.clone(), 'zincPlate', [ox + 10, oy, oz]));
   t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, 276, 78]));
+  t.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ox, oy, oz - 6]));
   p.g.add(t);
+  // Handoff nipple. The barb stands above the seat; the hose leaves downward. Top stays under the shell.
+  const inj = new THREE.Group();
+  inj.name = 'fitting:vac-airinj';
+  const [ix, iy, iz] = TEE_AIR_INJ.point;
+  inj.add(mesh(cylBetween([ix, iy + 6, iz], [ix, iy, iz], 2.8, 10), 'brass'));
+  inj.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ix, iy + 2.2, iz]));
+  p.g.add(inj);
   p.g.add(vacuumCluster().g);
   p.g.add(vacuumHosesPart().g);
   return p;
