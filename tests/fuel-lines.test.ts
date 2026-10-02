@@ -164,7 +164,17 @@ describe('1978 CIS fuel lines', () => {
     // is the orphan banjo this test exists to catch.
     const onDistributor = (p: THREE.Vector3) =>
       p.x >= -175 && p.x <= -45 && p.y >= 250 && p.y <= 370 && p.z >= -165 && p.z <= 5;
-    const nearSeat = (p: THREE.Vector3) => seats.some((s) => new THREE.Vector3(...s.point).distanceTo(p) <= 12);
+    const fittingVerts = (o: THREE.Object3D, pose: THREE.Matrix4) => {
+      const pts: THREE.Vector3[] = [];
+      const v = new THREE.Vector3();
+      o.traverse((child: any) => {
+        if (!child.isMesh) return;
+        const P = child.geometry.attributes.position as THREE.BufferAttribute;
+        const w = pose.clone().multiply(child.matrixWorld);
+        for (let i = 0; i < P.count; i++) pts.push(v.fromBufferAttribute(P, i).applyMatrix4(w).clone());
+      });
+      return pts;
+    };
     for (const partId of ['mixture-control-unit', 'wur-lines', 'fuel-lines', 'injection-banjos']) {
       const root = ASSET_BUILDERS[PART_BY_ID[partId].asset]();
       root.updateMatrixWorld(true);
@@ -175,7 +185,12 @@ describe('1978 CIS fuel lines', () => {
           const box = new THREE.Box3().setFromObject(o);
           const c = box.getCenter(new THREE.Vector3()).applyMatrix4(pose);
           if (!onDistributor(c)) return;
-          if (!nearSeat(c)) bad.push(`${partId} ${o.name} is on the distributor with no fuel line`);
+          const verts = fittingVerts(o, pose);
+          const hits = seats.filter((s) => {
+            const sp = new THREE.Vector3(...s.point);
+            return verts.some((q) => q.distanceTo(sp) <= 6);
+          });
+          if (hits.length !== 1) bad.push(`${partId} ${o.name} is on the distributor with ${hits.length} fuel lines`);
           return;
         }
         if (partId !== 'mixture-control-unit' || !o.isMesh) return;
