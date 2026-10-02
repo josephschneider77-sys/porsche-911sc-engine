@@ -55,7 +55,7 @@ out.push(
   '| Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket, tail in the flange hole | 900 243 001 00, Stoddard 6 × 14. Existing `cam-pin-*`, circle radius 24 mm | parts listing |',
   '| Valve covers | both banks match the cam-housing seat | Left cover no longer overhangs the flywheel end by 30 mm. Nuts stay on the ear bosses | — |',
   '| Rocker shaft | Ø18 × 50 mm, hollow, two grooves, slotted | Photo of 901.105.342.04 | unverified |',
-  '| Shaft screw / nut | M6 socket head 999.067.008.00; conical nut 901.105.376.02 | Photos. Same fastener sets, reshaped (the catalogue calls the screw a pan head) | shape from photos |',
+  '| Shaft screw / nut | M6 pan head 999.067.008.00; nut 901.105.376.02 | Kat 502 illustration 103-10 positions 45 and 47 | catalogue |',
   '| Rocker ratio | ~1.13 in / ~1.21 ex at this layout | Follows from the pad-on-base-circle placement. Not taken from a published ratio | unverified |',
   '',
 );

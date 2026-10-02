@@ -97,12 +97,12 @@ export const FASTENER_SPECS: FastenerSpec[] = [
   { id: 'breather-nuts', name: 'Breather cover nuts', count: 2, step: 'externals', follows: 'breather-lid', size: 'M6 nut + spring washer',
     catalog: [{ ill: '101-10', pos: '36', pn: '900 076 010 02', qty: 2, note: 'Spring washers #35 x2. Assignment to the breather is estimated; the photo shows four nuts and no catalogue line of qty 4.' }], description: 'Two M6 nuts and spring washers on the breather-tower studs. The catalogue line is qty 2; the tower photo shows four.' },
   ...b2((b) => ({
-    id: `rocker-shaft-screws-${b}`, name: `Rocker-shaft screws, ${b}`, count: 6, step: 'rockers', follows: `rockers-${b}`, size: 'M6 socket-head screw',
-    catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '45', pn: '999 067 008 00', qty: 12, note: 'Expanding-shaft screw' }], description: 'Socket-head screw (999.067.008.00) through each hollow rocker shaft, head on the +Z spot face. Tightening it with the conical nut expands the slotted shaft in the housing bore.',
+    id: `rocker-shaft-screws-${b}`, name: `Rocker-shaft screws, ${b}`, count: 6, step: 'rockers', follows: `rockers-${b}`, size: 'M6 pan-head screw',
+    catalog: [{ ill: '103-10', pos: '45', pn: '999 067 008 00', qty: 12, note: 'Pan-head screw; the left sheet lists 12 for the engine' }], description: 'Pan-head screw (999.067.008.00, Kat 502 illustration 103-10 position 45) on the +Z spot face of each rocker shaft. Tightening it with the nut on the other end expands the slotted shaft in the housing bore.',
   })),
   ...b2((b) => ({
     id: `rocker-shaft-nuts-${b}`, name: `Rocker-shaft nuts, ${b}`, count: 6, step: 'rockers', follows: `rockers-${b}`, size: 'Conical nut',
-    catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '47', pn: '901 105 376 02', qty: 12 }], description: 'Conical internal-hex nut (901.105.376.02) on the −Z spot face. The cone enters the shaft bore; the flange bears on the spot face.',
+    catalog: [{ ill: '103-10', pos: '47', pn: '901 105 376 02', qty: 12, note: 'Nut; the left sheet lists 12 for the engine' }], description: 'Nut (901.105.376.02, Kat 502 illustration 103-10 position 47) on the −Z spot face. The cone enters the shaft bore; the flange bears on the spot face.',
   })),
   ...b2((b) => ({ id: `cam-nut-${b}`, name: `Camshaft sprocket nut, ${b}`, count: 1, step: 'cam-nuts', follows: `cam-sprocket-${b}`, size: 'M22x1.5 nut + spring washer',
     catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '40/41', pn: '900 024 007 02 / 930 105 236 00', qty: 1, note: 'Spring washer / nut' }],

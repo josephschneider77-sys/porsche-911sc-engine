@@ -61,28 +61,25 @@ export function pinX(cyl: number, crankDeg = 0): { pinX: number; throwXY: [numbe
  * `COVER_BOOT_HOLE` is the matching switch for a round connector hole in a cover,
  * outside the gasket, and it stays off until that is decided.
  *
- * A 17° lean from straight down, with the tip near (9, −8, 25), leaves the chamber
- * and then runs through the exhaust-flange plate (the plate spans head-local z ±39
- * under the head). 70° outboard at pitch 0 clears that plate and then the hex and
- * the boot run through the cam housing. The provisional aim is 56° outboard and
- * 14° along the row, tip (12, −18, 12): the body stays above the flange, about
- * 2.5 mm off the housing, and clear of the heat exchanger. Not a photo decision.
+ * Provisional until the catalogue audit of the plug entry. Not a photo decision.
+ * Tip (12, −8, 28), 58° outboard, 24° along the row. The shell clears both valve
+ * heads, the exhaust-flange plate and the cam-housing stud nuts. The heat
+ * exchanger stays well clear. The terminal boot meets the cam-housing wall, so
+ * the housing is relieved on this same axis.
  *
  * partPose: position is the electrode tip. The quaternion maps plug-local (0, −1, 0)
  * onto the engine axis (s·dx, dy, s·dz), with SPARK_ROLL about local +Y applied first.
  * A plug-local point (0, y, 0) is tip + (−y) · axis in the engine frame.
  */
-export const SPARK_TIP = { x: 12, y: -18 };
-export const SPARK_Z = 12;
+export const SPARK_TIP = { x: 12, y: -8 };
+export const SPARK_Z = 28;
 /** Radians. Lean about +Z from straight down (−Y), outboard as the plug leaves the chamber. */
-export const SPARK_TILT = 56 * Math.PI / 180;
+export const SPARK_TILT = 58 * Math.PI / 180;
 /**
  * Radians. Along-row lean, toward the neighbouring cylinder.
- * Provisional: 56° outboard and 14° along the row puts the hex and the boot
- * beside the cam housing instead of through it, and above the exhaust flange.
- * Not a photo decision.
+ * Provisional: 58° outboard and 24° along the row. Not a catalogue decision.
  */
-export const SPARK_PITCH = 14 * Math.PI / 180;
+export const SPARK_PITCH = 24 * Math.PI / 180;
 /** Radians. Spin about the plug axis so a hex flat faces the barrel fins. */
 export const SPARK_ROLL = 0;
 /**
@@ -122,7 +119,7 @@ export const SPARK_BOOT_Y = -72;
  * outside of the head. The well is the counterbore from that face out through
  * the casting; the hex sits in it. It is not a final plug angle.
  */
-export const SPARK_WELL_T = 64;
+export const SPARK_WELL_T = 92;
 /** Unit axis in the head frame, from the electrode tip toward the boot. */
 export function sparkDirHead(): [number, number, number] {
   const c = Math.cos(SPARK_TILT);

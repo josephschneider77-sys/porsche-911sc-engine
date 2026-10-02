@@ -976,7 +976,9 @@ function flipPlugCutNormals(root: THREE.Object3D, tip: THREE.Vector3, dir: THREE
       n.fromBufferAttribute(N, i).transformDirection(mesh.matrixWorld);
       const nAxial = n.dot(dir);
       const nRad = r > 1e-6 ? n.dot(radial) / r : 0;
-      const spot = Math.abs(t - seatT) < 0.35 && r < 12.2 && nAxial < -0.15;
+      // The boolean can leave the seat a few tenths proud of seatT. Flip that band
+      // too: an inward normal there erodes into the washer, just outside the 0.3 mm seat window.
+      const spot = t > seatT - 0.15 && t < seatT + 1.4 && r > minorR - 0.3 && r < 12.2 && nAxial < -0.15;
       const bore = t > -1 && t < seatT + 0.5 && Math.abs(r - minorR) < 0.45 && nRad > 0.15;
       if (!spot && !bore) continue;
       n.negate().applyMatrix3(inv);
@@ -1051,8 +1053,9 @@ export function cylinderHead() {
   cutGroup(
     p.g,
     cylBetween(along(-4), along(seatT), minorR, 24),
-    cylBetween(along(seatT), along(seatT + 2.6), 11.4, 20),
-    cylBetween(along(seatT + 0.8), along(SPARK_WELL_T), 13.6, 20),
+    // Start the spot-face before the seat so the bore corner is not left as a lip under the washer.
+    cylBetween(along(seatT - 0.6), along(seatT + 2.6), 12, 20),
+    cylBetween(along(seatT + 0.8), along(SPARK_WELL_T), 16, 20),
   );
   // Case head studs (r 4.6 on the Ø114 circle) pass through with clearance. The barrel-nut face stays.
   const studR = HEAD_HW.barrel.r;
@@ -1105,9 +1108,9 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
 }
 
 /**
- * Upper / lower valve cover (103-05 #19/#20), engine coords. Photo-matched (photo-ref/valve-cover-upper-right,
- * FVD genuine 901.105.115.11): flat-topped cast pan with chamfered sides on a thin seat flange, rounded bolt ears
- * (3 upper / 5 lower per edge), two machined round bosses on the upper cover, raised lettering band.
+ * Upper / lower valve cover (103-05 positions 17 and 19), engine coords. Kat 502 draws two closed lids
+ * on the camshaft housing: a cast pan on a seat flange, bolt ears, and separate gaskets (18, 20).
+ * The upper lid carries the machined bosses; the lower lid carries the stiffening ribs. No connector hole.
  */
 /** Valve-cover cavity: half-width at the seat (w0 + 8 bevel = 26) and how much the v5 hollow pan top rose (z 13.5 -> 22). */
 export const VC_CAV = { w0: 18 }, VC_RAISE = 8.5;

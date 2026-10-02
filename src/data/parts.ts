@@ -90,7 +90,7 @@ function perCylinder(): PartDef[] {
     out.push({
       id: `spark-plug-${c}`, name: `Spark plug, cyl. ${c}`, system: 'ignition', asset: 'spark-plug',
       position: [(CYL_TOP_X + SPARK_TIP.x) * s, SPARK_TIP.y, z + SPARK_Z * s], rotation: zRot, explode: [s * 380, -220, 0],
-      catalog: [{ ill: '901-00', pos: '16', pn: '999 170 162 90', qty: 6 }, { ill: '901-00', pos: '21', pn: '911 602 315 00', note: 'Plug connector' }],
+      catalog: [{ ill: '901-00', pos: '16', pn: '999 170 170 90', qty: 6, note: '1978 (−79): 145 EA 0,8. Kat 502 also lists 999 170 136 90 for the same position.' }, { ill: '901-00', pos: '21', pn: '911 602 315 00', note: 'Plug connector' }],
       description: 'Bosch W-series plug, one per cylinder. M14×1.25 thread, 19 mm reach, gasket seat, 20.8 mm hex, ribbed ceramic and a terminal nut the boot grips. The part origin is the electrode tip. Local −Y runs from the tip toward the terminal. Tilt and pitch are SPARK_TILT and SPARK_PITCH and are not final.',
       specs: { Thread: 'M14 x 1.25', Reach: '19 mm', Hex: '20.8 mm', Gap: '0.7 mm', 'Terminal (plug-local)': `(0, ${SPARK_NIPPLE_Y}, 0)` },
     });

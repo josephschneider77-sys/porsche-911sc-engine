@@ -18,10 +18,10 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 |---|---|
 | modelled | 418 |
 | N/A (with reason) | 150 |
-| alternative rows | 229 |
-| excluded (not this engine) | 196 |
+| alternative rows | 230 |
+| excluded (not this engine) | 198 |
 | **MISSING** | 1 |
-| countable lines (all but excluded) | 798 |
+| countable lines (all but excluded) | 799 |
 
 ## 101-05: Crankcase, left
 
@@ -1061,7 +1061,10 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 14 | N 012 241 8 | Spring washer | 2 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 15 | 900 076 025 02 | Hexagon nut | 2 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 15 | 900 076 064 02 | Hexagon nut | 2 | alt | alternative to 901-00 #15 |
-| 16 | 999 170 162 90 | Spark plug | 6 | modelled | `spark-plug-*` |
+| 16 | 999 170 055 90 | Spark plug | 6 | excluded | model years 80-: not a 1978 engine |
+| 16 | 999 170 165 90 | Spark plug | 6 | excluded | model years 80-: not a 1978 engine |
+| 16 | 999 170 170 90 | Spark plug | 6 | modelled | `spark-plug-*` |
+| 16 | 999 170 136 90 | Spark plug | 6 | alt | alternative to 901-00 #16 |
 | 16 | 999 170 128 90 | Spark plug | 6 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 17 | 911 609 011 07 | Set of ignition cables | 1 | modelled | `ignition-leads` |
 | 18 | 911 609 061 07 | Ignition lead | 1 | modelled | `ignition-leads` coil |
@@ -1132,5 +1135,5 @@ These are the sizes the cam housings, camshafts, rockers and valves are built to
 | Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket, tail in the flange hole | 900 243 001 00, Stoddard 6 × 14. Existing `cam-pin-*`, circle radius 24 mm | parts listing |
 | Valve covers | both banks match the cam-housing seat | Left cover no longer overhangs the flywheel end by 30 mm. Nuts stay on the ear bosses | — |
 | Rocker shaft | Ø18 × 50 mm, hollow, two grooves, slotted | Photo of 901.105.342.04 | unverified |
-| Shaft screw / nut | M6 socket head 999.067.008.00; conical nut 901.105.376.02 | Photos. Same fastener sets, reshaped (the catalogue calls the screw a pan head) | shape from photos |
+| Shaft screw / nut | M6 pan head 999.067.008.00; nut 901.105.376.02 | Kat 502 illustration 103-10 positions 45 and 47 | catalogue |
 | Rocker ratio | ~1.13 in / ~1.21 ex at this layout | Follows from the pad-on-base-circle placement. Not taken from a published ratio | unverified |

@@ -228,19 +228,23 @@ function prototype(f: FSet): Part {
     y += t;
   }
   const hexAt = (h: number, y0: number, af = d.af) => { const g = hexNut(af, h); g.translate(0, y0 + h / 2, 0); return g; };
-  // Reshape the existing rocker-shaft sets to the photos. Other pan heads and nuts are unchanged.
+  // 103-10 #45 is a pan-head screw, #47 a nut. Other pan heads and nuts are unchanged.
   if (f.id.startsWith('rocker-shaft-screws')) {
-    const hh = 6, hr = 5;
-    // socket cap (photo 6): bearing face at y = 0, hex socket in the top
-    p.add(lathe([[0.2, 0], [hr, 0], [hr, hh - 0.35], [hr - 0.2, hh], [2.45, hh], [2.45, hh - 3.1], [0.2, hh - 3.1]], 20), f.mat, [0, y, 0]);
+    const hr = 5.6, hh = 3.8;
+    // Pan head: bearing face at y = 0, screwdriver slot in the crown. Not a hex socket.
+    p.add(lathe([
+      [0.2, 0], [hr, 0], [hr, hh - 1.15], [hr - 0.35, hh - 0.15], [hr - 1.1, hh],
+      [0.45, hh], [0.45, hh - 1.15], [0.2, hh - 1.15],
+    ], 24), f.mat, [0, y, 0]);
     if (f.len > 0) { const g = cyl(M / 2, f.len, 12); g.translate(0, -f.len / 2, 0); p.add(g, 'steel'); }
     return p;
   }
   if (f.id.startsWith('rocker-shaft-nuts')) {
     const fr = 7.2, hh = 5.5;
-    // conical flange nut (photo 7): flange on the seat, cone into the shaft, internal hex in the outer face
+    // Flange on the seat. The cone stays inside the spot-face hole (r 4.75) so the
+    // seat probe at r 5.2 still lands on the ring.
     p.add(lathe([
-      [2.2, -5.6], [5.4, -0.3], [fr, 0], [fr, 1.5],
+      [2.2, -5.6], [4.15, -0.35], [fr, 0], [fr, 1.5],
       [5.0, 1.7], [5.0, hh], [2.4, hh], [2.4, 2.2], [0.9, 2.2],
     ], 20), f.mat, [0, y, 0]);
     return p;

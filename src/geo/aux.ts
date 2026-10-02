@@ -8,7 +8,7 @@ import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
   polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
 } from './util';
-import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ, SPARK_BOOT_Y, SPARK_MINOR_D, SPARK_PROJ, SPARK_SEAT_Y, SPARK_HEX_AF, SPARK_NIPPLE_Y } from '../data/layout';
+import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ, SPARK_BOOT_Y, SPARK_MINOR_D, SPARK_PROJ, SPARK_SEAT_Y, SPARK_HEX_AF, SPARK_NIPPLE_Y, COVER_BOOT_HOLE } from '../data/layout';
 import { buildPlenumBox, AIR_NECK, BOX, LID_Y, WUR_FACES, runnerTunnelCutters, DIST_VAC } from './induction';
 export { INTAKE_PORT, INJ };
 export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './induction';
@@ -1072,7 +1072,8 @@ function alongEdge(x: number, y: number, z0: number, z1: number, ribs: number[])
  * gap beside the cylinder, and the valve covers sit further out than the wire may stray. The open
  * drop is the end of the bank: flywheel end on the right (past cylinder 3), pulley end on the left
  * (past cylinder 4, ahead of the chain housing). The wire stays on the shroud to that end, drops
- * beside the head, and runs back under the head to the boot. Nothing goes below the boot.
+ * beside the head, and runs back under the head in the gap below the oil returns. The last
+ * segment leaves that gap at the bank end and follows the plug axis into the boot.
  */
 function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: number, boot: THREE.Vector3, axis: THREE.Vector3): V3[] {
   const lane = [1, 2, 3, 4, 5, 6].indexOf(c) % 3;
@@ -1084,12 +1085,12 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
   const xUnder = s * (170 + lane * 10);
   // The rail is the inboard shroud line. Out past |x| ≈ 160 the runners drop through the wing.
   // Below the oil-return tubes (centre y -78, radius 7) and above the heat-exchanger shell.
-  const yUnder = Math.max(-98 - lane * 6, boot.y + 18);
+  // Stay in that gap. Lifting the run up to the boot pushes it through the crankcase.
+  const yUnder = -98 - lane * 6;
   const yHigh = Math.max(yLoom, wingTop(xLoom) + 8, wingTop(s * 180) + 8);
   const ribs = s > 0 ? [-150, -30, 90] : [-185, -90, 30];
-  const approach = boot.clone().addScaledVector(axis, -14);
-  if (approach.y < boot.y + 12) approach.y = boot.y + 12;
-  const yMeet = Math.max(approach.y, boot.y + 16, yUnder);
+  // The terminal sits in the cover pocket. With the boot hole off, the wire stops
+  // outside the cover wall, abreast of the boot, instead of crossing that wall.
   // Inboard shroud line, under the horizontal run of the intake runners (their centreline is y 206 until |x| 160).
   const xRail = xLoom;
   const zRailEnd = s > 0 ? zDrop : 162;
@@ -1110,17 +1111,19 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
     [xRail, yHigh, zRail],
     ...alongEdge(xRail, yHigh, zRail, zRailEnd, ribs),
     ...outStep,
-    ...(s > 0 ? [] : [[xUnder, yUnder, 172] as V3]),
-    [xUnder, yUnder, boot.z],
-    [xUnder, yMeet, boot.z],
-    [approach.x, approach.y, approach.z],
-    [boot.x, boot.y, boot.z],
+    ...(s > 0 ? [] : [[xUnder, yUnder, 172] as V3, [xUnder, yUnder, zDrop] as V3]),
+    [xUnder, yUnder, zDrop],
+    // Outside the lower-cover wall (it reaches about |x| 360).
+    [s * 396, yUnder, zDrop],
+    [s * 396, boot.y, zDrop],
+    [s * 396, boot.y, boot.z],
+    ...(COVER_BOOT_HOLE ? [[boot.x, boot.y, boot.z] as V3] : []),
   ];
 }
 /**
  * One plug lead. Leaves its cap tower, rides the shroud edge over that head (through the holders),
- * then drops at the open end of the bank and comes back under the head to the boot. The boot is the
- * lowest point. The boot end follows `pose` (today's plug, or a later head-local plug).
+ * then drops at the open end of the bank and comes back under the head. The boot end follows
+ * `pose` (today's plug, or a later head-local plug) along the plug axis.
  */
 export function plugLeadPoints(c: number, i: number, pose = partPose(`spark-plug-${c}`)): V3[] {
   const s: 1 | -1 = c <= 3 ? 1 : -1;
@@ -1161,10 +1164,8 @@ export function plugLeadPoints(c: number, i: number, pose = partPose(`spark-plug
   }
   const drop = bootDrop(s, c, xLoom, yLoom, zRail, boot, axis);
   // Right slot has room for a broad bend. The left drop stays tight so it does not enter the horn.
-  const pts = densify([...filleted(corners, 12), ...filleted(drop, s > 0 ? 12 : 6).slice(1)], 12);
-  const floor = boot.y;
-  for (const p of pts) if (p[1] < floor) p[1] = floor;
-  return pts;
+  // The under-head lane is below the boot. Do not lift it: that run is the clearance gap.
+  return densify([...filleted(corners, 12), ...filleted(drop, s > 0 ? 12 : 6).slice(1)], 12);
 }
 /** Catmull-Rom bows off a long chord. Points every few centimetres keep the tube on the shroud line. */
 function densify(pts: V3[], step = 24): V3[] {
