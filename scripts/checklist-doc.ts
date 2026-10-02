@@ -19,7 +19,7 @@ const out: string[] = [
   '- **alt**: an alternative row for the same position (other part number, supersession or variant). The position itself is handled by another row.',
   '- **excluded**: a row for another model year, engine number range, model or RHD. It does not apply to this engine.',
   '- **MISSING**: still to be modelled.', '',
-  'Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) is outside the checklist and is not modelled. Position 18 unions 911 113 145 02 and 911 113 145 04 (qty 6) and position 19 sealing ring 900 123 033 20 (qty 6, A 10×13.5 CU) have a blank remark and model column, so they cover the 1978 USA 930/04 heads. They are not in this model.', '',
+  'The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heater blower (108-10) and EGR (202-05) are in the checklist.', '',
   '## Totals', '',
   '| status | lines |', '|---|---|',
   `| modelled | ${tot.modelled} |`, `| N/A (with reason) | ${tot.na} |`, `| alternative rows | ${tot.alt} |`, `| excluded (not this engine) | ${tot.auto} |`, `| **MISSING** | ${tot.missing} |`,

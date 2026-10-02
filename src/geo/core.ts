@@ -65,7 +65,25 @@ function punchDistributor(g: THREE.BufferGeometry) {
   out.computeVertexNormals();
   return out;
 }
+/** mulberry32. three-bvh-csg jitters coplanar rays with Math.random, so the hollow right case was not byte-stable. */
+function mulberry32(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+let crankRightSeeded = false;
 export function crankcaseHalf(s: 1 | -1) {
+  if (s > 0 && !crankRightSeeded) {
+    crankRightSeeded = true;
+    const random = Math.random;
+    Math.random = mulberry32(0x9115c);
+    try { return crankcaseHalf(s); }
+    finally { Math.random = random; crankRightSeeded = false; }
+  }
   const p = new Part();
   const z0 = CASE_Z.flywheel, z1 = CASE_Z.pulley;
   const X = (x: number) => x * s;
@@ -766,11 +784,25 @@ export function crankshaft() {
   const mainW = 16, pinW = 20.4;
   for (const z of MAIN_Z) {
     // short polished main: the shells are ±7.4, and the cheeks come up to the fillet
-    p.add(yToZ(lathe([
+    let journal = yToZ(lathe([
       [rMain - 5, -mainW / 2], [rMain - 1.5, -mainW / 2 + 2.4], [rMain, -mainW / 2 + 4],
       [rMain, mainW / 2 - 4], [rMain - 1.5, mainW / 2 - 2.4], [rMain - 5, mainW / 2],
-    ], 48)), 'polishedSteel', [0, 0, z]);
-    p.add(yToX(cyl(3, 0.6, 10)), 'bore', [rMain + 0.05, 0, z]); // oil hole
+    ], 48)).translate(0, 0, z);
+    // Crown oil hole. A disc buried 0.2 mm under the skin is hidden by the polished
+    // face, so the journal is cut open and the dark floor sits on that surface.
+    // Web faces are at ±3 mm; the 1 mm test moves them to ±2 mm. A round Ø5.6 reaches
+    // ±2.8 mm, so the mouth is Ø3.8 and stays inside those faces. The saddle bore
+    // (r 32.8) is still well outside the crown.
+    const holeR = 1.9;
+    const random = Math.random;
+    Math.random = mulberry32(0xC0A11);
+    try {
+      const cutter = yToX(cyl(holeR, 8, 16)).translate(rMain + 1, 0, z);
+      journal = csgSub(journal, cutter);
+    } finally { Math.random = random; }
+    p.add(journal, 'polishedSteel');
+    // Floor of the recess, outer face on the journal surface (rMain).
+    p.add(yToX(cyl(holeR - 0.2, 3, 12)), 'bore', [rMain - 1.5, 0, z]);
   }
   const throws = Object.entries(CYL_Z).map(([c, z]) => ({ c: +c, z, a: THROW_DEG[+c] * DEG }));
   const cheekT = 12.6;
