@@ -4,11 +4,11 @@
  * gives one world matrix per piece. Counts/steps/claims live in data/smallSpec.ts; tests/smallParts check both agree.
  */
 import * as THREE from 'three';
-import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrude, extrudeC, roundRect, circlePath, polyShape, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, annularSector, type V3 } from './util';
+import { Part, lathe, closedLathe, cyl, torus, box, boxMM, hexNut, tube, extrude, extrudeC, roundRect, circlePath, polyShape, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, type V3 } from './util';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
-import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CAM_COVER, camCoverBolt, camNoseStack, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, CH_Z0, CH_Z1 } from './core';
+import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CAM_COVER, CAM_COVER_BODY, camCoverAngles, camCoverBolt, camCoverSeatZ, camNoseStack, holedPlate, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
 import { LIP_Z } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
@@ -99,32 +99,62 @@ export function chainLidGasket(s: 1 | -1) {
   geom.translate(0, t / 2, 0);
   return new Part().add(geom, 'gasket');
 }
-/** Triangular 3-hole gasket (#29) in the cover's plane. Centre opening plus one hole per screw. */
+/** Keep a polygon outboard of the chain-box wall (the back plate ends at x·s = 254 and the cam-end wall reaches about 258) and under the left pulley pad. */
+function clipCoverPlan(pts: [number, number][], s: 1 | -1) {
+  const x0 = 258.8;
+  const out: [number, number][] = [];
+  const inside = (q: [number, number]) => q[0] * s >= x0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const ka = inside(a), kb = inside(b);
+    const hit = (): [number, number] => {
+      const t = (x0 * s - a[0]) / (b[0] - a[0]);
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    };
+    if (ka && kb) out.push(b);
+    else if (ka && !kb) out.push(hit());
+    else if (!ka && kb) { out.push(hit()); out.push(b); }
+  }
+  return clipUnderPad(out, s);
+}
+/** Keep a polygon under the left pulley pad (y = 40). */
+function clipUnderPad(pts: [number, number][], s: 1 | -1) {
+  if (s > 0) return pts;
+  const y0 = 39.2;
+  const out: [number, number][] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const ka = a[1] <= y0, kb = b[1] <= y0;
+    const hit = (): [number, number] => {
+      const t = (y0 - a[1]) / (b[1] - a[1]);
+      return [a[0] + (b[0] - a[0]) * t, y0];
+    };
+    if (ka && kb) out.push(b);
+    else if (ka && !kb) out.push(hit());
+    else if (!ka && kb) { out.push(hit()); out.push(b); }
+  }
+  return out;
+}
+/** Triangular 3-hole gasket (#29) on the cover's inboard face. Centre opening plus one hole per screw. */
 function coverGasketGeom(s: 1 | -1) {
   const stack = camNoseStack(s);
   const cx = CAM_X * s;
-  const bolts = CAM_COVER.angles.map((d) => camCoverBolt(s, d));
-  const verts = bolts.map((b) => {
+  const C = CAM_COVER;
+  const bolts = camCoverAngles(s).map((d) => camCoverBolt(s, d));
+  const verts = clipCoverPlan(bolts.map((b) => {
     const dx = b.x - cx, dy = b.y, L = Math.hypot(dx, dy);
-    return [cx + (dx / L) * (CAM_COVER.boltR + 7), (dy / L) * (CAM_COVER.boltR + 7)] as [number, number];
-  });
-  let g = extrude(polyShape(verts), CAM_COVER.gasketT, 0, 1);
-  g.translate(0, 0, stack.gasket0);
-  const zc = stack.gasket0 + CAM_COVER.gasketT / 2;
-  const cuts = [
-    yToZ(cyl(22, CAM_COVER.gasketT + 2, 24)).translate(cx, 0, zc),
-    ...bolts.map((b) => yToZ(cyl(3.4, CAM_COVER.gasketT + 2, 12)).translate(b.x, b.y, zc)),
-  ];
-  return clearOfPulleyPad(csgSub(g, ...cuts), s);
-}
-/** Left cam-housing pulley pad occupies y ≥ 40 up to the chain-case face. Keep the cover under it. */
-function clearOfPulleyPad(g: THREE.BufferGeometry, s: 1 | -1) {
-  if (s > 0) return g;
-  return csgSub(g, boxMM([-360, 39.85, 160], [-200, 90, CH_Z1 + 0.15]));
+    return [cx + (dx / L) * (C.boltR + 8), (dy / L) * (C.boltR + 8)] as [number, number];
+  }), s);
+  const ring = (r: number, x: number, y: number, n = 28): [number, number][] =>
+    Array.from({ length: n }, (_, i) => {
+      const a = (i / n) * Math.PI * 2;
+      return [x + r * Math.cos(a), y + r * Math.sin(a)] as [number, number];
+    });
+  return holedPlate(verts, [ring(16, cx, 0), ...bolts.map((b) => ring(3.2, b.x, b.y, 16))], () => [stack.gasket0, stack.gasket0 + C.gasketT]);
 }
 /**
  * Cam-flange cover 930 105 196 00 (Kat 502 p.70 Bild 103-10 and p.74 Bild 103-15, #31).
- * Thick round cover on the cam axis: centre bore, O-ring groove for #30, three screw lugs.
+ * Deep cast body, O-ring groove with solid lands, raised rim, three screw lugs notched into that rim.
  * Gasket #29 and the round seal are features of this part. The three M6 screws are a fastener set.
  */
 export function camFlangeCoverPart(s: 1 | -1) {
@@ -132,25 +162,66 @@ export function camFlangeCoverPart(s: 1 | -1) {
   const stack = camNoseStack(s);
   const cx = CAM_X * s;
   const C = CAM_COVER;
-  const t = C.t;
-  const g0 = (t - C.grooveW) / 2, g1 = g0 + C.grooveW;
-  const body = yToZ(lathe([
-    [C.boreR, 0], [C.bodyR, 0], [C.bodyR, g0], [C.grooveRoot, g0], [C.grooveRoot, g1],
-    [C.bodyR, g1], [C.bodyR, t], [C.boreR, t], [C.boreR, 0],
+  const bodyT = CAM_COVER_BODY;
+  const g0 = C.land, g1 = g0 + C.grooveW;
+  const seatZ = camCoverSeatZ(s);
+  // Rim face stands proud of the grooved body and of the M6 heads, and stays under the duplex chain.
+  const rimTop = seatZ + 6.4;
+  // Centre pocket: the thrust washer seats on this face. Bore stays open for the cam nose.
+  const hub = yToZ(closedLathe([
+    [C.boreR, 0], [C.pocketR, 0], [C.pocketR, C.hub], [C.boreR, C.hub],
+  ], 40));
+  hub.translate(cx, 0, stack.cover0);
+  p.add(hub, 'castAlu');
+  // Grooved body. Lands of `land` (2.2 mm) on both sides of the groove.
+  const body = yToZ(closedLathe([
+    [C.pocketR - 0.4, 0], [C.bodyR, 0], [C.bodyR, g0], [C.grooveRoot, g0], [C.grooveRoot, g1],
+    [C.bodyR, g1], [C.bodyR, bodyT], [C.pocketR - 0.4, bodyT],
   ], 48));
   body.translate(cx, 0, stack.cover0);
   p.add(body, 'castAlu');
-  for (const deg of C.angles) {
-    const b = camCoverBolt(s, deg);
-    let lug: THREE.BufferGeometry = extrude(annularSector(C.lugRi, C.lugRo, b.a - C.lugHalf, b.a + C.lugHalf, 6), t, 0, 1);
-    lug.translate(cx, 0, stack.cover0);
-    const hole = yToZ(cyl(3.3, t + 2, 12)).translate(b.x, b.y, stack.cover0 + t / 2);
-    lug = clearOfPulleyPad(csgSub(lug, hole), s);
-    p.add(lug, 'castAlu');
-  }
+  // Raised rim. The inboard plate is the screw seat. The outboard plate is notched around each
+  // screw so the head sits in the rim and stays under the chain, without a hole that breaks the edge.
+  const bolts = camCoverAngles(s).map((d) => camCoverBolt(s, d));
+  const N = 240;
+  const headR = 6.5;
+  const radAt = (a: number, notched: boolean) => {
+    const ca = Math.cos(a), sa = Math.sin(a);
+    let r = C.rimR;
+    if (!notched) return r;
+    for (const b of bolts) {
+      const bx = b.x - cx, by = b.y;
+      const bdot = bx * ca + by * sa;
+      const disc = bdot * bdot - (bx * bx + by * by - headR * headR);
+      if (disc <= 0) continue;
+      const near = bdot - Math.sqrt(disc);
+      if (near > 1 && near < r) r = near;
+    }
+    return r;
+  };
+  const rimPts = (notched: boolean): [number, number][] => {
+    const pts: [number, number][] = [];
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      const r = radAt(a, notched);
+      pts.push([cx + Math.cos(a) * r, Math.sin(a) * r]);
+    }
+    return pts;
+  };
+  const ring = (r: number, x: number, y: number, n = 40): [number, number][] =>
+    Array.from({ length: n }, (_, i) => {
+      const a = (i / n) * Math.PI * 2;
+      return [x + r * Math.cos(a), y + r * Math.sin(a)] as [number, number];
+    });
+  const seatPlan = clipCoverPlan(rimPts(false), s);
+  const notchPlan = clipCoverPlan(rimPts(true), s);
+  p.add(holedPlate(seatPlan, [ring(C.rimInner, cx, 0), ...bolts.map((b) => ring(3.3, b.x, b.y, 16))], () => [stack.cover0, seatZ]), 'castAlu');
+  p.add(holedPlate(notchPlan, [ring(C.rimInner, cx, 0)], () => [seatZ, rimTop]), 'castAlu');
   p.add(coverGasketGeom(s), 'gasket');
-  // 999 701 468 40, 67.5 × 75.4 × 4. Centreline radius (67.5 + 75.4) / 4, section radius 2.
-  p.add(torus(35.725, 2, 10, 48), 'rubber', [cx, 0, (stack.cover0 + stack.cover1) / 2]);
+  // 999 701 468 40, 67.5 × 75.4 × 4, sitting in the groove (lands stay solid either side).
+  // Section is held inside the body so the ring stays clear of the chain-case back wall.
+  const ringR = (C.bodyR + C.grooveRoot) / 2, tubeR = (C.bodyR - C.grooveRoot) / 2 - 0.85;
+  p.add(torus(ringR, tubeR, 10, 48), 'rubber', [cx, 0, stack.cover0 + g0 + C.grooveW / 2]);
   return p.g;
 }
 export const SMALL_GEOM: Record<string, SmallGeom> = {};

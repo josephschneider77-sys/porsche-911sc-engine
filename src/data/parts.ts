@@ -161,17 +161,18 @@ function perBank(): PartDef[] {
         { ill, pos: '29', pn: '930 105 197 05', qty: 1, note: 'Triangular 3-hole gasket' },
         { ill, pos: '30', pn: '999 701 468 40', qty: 1, note: 'Round seal 67.5 × 75.4 × 4' },
       ],
-      description: 'Thick round cover on the chain end of the cam housing, on the cam axis. Centre bore, an O-ring groove on the outside diameter for the round seal, and three screw lugs. The triangular gasket sits between the cover and the cam-housing seat.',
+      description: 'Deep cast cover on the chain end of the cam housing, on the cam axis. Centre bore, an O-ring groove with solid lands, a raised rim, and three screw lugs notched into that rim. The triangular gasket sits on the cam-housing seat, outboard of the housing end face.',
       specs: { Screws: '3 × M6×25 combination (#33) + spring washers (#32)', Stack: 'housing, gasket #29, seal #30, cover #31, thrust washer #34, shim #35, flange #36' },
     });
     out.push({
       id: `chain-tensioner-${b}`, name: `Chain tensioner & guides, ${b}`, system: 'camdrive', asset: `chain-tensioner-${b}`, explode: [s * 360, -120, 320],
       catalog: [
-        { ill, pos: '10', pn: '930 105 049 00', note: 'Chain adjuster: straight cylinder, strap arm, bleeder #25' },
+        { ill, pos: '10', pn: '930 105 049 00', note: 'Chain adjuster: straight cylinder, long flat strap from the foot eye past the top to the stud' },
+        { ill, pos: '10A', pn: '930 105 513 00', note: 'Spacer sleeve on the stud under the strap eye (p.76)' },
         { ill, pos: '5/6', pn: s === 1 ? '901 105 506 02 / 901 105 055 00' : '901 105 505 02 / 901 105 055 00', note: 'Idler arm / idler sprocket' },
         { ill, pos: '2', pn: s === 1 ? '911 105 222 05 / 911 105 222 06' : '911 105 222 06', note: s === 1 ? '1 brown + 2 black guide rails' : '3 black guide rails' },
       ],
-      description: 'Heavy forged idler arm with a wide bushed boss. The 19 T idler has a solid web and rounded roller-chain teeth and presses 38 mm into the slack run from outside the loop. The chain adjuster is a straight cylinder with a long flat strap (an eye on the body and an eye on the housing stud), a side bleeder with its ring, and a nut plus spring washer on the stud. Its plunger dome bears on the arm-tail pad. Three ribbed guide-rail blocks sit on the chain runs.',
+      description: 'Heavy forged idler arm with a wide bushed boss. The 19 T idler has a solid web and rounded roller-chain teeth and presses 38 mm into the slack run from outside the loop. The chain adjuster is a straight cylinder. Its flat strap has an eye at the cylinder foot, runs outside the body, and continues past the top to an eye on the housing stud, with spacer sleeve 930 105 513 00 (#10A) on that stud. A side bleeder carries sealing ring #26 (A 6.5×9.5), and a nut plus spring washer close the stud. The plunger dome bears on the arm-tail pad. Three ribbed guide-rail blocks, each with two bolt slots, sit on the chain runs and are bolted to bosses on the housing.',
       specs: { Type: 'Sealed hydraulic adjuster 930 105 049 00', Idler: '19 T, solid web, roller-chain teeth', Rails: s === 1 ? '1 × 911 105 222 05 + 2 × 911 105 222 06' : '3 × 911 105 222 06', Plunger: 'in contact with the arm pad' },
     });
     out.push({
@@ -183,7 +184,7 @@ function perBank(): PartDef[] {
     out.push({
       id: `chain-housing-lid-${b}`, name: `Chain housing cover, ${b}`, system: 'camdrive', asset: `chain-housing-lid-${b}`, explode: [s * 380, -20, 380],
       catalog: [{ ill: '103-05', pos: s === 1 ? '7' : '6', pn: s === 1 ? '930 105 064 10' : '930 105 063 01', qty: 1, note: s === 1 ? '064 01 is the Turbo lid; Kat 502 p.66 Bild 103-05' : 'Kat 502 p.66 Bild 103-05' }],
-      description: 'Shallow cast pan: sealing face on the gasket, raised perimeter rim with stud bosses, centre stud pads, round bosses for the screw plugs, and an internal diagonal tube on the chain side.',
+      description: 'Cast pan: sealing face on the gasket, raised perimeter rim with stud bosses, a deep field with a cross step along the upper part, centre stud pads, round bosses for the screw plugs, and a stout diagonal tube with a domed end on the outer face.',
       specs: { Gasket: s === 1 ? '930 105 192 01' : '930 105 191 03', 'Part': s === 1 ? '930 105 064 10' : '930 105 063 01' },
     });
     out.push({

@@ -116,9 +116,9 @@ export const FASTENER_SPECS: FastenerSpec[] = [
   ...b2((b) => ({ id: `chain-lid-nuts-${b}`, name: `Chain-housing lid centre nuts, ${b}`, count: b === 'right' ? 2 : 1, step: 'chain-covers', follows: `chain-housing-lid-${b}`, size: 'M8 nut + spring washer',
     catalog: [{ ill: '103-05', pos: '-', pn: '900 076 025 02', qty: 3, note: 'Hex nuts with spring washers N 012 241 8 on the long lid studs' }],
     description: 'Nuts on long studs through the middle of the lid, clear of the chain and tensioner.' })),
-  ...b2((b) => ({ id: `rail-bolts-${b}`, name: `Guide-rail bolts, ${b}`, count: 4, step: 'tensioners', follows: `chain-tensioner-${b}`, size: 'M6 bolt + sealing ring (#4)',
-    catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '3', pn: '901 105 226 03', qty: 4, note: 'Kat 502 p.70 Bild 103-10 / p.74 Bild 103-15' }],
-    description: 'Four bolts through the C-slots of the ribbed guide rails into the chain-housing back wall. Sealing rings 900 123 066 30 sit under the heads.' })),
+  ...b2((b) => ({ id: `rail-bolts-${b}`, name: `Guide-rail bolts, ${b}`, count: 6, step: 'tensioners', follows: `chain-tensioner-${b}`, size: 'M6 bolt + sealing ring (#4)',
+    catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '3', pn: '901 105 226 03', qty: 4, note: 'Kat 502 lists 4. The third rail is bolted as well (two more of the same bolt) on the idler-to-cam run.' }],
+    description: 'Bolts through the slots of the three ribbed guide rails into bosses on the chain-housing back wall. Sealing rings 900 123 066 30 sit under the heads. The catalogue line is qty 4; the third rail takes two more so it does not float.' })),
   ...b2((b) => ({ id: `cam-flange-cover-screws-${b}`, name: `Cam-flange cover screws, ${b}`, count: 3, step: 'cam-keys', follows: `cam-flange-cover-${b}`, size: 'M6×25 combination screw + spring washer',
     catalog: [
       { ill: b === 'left' ? '103-10' : '103-15', pos: '32', pn: 'N 012 226 5', qty: 3, note: 'Spring washer' },

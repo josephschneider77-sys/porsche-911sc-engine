@@ -20,6 +20,12 @@ export function mesh(g: THREE.BufferGeometry, m: MatKey, pos?: V3, rot?: V3): TH
 export function lathe(pts: [number, number][], segs = 48, phiStart = 0, phiLen = Math.PI * 2) {
   return new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(r, 0.001), y)), segs, phiStart, phiLen);
 }
+/** Closed solid of revolution. The profile is looped back to its start so the mesh has no open rim. */
+export function closedLathe(pts: [number, number][], segs = 48) {
+  const a = pts[0], b = pts[pts.length - 1];
+  const loop = a[0] === b[0] && a[1] === b[1] ? pts : [...pts, [a[0], a[1]] as [number, number]];
+  return lathe(loop, segs);
+}
 
 export function box(w: number, h: number, d: number) { return new THREE.BoxGeometry(w, h, d); }
 /** Box spanning explicit min/max corners. */

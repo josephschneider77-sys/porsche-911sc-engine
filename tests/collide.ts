@@ -333,7 +333,6 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('intermediate-shaft', 'timing-chain', 'JOINT chain seated on the intermediate sprockets'),
   pair('heat-exchanger', 'head', 'JOINT primaries in the exhaust ports'),
   ...sameSide('cam-flange', 'camshaft|cam-sprocket', 'JOINT keyed flange on the cam nose, dowel into the sprocket'),
-  ...sameSide('cam-flange-cover', 'cam-housing', 'seated: O-ring 999 701 468 40 and gasket 930 105 197 05 in the chain-end cover seat'),
   pair('conrod', 'cylinder', 'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)'),
   pair('piston', 'head|valves', 'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut'),
   pair('cylinder', 'valves', 'SIMPLIFIED valve heads at the barrel top'),

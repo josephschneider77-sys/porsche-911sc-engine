@@ -4,8 +4,9 @@
  * published / measured dimensions (see docs/engine-spec.md). All units mm.
  */
 import * as THREE from 'three';
+import { ShapeUtils } from 'three';
 import {
-  Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
+  Part, V3, DEG, lathe, closedLathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
   polyShape, hull, circlePts, gearShape, timingGearShape, sprocketRingShape, rollerChainShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, csgUnion, woodruffGeom, cutGroup, subtractSolids,
 } from './util';
 import {
@@ -1136,26 +1137,51 @@ export const CAM_NOSE = {
  * O-ring 999 701 468 40 is 67.5 × 75.4 × 4. Three M6 screws on a 42 mm radius,
  * mirrored about the crank so every lug stays outboard of the chain-case back wall (x·s = 254)
  * and under the y = 40 pulley pad.
+ * `hub` is the centre thickness under the thrust washer. With the left chain at z 235 that
+ * puts the gasket on the housing end face (z 212) without moving the thrust shoulder.
+ * The grooved body is `land` + `grooveW` + `land` (2.2 mm either side of the groove).
+ * The raised rim stands proud of that body. Screw seats are inboard of the rim face so the
+ * M6 heads stay under the duplex chain. Lugs are notches in the rim, inside its outer edge.
+ * The rim stays outboard of the chain-case back wall (x·s = 254).
  */
 export const CAM_COVER = {
-  t: 5.5, gasketT: 0.4, boreR: 18, bodyR: 36.2, grooveRoot: 33.9, grooveW: 4,
-  boltR: 42, lugRo: 48, lugRi: 34.5, lugHalf: 0.22,
-  seatBore: 37.4, seatLipOd: 38.8, seatFaceR: 47,
-  angles: [0, 120, 240],
+  t: 10, hub: 4.1, gasketT: 0.4, land: 2.2,
+  boreR: 18, bodyR: 33.2, grooveRoot: 29.2, grooveW: 3.6,
+  boltR: 42, rimR: 47.2, rimInner: 32.6, notchHalf: 0.22, notchFloor: 46.4,
+  pocketR: 25.5, seatFaceR: 46,
 };
+/** Axial depth of the grooved body: inboard land, groove, outboard land. */
+export const CAM_COVER_BODY = CAM_COVER.land * 2 + CAM_COVER.grooveW;
+/**
+ * Three screw stations. Right bank is 120° apart. Left bank drops the upper screw
+ * so the M6 seat probe (4.2 mm) stays under the y = 40 pulley pad, and every probe
+ * stays outboard of the chain-case back wall.
+ */
+export function camCoverAngles(s: 1 | -1): number[] {
+  return s > 0 ? [0, 120, 240] : [0, 132, 228];
+}
+/** Outboard face the cover screws sit on. Kept under the duplex chain, just inboard of the thrust washer. */
+export function camCoverSeatZ(s: 1 | -1) {
+  return camNoseStack(s).thrust0 - 0.8;
+}
 /** World station of one cover screw. `a` is the world angle from the cam axis (0 = +X). */
 export function camCoverBolt(s: 1 | -1, deg: number) {
   const a = deg * DEG;
   const dx = Math.cos(a) * s, dy = Math.sin(a);
   return { x: CAM_X * s + CAM_COVER.boltR * dx, y: CAM_COVER.boltR * dy, a: Math.atan2(dy, dx) };
 }
-/** Absolute Z of the cam-nose stack on one bank. Cover outboard face is the thrust-washer face. */
+/**
+ * Absolute Z of the cam-nose stack on one bank.
+ * The thrust washer stays on the flange stack, so the camshaft shoulder does not move.
+ * The cover's centre pocket floors on that washer; the deep body and raised rim hang inboard of it.
+ * On the left bank the gasket then starts at z 212, the housing end face.
+ */
 export function camNoseStack(s: 1 | -1) {
   const zc = CHAIN_Z[s], N = CAM_NOSE;
   const flange0 = zc + N.flange[0], flange1 = zc + N.flange[1];
   const shim0 = flange0 - N.shim;
   const thrust0 = shim0 - N.thrust;
-  const cover1 = thrust0, cover0 = cover1 - CAM_COVER.t, gasket0 = cover0 - CAM_COVER.gasketT;
+  const cover0 = thrust0 - CAM_COVER.hub, cover1 = cover0 + CAM_COVER.t, gasket0 = cover0 - CAM_COVER.gasketT;
   return { zc, flange0, flange1, shim0, thrust0, cover0, cover1, gasket0 };
 }
 /**
@@ -1414,9 +1440,13 @@ export function tensionerLayout(s: 1 | -1) {
   const plunger = reach - ADJ.body - ADJ.dome; // exposed plunger length
   const adj = adjBase.clone().add(axis.clone().multiplyScalar(ADJ.body)); // top of the body (plunger exits here)
   const perp = new THREE.Vector2(-axis.y, axis.x).multiplyScalar(s); // toward the chain / box interior
-  const ear = adjBase.clone().add(axis.clone().multiplyScalar(12)).add(perp.clone().multiplyScalar(21)); // mounting ear stud
+  const outside = perp.clone().negate(); // away from the chain, the side the strap runs on
+  // Flat strap: eye on a foot lug, then outside the body, past the top, to the stud eye.
+  const strapOff = 23;
+  const footEye = adjBase.clone().add(outside.clone().multiplyScalar(strapOff));
+  const ear = adjBase.clone().add(axis.clone().multiplyScalar(ADJ.body + 16)).add(outside.clone().multiplyScalar(strapOff));
   const z = CHAIN_Z[s], adjZ = z + ADJ.zOff[s];
-  return { idler, idlerR, pivot, tail, contact, adj, adjBase, axis, perp, ear, reach, plunger, dir, up, z, adjZ, adjLen: ADJ.body };
+  return { idler, idlerR, pivot, tail, contact, adj, adjBase, axis, perp, outside, footEye, ear, reach, plunger, dir, up, z, adjZ, adjLen: ADJ.body };
 }
 /**
  * Root-gap centre of sprocketRingShape, as a fraction of the tooth pitch.
@@ -1535,25 +1565,43 @@ export function camSprocket(s: 1 | -1) {
  * (103-10 #27/#28); plastic guide rails (#2) on the tight run and under the slack run.
  */
 /**
- * Plastic guide rails (103-10/15 #2). Both banks carry three: two black 911 105 222 06
- * (tight run and slack run) and, on the short tight-run station the 103-15 drawing shows,
- * one more. On the right that short rail is the brown 911 105 222 05; on the left the
- * catalogue line is three of 222 06.
+ * Plastic guide rails (103-10/15 #2). Both banks carry three bolted blocks.
+ * Two black 911 105 222 06 sit on the tight run and the crank-to-idler slack run.
+ * The third is the full idler-to-cam run (where 103-15 draws the extra rail), with two
+ * bolt slots, not a stub cut short of the case-flange nuts. On the right that rail is
+ * the brown 911 105 222 05; on the left the catalogue line is three of 222 06.
  */
 export function guideRails(s: 1 | -1) {
   const { up1, up2, nUp } = basePath(s); const P = chainPath(s);
-  const sa = P.slackA.pa, sb = P.slackA.pb; const dd = sb.clone().sub(sa).normalize();
-  let nn = new THREE.Vector2(dd.y, -dd.x); if (nn.y > 0) nn = nn.negate(); // outside of the loop = below the slack run
+  const outward = (a: THREE.Vector2, b: THREE.Vector2) => {
+    const d = b.clone().sub(a).normalize();
+    let n = new THREE.Vector2(d.y, -d.x);
+    const mid = a.clone().lerp(b, 0.5);
+    const inside = new THREE.Vector2(CAM_X * s * 0.35, -30);
+    if (n.dot(mid.clone().sub(inside)) < 0) n = n.negate();
+    return n;
+  };
   const black = 'blackPlastic' as MatKey;
+  const sa = P.slackA.pa, sb = P.slackA.pb;
+  const ca = P.slackB.pa, cb = P.slackB.pb;
+  // pa→pb is idler→cam on the right and cam→idler on the left. Put the shoe on the
+  // outside of that run (away from the cam) so the rail can run the full tangent
+  // without entering the sprocket.
+  const nSlack = outward(ca, cb);
+  if (nSlack.dot(new THREE.Vector2(CAM_X * s, 0).sub(ca.clone().lerp(cb, 0.5))) > 0) nSlack.negate();
   return [
     { a: up1, b: up2, n: nUp, f0: 0.53, f1: 0.82, mat: black, bolted: true },
-    { a: sa, b: sb, n: nn, f0: s > 0 ? 0.55 : 0.2, f1: s > 0 ? 0.8 : 0.45, mat: black, bolted: true },
-    // Stops short of the case-flange nuts (x ≈ ±124). A longer block meets those M8 nuts.
-    { a: up1, b: up2, n: nUp, f0: 0.28, f1: 0.44, mat: (s > 0 ? 'railBrown' : black) as MatKey, bolted: false },
+    { a: sa, b: sb, n: outward(sa, sb), f0: s > 0 ? 0.55 : 0.2, f1: s > 0 ? 0.8 : 0.45, mat: black, bolted: true },
+    // Two slots on the idler half. A bolt nearer the cam would put its boss through the flange cover.
+    { a: ca, b: cb, n: nSlack, f0: s > 0 ? 0.06 : 0.1, f1: s > 0 ? 0.9 : 0.94, mat: (s > 0 ? 'railBrown' : black) as MatKey, bolted: true, boltU: (s > 0 ? [0.17, 0.4] : [0.57, 0.81]) as [number, number] },
   ];
 }
+/** Bolt stations as a fraction of each rail, in the full-height middle so the head has a flat seat. */
+function railBoltU(r: { boltU?: [number, number] }) {
+  return r.boltU ?? [0.22, 0.78];
+}
 /** Ribbed guide-rail block. `halfZ` covers the duplex chain; the bolt head seats on the +Z face. */
-export const RAIL = { halfZ: 7.2, thick: 10, rib: 1.8, slotD: 5.4, slotW: 9, padR: 8.2, padT: 1.6 };
+export const RAIL = { halfZ: 7.2, thick: 10, rib: 1.8, slotD: 5.4, slotW: 9, slotLand: 2, padR: 8.2, padT: 1.6 };
 /** Curved U-channel shoe. `inner` is the gap from the pitch line to the shoe face; `bow` pulls the middle in. */
 export const RAIL_SHOE = { inner: 4.9, thick: 6.5, bow: 0.55 };
 /** Distance from the pitch line to the shoe's inner face at fraction u along the rail (0 at the start). */
@@ -1583,45 +1631,59 @@ function idlerSprocket(p: Part, s: 1 | -1, T: ReturnType<typeof tensionerLayout>
   web.holes.push(circlePath(8.6) as THREE.Path);
   for (const zc of [-4.2, 4.2]) p.add(extrudeC(web, 5.2, 0.15, 20), 'steel', [at[0], at[1], at[2] + zc]);
   // Bronze bush only. The shaft and its bolt head are added with the arm so one pin runs through both.
-  p.add(yToZ(lathe([[6.1, -6.5], [8.5, -6.5], [8.5, 6.5], [6.1, 6.5]], 24)), 'bronze', at);
+  p.add(yToZ(closedLathe([[6.1, -6.5], [8.5, -6.5], [8.5, 6.5], [6.1, 6.5]], 24)), 'bronze', at);
 }
-/** Where a rail bolt passes through a C-slot: XY on the slot, Z on the +Z face of the block. */
+/** Closed plate with through-holes. `zAt` returns the bottom and top Z at a plan point. */
+export function holedPlate(outer: [number, number][], holes: [number, number][][], zAt: (x: number, y: number) => [number, number]) {
+  const area = (pts: [number, number][]) => pts.reduce((a, p, i) => {
+    const q = pts[(i + 1) % pts.length];
+    return a + p[0] * q[1] - q[0] * p[1];
+  }, 0);
+  const contour = area(outer) > 0 ? outer : outer.slice().reverse();
+  const rings = holes.map((h) => (area(h) < 0 ? h : h.slice().reverse()));
+  const faces = ShapeUtils.triangulateShape(
+    contour.map(([x, y]) => new THREE.Vector2(x, y)),
+    rings.map((h) => h.map(([x, y]) => new THREE.Vector2(x, y))),
+  );
+  const flat = [...contour, ...rings.flat()];
+  const N = flat.length;
+  const pos = new Float32Array(N * 6);
+  flat.forEach(([x, y], i) => {
+    const [z0, z1] = zAt(x, y);
+    pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z0;
+    const j = (i + N) * 3;
+    pos[j] = x; pos[j + 1] = y; pos[j + 2] = z1;
+  });
+  const idx: number[] = [];
+  for (const [a, b, c] of faces) idx.push(a, c, b, a + N, b + N, c + N);
+  const band = (ring: [number, number][], start: number) => {
+    const m = ring.length;
+    for (let i = 0; i < m; i++) {
+      const i0 = start + i, i1 = start + ((i + 1) % m);
+      idx.push(i0, i1, i1 + N, i0, i1 + N, i0 + N);
+    }
+  };
+  band(contour, 0);
+  let start = contour.length;
+  for (const ring of rings) { band(ring, start); start += ring.length; }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+/** Where a rail bolt passes through a slot: XY on the slot, Z on the +Z face of the block. */
 function railBoltAt(r: ReturnType<typeof guideRails>[number], f: number, zChain: number) {
   const u = (f - r.f0) / (r.f1 - r.f0);
   const q = r.a.clone().lerp(r.b, f);
-  const off = railInner(u) + RAIL.rib + RAIL.thick - RAIL.slotD / 2;
+  const off = railInner(u) + RAIL.rib + RAIL.thick - RAIL.slotLand - RAIL.slotD / 2;
   const bolt = q.add(r.n.clone().multiplyScalar(off));
   return new THREE.Vector3(bolt.x, bolt.y, zChain + RAIL.halfZ + RAIL.padT);
 }
-/** Rail bolts (#3, 4 per bank): through the C-slots of the two bolted rails, head on the +Z face. */
+/** Rail bolts (#3): through the slots of every rail, head on the +Z face. */
 export function railBolts(s: 1 | -1) {
   const z = CHAIN_Z[s];
-  return guideRails(s).filter((r) => r.bolted).flatMap((r) => [r.f0 + 0.06, r.f1 - 0.06].map((f) => railBoltAt(r, f, z)));
-}
-/** Drop CSG chips (a slot cut can leave one loose triangle). Keeps every solid piece. */
-function dropChips(g: THREE.BufferGeometry, minVerts = 24) {
-  const src = g.index ? g.toNonIndexed() : g;
-  const P = src.getAttribute('position');
-  const n = P.count;
-  const parent = new Int32Array(n);
-  for (let i = 0; i < n; i++) parent[i] = i;
-  const find = (a: number): number => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
-  const uni = (a: number, b: number) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
-  const q = 0.05, map = new Map<string, number>();
-  for (let i = 0; i < n; i++) {
-    const k = `${Math.round(P.getX(i) / q)},${Math.round(P.getY(i) / q)},${Math.round(P.getZ(i) / q)}`;
-    const prev = map.get(k);
-    if (prev !== undefined) uni(prev, i); else map.set(k, i);
-  }
-  for (let i = 0; i + 2 < n; i += 3) { uni(i, i + 1); uni(i + 1, i + 2); }
-  const counts = new Map<number, number>();
-  for (let i = 0; i < n; i++) { const r = find(i); counts.set(r, (counts.get(r) ?? 0) + 1); }
-  const pos: number[] = [];
-  for (let i = 0; i < n; i++) if ((counts.get(find(i)) ?? 0) >= minVerts) pos.push(P.getX(i), P.getY(i), P.getZ(i));
-  const out = new THREE.BufferGeometry();
-  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  out.computeVertexNormals();
-  return out;
+  return guideRails(s).filter((r) => r.bolted).flatMap((r) => railBoltU(r).map((u) => r.f0 + (r.f1 - r.f0) * u).map((f) => railBoltAt(r, f, z)));
 }
 export function chainTensioner(s: 1 | -1) {
   const p = new Part();
@@ -1639,9 +1701,9 @@ export function chainTensioner(s: 1 | -1) {
   armLeg(T.pivot, T.idler, 12, 16);
   armLeg(T.idler, T.tail, 15, 7);
   p.add(yToZ(cyl(16, 14, 24)), 'forgedDark', [T.idler.x, T.idler.y, armZ]);
-  p.add(yToZ(lathe([[8.2, -7], [10.4, -7], [10.4, 7], [8.2, 7]], 20)), 'bronze', [T.idler.x, T.idler.y, armZ]);
+  p.add(yToZ(closedLathe([[8.2, -7], [10.4, -7], [10.4, 7], [8.2, 7]], 20)), 'bronze', [T.idler.x, T.idler.y, armZ]);
   p.add(yToZ(cyl(11, 12, 20)), 'forgedDark', [T.pivot.x, T.pivot.y, armZ]);
-  p.add(yToZ(lathe([[5.4, -6], [7.2, -6], [7.2, 6], [5.4, 6]], 16)), 'bronze', [T.pivot.x, T.pivot.y, armZ]);
+  p.add(yToZ(closedLathe([[5.4, -6], [7.2, -6], [7.2, 6], [5.4, 6]], 16)), 'bronze', [T.pivot.x, T.pivot.y, armZ]);
   p.add(yToZ(cyl(6.2, 12, 14)), 'polishedSteel', [T.pivot.x, T.pivot.y, armZ]); // idler arm pivot shaft (#3)
   // Idler sprocket shaft: through the bronze bush and into the arm boss, bolt head on the cover side.
   {
@@ -1659,14 +1721,14 @@ export function chainTensioner(s: 1 | -1) {
   const adj = new Part();
   const L = ADJ.body, reach = T.reach;
   const Rbody = 12.2;
-  adj.add(lathe([[0.1, 0], [Rbody, 0], [Rbody, L], [0.1, L]], 28), 'castAlu');
-  adj.add(lathe([[7.2, L - 1.4], [Rbody, L - 1.4], [Rbody, L], [7.2, L]], 24), 'darkSteel');
+  adj.add(closedLathe([[0.1, 0], [Rbody, 0], [Rbody, L], [0.1, L]], 28), 'castAlu');
+  adj.add(closedLathe([[7.2, L - 1.4], [Rbody, L - 1.4], [Rbody, L], [7.2, L]], 24), 'darkSteel');
   const by = L * 0.55;
-  adj.add(lathe([[3.3, 0], [5.8, 0], [5.8, 1.1], [3.3, 1.1]], 16).rotateX(Math.PI / 2).translate(0, by, Rbody), 'copper');
+  adj.add(closedLathe([[3.3, 0], [5.8, 0], [5.8, 1.1], [3.3, 1.1]], 16).rotateX(Math.PI / 2).translate(0, by, Rbody), 'copper');
   adj.add(cyl(2.7, 8, 12).rotateX(Math.PI / 2).translate(0, by, Rbody + 2.6), 'darkSteel');
   adj.add(hexNut(8, 3.4).rotateX(Math.PI / 2).translate(0, by, Rbody + 6.4), 'zincPlate');
   adj.add(cyl(5, reach - ADJ.dome - (L - 2), 14), 'polishedSteel', [0, (L - 2 + reach - ADJ.dome) / 2, 0]);
-  adj.add(lathe([[0.1, 0], [6.5, 0], [6.5, 1.5], [3, ADJ.dome], [0.1, ADJ.dome]], 18), 'steel', [0, reach - ADJ.dome, 0]);
+  adj.add(closedLathe([[0.1, 0], [6.5, 0], [6.5, 1.5], [3, ADJ.dome], [0.1, ADJ.dome]], 18), 'steel', [0, reach - ADJ.dome, 0]);
   adj.g.rotation.z = Math.atan2(T.axis.y, T.axis.x) - Math.PI / 2; adj.g.position.set(T.adjBase.x, T.adjBase.y, T.adjZ);
   p.g.add(adj.g);
   // Bake the rotated adjuster onto this part. cutGroup bakes matrixWorld into each mesh and then
@@ -1680,43 +1742,104 @@ export function chainTensioner(s: 1 | -1) {
     p.g.add(m);
   }
   p.g.remove(adj.g);
-  // Flat strap (#10): an eye on the cylinder and an eye on the housing stud. Spring washer #27 and nut #28 stay on the stud.
+  // Flat strap on 930 105 049 00: eye at the cylinder foot, outside the body, past the top, to the stud.
+  // Spacer sleeve #10A (930 105 513 00) stands on the stud between the housing boss and that eye.
   {
-    const eyeA = T.adjBase.clone().add(T.axis.clone().multiplyScalar(L * 0.42));
-    const eyeB = T.ear.clone();
+    const eyeA = T.footEye, eyeB = T.ear;
     const dx = eyeB.x - eyeA.x, dy = eyeB.y - eyeA.y, len = Math.hypot(dx, dy);
-    const strap = extrudeC(armLinkShape(len, 7.2, 8.2), 5, 0.25, 2);
+    const rEye = 8.2;
+    const nSeg = 14;
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= nSeg; i++) {
+      const a = Math.PI / 2 + (Math.PI * i) / nSeg;
+      pts.push([rEye * Math.cos(a), rEye * Math.sin(a)]);
+    }
+    for (let i = 0; i <= nSeg; i++) {
+      const a = -Math.PI / 2 + (Math.PI * i) / nSeg;
+      pts.push([len + rEye * Math.cos(a), rEye * Math.sin(a)]);
+    }
+    const sh = polyShape(pts);
+    sh.holes.push(circlePath(4.3, 0, 0) as THREE.Path);
+    sh.holes.push(circlePath(4.3, len, 0) as THREE.Path);
+    const strap = extrudeC(sh, 3.2, 0.15, 2);
     strap.rotateZ(Math.atan2(dy, dx));
     strap.translate(eyeA.x, eyeA.y, T.adjZ);
     p.add(strap, 'castAlu');
-    p.add(yToZ(cyl(7.2, 8, 16)), 'castAlu', [eyeA.x, eyeA.y, T.adjZ]);
-    p.add(yToZ(cyl(8.4, 8, 16)), 'castAlu', [eyeB.x, eyeB.y, T.adjZ]);
+    // Foot lug: pin through the eye, bridged out from the cylinder foot.
+    p.add(yToZ(cyl(4.7, 7.2, 16)), 'castAlu', [eyeA.x, eyeA.y, T.adjZ]);
+    const span = Math.hypot(eyeA.x - T.adjBase.x, eyeA.y - T.adjBase.y);
+    const lug = boxMM([Rbody - 1, -3.4, -2.4], [span - 3.2, 3.4, 2.4]);
+    lug.rotateZ(Math.atan2(eyeA.y - T.adjBase.y, eyeA.x - T.adjBase.x));
+    lug.translate(T.adjBase.x, T.adjBase.y, T.adjZ);
+    p.add(lug, 'castAlu');
   }
-  p.add(yToZ(cyl(4, T.adjZ + 12 - (HOUSING_Z0 + 4), 10)), 'zincPlate', [T.ear.x, T.ear.y, (T.adjZ + 12 + HOUSING_Z0 + 4) / 2]);
-  p.add(yToZ(cyl(8, 1.6, 16)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + 3.6 + 0.8]);
-  p.add(yToZ(hexNut(13, 6.5)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + 3.6 + 1.6 + 3.25]);
-  // Guide rails (#2): ribbed blocks, ramped ends, two C-slots. No carrier strips.
+  const strapHalf = 1.6, sleeveLen = 9;
+  const sleeve0 = T.adjZ - strapHalf - sleeveLen;
+  p.add(yToZ(closedLathe([[4.25, 0], [7.4, 0], [7.4, sleeveLen], [4.25, sleeveLen]], 18)).translate(T.ear.x, T.ear.y, sleeve0), 'polishedSteel');
+  p.add(yToZ(cyl(4, T.adjZ + strapHalf + 12 - (HOUSING_Z0 + 4), 10)), 'zincPlate', [T.ear.x, T.ear.y, (T.adjZ + strapHalf + 12 + HOUSING_Z0 + 4) / 2]);
+  p.add(yToZ(cyl(8, 1.6, 16)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + strapHalf + 0.8]);
+  p.add(yToZ(hexNut(13, 6.5)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + strapHalf + 1.6 + 3.25]);
+  // Guide rails (#2): ribbed blocks, ramped ends, two bolt slots cut as real holes. No carrier strips.
   const railMesh = (r: ReturnType<typeof guideRails>[number]) => {
     const A = r.a.clone().lerp(r.b, r.f0), B = r.a.clone().lerp(r.b, r.f1);
     const n = r.n;
+    const dir = B.clone().sub(A).normalize();
+    const len = A.distanceTo(B);
     const steps = 24;
     const st = (i: number) => {
       const u = i / steps;
       const taper = Math.min(1, u * 6, (1 - u) * 6);
       const crest = railInner(u);
-      const hz = RAIL.halfZ * (0.55 + 0.45 * taper);
-      return { c: A.clone().lerp(B, u), crest, hz, taper, u };
+      return { c: A.clone().lerp(B, u), crest, taper, u };
     };
+    const inner: [number, number][] = [], outer: [number, number][] = [];
+    for (let i = 0; i <= steps; i++) {
+      const s0 = st(i);
+      const p0 = s0.c.clone().addScaledVector(n, s0.crest + RAIL.rib);
+      const p1 = s0.c.clone().addScaledVector(n, s0.crest + RAIL.rib + RAIL.thick);
+      inner.push([p0.x, p0.y]);
+      outer.push([p1.x, p1.y]);
+    }
+    const footprint = [...inner, ...outer.reverse()];
+    const boltF = railBoltU(r).map((u) => r.f0 + (r.f1 - r.f0) * u);
+    const slotOff = (u: number) => railInner(u) + RAIL.rib + RAIL.thick - RAIL.slotLand - RAIL.slotD / 2;
+    const holes: [number, number][][] = boltF.map((f) => {
+      const u = (f - r.f0) / (r.f1 - r.f0);
+      const c = r.a.clone().lerp(r.b, f);
+      const cx = c.x + n.x * slotOff(u);
+      const cy = c.y + n.y * slotOff(u);
+      const hw = RAIL.slotW / 2, hd = RAIL.slotD / 2;
+      return [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([lx, ly]) => [cx + dir.x * lx + n.x * ly, cy + dir.y * lx + n.y * ly] as [number, number]);
+    });
+    const block = holedPlate(footprint, holes, (x, y) => {
+      const u = ((x - A.x) * dir.x + (y - A.y) * dir.y) / len;
+      const taper = Math.min(1, Math.max(0, u) * 6, Math.max(0, 1 - u) * 6);
+      const k = 0.55 + 0.45 * taper;
+      return [z - RAIL.halfZ * k, z + RAIL.halfZ * k];
+    });
+    p.add(block, r.mat);
+    if (r.bolted) {
+      for (const f of boltF) {
+        const u = (f - r.f0) / (r.f1 - r.f0);
+        const c = r.a.clone().lerp(r.b, f);
+        const bx = c.x + n.x * slotOff(u);
+        const by = c.y + n.y * slotOff(u);
+        p.add(yToZ(cyl(RAIL.padR, RAIL.padT + 0.4, 20)), r.mat, [bx, by, z + RAIL.halfZ + (RAIL.padT - 0.4) / 2]);
+      }
+    }
     const prism = (rad0: (s: ReturnType<typeof st>) => number, rad1: (s: ReturnType<typeof st>) => number, z0: (s: ReturnType<typeof st>) => number, z1: (s: ReturnType<typeof st>) => number) => {
       const pos: number[] = []; const idx: number[] = [];
       const id = (x: number, y: number, zz: number) => { pos.push(x, y, zz); return pos.length / 3 - 1; };
       const v0: number[] = [], v1: number[] = [], v2: number[] = [], v3: number[] = [];
       for (let i = 0; i <= steps; i++) {
-        const s = st(i);
-        const p0 = s.c.clone().addScaledVector(n, rad0(s));
-        const p1 = s.c.clone().addScaledVector(n, rad1(s));
-        v0.push(id(p0.x, p0.y, z + z0(s))); v1.push(id(p1.x, p1.y, z + z0(s)));
-        v2.push(id(p0.x, p0.y, z + z1(s))); v3.push(id(p1.x, p1.y, z + z1(s)));
+        const s0 = st(i);
+        const hz = RAIL.halfZ * (0.55 + 0.45 * s0.taper);
+        const p0 = s0.c.clone().addScaledVector(n, rad0(s0));
+        const p1 = s0.c.clone().addScaledVector(n, rad1(s0));
+        v0.push(id(p0.x, p0.y, z + z0({ ...s0, hz } as ReturnType<typeof st> & { hz: number })));
+        v1.push(id(p1.x, p1.y, z + z0({ ...s0, hz } as ReturnType<typeof st> & { hz: number })));
+        v2.push(id(p0.x, p0.y, z + z1({ ...s0, hz } as ReturnType<typeof st> & { hz: number })));
+        v3.push(id(p1.x, p1.y, z + z1({ ...s0, hz } as ReturnType<typeof st> & { hz: number })));
       }
       const quad = (a: number, b: number, c: number, d: number) => idx.push(a, b, c, a, c, d);
       for (let i = 0; i < steps; i++) {
@@ -1732,35 +1855,12 @@ export function chainTensioner(s: 1 | -1) {
       g.setIndex(idx); g.computeVertexNormals();
       return g;
     };
-    // Block sits behind three chain-face ribs. The centre rib crest is exactly railInner, which the shoe ray hits.
-    const block = prism((s) => s.crest + RAIL.rib, (s) => s.crest + RAIL.rib + RAIL.thick, (s) => -s.hz, (s) => s.hz);
-    const slots = [r.f0 + 0.06, r.f1 - 0.06].map((f) => {
-      const u = (f - r.f0) / (r.f1 - r.f0);
-      const c = r.a.clone().lerp(r.b, f);
-      const outer = railInner(u) + RAIL.rib + RAIL.thick;
-      const g = boxMM([-RAIL.slotW / 2, -RAIL.slotD / 2, -(RAIL.halfZ + 1)], [RAIL.slotW / 2, RAIL.slotD / 2, RAIL.halfZ + 1]);
-      g.rotateZ(Math.atan2(n.y, n.x) - Math.PI / 2);
-      g.translate(c.x + n.x * (outer - RAIL.slotD / 2), c.y + n.y * (outer - RAIL.slotD / 2), z);
-      return g;
-    });
-    p.add(dropChips(csgSub(block, ...slots)), r.mat);
-    if (r.bolted) {
-      for (const f of [r.f0 + 0.06, r.f1 - 0.06]) {
-        const u = (f - r.f0) / (r.f1 - r.f0);
-        const c = r.a.clone().lerp(r.b, f);
-        const outer = railInner(u) + RAIL.rib + RAIL.thick;
-        const bx = c.x + n.x * (outer - RAIL.slotD / 2);
-        const by = c.y + n.y * (outer - RAIL.slotD / 2);
-        // Round land for the sealing ring. Sits on the +Z face, outboard of the chain plates.
-        p.add(yToZ(cyl(RAIL.padR, RAIL.padT + 0.4, 20)), r.mat, [bx, by, z + RAIL.halfZ + (RAIL.padT - 0.4) / 2]);
-      }
-    }
     for (const zc of [-4.6, 0, 4.6]) {
       p.add(prism(
-        (s) => s.crest,
-        (s) => s.crest + RAIL.rib + 0.4,
-        (s) => zc - 1.05 * s.taper,
-        (s) => zc + 1.05 * s.taper,
+        (s0) => s0.crest,
+        (s0) => s0.crest + RAIL.rib + 0.4,
+        (s0) => zc - 1.05 * s0.taper,
+        (s0) => zc + 1.05 * s0.taper,
       ), r.mat);
     }
   };
@@ -1982,8 +2082,17 @@ export function chainHousing(s: 1 | -1) {
   }
   // internal bosses: idler-arm shaft & tensioner seat
   p.add(yToZ(cyl(12, CHAIN_Z[s] - 16 - HOUSING_Z0, 18)), 'castAlu', [T.pivot.x, T.pivot.y, (HOUSING_Z0 + CHAIN_Z[s] - 16) / 2]);
-  // adjuster mounting-ear stud boss from the back wall up to the ear
-  p.add(yToZ(cyl(8, T.adjZ - 3 - HOUSING_Z0, 16)), 'castAlu', [T.ear.x, T.ear.y, (HOUSING_Z0 + T.adjZ - 3) / 2]);
+  // Stud boss stops at the spacer sleeve (#10A) under the adjuster strap eye.
+  {
+    const bossTop = T.adjZ - 10.6;
+    p.add(yToZ(cyl(8, bossTop - HOUSING_Z0, 16)), 'castAlu', [T.ear.x, T.ear.y, (HOUSING_Z0 + bossTop) / 2]);
+  }
+  // Seat under every guide-rail bolt so the rail is bolted to the housing, not floating.
+  for (const q of railBolts(s)) {
+    const z1 = CHAIN_Z[s] - RAIL.halfZ - 1.5;
+    const h = z1 - HOUSING_Z0;
+    if (h > 2) p.add(yToZ(cyl(6.4, h, 14)), 'castAlu', [q.x, q.y, HOUSING_Z0 + h / 2]);
+  }
   // ears for the cam-housing end studs, bridged back to the top wall
   for (const [x, y] of END_STUDS[s]) {
     const h = END_PAD.z1 - END_PAD.z0, zc = (END_PAD.z0 + END_PAD.z1) / 2;
@@ -2020,18 +2129,34 @@ function clipBelowX(pts: [number, number][], s: 1 | -1, x0: number): [number, nu
  */
 export const LID_STUDS: Record<1 | -1, [number, number][]> = { 1: [[130, -40], [270, -70]], [-1]: [[-130, -40]] };
 /**
- * Chain-housing lid (Kat 502 p.66, Bild 103-05 #6 left / #7 right). Shallow pan: sealing face
- * on the gasket, raised perimeter rim and stud bosses up to the nut face, an internal diagonal
- * tube on the chain side, and round bosses under the screw plugs. Right-hand part is
- * 930 105 064 10. The nut face stays CHAIN_LID.top.
+ * Chain-housing lid (Kat 502 p.66, Bild 103-05 #6 left / #7 right). Pan: sealing face
+ * on the gasket, raised perimeter rim and stud bosses up to the nut face, a deeper
+ * relief in the field, a cross step on the upper part, and a stout diagonal tube with
+ * a domed end on the visible outer face (the face the plugs go in from). Right-hand
+ * part is 930 105 064 10. The nut face stays CHAIN_LID.top.
  */
 export function chainHousingLid(s: 1 | -1) {
   const p = new Part();
   const o = chainOutline(s, 3);
   const z0 = CHAIN_LID.z0, top = CHAIN_LID.top;
-  const floorT = 2.2;
-  p.add(extrude(shapeFrom(o), floorT, 0, 8), 'castAlu', [0, 0, z0]);
+  const fieldT = 0.8;
+  p.add(extrude(shapeFrom(o), fieldT, 0, 8), 'castAlu', [0, 0, z0]);
   wallStrip(p, o.concat([o[0]]), 7, z0, top);
+  // Cross step along the upper part of the outer face, above the deep field.
+  const yStep = -6;
+  const upper: [number, number][] = [];
+  for (let i = 0; i < o.length; i++) {
+    const a = o[i], b = o[(i + 1) % o.length];
+    const ka = a[1] >= yStep, kb = b[1] >= yStep;
+    const hit = (): [number, number] => {
+      const t = (yStep - a[1]) / (b[1] - a[1]);
+      return [a[0] + (b[0] - a[0]) * t, yStep];
+    };
+    if (ka && kb) upper.push(b);
+    else if (ka && !kb) upper.push(hit());
+    else if (!ka && kb) { upper.push(hit()); upper.push(b); }
+  }
+  if (upper.length > 2) p.add(extrude(shapeFrom(upper), 3.6, 0, 4), 'castAlu', [0, 0, z0 + fieldT]);
   for (const b of chainCoverBolts(s)) {
     p.add(yToZ(cyl(7.5, top - z0, 16)), 'castAlu', [b.x, b.y, (z0 + top) / 2]);
   }
@@ -2042,14 +2167,21 @@ export function chainHousingLid(s: 1 | -1) {
   for (const [x, y, r] of [[s * 232, -22, 11], [s * 250, 30, 9.5]] as [number, number, number][]) {
     p.add(yToZ(cyl(r, top - z0, 16)), 'castAlu', [x, y, (z0 + top) / 2]);
   }
-  // Internal diagonal tube, chain side of the floor, from the cam end toward the tensioner corner.
+  // Stout diagonal tube on the OUTER face, domed at the cam end. The plugs enter from this face.
   const T = tensionerLayout(s);
-  const x1 = (CAM_X - 36) * s, y1 = -8;
-  const x2 = T.adjBase.x + 16 * s, y2 = T.adjBase.y + 10;
+  const x1 = (CAM_X - 48) * s, y1 = 6;
+  const x2 = T.adjBase.x + 28 * s, y2 = T.adjBase.y + 28;
   const tubeLen = Math.hypot(x2 - x1, y2 - y1);
-  const tube = lathe([[2.3, 0], [4.4, 0], [4.4, tubeLen], [2.3, tubeLen], [2.3, 0]], 14);
+  const tubeR = 5.4;
+  const straight = Math.max(tubeR + 4, tubeLen - tubeR);
+  const profile: [number, number][] = [[0.05, 0], [tubeR, 0], [tubeR, straight]];
+  for (let i = 1; i <= 8; i++) {
+    const a = (i / 8) * (Math.PI / 2);
+    profile.push([Math.max(0.05, tubeR * Math.cos(a)), straight + tubeR * Math.sin(a)]);
+  }
+  const tube = closedLathe(profile, 16);
   tube.rotateZ(Math.atan2(y2 - y1, x2 - x1) - Math.PI / 2);
-  tube.translate(x1, y1, z0 - 3.2);
+  tube.translate(x1, y1, z0 + fieldT + tubeR);
   p.add(tube, 'castAlu');
   return p.g;
 }

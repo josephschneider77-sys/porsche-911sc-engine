@@ -9,12 +9,12 @@
  */
 import * as THREE from 'three';
 import {
-  Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, circlePath, polyShape,
-  extrude, extrudeC, hexNut, tube, csgSub, woodruffGeom, annularSector,
+  Part, V3, DEG, lathe, closedLathe, boxMM, cyl, cylBetween, yToZ, yToX, circlePath, polyShape,
+  extrude, extrudeC, hexNut, tube, csgSub, woodruffGeom,
 } from './util';
 import { CAM_X, CAM_HOUSING_OUT_X, CYL_Z, CYL_TOP_X, HEAD_OUT_X } from '../data/layout';
 import { HEAD_HW } from './hwLayout';
-import { CH_Z0, CH_Z1, VC_EARS, CAM_NOSE, CHAIN_Z, bankZ, CAM_COVER, camCoverBolt, camNoseStack } from './core';
+import { CH_Z0, CH_Z1, VC_EARS, CAM_NOSE, CHAIN_Z, bankZ, CAM_COVER, camCoverAngles, camCoverBolt, camNoseStack } from './core';
 import type { MatKey } from './materials';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -1082,7 +1082,10 @@ export function camHousing(s: 1 | -1) {
   // no full-length external oil line — the photos don't show one; the splash tube and banjo are CoS parts
   return p.g;
 }
-/** Chain-end seat the cover gasket and O-ring close. Bosses take the M6×25 screws. */
+/**
+ * Chain-end seat the cover gasket closes. The face is the gasket plane (z ≥ 212 on the left,
+ * the housing end). No lip enters the cover. Bosses take the M6×25 screws.
+ */
 function camChainSeat(p: Part, s: 1 | -1) {
   const stack = camNoseStack(s);
   const cx = CAM_X * s;
@@ -1090,23 +1093,14 @@ function camChainSeat(p: Part, s: 1 | -1) {
   const C = CAM_COVER;
   if (s > 0) {
     const z0 = 210.8;
-    const h = face - 2.6 - z0;
-    p.add(yToZ(lathe([[19, 0], [26, 0], [26, h], [19, h]], 28)).translate(cx, 0, z0), 'castAlu');
+    const h = Math.max(1, face - 2.6 - z0);
+    p.add(yToZ(closedLathe([[19, 0], [26, 0], [26, h], [19, h]], 28)).translate(cx, 0, z0), 'castAlu');
   }
-  p.add(yToZ(lathe([[24, 0], [C.seatFaceR, 0], [C.seatFaceR, 2.6], [24, 2.6]], 40)).translate(cx, 0, face - 2.6), 'machinedAlu');
-  const notch = 0.36;
-  const centres = C.angles.map((d) => camCoverBolt(s, d).a).sort((a, b) => a - b);
-  const lipH = stack.cover0 + 4.0 - face;
-  for (let i = 0; i < centres.length; i++) {
-    const a0 = centres[i] + notch;
-    let a1 = centres[(i + 1) % centres.length] - notch;
-    if (a1 <= a0) a1 += Math.PI * 2;
-    const g = extrude(annularSector(C.seatBore, C.seatLipOd, a0, a1, 8), lipH, 0, 1);
-    g.translate(cx, 0, face);
-    p.add(g, 'machinedAlu');
-  }
+  p.add(yToZ(closedLathe([
+    [C.boreR + 1, 0], [C.seatFaceR, 0], [C.seatFaceR, 2.6], [C.boreR + 1, 2.6],
+  ], 40)).translate(cx, 0, face - 2.6), 'machinedAlu');
   const zBoss = Math.min(stack.cover1 - 26, face - 6);
-  for (const deg of C.angles) {
+  for (const deg of camCoverAngles(s)) {
     const b = camCoverBolt(s, deg);
     const h = face - zBoss;
     p.add(yToZ(cyl(5.2, h, 14)).translate(b.x, b.y, zBoss + h / 2), 'castAlu');
