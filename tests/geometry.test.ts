@@ -4,6 +4,43 @@ import { ASSET_BUILDERS } from '../src/geo/assets';
 import { rayHit } from './hw';
 import { CYL_Z, INT_SHAFT_Y } from '../src/data/layout';
 import { CASE_LUG } from '../src/geo/hwLayout';
+import { camNoseStack } from '../src/geo/core';
+
+/** Boundary edges after welding vertices closer than 0.05 mm. A closed solid, or two shells that meet on a seam, contributes none. */
+function openEdges(root: THREE.Object3D) {
+  root.updateMatrixWorld(true);
+  const pos: number[] = [];
+  const v = new THREE.Vector3();
+  root.traverse((o: any) => {
+    if (!o.isMesh) return;
+    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
+    const P = g.getAttribute('position');
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld);
+      pos.push(v.x, v.y, v.z);
+    }
+  });
+  const q = 0.05;
+  const n = pos.length / 3;
+  const map = new Map<string, number>();
+  const canon = new Int32Array(n);
+  for (let i = 0; i < n; i++) {
+    const k = `${Math.round(pos[i * 3] / q)},${Math.round(pos[i * 3 + 1] / q)},${Math.round(pos[i * 3 + 2] / q)}`;
+    const prev = map.get(k);
+    if (prev === undefined) { map.set(k, i); canon[i] = i; } else canon[i] = prev;
+  }
+  const edges = new Map<string, number>();
+  for (let i = 0; i + 2 < n; i += 3) {
+    const a = [canon[i], canon[i + 1], canon[i + 2]].sort((x, y) => x - y);
+    for (const [u, w] of [[a[0], a[1]], [a[1], a[2]], [a[0], a[2]]] as const) {
+      const k = `${u},${w}`;
+      edges.set(k, (edges.get(k) ?? 0) + 1);
+    }
+  }
+  let boundary = 0;
+  for (const c of edges.values()) if (c === 1) boundary++;
+  return boundary;
+}
 
 describe('procedural part geometry', () => {
   for (const [id, build] of Object.entries(ASSET_BUILDERS)) {
@@ -63,5 +100,21 @@ describe('intermediate gear vs the z 190 perimeter stud', () => {
     expect(gap(13 / Math.sqrt(3), -CASE_LUG.x)).toBeGreaterThan(1); // hex corner, at the left seat
     expect(gap(8, -CASE_LUG.x)).toBeGreaterThan(1); // washer, the largest nut envelope
     expect(gap(CASE_LUG.r, 0)).toBeGreaterThan(1); // lug boss
+  });
+});
+
+describe('chain-drive shells', () => {
+  it('left cam-flange gasket starts on the housing end face', () => {
+    expect(camNoseStack(-1).gasket0).toBeGreaterThanOrEqual(212);
+    expect(camNoseStack(1).gasket0).toBeGreaterThan(212);
+  });
+  it('rebuilt chain-drive parts have no non-seam open edges', () => {
+    for (const id of [
+      'cam-flange-cover-left', 'cam-flange-cover-right',
+      'chain-tensioner-left', 'chain-tensioner-right',
+      'chain-housing-lid-left', 'chain-housing-lid-right',
+    ]) {
+      expect(openEdges(ASSET_BUILDERS[id]()), id).toBe(0);
+    }
   });
 });

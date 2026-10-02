@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { CAM_X, INT_SHAFT_Y } from '../src/data/layout';
 import {
   basePath, chainPath, chainPins, tensionerLayout, ADJ, CAM_NOSE, CAM_SPROCKET_R, INT_SPROCKET_R,
-  SPROCKET_HOLES, FLANGE_NOTCHES, VERNIER, CHAIN_Z, guideRails, railInner, chainTensioner,
+  SPROCKET_HOLES, FLANGE_NOTCHES, VERNIER, CHAIN_Z, guideRails, railInner, chainTensioner, SLACK_SHOE,
   CRANK_GEAR_T, INT_GEAR, INT_T, CAM_T, IDLER_T, crankGears, intermediateShaft, MESH_DZ,
 } from '../src/geo/core';
 import { caseLugY } from '../src/geo/hwLayout';
@@ -210,6 +210,21 @@ describe.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('chain te
     expect(Math.abs(T.contact.distanceTo(T.tail) - ADJ.pad)).toBeLessThanOrEqual(0.5);
     expect(T.adjBase.distanceTo(T.contact)).toBeCloseTo(T.reach, 6);
     expect(T.plunger).toBeGreaterThan(2);
+    const root = chainTensioner(s);
+    root.updateMatrixWorld(true);
+    let dome: THREE.Mesh | undefined;
+    root.traverse((o) => { if ((o as THREE.Mesh).name === 'seat:plunger-dome') dome = o as THREE.Mesh; });
+    expect(dome, 'dome mesh').toBeTruthy();
+    const P = dome!.geometry.attributes.position;
+    const v = new THREE.Vector3();
+    let minR = Infinity;
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(dome!.matrixWorld);
+      const radial = Math.hypot(v.x - T.tail.x, v.y - T.tail.y);
+      if (radial < minR) minR = radial;
+      expect(radial, 'dome inside the pad').toBeGreaterThan(ADJ.pad - 0.25);
+    }
+    expect(minR).toBeLessThan(ADJ.pad + 0.25);
   });
   it('chain rollers sit on the cam and intermediate pitch circles', () => {
     const onCam = pins.filter((q) => Math.abs(Math.hypot(q.x - CAM_X * s, q.y) - CAM_SPROCKET_R) < 0.35);
@@ -308,9 +323,17 @@ describe.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('chain te
     for (const r of guideRails(s)) {
       const f = (r.f0 + r.f1) / 2;
       const q = r.a.clone().lerp(r.b, f);
-      const hit = rayHit(`chain-tensioner-${b}`, new THREE.Vector3(q.x, q.y, CHAIN_Z[s]), new THREE.Vector3(r.n.x, r.n.y, 0), 20);
+      // The long rail's ribs sit in the duplex roller lanes (row offset 5.1). The centre plane is the plate groove.
+      const zRay = CHAIN_Z[s] + (r.slack ? 5.1 : 0);
+      const hit = rayHit(`chain-tensioner-${b}`, new THREE.Vector3(q.x, q.y, zRay), new THREE.Vector3(r.n.x, r.n.y, 0), 20);
       expect(hit, `rail at x ${q.x.toFixed(0)}`).toBeTruthy();
-      expect(Math.abs(hit!.distance - railInner(0.5))).toBeLessThan(0.6);
+      const want = r.slack ? SLACK_SHOE : railInner(0.5);
+      expect(Math.abs(hit!.distance - want)).toBeLessThan(r.slack ? 0.15 : 0.6);
+      if (r.slack) {
+        const gap = hit!.distance - 3.2;
+        expect(gap).toBeGreaterThanOrEqual(0.2);
+        expect(gap).toBeLessThanOrEqual(0.5);
+      }
     }
   });
 });

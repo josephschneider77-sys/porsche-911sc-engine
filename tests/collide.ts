@@ -9,8 +9,9 @@ import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PARTS } from '../src/data/parts';
 import { fastenerSets } from '../src/geo/fasteners';
 import { SMALL_SPECS } from '../src/data/smallSpec';
+import { HOUSING_Z0, tensionerLayout } from '../src/geo/core';
 
-export interface Hit { a: string; b: string; tris: number; box: THREE.Box3 }
+export interface Hit { a: string; b: string; tris: number; box: THREE.Box3; samples: THREE.Vector3[] }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
 
 const _reach = new THREE.Vector3();
@@ -127,14 +128,17 @@ export function findCollisions(tol = 1, only?: (id: string) => boolean): Hit[] {
     for (let j = i + 1; j < solids.length; j++) {
       const A = solids[i], B = solids[j];
       if (!A.box.intersectsBox(B.box)) continue;
-      let tris = 0; const box = new THREE.Box3(); const seg = new THREE.Line3(), n1 = new THREE.Vector3(), n2 = new THREE.Vector3(), v0 = new THREE.Vector3();
+      let tris = 0; const box = new THREE.Box3(); const samples: THREE.Vector3[] = [];
+      const seg = new THREE.Line3(), n1 = new THREE.Vector3(), n2 = new THREE.Vector3(), v0 = new THREE.Vector3();
       A.bvh.bvhcast(B.bvh, I, {
         intersectsTriangles(t1: any, t2: any) {
           if (!trianglesClash(t1, t2, n1, n2, v0, seg)) return false;
-          tris++; box.expandByPoint(seg.start).expandByPoint(seg.end); return tris >= 400;
+          tris++; box.expandByPoint(seg.start).expandByPoint(seg.end);
+          if (samples.length < 400) samples.push(seg.start.clone().add(seg.end).multiplyScalar(0.5));
+          return tris >= 400;
         },
       } as any);
-      if (tris) hits.push({ a: A.id, b: B.id, tris, box });
+      if (tris) hits.push({ a: A.id, b: B.id, tris, box, samples });
     }
   return hits;
 }
@@ -231,7 +235,8 @@ export function findIntraPartHits(ids: string[], tol = 1): IntraHit[] {
       inst.forEach((im, i) => {
         const world = pose.clone().multiply(o.matrixWorld).multiply(im);
         const baked = worldMesh(o.geometry, world);
-        const key = o.isInstancedMesh ? `inst:${o.uuid}:${i}` : (subSolidKey(o) ?? `mesh:${loose++}`);
+        const named = typeof o.name === 'string' && o.name.startsWith('seat:') ? o.name : null;
+        const key = o.isInstancedMesh ? `inst:${o.uuid}:${i}` : (subSolidKey(o) ?? named ?? `mesh:${loose++}`);
         add(key, erodePositions(baked, tol));
       });
     });
@@ -327,19 +332,20 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('camshaft', 'rockers', 'JOINT lobes on rocker pads'), pair('rockers', 'valves', 'JOINT rocker tips on stems'),
   ...sameSide('cam-housing', 'chain-housing', 'JOINT cam-housing end face gasketed into the chain box'),
   ...sameSide('camshaft', 'cam-sprocket', 'JOINT sprocket on cam nose'),
-  ...sameSide('timing-chain', 'cam-sprocket|chain-tensioner', 'JOINT chain on cam sprocket / idler / guide ramps'),
-  ...sameSide('chain-tensioner', 'chain-housing', 'JOINT idler shaft and adjuster seated in housing bosses'),
+  // Chain × tensioner is not a blanket pair. allowedClash permits only the idler wrap;
+  // a roller in a guide rail still fails. scripts/collisions.ts uses allowedClash for the same rule.
+  ...sameSide('timing-chain', 'cam-sprocket', 'JOINT chain seated on the cam sprocket'),
+  // chain-tensioner × chain-housing is not a blanket pair. allowedClash permits only the
+  // idler-shaft and adjuster-stud seats; a rail boss or the strap through a wall still fails.
   ...sameSide('chain-housing', 'chain-housing-lid', 'JOINT cover on housing studs'),
   pair('intermediate-shaft', 'timing-chain', 'JOINT chain seated on the intermediate sprockets'),
   pair('heat-exchanger', 'head', 'JOINT primaries in the exhaust ports'),
   ...sameSide('cam-flange', 'camshaft|cam-sprocket', 'JOINT keyed flange on the cam nose, dowel into the sprocket'),
-  ...sameSide('adjuster-cover', 'chain-housing-lid', 'JOINT cover gasketed onto the lid'),
   pair('conrod', 'cylinder', 'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)'),
   pair('piston', 'head|valves', 'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut'),
   pair('cylinder', 'valves', 'SIMPLIFIED valve heads at the barrel top'),
   pair('valve-cover-upper|valve-cover-lower', 'rockers|valves', 'SIMPLIFIED hollow covers (v5): rocker-arm tips / valve-spring retainers cross the seat line at the long edges (modelled rocker gear ~5 mm wider than the cover seat)'),
   pair('cam-housing-plug', 'cam-splash-tube', 'JOINT gallery screw plug shank reaches the splash-tube bore it closes (E position)'),
-  pair('cam-key', 'cam-shim', 'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)'),
   pair('valve-cover-upper|valve-cover-lower', 'rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED a few rocker-shaft screw/nut heads tuck under the inner edge of an ear boss (bosses kept full so the cover-nut seats stay solid)'),
   pair('valve-cover-gasket-upper|valve-cover-gasket-lower', 'rockers|valves', 'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)'),
   pair('rockers', 'valve-cover-nuts-upper|valve-cover-nuts-lower', 'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear'),
@@ -355,19 +361,17 @@ export const TOP_END_WHY = new Set<string>([
   'JOINT rocker tips on stems',
   'JOINT cam-housing end face gasketed into the chain box',
   'JOINT sprocket on cam nose',
-  'JOINT chain on cam sprocket / idler / guide ramps',
-  'JOINT idler shaft and adjuster seated in housing bosses',
+  'JOINT chain seated on the cam sprocket',
   'JOINT cover on housing studs',
   'JOINT primaries in the exhaust ports',
   'JOINT keyed flange on the cam nose, dowel into the sprocket',
-  'JOINT cover gasketed onto the lid',
+  'seated: O-ring 999 701 468 40 and gasket 930 105 197 05 in the chain-end cover seat',
   'JOINT regulator flange on the case pad',
   'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)',
   'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut',
   'SIMPLIFIED valve heads at the barrel top',
   'SIMPLIFIED hollow covers (v5): rocker-arm tips / valve-spring retainers cross the seat line at the long edges (modelled rocker gear ~5 mm wider than the cover seat)',
   'JOINT gallery screw plug shank reaches the splash-tube bore it closes (E position)',
-  'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)',
   'SIMPLIFIED a few rocker-shaft screw/nut heads tuck under the inner edge of an ear boss (bosses kept full so the cover-nut seats stay solid)',
   'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)',
   'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear',
@@ -379,7 +383,10 @@ export const TOP_END_WHY = new Set<string>([
  */
 const FASTENER_JOINTS = new Set<string>();
 for (const f of fastenerSets()) for (const it of f.items) {
-  FASTENER_JOINTS.add(`${f.id}|${it.seat}`); FASTENER_JOINTS.add(`${f.id}|${it.into}`);
+  // Cover screws: the head and washer sit on the rim, clear of the seal. Only the
+  // thread in the cam housing is a joint. The seat pair would hide a head in the rim.
+  if (!f.id.startsWith('cam-flange-cover-screws')) FASTENER_JOINTS.add(`${f.id}|${it.seat}`);
+  FASTENER_JOINTS.add(`${f.id}|${it.into}`);
   if (it.stud) FASTENER_JOINTS.add(`${it.into}|${it.seat}`);
 }
 // screw + nut pairs (thread engagement)
@@ -388,3 +395,43 @@ for (const [a, b] of [['case-through-bolts', 'case-through-stud-nut'], ['case-th
 export const isFastenerJoint = (a: string, b: string) => FASTENER_JOINTS.has(`${a}|${b}`) || FASTENER_JOINTS.has(`${b}|${a}`);
 export const isMating = (a: string, b: string) =>
   isFastenerJoint(a, b) || MATING.some(([x, y]) => (x.test(a) && y.test(b)) || (x.test(b) && y.test(a)));
+
+/** Idler shaft in its housing boss, or the adjuster stud in its boss. Nothing else between these two parts. */
+function tensionerSeatSample(s: 1 | -1, p: THREE.Vector3) {
+  const T = tensionerLayout(s);
+  // Shaft radius only. The eye (r 11) and bush (r 7.2) sit on the boss and must not enter it.
+  const shaft = Math.hypot(p.x - T.pivot.x, p.y - T.pivot.y) < 6.8 && p.z > HOUSING_Z0 - 1 && p.z < T.z - 16;
+  const stud = Math.hypot(p.x - T.ear.x, p.y - T.ear.y) < 9.2 && p.z > HOUSING_Z0 - 1 && p.z < T.adjZ + 20;
+  return shaft || stud;
+}
+function tensionerHousingPair(h: Hit): 1 | -1 | 0 {
+  const ids = [h.a, h.b];
+  const ten = ids.find((id) => /^chain-tensioner-(left|right)$/.test(id));
+  const box = ids.find((id) => /^chain-housing-(left|right)$/.test(id));
+  if (!ten || !box || ten.endsWith('left') !== box.endsWith('left')) return 0;
+  return ten.endsWith('left') ? -1 : 1;
+}
+/** Chain wrapped on the idler. A roller in the long rail is not this. */
+function chainOnIdlerSample(s: 1 | -1, p: THREE.Vector3) {
+  const T = tensionerLayout(s);
+  return Math.hypot(p.x - T.idler.x, p.y - T.idler.y) < T.idlerR + 4.8 && Math.abs(p.z - T.z) < 14;
+}
+function chainTensionerSide(h: Hit): 1 | -1 | 0 {
+  const ids = [h.a, h.b];
+  const chain = ids.find((id) => /^timing-chain-(left|right)$/.test(id));
+  const ten = ids.find((id) => /^chain-tensioner-(left|right)$/.test(id));
+  if (!chain || !ten || chain.endsWith('left') !== ten.endsWith('left')) return 0;
+  return chain.endsWith('left') ? -1 : 1;
+}
+/**
+ * A listed mating pair, or the idler-shaft / adjuster-stud seats only.
+ * Rail bosses, the strap, the sleeve and the nut are not covered.
+ * Chain × tensioner is only the idler wrap. Chain metal inside a guide rail still fails.
+ */
+export function allowedClash(h: Hit): boolean {
+  const s = tensionerHousingPair(h);
+  if (s) return h.samples.length > 0 && h.samples.every((p) => tensionerSeatSample(s, p));
+  const cs = chainTensionerSide(h);
+  if (cs) return h.samples.length > 0 && h.samples.every((p) => chainOnIdlerSample(cs, p));
+  return isMating(h.a, h.b);
+}

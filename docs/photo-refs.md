@@ -1,8 +1,61 @@
-# Catalogue references for the 1978 US (930/04) intake and fuel
+# Catalogue citations (Kat 502, USA 911 1978–83)
 
-Shapes, part numbers and quantities for the intake and fuel system follow Porsche catalogue **Kat 502 USA 911 '83** (the PDF is not stored in this repo). Photos are used only for finish and colour. Where a page gives no millimetre dimension, the model scales the drawing and marks the result **E** in `docs/engine-spec.md`.
+Source of truth: Porsche parts catalogue Kat 502. Page numbers are the PDF page labels printed on the sheets (Bild 103-05 on p.66, Bild 103-10 on p.70, Bild 103-15 on p.74). Photos decide finish and colour only.
 
 This model is engine type **930/04** (1978 US, not California). It is not 930/03 (RoW) and not the California engine. Engine-type pages: PDF pp. 4 and 7.
+
+## Chain-end cam cover (was the lid washer)
+
+| Item | Part number | Where |
+|---|---|---|
+| Gasket #29 | 930 105 197 05 | p.70 Bild 103-10 #29 and p.74 Bild 103-15 #29. Triangular, three holes, between the cam housing and the cover. |
+| Round seal #30 | 999 701 468 40 | Same sheets, #30. 67.5 × 75.4 × 4, in the groove on the cover's outside diameter. |
+| Cover #31 | 930 105 196 00 | Same sheets, #31. One part number, both banks. Deep cast body, raised rim, three screw lugs notched into that rim at 0/120/240°, on the cam axis at the chain end of the cam housing. |
+| Spring washer #32 | N 012 226 5 | Same sheets, #32. One under each of the three screws. |
+| Combination screw #33 | 900 075 341 02 | Same sheets, #33. M6×25, three per bank, into the seat added on the cam housing. |
+| Thrust washer #34 | (existing line) | Same sheets, #34. On the cam nose, outboard of the cover. |
+| Shim #35 | (existing line) | Same sheets, #35. Between the thrust washer and the flange, not between the flange and the sprocket. |
+| Flange #36, pin #39, sprocket #38 | (existing) | Same sheets. Outboard of the shim. |
+
+Stack on the cam nose: cam housing → #29 → #30 → #31 → #34 → #35 → #36 → #39 → #38 → spring washer #40 → nut #41.
+
+## Guide rails
+
+| Item | Part number | Where |
+|---|---|---|
+| Guide rail, right, idler-to-cam run | 911 105 222 05 | p.74 Bild 103-15 #2, quantity 1. Brown. Full length of that run, two bolt slots, bolted to bosses on the housing. |
+| Guide rail, right, the other two | 911 105 222 06 | p.74 Bild 103-15 #2, quantity 2. |
+| Guide rail, left | 911 105 222 06 | p.70 Bild 103-10 #2, quantity 3. The idler-to-cam rail is painted the same brown as 222 05 so the two banks match. |
+| Bolt | 901 105 226 03 | p.70 #3 and p.74 #3, quantity 4 per side. Two pass through the idler-to-cam rail (222 05 on the right) and one through each of the other two rails. |
+| Sealing ring | 900 123 066 30 | p.70 #4 and p.74 #4, quantity 4 per side, under those bolt heads. |
+
+The drawings show ribbed blocks with ramped ends and C-shaped bolt slots. The rails are not thin strips on separate carriers. Kat 502 lists four bolts per bank, not two per rail.
+
+## Chain adjuster and idler
+
+| Item | Part number | Where |
+|---|---|---|
+| Idler arm #5 | 901 105 505 02 / 901 105 506 02 | p.70 Bild 103-10 and p.74 Bild 103-15, #5. |
+| Idler sprocket #6 | 901 105 055 00 | Same sheets, #6. Solid web, rounded roller-chain teeth. |
+| Chain adjuster #10 | 930 105 049 00 | Same sheets, #10. Straight cylinder. The strap is a long flat arm: an eye at the cylinder foot, outside the body, past the top, to an eye on the stud. The arm stays inside the chain box. |
+| Spacer sleeve #10A | 930 105 513 00 | p.76 Bild 103-15 #10A. On the stud, between the housing and the strap eye. |
+| Bleeder #25 | 930 105 573 00 | Same sheets, #25, on the side of the cylinder. |
+| Sealing ring #26 | A 6.5×9.5 | p.76 Bild 103-15 #26, the bleeder ring. Bild 103-10 #26 gives the same ring as 900 123 005 30. |
+| Spring washer #27 | N 012 241 8 | Same sheets, #27, under the stud nut. |
+| Nut #28 | 900 076 025 02 | Same sheets, #28, on the housing stud. |
+
+## Chain-housing lids
+
+| Item | Part number | Where |
+|---|---|---|
+| Lid, left #6 | 930 105 063 01 | p.66 Bild 103-05 #6. Pan with a deep field, cross step on the upper part, raised rim, and a diagonal tube with a domed end on the outer face. |
+| Lid, right #7 | 930 105 064 10 | p.66 Bild 103-05 #7. Same pan. 930 105 064 01 on the same position is the Turbo lid. |
+| Sealing ring | 900 123 007 30 | p.66 Bild 103-05, unnumbered line under the lid. |
+| Screw plugs | N 016 155 3 / N 016 155 4 | Same sheet, unnumbered lines. They seat on the round bosses. |
+
+## Intake and fuel
+
+Shapes, part numbers and quantities for the intake and fuel system follow Porsche catalogue **Kat 502 USA 911 '83** (the PDF is not stored in this repo). Photos are used only for finish and colour. Where a page gives no millimetre dimension, the model scales the drawing and marks the result **E** in `docs/engine-spec.md`.
 
 | Illustration | PDF page | What this model takes from it |
 |---|---|---|
