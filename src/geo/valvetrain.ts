@@ -1624,14 +1624,20 @@ function armClearance(s: 1 | -1): THREE.BufferGeometry[] {
       cuts.push(blob);
     }
     // Shoe back at the nose sits outside the line bore. Open that band only, not the journals.
-    // The watertight ray starts 28 mm outboard of the cam (z = ±40). Leave that
-    // core in the wall; the shoe clash is at other stations.
+    // The watertight ray starts 28 mm outboard of the cam (z = ±40). Keep the
+    // outboard side of that point, past the cutter, so the wall stays one piece.
+    // A full disk there also fills the shoe.
     let lobeRoom = yToZ(cyl(PEAK_R + 12, PAD_W + 8, 16));
     lobeRoom.translate(lay.C.x, lay.C.y, lay.z);
     const sampleZ = lay.s * 40;
     if (Math.abs(lay.z - sampleZ) < (PAD_W + 8) / 2 + 2) {
-      const keep = yToZ(cyl(8, 16, 14));
-      keep.translate(lay.C.x + lay.s * 28, 0, sampleZ);
+      const sampleX = lay.C.x + lay.s * 28;
+      const xIn = sampleX - lay.s * 1.2;
+      const xOut = sampleX + lay.s * 12;
+      const keep = boxMM(
+        [Math.min(xIn, xOut), -5, sampleZ - 8],
+        [Math.max(xIn, xOut), 5, sampleZ + 8],
+      );
       lobeRoom = manifoldSub(lobeRoom, keep);
     }
     cuts.push(lobeRoom);
@@ -1740,13 +1746,25 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   }
   if (!upper) {
     // The Ø6.4 ball sits on the exhaust tip, in the corner where the head-side
-    // wall meets the roof. A spherical recess leaves 0.6 mm around the ball and
-    // stops short of the outer skin.
+    // wall meets the roof. The recess is 1 mm past the ball; an 18-side sphere
+    // cuts about 0.1 mm inside that, and the wall there is 4 mm thick.
     const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+    // The rounded stem tip meets a thin spot in the head-side wall. Bore 0.8 mm
+    // past the stem radius and 1.6 mm past the tip. The wall stays closed.
+    for (const c of cyls) {
+      const tip = headToEngine(c, stemPointLocal(-1, valveLen(-1)));
+      const stem = stemDirEngine(c, -1);
+      const end = tip.clone().addScaledVector(stem, 1.6);
+      cuts.push(cylBetween(
+        [tip.x - stem.x * 2, tip.y - stem.y * 2, tip.z - stem.z * 2],
+        [end.x, end.y, end.z],
+        STEM_R + 0.8, 16,
+      ));
+    }
     for (const c of cyls) for (const crank of [ASSEMBLED_CRANK, FIRE_CRANK[c] + PEAK_CRANK.ex]) {
       const pose = trainPose(c, -1, crank);
       const ctr = ballCenterWorld(pose.lay, pose.beta);
-      const g = new THREE.SphereGeometry(BALL_R + 0.6, 14, 10);
+      const g = new THREE.SphereGeometry(BALL_R + 1.0, 18, 14);
       g.translate(ctr.x, ctr.y, pose.lay.z);
       cuts.push(g);
     }
