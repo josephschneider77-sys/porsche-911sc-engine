@@ -83,7 +83,7 @@ The 1978 US heads take air-injection fittings in the catalogue. Illustration 108
 
 ## Review sheets
 
-`docs/review/spark-plugs.png`, `docs/review/valve-covers.png`, `docs/review/connector.png` and `docs/review/rockers.png` are drawing | old | new. The left column is a crop of the Kat 502 sheet named above. The middle column is main `df88f34`. The right column is this branch. Photos are not in those sheets. The plug line on the spark-plug sheet is 999 170 170 90.
+`docs/review/spark-plugs.png`, `docs/review/valve-covers.png`, `docs/review/connector.png` and `docs/review/rockers.png` are drawing | old | new. The left column is a crop of the Kat 502 sheet named above. The middle column is main `700a1b3`. The right column is this branch. Photos are not in those sheets. The plug line on the spark-plug sheet is 999 170 170 90.
 
 # Catalogue references for the 1978 US (930/04) intake and fuel
 

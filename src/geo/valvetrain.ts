@@ -56,18 +56,17 @@ export const CAM = {
 export const SHAFT = { r: 9, boreR: 4.15, half: 17, bossR: 12.6, bossHalf: 11 };
 export const LASH = 0.10;
 /**
- * Pad arm and eye are the compact 28° forging. Lengths are chosen so the 7.5 mm
- * lobe still arrives as at least 10.5 mm intake and 11.1 mm exhaust with the
- * valves spread to y +22 / y −23. The shaft is the circle that puts the pad
- * crown on the base circle and the ball 0.10 mm off the stem tip.
+ * One forging for all twelve rockers (Kat 502 103-10 #48, 930 105 043 00, qty 12).
+ * The drawing's pad arm is the long one and the adjuster eye is the short one:
+ * 42 mm and 34 mm, bent 28°. The shaft sits where that profile puts the pad crown
+ * on the base circle and the ball face 0.10 mm short of the stem tip. A longer eye
+ * can print more valve lift, but only with the ball off the stem; this forging does not.
  */
-export let PAD_LEN = 26;
-export let EYE_LEN = 50;
-/** Per-side arm lengths. Intake and exhaust share the 28° bend; the lengths set the ratio. */
-export const ARM = { inPad: 38, inEye: 50, exPad: 26, exEye: 58 };
+export const PAD_LEN = 42;
+export const EYE_LEN = 34;
 export const ARM_BEND = 28 * DEG;
-function eyeLen(side: 1 | -1) { return side > 0 ? ARM.inEye : ARM.exEye; }
-function padLen(side: 1 | -1) { return side > 0 ? ARM.inPad : ARM.exPad; }
+function eyeLen(_side: 1 | -1) { return EYE_LEN; }
+function padLen(_side: 1 | -1) { return PAD_LEN; }
 function bendOf(_side: 1 | -1) { return ARM_BEND; }
 const INSTALLED = 34.5; // spring seat to retainer, closed
 const TIP_STICK = 3.4; // stem tip proud of the keeper
@@ -520,13 +519,12 @@ function bossArc(a0: number, a1: number, r: number, n = 8): THREE.Vector2[] {
  * Side profile of the forging, in the shaft frame: pad crown at (PAD_LEN, 0), eye bent by `gamma`,
  * boss circle between them. One simple outline — the pad foot is the end of the arm, not a second block.
  * `localOut` is the cam-to-crown direction in this frame, so the foot is crowned the right way.
+ * The crown vertex is the kinematic contact, with no gap. Lash is at the valve, not here.
  */
-function rockerOutline(gamma: number, localOut: THREE.Vector2, eye: number, pad: number, gap = 0.04): [number, number][] {
+function rockerOutline(gamma: number, localOut: THREE.Vector2): [number, number][] {
   const BOSS = 11.6;
   const Rf = 26;
-  // Proud of the polar point along the outward normal. The arm extrusion bevels
-  // this back in; the shoe is not bevelled, so the two outlines use different gaps.
-  const crown = v2(pad, 0).addScaledVector(localOut.clone().normalize(), gap);
+  const crown = v2(PAD_LEN, 0);
   const faceC = crown.clone().addScaledVector(localOut, Rf);
   const aCrown = Math.atan2(crown.y - faceC.y, crown.x - faceC.x);
   const span = 0.68;
@@ -543,15 +541,13 @@ function rockerOutline(gamma: number, localOut: THREE.Vector2, eye: number, pad:
   const ctrl = (ang: number, rad: number, yb: number) => circ(rad, ang).add(v2(0, yb));
   const upperEdge = bezOpen(upperC, ctrl(0.20, 27, bow * 4.2), upperBoss, 8);
   const lowerEdge = bezOpen(lowerBoss, ctrl(-0.20, 27, bow * 3.2), lowerC, 8);
-  // Shorter arm. The eye sits on the ray through the kinematic ball, with a narrow neck.
+  // Shorter arm. The eye sits on the ray through the kinematic ball and swells
+  // out to that ball, so the adjuster screw lands inside the forging.
   const eyeAng = Math.PI + gamma;
   const side = v2(-Math.sin(eyeAng), Math.cos(eyeAng));
   const radial = v2(Math.cos(eyeAng), Math.sin(eyeAng));
-  // Stop the forging short of the stem. The ball and the adjuster screw, added
-  // separately, are what meet the tip; a wide cap here sat in the retainer.
-  const eyeReach = eye - 11;
-  const tipC = radial.clone().multiplyScalar(eyeReach);
-  const neck = radial.clone().multiplyScalar(eyeReach * 0.64);
+  const tipC = radial.clone().multiplyScalar(27.5);
+  const neck = radial.clone().multiplyScalar(17.5);
   const eyeA = eyeAng - 0.50;
   const eyeB = eyeAng + 0.50;
   let aEyeA = eyeA; while (aEyeA < padHi) aEyeA += Math.PI * 2;
@@ -564,12 +560,17 @@ function rockerOutline(gamma: number, localOut: THREE.Vector2, eye: number, pad:
     upperBoss,
     ...bossArc(padHi, aEyeA, BOSS, 9),
     circ(BOSS, aEyeA),
-    neck.clone().addScaledVector(side, -2.6),
-    tipC.clone().addScaledVector(side, -2.2),
+    neck.clone().addScaledVector(side, -3.3),
+    tipC.clone().addScaledVector(side, -6.3),
   ];
+  for (let i = 1; i < 8; i++) {
+    const t = i / 8;
+    const lat = -1 + 2 * t;
+    pts.push(tipC.clone().addScaledVector(side, lat * 6.3).addScaledVector(radial, Math.sin(t * Math.PI) * 6.4));
+  }
   pts.push(
-    tipC.clone().addScaledVector(side, 2.2),
-    neck.clone().addScaledVector(side, 2.6),
+    tipC.clone().addScaledVector(side, 6.3),
+    neck.clone().addScaledVector(side, 3.3),
     circ(BOSS, aEyeB),
     ...bossArc(aEyeB, aPadLo, BOSS, 7),
     circ(BOSS, aPadLo),
@@ -577,7 +578,7 @@ function rockerOutline(gamma: number, localOut: THREE.Vector2, eye: number, pad:
   );
   return pts.map((q) => [q.x, q.y]);
 }
-/** Star-convex outline about the shaft. Drops a self-crossing of the raw profile so the extrusion is one solid. */
+/** Farthest point in each direction about the shaft, so a crossing outline still extrudes as one solid. */
 function starOutline(pts: [number, number][], bins = 128): [number, number][] {
   const best: ({ r: number; p: [number, number] } | undefined)[] = [];
   for (const p of pts) {
@@ -664,18 +665,13 @@ const ARM_T = 9.6;
 /** Chilled shoe, wider than the 12.4 mm lobe flat. The cheek beside the lobe is under the base circle. */
 export const PAD_W = 19;
 /** Hardened chilled foot: the face arc and a curved back, wider than the arm, fused to the outline. */
-function padShoe(outline: [number, number][]): [number, number][] {
-  const face = outline.slice(0, 11).map(([x, y]) => v2(x, y));
-  const n = face.length;
-  const back: THREE.Vector2[] = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const p = face[i];
-    const d = p.length() > 1 ? p.clone().normalize() : v2(1, 0);
-    const t = i / (n - 1);
-    const thick = 4.4 + Math.sin(t * Math.PI) * 3.2;
-    back.push(p.clone().addScaledVector(d, -thick));
-  }
-  return [...face, ...back].map((q) => [q.x, q.y]);
+function padShoe(outline: [number, number][], localOut: THREE.Vector2): [number, number][] {
+  const face = outline.slice(0, 11);
+  const o = localOut.clone().normalize();
+  // Body sits on the rocker side of the face. An inset toward the shaft crossed
+  // the base circle, because the pad arm is not radial to the cam.
+  const back = face.slice().reverse().map(([x, y]) => [x + o.x * 5, y + o.y * 5] as [number, number]);
+  return [...face, ...back];
 }
 export function rockers(s: 1 | -1) {
   const p = new Part();
@@ -697,11 +693,13 @@ export function rockers(s: 1 | -1) {
     if (outward.lengthSq() < 1e-6) outward.set(1, 0);
     outward.normalize();
     const localOut = rot2(outward, -(ang + beta));
-    const armGap = 0.35 + 0.04;
-    const outline = rockerOutline(gamma, localOut, eyeLen(lay.side), padLen(lay.side), armGap);
-    const shoeOutline = rockerOutline(gamma, localOut, eyeLen(lay.side), padLen(lay.side), 0.04);
+    const stemL = rot2(lay.stem, -(ang + beta));
+    const ballL = localBall(gamma, lay.side);
+    const ballCenterL = ballL.clone().addScaledVector(stemL, ballR);
+    const outline = rockerOutline(gamma, localOut);
     const arm = extrudeC(polyShape(starOutline(outline)), ARM_T, 0, 3);
-    // Cut in from each flat face. A cutter translated outward of the face only skins the bevel.
+    // Cut in from each flat face. The channels stay inside the outline so the
+    // neck between the boss and the eye is not severed.
     const depth = 3.05;
     const cut = (which: 'pad' | 'eye', side: 1 | -1) => {
       const L = depth + 0.3;
@@ -720,32 +718,36 @@ export function rockers(s: 1 | -1) {
     // origin. That reads as a floating fragment once the bank is placed. Keep the uncut arm.
     const carved = sz.x < 120 && sz.y < 120 && sz.z < 40 && mid.length() < 70 && Number.isFinite(sz.x) ? carvedRaw : arm;
     const lobeCut = lobeGeom();
-    // The shoe is the contact. A hair of growth keeps a tessellated flank from
-    // staying buried after the collision meshes shrink by 1 mm.
-    lobeCut.scale(1.012, 1.012, 1.04);
+    // True lobe. A 1.012 scale left the shoe 0.18 mm off the base circle.
     lobeCut.rotateZ(contactAngle(lay, beta) - fromPeak);
     lobeCut.translate(C.x, C.y, z);
-    // Retainer and keeper: a cylinder on the stem, stopped 2 mm short of the tip
-    // so the ball (which sits on the tip) is not cut. Radial gap over the 9.2 mm
-    // retainer is 2.4 mm, which survives 1 mm of erosion on each face.
-    const tip0 = valveTipEngine(st.cyl, st.side, 0);
-    const stem3 = valveTipEngine(st.cyl, st.side, 1).sub(tip0);
-    const tipW = tip0.clone().addScaledVector(stem3, pose.lift);
-    const retA = tipW.clone().addScaledVector(stem3, -20);
-    const retB = tipW.clone().addScaledVector(stem3, -1.4);
-    const retCut = cylBetween([retA.x, retA.y, retA.z], [retB.x, retB.y, retB.z], 12.8, 16);
-    p.add(manifoldSub(placeRocker(carved, ang, beta, P, z), lobeCut, retCut), 'forgedSteel');
+    // The shoe is the contact. Pull the forging cutter 0.4 mm inside the lobe
+    // so the crown stays and a deep bite cannot sever the pad arm.
+    const armCut = lobeCut.clone();
+    const ap = armCut.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < ap.count; i++) {
+      const dx = ap.getX(i) - C.x, dy = ap.getY(i) - C.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 0.5) continue;
+      const k = (len - 0.4) / len;
+      ap.setXY(i, C.x + dx * k, C.y + dy * k);
+    }
+    const armWorld = placeRocker(carved, ang, beta, P, z);
+    let forged = armWorld;
+    try {
+      const shaved = manifoldSub(armWorld, armCut);
+      shaved.computeBoundingBox();
+      if (shaved.boundingBox!.getSize(new THREE.Vector3()).length() > 20) forged = shaved;
+    } catch { /* keep the uncut arm if the inset lobe is not a solid cutter */ }
+    p.add(forged, 'forgedSteel');
     // 19 mm shoe, 12.4 mm lobe, next lobe 14 mm away. The wings cross that
     // nose and the cast shank. Keep the face over this lobe; cut the wings
-    // back to just outside the peak radius.
-    const shoe = placeRocker(extrudeC(polyShape(starOutline(padShoe(shoeOutline))), PAD_W, 0, 3), ang, beta, P, z);
-    const keep = boxMM(
-      [C.x - 80, -80, z - CAM.lobeW / 2 - 0.15],
-      [C.x + 80, 80, z + CAM.lobeW / 2 + 0.15],
-    );
-    const zone = yToZ(cyl(PEAK_R + 0.8, PAD_W + 6, 28));
-    zone.translate(C.x, C.y, z);
-    p.add(manifoldSub(shoe, manifoldSub(zone, keep), lobeCut), 'polishedSteel');
+    // back to just outside the peak radius. The crown vertex is the contact.
+    const shoe = placeRocker(extrudeC(polyShape(padShoe(outline, localOut)), PAD_W, 0, 3), ang, beta, P, z);
+    // The 19 mm shoe reaches the next lobe (centres 14 mm apart). Clip only that
+    // overlap. A cylinder through the cam also ate the crown.
+    const wing = (z0: number, z1: number) => boxMM([C.x - 40, -40, z0], [C.x + 40, 40, z1]);
+    p.add(manifoldSub(shoe, wing(z + 7.6, z + 16), wing(z - 16, z - 7.6)), 'polishedSteel');
     const bh = SHAFT.bossHalf;
     const bush = yToZ(lathe([
       [SHAFT.r + 0.12, -(bh - 2.4)], [SHAFT.r + 1.85, -(bh - 2.4)],
@@ -772,35 +774,26 @@ export function rockers(s: 1 | -1) {
       0.85, 8,
     );
     p.add(placeRocker(oil, ang, beta, P, z), 'bore');
-    // Ball on the stem, one radius past the tip, so the inner face is the 0.10 mm
-    // lash. The nut stays on the eye, inboard of the retainer, so it does not
-    // stand the adjuster further out of the cover. The screw bridges the two;
-    // the retainer cutter removes the part that would cross the keeper.
-    const ballCenter = tipW.clone().addScaledVector(stem3, ballR - LASH + 1.0);
+    // Adjuster in the forging frame, then the same placement as the arm.
+    // The kinematic point is the ball's inner face (lash is that face to the
+    // stem tip). The centre is one radius outboard, so the screw, which ends
+    // at the centre, is buried in the ball.
     const eyeAng = Math.PI + gamma;
     const radial = v2(Math.cos(eyeAng), Math.sin(eyeAng));
-    const toWorld = (local: THREE.Vector2) => {
-      const r = rot2(local, ang + beta);
-      return new THREE.Vector3(P.x + r.x, P.y + r.y, z);
-    };
-    // Stub on the arm, outside the retainer, so the adjuster stays one piece
-    // with the forging after the keeper is cut out of the screw.
-    const rootW = toWorld(radial.clone().multiplyScalar(11));
-    const eyeW = toWorld(radial.clone().multiplyScalar(Math.max(20, eyeLen(lay.side) - 22)));
-    const stub = cylBetween([rootW.x, rootW.y, rootW.z], [eyeW.x, eyeW.y, eyeW.z], 2.8, 10);
-    const screw = manifoldSub(cylBetween(
-      [ballCenter.x, ballCenter.y, ballCenter.z],
-      [eyeW.x, eyeW.y, eyeW.z],
-      2.4, 12,
-    ), retCut);
-    const ballGeo = new THREE.SphereGeometry(ballR, 14, 10);
-    ballGeo.translate(ballCenter.x, ballCenter.y, ballCenter.z);
-    const nut = hexNut(13, 4);
-    const nutC = toWorld(radial.clone().multiplyScalar(18));
-    const ax = eyeW.clone().sub(rootW).normalize();
+    const rootL = radial.clone().multiplyScalar(16);
+    const screw = cylBetween(
+      [rootL.x, rootL.y, 0],
+      [ballCenterL.x, ballCenterL.y, 0],
+      2.6, 12,
+    );
+    const ballGeo = new THREE.SphereGeometry(ballR, 16, 12);
+    ballGeo.translate(ballCenterL.x, ballCenterL.y, 0);
+    const nut = hexNut(11, 3.2);
+    const nutC = rootL.clone().addScaledVector(ballCenterL.clone().sub(rootL), 0.42);
+    const ax = new THREE.Vector3(ballCenterL.x - rootL.x, ballCenterL.y - rootL.y, 0).normalize();
     nut.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), ax));
-    nut.translate(nutC.x, nutC.y, nutC.z);
-    p.add(manifoldAdd(stub, screw, ballGeo, nut), 'steel');
+    nut.translate(nutC.x, nutC.y, 0);
+    p.add(placeRocker(manifoldAdd(screw, ballGeo, nut), ang, beta, P, z), 'steel');
     addShaft(p, P.x, P.y, z);
   }
   return p.g;
@@ -1584,12 +1577,10 @@ function rockerPocketCutters(s: 1 | -1): THREE.BufferGeometry[] {
     const outward = K.clone().sub(C);
     if (outward.lengthSq() < 1e-6) outward.set(1, 0);
     outward.normalize();
-    const outline = rockerOutline(gamma, rot2(outward, -ang), eyeLen(lay.side), padLen(lay.side));
+    const outline = rockerOutline(gamma, rot2(outward, -ang));
     const keep = () => yToZ(cyl(SHAFT.r + 0.4, 90, 16));
-    const arm = manifoldSub(extrudeC(polyShape(starOutline(grow(outline, 7.0))), ARM_T + 16, 0, 2), keep());
+    const arm = manifoldSub(extrudeC(polyShape(starOutline(grow(outline, 7.0))), PAD_W + 8, 0, 2), keep());
     cuts.push(placeRocker(arm, ang, beta, P, z));
-    const shoe = manifoldSub(extrudeC(polyShape(starOutline(grow(padShoe(outline), 7.0))), PAD_W + 18, 0, 2), keep());
-    cuts.push(placeRocker(shoe, ang, beta, P, z));
     const hub = manifoldSub(
       yToZ(cyl(SHAFT.bossR + 1.6, SHAFT.bossHalf * 2 + 2.2, 16)).translate(P.x, P.y, z),
       yToZ(cyl(SHAFT.r + 0.4, 48, 16)).translate(P.x, P.y, z),
@@ -1629,70 +1620,6 @@ function flattenWorld(root: THREE.Object3D) {
   root.updateMatrixWorld(true);
 }
 /**
- * Closed valves sit inside the 28 mm pan. A valve that is open at the assembled
- * crank swings the adjuster past that roof. A small dome over that adjuster,
- * unioned into the pan, keeps the rest of the shell at 28 mm.
- */
-function graftAdjusterDomes(root: THREE.Object3D, s: 1 | -1, upper: boolean) {
-  const frame = coverMatrix(s, upper);
-  const inv = frame.clone().invert();
-  const domes: THREE.BufferGeometry[] = [];
-  const voids: THREE.BufferGeometry[] = [];
-  for (const st of rockerStations(s)) {
-    if ((st.side > 0) !== upper) continue;
-    const pose = trainPose(st.cyl, st.side, ASSEMBLED_CRANK);
-    const tip0 = valveTipEngine(st.cyl, st.side, 0);
-    const stem3 = valveTipEngine(st.cyl, st.side, 1).sub(tip0);
-    const ball = tip0.clone().addScaledVector(stem3, pose.lift + 4.1);
-    const local = ball.clone().applyMatrix4(inv);
-    // Ball crown, plus a little for the sphere sitting off the cover normal.
-    const crown = local.z + 6.4;
-    if (crown < 27) continue;
-    const top = crown + 2.6;
-    const x0 = Math.max(-20, local.x - 22);
-    const x1 = Math.min(20, local.x + 22);
-    const y0 = Math.max(-168, local.y - 16);
-    const y1 = Math.min(168, local.y + 16);
-    // Box on the existing roof, wide enough for the arm beside the ball and
-    // kept inside the side walls.
-    const dome = boxMM([x0 - 3, y0 - 3, 23], [x1 + 3, y1 + 3, top]);
-    dome.applyMatrix4(frame);
-    domes.push(dome);
-    const voidC = boxMM([x0, y0, 20], [x1, y1, top - 2.4]);
-    voidC.applyMatrix4(frame);
-    voids.push(voidC);
-  }
-  if (!domes.length) return;
-  root.updateMatrixWorld(true);
-  const domeBoxes = domes.map((g) => { g.computeBoundingBox(); return g.boundingBox!; });
-  const v = new THREE.Vector3();
-  root.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    const g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
-    g.computeBoundingBox();
-    const bb = g.boundingBox!;
-    const P = g.attributes.position;
-    let lz0 = 99, lz1 = -99, ly0 = 99, ly1 = -99;
-    const step = Math.max(1, Math.floor(P.count / 48));
-    for (let i = 0; i < P.count; i += step) {
-      v.fromBufferAttribute(P, i).applyMatrix4(inv);
-      lz0 = Math.min(lz0, v.z); lz1 = Math.max(lz1, v.z);
-      ly0 = Math.min(ly0, v.y); ly1 = Math.max(ly1, v.y);
-    }
-    // The pan, not a rib, a letter or a lug.
-    if (!(lz1 > 24 && lz0 < 4 && ly1 - ly0 > 200)) return;
-    const hit = domes.filter((_, i) => domeBoxes[i].intersectsBox(bb));
-    if (!hit.length) return;
-    mesh.geometry = manifoldAdd(g, ...hit);
-    mesh.position.set(0, 0, 0);
-    mesh.rotation.set(0, 0, 0);
-    mesh.scale.set(1, 1, 1);
-    mesh.updateMatrix();
-  });
-  cutClosed(root, ...voids);
-}
-/**
  * Exhaust stems cross the head-side rail of the lower cover and the cam-housing
  * land. A clearance cylinder along that stretch; the intake stem stays in the bay.
  */
@@ -1706,8 +1633,7 @@ function exhaustStemCuts(s: 1 | -1): THREE.BufferGeometry[] {
 }
 export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean) {
   flattenWorld(root);
-  graftAdjusterDomes(root, s, upper);
-  // The compact 28° forging sits in the pan main built. No rocker blister.
+  // Main's pan. No rocker-clearance box on the roof.
   const frame = coverMatrix(s, upper);
   const studHoles = vcStuds(upper, s).map((st) => {
     const g = yToZ(cyl(6.4, 90, 16));
@@ -1838,133 +1764,6 @@ function flipCoverHoleNormals(root: THREE.Object3D, s: 1 | -1) {
       }
     }
   });
-}
-/**
- * Per rocker: the cover-local box the forging occupies above the housing, plus a
- * rail bypass on the outer side of the arm. Pads stay below the cover and are
- * not part of the blister.
- */
-function coverRelief(s: 1 | -1, upper: boolean) {
-  const frame = coverMatrix(s, upper);
-  const inv = frame.clone().invert();
-  const caps: THREE.BufferGeometry[] = [];
-  const pockets: THREE.BufferGeometry[] = [];
-  const railCuts: THREE.BufferGeometry[] = [];
-  const land: THREE.BufferGeometry[] = [];
-  const toL = (p: THREE.Vector3) => p.applyMatrix4(inv);
-  // Added metal stays inside the cast shell. A pocket may still open the end
-  // wall where a shaft runs out; a cut does not grow the bounding box.
-  const shellY = (CH_Z1 - CH_Z0 - 8) / 2 - 2;
-  const clampSpan = (a: number, b: number): [number, number] | null => {
-    const lo = Math.max(-shellY, Math.min(a, b));
-    const hi = Math.min(shellY, Math.max(a, b));
-    return hi - lo < 0.5 ? null : [lo, hi];
-  };
-  for (const st of rockerStations(s)) {
-    if ((st.side > 0) !== upper) continue;
-    const lay = rockerLayout(st.cyl, st.side);
-    const pts: THREE.Vector3[] = [];
-    // Cover-local Y is the shaft. Don't inflate Y by the radial clearance or the
-    // blister reaches the next ear and the housing end cap.
-    const box = (c: THREE.Vector3, rx: number, ry: number, rz: number) => {
-      for (const d of [
-        [rx, 0, 0], [-rx, 0, 0], [0, ry, 0], [0, -ry, 0], [0, 0, rz], [0, 0, -rz],
-      ] as const) pts.push(c.clone().add(new THREE.Vector3(...d)));
-    };
-    const shaft = toL(new THREE.Vector3(lay.P.x, lay.P.y, lay.z));
-    // Nut hex ends ~18.5 mm on the −Y side of the shaft; the pan-head screw
-    // ends ~17 mm on +Y. Keep both inside the blister, and stop short of the
-    // ear faces (r 9.2) so the cover-nut seat is not machined away.
-    const ears = [...vcStuds(upper, s).map((st) => st.y), ...(upper ? [] : vcLugs(s).map((st) => st.y))];
-    let yNut = shaft.y - (SHAFT.half + 8);
-    let yScr = shaft.y + (SHAFT.half + 4);
-    for (const e of ears) {
-      if (e < shaft.y) yNut = Math.max(yNut, e + 14);
-      if (e > shaft.y) yScr = Math.min(yScr, e - 14);
-    }
-    box(shaft, 16, 0, 16);
-    pts.push(shaft.clone().setY(yNut));
-    pts.push(shaft.clone().setY(yScr));
-    for (let i = 0; i <= 8; i++) {
-      const t = i / 8;
-      box(toL(new THREE.Vector3(
-        lay.K.x + (lay.P.x - lay.K.x) * t,
-        lay.K.y + (lay.P.y - lay.K.y) * t,
-        lay.z,
-      )), 11, ARM_T / 2 + 4, 11);
-    }
-    box(toL(new THREE.Vector3(lay.ball.x, lay.ball.y, lay.z)), 12, 10, 16);
-    box(toL(new THREE.Vector3(lay.ball.x + lay.stem.x * 18, lay.ball.y + lay.stem.y * 18, lay.z)), 12, 10, 16);
-    for (const along of [78, 90, 104, 112]) box(toL(headToEngine(st.cyl, stemPointLocal(st.side, along))), 12, 12, 12);
-    const use = pts.filter((p) => p.z > -6);
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z1 = -8;
-    for (const p of use) {
-      x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
-      y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
-      z1 = Math.max(z1, p.z);
-    }
-    const wall = 3.4;
-    const skin = 3.2;
-    const yOuter = clampSpan(y0 - wall, y1 + wall);
-    // Hollow blister: the cavity is the rocker envelope, the skin is past it.
-    // A solid block would leave the ray origin inside metal, and the only hit
-    // would be the far wall past the cover-roof test.
-    const ceil = z1 + 1.2;
-    if (yOuter && ceil > 2) {
-      const outer = boxMM([x0 - wall, yOuter[0], 0.3], [x1 + wall, yOuter[1], ceil + skin]);
-      const inner = boxMM([x0 - 0.4, y0 - 0.4, -4], [x1 + 0.4, y1 + 0.4, ceil]);
-      const cap = csgSub(outer, inner);
-      cap.applyMatrix4(frame);
-      caps.push(cap);
-    }
-    // Open the pan into that cavity. Wider than the blister mouth so the roof
-    // hole sits under the blister wall, not beside it. Stop short of the lip
-    // ends so the flywheel-end corners, which set the cover length, stay put.
-    const yPocket = clampSpan(y0 - 1.2, y1 + 1.2);
-    if (yPocket) {
-      const pocket = boxMM([x0 - 1.2, yPocket[0], -1.6], [x1 + 1.2, yPocket[1], ceil + 0.6]);
-      pocket.applyMatrix4(frame);
-      pockets.push(pocket);
-    }
-    // The arm crosses the side rail. Open that rail under the arm only, and lay
-    // a land further out so the seal still runs the length of the cover.
-    const crossing = pts.filter((p) => p.z < 6 && (p.x < -16 || p.x > 16));
-    if (!crossing.length) continue;
-    let cx0 = Infinity, cx1 = -Infinity, cy0 = Infinity, cy1 = -Infinity;
-    for (const p of crossing) {
-      cx0 = Math.min(cx0, p.x); cx1 = Math.max(cx1, p.x);
-      cy0 = Math.min(cy0, p.y); cy1 = Math.max(cy1, p.y);
-    }
-    const outer = cx0 < 0 ? -1 : 1;
-    const armOuter = outer < 0 ? cx0 : cx1;
-    const b0 = armOuter + outer * 4;
-    const b1 = armOuter + outer * 11;
-    const span = 6.5;
-    const tie = (y: number) => {
-      const spanY = clampSpan(y, y + span);
-      if (!spanY) return;
-      const box = boxMM(
-        [Math.min(b0, outer < 0 ? -26 : 22), spanY[0], 0],
-        [Math.max(b1, outer < 0 ? -22 : 26), spanY[1], 1.3],
-      );
-      box.applyMatrix4(frame);
-      land.push(box);
-    };
-    tie(cy0 - span);
-    tie(cy1);
-    const bandY = clampSpan(cy0 - 1, cy1 + 1);
-    if (bandY) {
-      const band = boxMM([Math.min(b0, b1), bandY[0], 0], [Math.max(b0, b1), bandY[1], 1.3]);
-      band.applyMatrix4(frame);
-      land.push(band);
-    }
-    const rail0 = outer < 0 ? Math.min(cx0, -34) : 20;
-    const rail1 = outer < 0 ? -18 : Math.max(cx1, 34);
-    const cut = boxMM([Math.min(rail0, rail1), cy0 + 1.5, -1.2], [Math.max(rail0, rail1), cy1 - 1.5, 5.5]);
-    cut.applyMatrix4(frame);
-    railCuts.push(cut);
-  }
-  return { caps, pockets, railCuts, land };
 }
 /** Valve head in engine space at `crank`, for the piston-clearance sweep. */
 export function valveHeadEngine(cyl: number, side: 1 | -1, crank: number): THREE.BufferGeometry {

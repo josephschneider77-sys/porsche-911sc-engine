@@ -1032,7 +1032,7 @@ export function cylinder() {
   const p = new Part();
   const H = CYL_TOP_X - DECK_X; // 98
   const rb = SPEC.bore / 2;
-  // Mahle 503 WR 27 (930/03 barrel): bore Ø95 and spigot OD Ø103 (rb and rb+4). The catalog
+  // Mahle 503 WR 27 barrel: bore Ø95 and spigot OD Ø103 (rb and rb+4). The catalog
   // flange is Ø113; this seating face is Ø112. The register below the face is the 14 mm pilot.
   // Catalog Länge 120 / Höhe 85.5 is overall length versus installed height; the barrel keeps the
   // layout's 98 mm deck-to-head so the head stays seated. Over a full crank turn the rod beam and
@@ -1270,7 +1270,7 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   const ext = VC_EXT(s), cy = -ext / 2;
   // Same end radius on both banks so the seal lips stay the same length.
   const endR = 7;
-  const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 36.5, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
+  const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
   cavity.translate(0, cy, -20);
   const below = boxMM([-w, -len, -40], [w, len, 0.01]);
   // Stepped seat flange: thin outer lip, then a raised land the pan walls leave from.
@@ -1284,8 +1284,9 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   const notch = boxMM([-15, len / 2 - 16 + cy, -1], [15, len / 2 + 4 + cy, 16]);
   loc.add(manifoldSub(lip, cavity, notch, ...studHoles), 'castAlu');
   loc.add(manifoldSub(step, cavity, notch, ...studHoles), 'castAlu');
-  // Outer shell tops at 28 mm (depth 18 + bevel 10). The 60 mm clearance boxes are gone.
-  const pan = new THREE.ExtrudeGeometry(roundRect(w - 17, len - 22 + ext, 6), { depth: 18, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
+  // Main's shell: depth 12 + bevel 10, top at 22 mm. Upper bosses and lower ribs
+  // sit on that pan; nothing is added to clear a rocker.
+  const pan = new THREE.ExtrudeGeometry(roundRect(w - 17, len - 22 + ext, 6), { depth: 12, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
   loc.add(manifoldSub(pan.translate(0, cy, 0), cavity, below, notch), 'castAlu');
   // Stud towers blended into the pan wall. The nut face stays a flat disc at z = 7.
   // The cavity runs through the ear centres. Keep the nut face (z = 7, out to r 8.8)
@@ -1293,7 +1294,7 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   const faceKeeps: THREE.BufferGeometry[] = [];
   for (const st of studs) faceKeeps.push(yToZ(cyl(9.2, 1.8, 24)).translate(st.x, st.y, 6.7));
   const earCut = manifoldSub(
-    new THREE.ExtrudeGeometry(roundRect(31, len - 30 + ext, 1), { depth: 36.5, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 }).translate(0, cy, -20),
+    new THREE.ExtrudeGeometry(roundRect(31, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 }).translate(0, cy, -20),
     ...faceKeeps,
   );
   // Closed tower. The stud bore is the later cut, so the profile runs to the axis.
@@ -1317,11 +1318,11 @@ export function valveCover(s: 1 | -1, upper: boolean) {
     // reads correctly from each bank's own side (letter-up toward +Y, advance toward the viewer's right)
     const letterY = s > 0 ? -4 : -44;
     // Holes are centred at local x −8. The lettering sits on the head side of them.
-    raisedText(loc, 'PORSCHE', s > 0 ? 12 : 22, letterY, 1.65, 27.6, 1.3, 1.5, s, -s);
+    raisedText(loc, 'PORSCHE', s > 0 ? 12 : 22, letterY, 1.65, 21.2, 1.3, 1.5, s, -s);
   } else {
     // Lower lid: diagonal ribs across the pan, and three wedge lugs for the special nuts.
     for (const k of [-2, -1, 0, 1, 2]) {
-      const g = boxMM([-22, -1.4, 27.8], [22, 1.4, 30.4]);
+      const g = boxMM([-22, -1.4, 21.5], [22, 1.4, 24.0]);
       g.rotateZ(0.72 * s);
       g.translate(0, k * 58, 0);
       loc.add(g, 'castAlu');

@@ -114,9 +114,21 @@ function coverGasket(s: 1 | -1, up: boolean) {
     // this sheet, and the elbow swings off the axis beside the hole.
     for (const p of plugs) shape.holes.push(circlePath(SPARK_HOLE_R + 2.4, p.x, p.y) as THREE.Path);
   } else {
-    shape.holes.push(rectHole(0, 0, 52, L - 12, 4));
-    // Cylinder 6's exhaust rocker and stem leave through the flywheel lip.
-    if (s < 0) bites.push(boxMM([-28, -210, -4], [28, -170, 4]));
+    // Diagonal webs, the same lean as the lower-cover ribs. Each window stays
+    // inside the frame, including the flywheel end of the left bank.
+    const ang = 0.72 * s;
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+    const nx = -dy, ny = dx;
+    const along = 36, across = 24;
+    for (let k = -3; k <= 2; k++) {
+      const cy = (k + 0.5) * 58;
+      const corners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+      const pts = corners.reverse().map(([sx, sy]) => new THREE.Vector2(
+        dx * sx * along / 2 + nx * sy * across / 2,
+        cy + dy * sx * along / 2 + ny * sy * across / 2,
+      ));
+      shape.holes.push(new THREE.Path(pts));
+    }
   }
   let g: THREE.BufferGeometry = extrudeC(shape, 0.4);
   g.translate(0, 0, -0.25);

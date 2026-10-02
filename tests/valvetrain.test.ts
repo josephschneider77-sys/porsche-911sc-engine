@@ -6,7 +6,7 @@ import {
 } from '../src/geo/valvetrain';
 import { CAM_X, SPARK_TIP, SPARK_Z, SPARK_AXIS, SPARK_HOLE_R, SPARK_FLANGE_T, sparkDirHead, sparkRoll, plugTipEngine, plugAxisEngine } from '../src/data/layout';
 import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1, coverMatrix } from '../src/geo/core';
-import { crownSurfaceX, PISTON_DECK, VALVE_DIA, VALVE_FACE, stemDirLocal } from '../src/geo/valveGeom';
+import { crownSurfaceX, PISTON_DECK, VALVE_DIA, VALVE_FACE, STEM_R, stemDirLocal } from '../src/geo/valveGeom';
 import { ASSET_BUILDERS, partPose } from '../src/geo/assets';
 import { rayHit } from './hw';
 import { clearance } from './collide';
@@ -34,6 +34,44 @@ function worldVerts(obj: THREE.Object3D): THREE.Vector3[] {
   return out;
 }
 
+/** Triangle islands in one mesh. Welded at 0.001 mm, same key as the watertight edge test. */
+function meshComponents(mesh: THREE.Mesh): number {
+  const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
+  const P = g.attributes.position as THREE.BufferAttribute;
+  const parent = new Map<string, string>();
+  const find = (k: string): string => {
+    let p = parent.get(k) ?? k;
+    if (p !== k) { p = find(p); parent.set(k, p); }
+    return p;
+  };
+  const unite = (a: string, b: string) => {
+    const pa = find(a), pb = find(b);
+    if (pa !== pb) parent.set(pa, pb);
+  };
+  const q = (n: number) => {
+    const r = Math.round(n * 1000);
+    return Object.is(r, -0) ? 0 : r;
+  };
+  const v = new THREE.Vector3();
+  const key = (i: number) => {
+    v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
+    return `${q(v.x)}_${q(v.y)}_${q(v.z)}`;
+  };
+  const seen = new Set<string>();
+  let n = 0;
+  for (let i = 0; i < P.count; i += 3) {
+    const ks = [key(i), key(i + 1), key(i + 2)];
+    for (const k of ks) if (!parent.has(k)) parent.set(k, k);
+    unite(ks[0], ks[1]);
+    unite(ks[1], ks[2]);
+  }
+  for (let i = 0; i < P.count; i += 3) {
+    const r = find(key(i));
+    if (!seen.has(r)) { seen.add(r); n++; }
+  }
+  return n;
+}
+
 describe('top-end batch 1', () => {
   it('keeps every lobe peak under the journal so the cam can slide through the bore', () => {
     expect(CAM.boreR).toBeCloseTo(23.55, 2);
@@ -56,8 +94,15 @@ describe('top-end batch 1', () => {
       expect(closed.gap, tag).toBeCloseTo(LASH, 2);
       const peak = trainPose(cyl, side, FIRE_CRANK[cyl] + PEAK_AT[which]);
       expect(peak.lobeR, tag).toBeCloseTo(PEAK_R, 2);
-      // The 7.5 mm lobe arrives as at least 10.5 mm intake and 11.1 mm exhaust.
-      expect(peak.lift, `${tag} lift`).toBeGreaterThanOrEqual(side > 0 ? 10.5 : 11.1);
+      // Kat 502 103-10 #48 is one forging, qty 12: pad 42 mm, eye 34 mm, 28°.
+      // That opens the valve 4.54 mm intake and 4.72 mm exhaust with the ball
+      // still on the stem. A longer eye printed 10.5 / 11.1 only by leaving the stem.
+      expect(peak.lift, `${tag} lift`).toBeGreaterThan(side > 0 ? 4.5 : 4.7);
+      const b = peak.lay.ball.clone().sub(peak.lay.P).rotateAround(new THREE.Vector2(0, 0), peak.beta).add(peak.lay.P);
+      const dx = b.x - peak.lay.tip.x, dy = b.y - peak.lay.tip.y;
+      const along = dx * peak.lay.stem.x + dy * peak.lay.stem.y;
+      const off = Math.hypot(dx - peak.lay.stem.x * along, dy - peak.lay.stem.y * along);
+      expect(off, `${tag} ball on the stem`).toBeLessThan(STEM_R);
       const s = cyl <= 3 ? 1 : -1;
       const cam = new THREE.Vector2(s * CAM_X, 0);
       expect(Math.abs(closed.lay.K.distanceTo(cam) - CAM.baseR), `${tag} pad on base circle`).toBeLessThanOrEqual(0.05);
@@ -67,6 +112,49 @@ describe('top-end batch 1', () => {
       expect(closed.lay.P.distanceTo(closed.lay.ball), `${tag} eye arm`).toBeGreaterThan(EYE_LEN - 1);
       expect(PAD_W, 'pad shoe width').toBe(19);
     }
+  });
+
+  it('seats the pad shoe on the base circle and keeps main pan heights', () => {
+    const root = ASSET_BUILDERS['rockers-right']();
+    root.updateMatrixWorld(true);
+    const v = new THREE.Vector3();
+    for (const side of [1, -1] as const) {
+      const pose = trainPose(1, side, 0);
+      let gap = Infinity;
+      root.traverse((o: any) => {
+        if (!o.isMesh || o.material?.name !== 'polishedSteel') return;
+        const P = o.geometry.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld);
+          // The shoe is 19 mm wide and has no mid-plane vertices, so the crown
+          // sits on the flat faces, up to 9.5 mm off the lobe centre.
+          if (Math.abs(v.z - pose.lay.z) > 12) continue;
+          gap = Math.min(gap, Math.hypot(v.x - pose.lay.C.x, v.y - pose.lay.C.y) - CAM.baseR);
+        }
+      });
+      expect(Math.abs(gap), side > 0 ? 'intake shoe' : 'exhaust shoe').toBeLessThan(0.02);
+    }
+    const span = (id: string, s: 1 | -1, upper: boolean) => {
+      const inv = coverMatrix(s, upper).clone().invert();
+      const part = ASSET_BUILDERS[id]();
+      part.updateMatrixWorld(true);
+      let max = -Infinity;
+      part.traverse((o: any) => {
+        if (!o.isMesh) return;
+        const P = o.geometry.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld).applyMatrix4(inv);
+          if (v.z > max) max = v.z;
+        }
+      });
+      return max;
+    };
+    // Main's upper bosses reached 27.9 mm and the lower ribs 24.0 mm. The pans
+    // stay at that envelope: collars under 27.9, ribs at 24. No clearance box.
+    expect(span('valve-cover-upper-right', 1, true)).toBeLessThanOrEqual(27.9);
+    expect(span('valve-cover-upper-left', -1, true)).toBeLessThanOrEqual(27.9);
+    expect(span('valve-cover-lower-right', 1, false)).toBeCloseTo(24, 1);
+    expect(span('valve-cover-lower-left', -1, false)).toBeCloseTo(24, 1);
   });
 
   it('phases the opposite bank so cylinder 4 is on overlap while cylinder 1 is closed', () => {
@@ -181,14 +269,68 @@ describe('top-end batch 1', () => {
           const d = Math.hypot(c.x - st.x, c.y - st.y, (c.z - st.z) * 4);
           if (d < bestD) { bestD = d; best = i; }
         });
-        expect(bestD, `${id} floating fragment`).toBeLessThan(80);
+        expect(bestD, `${id} floating fragment`).toBeLessThan(56);
         groups[best].push(m);
       }
       groups.forEach((g, i) => {
         const tag = `${id} cyl ${stations[i].cyl} side ${stations[i].side}`;
         expect(g.length, tag).toBeGreaterThan(4);
         expect(count(g), `${tag} components`).toBe(1);
+        for (const m of g) expect(meshComponents(m), `${tag} mesh`).toBe(1);
       });
+    }
+  });
+
+  it('keeps every rebuilt part one solid, apart from assemblies', () => {
+    // A rocker bank is six stations, and a station is a shaft plus a bush plus a
+    // forging. Each of those meshes is one solid; the station test checks they meet.
+    // Rocker banks are six stations. Cam housings are an existing multi-mesh
+    // casting; the rocker pockets do not join those scraps into one body.
+    const assemblies = new Set(['rockers-right', 'rockers-left', 'cam-housing-right', 'cam-housing-left']);
+    const touched = [
+      'cylinder-head',
+      'valve-cover-upper-right', 'valve-cover-lower-right',
+      'valve-cover-upper-left', 'valve-cover-lower-left',
+      'valve-cover-gasket-upper-right', 'valve-cover-gasket-upper-left',
+      'valve-cover-gasket-lower-right', 'valve-cover-gasket-lower-left',
+      'spark-plug', 'spark-plug-connector',
+      'rockers-right', 'rockers-left',
+    ];
+    const touch = (a: THREE.Box3, b: THREE.Box3) => a.clone().expandByScalar(0.2).intersectsBox(b);
+    for (const id of touched) {
+      const root = ASSET_BUILDERS[id]();
+      root.updateMatrixWorld(true);
+      const meshes: THREE.Mesh[] = [];
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) meshes.push(m);
+      });
+      const solid = meshes.filter((m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) > 0);
+      expect(solid.length, id).toBeGreaterThan(0);
+      const cover = id.startsWith('valve-cover-') && !id.includes('gasket');
+      if (cover) {
+        // The pan shell is one solid the length of the cover. The lip boolean
+        // also leaves closed scraps in another mesh; those are not a second pan.
+        const long = solid.some((m) => {
+          if (meshComponents(m) !== 1) return false;
+          const size = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
+          return size.length() > 300;
+        });
+        expect(long, `${id} pan`).toBe(true);
+        continue;
+      }
+      solid.forEach((m, i) => expect(meshComponents(m), `${id} mesh ${i}`).toBe(1));
+      if (assemblies.has(id)) continue;
+      const boxes = solid.map((m) => new THREE.Box3().setFromObject(m));
+      const parent = solid.map((_, i) => i);
+      const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+      for (let i = 0; i < solid.length; i++) for (let j = i + 1; j < solid.length; j++) {
+        if (touch(boxes[i], boxes[j])) {
+          const a = find(i), b = find(j);
+          if (a !== b) parent[a] = b;
+        }
+      }
+      expect(new Set(solid.map((_, i) => find(i))).size, `${id} body`).toBe(1);
     }
   });
 
@@ -270,12 +412,20 @@ describe('top-end batch 1', () => {
       return n;
     };
     const headPose = partPose('head-1');
-    expect(miss('head-1', new THREE.Vector3(30, 0, 0).applyMatrix4(headPose)), 'head').toBe(0);
-    // The cover mesh is already in engine space. partPose is identity; the roof
-    // skin is cover-local z 27, between the cavity and the 28 mm shell.
-    const skin = new THREE.Vector3(0, 40, 27.2).applyMatrix4(coverMatrix(1, false));
-    expect(miss('valve-cover-lower-right', skin), 'lower cover skin').toBe(0);
-    expect(miss('spark-plug-1', new THREE.Vector3(0, -20, 0).applyMatrix4(partPose('spark-plug-1'))), 'plug hex').toBe(0);
+    const samples: [string, string, THREE.Vector3][] = [
+      ['head-1', 'head web', new THREE.Vector3(30, 0, 0).applyMatrix4(headPose)],
+      ['head-1', 'head roof', new THREE.Vector3(42, -8, 6).applyMatrix4(headPose)],
+      ['valve-cover-lower-right', 'lower roof', new THREE.Vector3(0, 40, 20.6).applyMatrix4(coverMatrix(1, false))],
+      ['valve-cover-lower-right', 'lower rib', new THREE.Vector3(0, 0, 22.4).applyMatrix4(coverMatrix(1, false))],
+      ['valve-cover-upper-right', 'upper roof', new THREE.Vector3(0, 20, 20.6).applyMatrix4(coverMatrix(1, true))],
+      ['valve-cover-upper-right', 'upper roof b', new THREE.Vector3(0, 20, 21.3).applyMatrix4(coverMatrix(1, true))],
+      ['spark-plug-1', 'plug hex', new THREE.Vector3(0, -20, 0).applyMatrix4(partPose('spark-plug-1'))],
+      ['spark-plug-1', 'plug shell', new THREE.Vector3(0, -8, 0).applyMatrix4(partPose('spark-plug-1'))],
+      ['spark-plug-1', 'plug insulator', new THREE.Vector3(0, -48, 0).applyMatrix4(partPose('spark-plug-1'))],
+      ['cam-housing-right', 'housing wall', new THREE.Vector3(CAM_X + 28, 0, 40)],
+      ['cam-housing-left', 'housing wall', new THREE.Vector3(-CAM_X - 28, 0, -40)],
+    ];
+    for (const [id, tag, origin] of samples) expect(miss(id, origin), tag).toBe(0);
   });
 
   it('opens the upper cover only on the plug holes', () => {
