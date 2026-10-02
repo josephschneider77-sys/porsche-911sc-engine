@@ -66,10 +66,9 @@ export const PLENUM_AUX = { tip: [32, 180, -134] as V3, axis: [0, 0, -1] as V3 }
 export const MANIFOLD_VAC = { tip: [-30, 268, 40] as V3, axis: [0, 1, 0] as V3 };
 /**
  * Spare branch of the vacuum tee (107-10 #14). Seat for the diverter-valve hose
- * 108-00 #31 (999 239 003 40). That illustration is not in the checklist extract,
- * so the hose mesh stays with Bottom End. The small hose from this tip runs down
- * to the tee, which already reaches MANIFOLD_VAC.
- * Axis points out of the fitting, along the hose as it leaves (down).
+ * 108-00 #31 (999 239 003 40). That hose is Bottom End's air-hose-vacuum; this
+ * model keeps the barb and does not draw a line off it. The tee already reaches
+ * MANIFOLD_VAC. Axis points out of the fitting, down, the way that hose leaves.
  */
 export const TEE_AIR_INJ = {
   point: [-86, 328, -16] as V3,
@@ -1018,7 +1017,7 @@ function vacTPorts() {
     plusX: { tip: [ox + 14, oy, oz] as V3, axis: [1, 0, 0] as V3 },
     // Elbow turns the leg up. A straight Ø9 hose will not fit between this tip and the throttle flange (z 96).
     plusZ: { tip: [10, 282, 76] as V3, axis: [0, 1, 0] as V3 },
-    // Spare branch for the diverter signal. The hose seat at the handoff is TEE_AIR_INJ.
+    // Spare −Z leg of the tee. The diverter hose seats on TEE_AIR_INJ, not on this tip.
     minusZ: { tip: [ox, oy, oz - 14] as V3, axis: [0, 0, -1] as V3 },
   };
 }
@@ -1103,10 +1102,9 @@ export function serviceHoses(): FuelLineDef[] {
   return [
     { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis) },
     { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
-    // Three small hoses (3.2×7): manifold, limiter, distributor. The fourth small run is the
-    // spare tee branch up to TEE_AIR_INJ (108-00 #31's manifold end, not a 107-10 cut).
+    // Three small hoses (3.2×7): manifold, limiter, distributor. TEE_AIR_INJ is the
+    // handoff for 108-00 #31; no hose leaves that barb in this model.
     { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: on(t.minusX.tip, t.minusX.axis) },
-    { id: 'vac-airinj', part: 'vacuum-fittings', a: on(TEE_AIR_INJ.point, TEE_AIR_INJ.axis), b: on(t.minusZ.tip, t.minusZ.axis) },
     { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
     { id: 'vac-distributor', part: 'vacuum-fittings', a: on(VAC_THERMO.dist.tip, VAC_THERMO.dist.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
     // Three medium hoses (Ø9): T to thermo valve 17A, thermo to the reducing socket, socket cluster to the additional air valve.
@@ -1149,8 +1147,6 @@ export function vacuumHosesPart() {
     return addHose(p, id, h.a, h.b, mids, 7, ahead, lead, lead, 6);
   };
   small('vac-manifold', [[-22, 274, 52]]);
-  // Down off the handoff (under the shell, y ≈ 337), then across to the spare tee barb.
-  small('vac-airinj', [[-86, 300, -16], [-86, 286, 10], [6, 274, 28]], 4, 5);
   small('vac-limiter', [[70, 268, 40], [108, 270, -20], [108, 268, -72]]);
   // End on DIST_VAC_NIPPLE. The last bend is derived from its point and dir so a can
   // change (930/04 shallow can, nipple on the rim) only needs the waypoints adjusted.

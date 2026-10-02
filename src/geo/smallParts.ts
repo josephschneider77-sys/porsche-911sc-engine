@@ -356,7 +356,7 @@ def('vacuum-fittings', () => {
   t.add(mesh(cylBetween([ox, oy, oz + 20], [10, 274, 76], 2.8, 8), 'brass'));
   // Last 8 mm is along +Y so the hose seat is a flat face on vacTPorts().plusZ.
   t.add(mesh(cylBetween([10, 274, 76], [10, 282, 76], 2.8, 8), 'brass'));
-  // Spare −Z barb. The hose from here climbs to TEE_AIR_INJ (108-00 #31's manifold seat).
+  // Spare −Z leg of the tee. The diverter hose seats on the handoff nipple, not here.
   t.add(mesh(cylBetween([ox, oy, oz], [ox, oy, oz - 14], 2.8, 8), 'brass'));
   // Rings around the barbs, inboard of each tip so the hose ray meets the barb face.
   const xRing = torus(4.2, 0.7, 6, 14).rotateY(Math.PI / 2);
@@ -365,7 +365,7 @@ def('vacuum-fittings', () => {
   t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, 276, 78]));
   t.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ox, oy, oz - 6]));
   p.g.add(t);
-  // Handoff nipple. The barb stands above the seat; the hose leaves downward. Top stays under the shell.
+  // Handoff nipple for Bottom End's air-hose-vacuum. No hose mesh leaves this barb. Top stays under the shell.
   const inj = new THREE.Group();
   inj.name = 'fitting:vac-airinj';
   const [ix, iy, iz] = TEE_AIR_INJ.point;
