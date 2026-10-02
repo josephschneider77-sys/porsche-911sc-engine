@@ -29,8 +29,8 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'main-bearings': { shellI: 2, shell: 12, sleeve: 1 },
   'crank-gears': { gear: 1, drive: 1 },
   'rockers': { shaft: 6, bush: 6, arm: 6, screw: 6, locknut: 6 },
-  'chain-tensioner': { rail: 3, support: 1, idler: 1, bolt: 1, adjuster: 1 },
-  'adjuster-cover': { gasket: 1, seal: 1 },
+  'chain-tensioner': { rail: 3, support: 1, idler: 1, bolt: 1, adjuster: 1, bleeder: 1, spring: 1, nut: 1 },
+  'cam-flange-cover': { gasket: 1, seal: 1 },
   'sump-plate': { lidgasket: 1, strainer: 1, gasket: 2, plug: 1 },
   'oil-pump': { shaft: 1 },
   'fan-housing': { strap: 1, clamp: 1, washer: 2, nut: 2 },
@@ -95,12 +95,15 @@ export const POOLS: Record<string, { by: string; what: string }[]> = {
 const C = (line: string, by: string, what = 'item', n?: number, note?: string): Claim => ({ line, by, what, n, note });
 const bankLines = (ill: string, b: 'left' | 'right'): Claim[] => [
   C(`${ill}#1`, `timing-chain-${b}`),
-  ...(b === 'left' ? [C('103-10#2', 'chain-tensioner-left', 'rail', 3)] : [C('103-15#2#911 105 222 06', 'chain-tensioner-right', 'rail', 2)]),
+  ...(b === 'left'
+    ? [C('103-10#2', 'chain-tensioner-left', 'rail', 3)]
+    : [C('103-15#2#911 105 222 05', 'chain-tensioner-right', 'rail', 1), C('103-15#2#911 105 222 06', 'chain-tensioner-right', 'rail', 2)]),
   C(`${ill}#3`, `rail-bolts-${b}`), C(`${ill}#4`, `rail-bolts-${b}`, 'washer', undefined, 'sealing ring = the washer under each rail bolt'),
   C(`${ill}#5`, `chain-tensioner-${b}`, 'support'), C(`${ill}#6`, `chain-tensioner-${b}`, 'idler'), C(`${ill}#7`, `chain-tensioner-${b}`, 'bolt'),
   C(`${ill}#8`, `idler-sleeve-${b}`), C(`${ill}#9`, `idler-circlip-${b}`), C(`${ill}#10`, `chain-tensioner-${b}`, 'adjuster'),
-  C(`${ill}#29`, `adjuster-cover-${b}`, 'gasket'), C(`${ill}#30`, `adjuster-cover-${b}`, 'seal'), C(`${ill}#31`, `adjuster-cover-${b}`),
-  C(`${ill}#32`, `adjuster-cover-screws-${b}`, 'spring'), C(`${ill}#33`, `adjuster-cover-screws-${b}`),
+  C(`${ill}#25`, `chain-tensioner-${b}`, 'bleeder'), C(`${ill}#27`, `chain-tensioner-${b}`, 'spring'), C(`${ill}#28`, `chain-tensioner-${b}`, 'nut'),
+  C(`${ill}#29`, `cam-flange-cover-${b}`, 'gasket'), C(`${ill}#30`, `cam-flange-cover-${b}`, 'seal'), C(`${ill}#31`, `cam-flange-cover-${b}`),
+  C(`${ill}#32`, `cam-flange-cover-screws-${b}`, 'spring'), C(`${ill}#33`, `cam-flange-cover-screws-${b}`),
   C(`${ill}#34`, `cam-thrust-washer-${b}`), C(`${ill}#35`, `cam-shim-${b}`), C(`${ill}#36`, `cam-flange-${b}`), C(`${ill}#37`, `cam-key-${b}`),
   C(`${ill}#38`, `cam-sprocket-${b}`), C(`${ill}#39`, `cam-pin-${b}`), C(`${ill}#40`, `cam-nut-${b}`, 'spring'), C(`${ill}#41`, `cam-nut-${b}`),
   C(`${ill}#42`, `camshaft-${b}`),
@@ -158,7 +161,7 @@ export const CLAIMS: Claim[] = [
   // ---- 103-05 chain housings / cam housings / covers
   C('103-05#1', 'chain-housing-left'), C('103-05#2', 'chain-housing-right'),
   C('103-05#3', 'chain-cover-nuts-*', 'stud'), C('103-05#-#999 062 046 02', 'chain-lid-nuts-*', 'stud', 2), C('103-05#4', 'chain-lid-nuts-*', 'stud', 1),
-  C('103-05#5', 'chain-housing-gasket-*'), C('103-05#6', 'chain-housing-lid-left'), C('103-05#7', 'chain-housing-lid-right'),
+  C('103-05#5', 'chain-housing-gasket-*'), C('103-05#6', 'chain-housing-lid-left'), C('103-05#7#930 105 064 10', 'chain-housing-lid-right'),
   C('103-05#-#999 062 010 02', 'chain-end-nuts-*', 'stud', 1, 'one of the four chain-housing end studs'),
   C('103-05#-#900 123 007 30', 'chain-lid-plug-left', 'ring'), C('103-05#-#N 016 155 3', 'chain-lid-plug-left'), C('103-05#-#N 016 155 4', 'chain-lid-plug2-left'),
   C('103-05#-#900 123 007 30#2', 'chain-lid-plug-right', 'ring'), C('103-05#-#N 016 155 3#2', 'chain-lid-plug-right'), C('103-05#-#N 016 155 4#2', 'chain-lid-plug2-right'),
@@ -243,7 +246,7 @@ export const NOT_APPLICABLE: NotApplicable[] = [
   ...['999 707 113 40', '999 707 113 41', '999 707 112 40', '900 041 013 01'].map((pn) => ({ line: `101-05#-#${pn}`, why: 'component of the later oil-tube set 930 107 040 01 (alternative to the four #16 tubes with #17 seals, which are modelled)' })),
   { line: '102-00#21', why: 'set header: its contents are the #22-#24 lines' },
   { line: '103-05#-#900 076 064 02', why: 'alternative part number of the 3 lid nuts on the line above (900 076 025 02)' },
-  ...['103-10', '103-15'].flatMap((ill) => range(ill, [11, 17, 19, 22, 23, 25, 27, 28], 'internal part of the sealed chain adjuster (#10), which is modelled as one unit')),
+  ...['103-10', '103-15'].flatMap((ill) => range(ill, [11, 17, 19, 22, 23], 'internal part of the sealed chain adjuster (#10), which is modelled as one unit')),
   { line: '103-10#-#930 105 911 00', why: 'alternative (pressure-fed) chain adjuster for the same station' },
   { line: '103-15#-#930 105 912 00', why: 'alternative (pressure-fed) chain adjuster for the same station' },
   { line: '103-15#-#930 105 912 01', why: 'alternative (pressure-fed) chain adjuster for the same station' },

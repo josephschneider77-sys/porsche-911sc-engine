@@ -104,6 +104,51 @@ export function sprocketRingShape(teeth: number, rRoot: number, rTip: number, rH
   }
   return polyShape(pts);
 }
+/**
+ * Roller-chain tooth (idler only). The valley floor is centred at 0.76 of the pitch, the same
+ * station `toothPhase` uses, so the rollers still sit in the gaps. Tip and root are rounded.
+ */
+export function rollerChainShape(teeth: number, rRoot: number, rTip: number, rHole: number) {
+  const step = (Math.PI * 2) / teeth;
+  const GAP = 0.76;
+  const n = 18;
+  const outer: [number, number][] = [];
+  for (let i = 0; i < teeth; i++) {
+    const a0 = i * step;
+    for (let k = 0; k < n; k++) {
+      const f = k / n;
+      let d = f - GAP;
+      if (d > 0.5) d -= 1;
+      if (d < -0.5) d += 1;
+      const u = Math.abs(d) / 0.5;
+      const s = u * u * (3 - 2 * u);
+      const rad = rRoot + (rTip - rRoot) * s;
+      const a = a0 + step * f;
+      outer.push([rad * Math.cos(a), rad * Math.sin(a)]);
+    }
+  }
+  const aJoin = Math.atan2(outer[0][1], outer[0][0]);
+  const pts = outer.slice();
+  const innerN = Math.max(48, teeth * 2);
+  for (let i = 0; i <= innerN; i++) {
+    const a = aJoin - (i / innerN) * Math.PI * 2;
+    pts.push([rHole * Math.cos(a), rHole * Math.sin(a)]);
+  }
+  return polyShape(pts);
+}
+/** Annular sector, CCW, angles in the XY plane (0 = +X). */
+export function annularSector(r0: number, r1: number, a0: number, a1: number, n = 12) {
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + ((a1 - a0) * i) / n;
+    pts.push([r1 * Math.cos(a), r1 * Math.sin(a)]);
+  }
+  for (let i = n; i >= 0; i--) {
+    const a = a0 + ((a1 - a0) * i) / n;
+    pts.push([r0 * Math.cos(a), r0 * Math.sin(a)]);
+  }
+  return polyShape(pts);
+}
 /** Spur gear / sprocket outline. The spur branch is the flywheel ring and the clutch spline; leave it alone. */
 export function gearShape(teeth: number, rRoot: number, rTip: number, holeR = 0, sprocket = false) {
   const s = new THREE.Shape();

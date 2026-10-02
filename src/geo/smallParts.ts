@@ -4,13 +4,13 @@
  * gives one world matrix per piece. Counts/steps/claims live in data/smallSpec.ts; tests/smallParts check both agree.
  */
 import * as THREE from 'three';
-import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, type V3 } from './util';
+import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrude, extrudeC, roundRect, circlePath, polyShape, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, annularSector, type V3 } from './util';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
-import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
+import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CAM_COVER, camCoverBolt, camNoseStack, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
-import { LIP_Z, chainLidStations } from './stations';
+import { LIP_Z } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST, WUR, AIRBOX, SUMP, OIL_PUMP, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
 import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, VAC_T, VAC_LIMIT } from './induction';
 
@@ -99,13 +99,58 @@ export function chainLidGasket(s: 1 | -1) {
   geom.translate(0, t / 2, 0);
   return new Part().add(geom, 'gasket');
 }
-/** Chain-adjuster cover (103-10/15 #29-#31) on the lid outside face: gasket, round seal, cover (engine frame). */
-export function adjusterCoverPart(s: 1 | -1) {
-  const c = adjusterCover(s); const p = new Part();
-  p.add(yToZ(lathe([[11, 0], [29, 0], [29, 0.5], [11, 0.5]], 48)), 'gasket', [c.x, c.y, CHAIN_LID.top]);
-  p.add(torus(16.5, 1.5, 8, 40), 'rubber', [c.x, c.y, CHAIN_LID.top + 1.8]);
-  // flat annulus: top face stays at local z 3.5 so the three cover screws still seat. Centre hole r 11.
-  p.add(yToZ(lathe([[11, 0.5], [30, 0.5], [30, 3.5], [11, 3.5]], 48)), 'castAlu', [c.x, c.y, CHAIN_LID.top]);
+/** Triangular 3-hole gasket (#29) in the cover's plane. Centre opening plus one hole per screw. */
+function coverGasketGeom(s: 1 | -1) {
+  const stack = camNoseStack(s);
+  const cx = CAM_X * s;
+  const bolts = CAM_COVER.angles.map((d) => camCoverBolt(s, d));
+  const verts = bolts.map((b) => {
+    const dx = b.x - cx, dy = b.y, L = Math.hypot(dx, dy);
+    return [cx + (dx / L) * (CAM_COVER.boltR + 7), (dy / L) * (CAM_COVER.boltR + 7)] as [number, number];
+  });
+  let g = extrude(polyShape(verts), CAM_COVER.gasketT, 0, 1);
+  g.translate(0, 0, stack.gasket0);
+  const zc = stack.gasket0 + CAM_COVER.gasketT / 2;
+  const cuts = [
+    yToZ(cyl(22, CAM_COVER.gasketT + 2, 24)).translate(cx, 0, zc),
+    ...bolts.map((b) => yToZ(cyl(3.4, CAM_COVER.gasketT + 2, 12)).translate(b.x, b.y, zc)),
+  ];
+  return clearOfPulleyPad(csgSub(g, ...cuts), s);
+}
+/** Left cam-housing pulley pad occupies y ≥ 40 up to the chain-case face. Keep the cover under it. */
+function clearOfPulleyPad(g: THREE.BufferGeometry, s: 1 | -1) {
+  if (s > 0) return g;
+  return csgSub(g, boxMM([-360, 39.85, 160], [-200, 90, CH_Z1 + 0.15]));
+}
+/**
+ * Cam-flange cover 930 105 196 00 (Kat 502 p.70 Bild 103-10 and p.74 Bild 103-15, #31).
+ * Thick round cover on the cam axis: centre bore, O-ring groove for #30, three screw lugs.
+ * Gasket #29 and the round seal are features of this part. The three M6 screws are a fastener set.
+ */
+export function camFlangeCoverPart(s: 1 | -1) {
+  const p = new Part();
+  const stack = camNoseStack(s);
+  const cx = CAM_X * s;
+  const C = CAM_COVER;
+  const t = C.t;
+  const g0 = (t - C.grooveW) / 2, g1 = g0 + C.grooveW;
+  const body = yToZ(lathe([
+    [C.boreR, 0], [C.bodyR, 0], [C.bodyR, g0], [C.grooveRoot, g0], [C.grooveRoot, g1],
+    [C.bodyR, g1], [C.bodyR, t], [C.boreR, t], [C.boreR, 0],
+  ], 48));
+  body.translate(cx, 0, stack.cover0);
+  p.add(body, 'castAlu');
+  for (const deg of C.angles) {
+    const b = camCoverBolt(s, deg);
+    let lug: THREE.BufferGeometry = extrude(annularSector(C.lugRi, C.lugRo, b.a - C.lugHalf, b.a + C.lugHalf, 6), t, 0, 1);
+    lug.translate(cx, 0, stack.cover0);
+    const hole = yToZ(cyl(3.3, t + 2, 12)).translate(b.x, b.y, stack.cover0 + t / 2);
+    lug = clearOfPulleyPad(csgSub(lug, hole), s);
+    p.add(lug, 'castAlu');
+  }
+  p.add(coverGasketGeom(s), 'gasket');
+  // 999 701 468 40, 67.5 × 75.4 × 4. Centreline radius (67.5 + 75.4) / 4, section radius 2.
+  p.add(torus(35.725, 2, 10, 48), 'rubber', [cx, 0, (stack.cover0 + stack.cover1) / 2]);
   return p.g;
 }
 export const SMALL_GEOM: Record<string, SmallGeom> = {};
@@ -121,11 +166,15 @@ for (const s of BANKS) {
     const tail = lip + N.pin.proud - N.pin.len;
     return [M(V(Xc + N.pin.rad * Math.cos(N.pin.a) * s, N.pin.rad * Math.sin(N.pin.a), zc + tail), Z)];
   });
-  def(`cam-shim-${b}`, () => { const sh = new THREE.Shape(); sh.absarc(0, 0, N.r + 8, 0, Math.PI * 2, false);
-    const kb = N.key.b / 2 + 0.05, a = Math.asin(kb / (N.r + 0.05)); const bore = new THREE.Path();
-    bore.absarc(0, 0, N.r + 0.05, Math.PI / 2 + a, Math.PI / 2 - a + 2 * Math.PI, false); bore.lineTo(kb, N.r + N.key.proud + 0.4); bore.lineTo(-kb, N.r + N.key.proud + 0.4); bore.closePath(); sh.holes.push(bore);
-    const g = extrudeC(sh, N.shim); g.translate(0, 0, N.shim / 2); return new Part().add(g, 'steel'); }, () => [new THREE.Matrix4().makeTranslation(Xc, 0, zc + N.flange[1])]);
-  def(`cam-thrust-washer-${b}`, () => washer(N.r + 0.2, 22, 2.5, 'bronze'), () => [M(V(Xc, 0, zc + N.flange[0] - 2.5), Z)]);
+  def(`cam-shim-${b}`, () => {
+    const ro = 22, ri = N.r + 0.2, n = 40;
+    const pts: [number, number][] = [];
+    for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; pts.push([ro * Math.cos(a), ro * Math.sin(a)]); }
+    for (let i = 0; i <= n; i++) { const a = -(i / n) * Math.PI * 2; pts.push([ri * Math.cos(a), ri * Math.sin(a)]); }
+    const g = extrudeC(polyShape(pts), N.shim); g.translate(0, 0, N.shim / 2);
+    return new Part().add(g, 'steel');
+  }, () => [new THREE.Matrix4().makeTranslation(Xc, 0, camNoseStack(s).shim0)]);
+  def(`cam-thrust-washer-${b}`, () => washer(N.r + 0.2, 22, N.thrust, 'bronze'), () => [M(V(Xc, 0, camNoseStack(s).thrust0), Z)]);
   // chain drive extras
   const T = tensionerLayout(s), z = CHAIN_Z[s];
   def(`idler-circlip-${b}`, () => clip(7, 9.5, 1), () => [M(V(T.pivot.x, T.pivot.y, z - 18.5), Z)]);
@@ -162,24 +211,6 @@ for (const s of BANKS) {
   def(`cam-splash-tube-${b}`, () => new Part().add(cyl(3.5, CH_Z1 - CH_Z0 - 40, 14).translate(0, (CH_Z1 - CH_Z0 - 40) / 2, 0), 'steel'), () => [M(V((CAM_X + 18) * s, 24, CH_Z0 + 20), Z)]);
   def(`cam-housing-stoppers-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, -4], [5, -4], [5, 0], [5.5, 0], [5.5, 1.2], [0.1, 1.2]], 18), 'steel'); return p; }, () => [-1, 1].map((k) => onSurf(`cam-housing-${b}`, V(Xc - 24 * s, 24 * k, CH_Z0 - 60), Z)));
   def(`cam-oil-banjo-${b}`, () => { const p = banjo(); p.add(lathe([[5, 21], [8, 21], [8, 22.5], [5, 22.5]], 20), 'brass'); p.add(lathe([[5, 22.5], [8, 22.5], [8, 24], [5, 24]], 20), 'brass'); p.add(lathe([[0.1, 24], [6, 24], [6, 32], [0.1, 32]], 16), 'zincPlate'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc - 14 * s, -36, CH_Z0 - 80), Z, V(s, 0, 0))]);
-}
-/** Adjuster cover centre: first point along the adjuster axis where an r 30 disc lies on the lid, clear of the cover nuts, the lid-centre studs and the lid bosses (build time). */
-export function adjusterCover(s: 1 | -1) {
-  const T = tensionerLayout(s); const b = bn(s);
-  const blocks = [
-    { x: T.adjBase.x + T.axis.x * 30, y: T.adjBase.y + T.axis.y * 30, r: 14 },
-    { x: T.pivot.x, y: T.pivot.y, r: 14 },
-  ];
-  for (let d = 0; d <= 90; d += 2) for (const side of [0, 6, -6, 12, -12]) {
-    const c = T.adjBase.clone().add(T.axis.clone().multiplyScalar(d)).add(new THREE.Vector2(-T.axis.y, T.axis.x).multiplyScalar(side));
-    if (chainCoverBolts(s).some((q) => Math.hypot(q.x - c.x, q.y - c.y) < 30 + 12)) continue;
-    // M8 lid-centre nuts (across-corners ~7.5) and the studs that the housing carries up to them
-    if (chainLidStations(s).some((q) => Math.hypot(q.x - c.x, q.y - c.y) < 30 + 10)) continue;
-    if (blocks.some((q) => Math.hypot(q.x - c.x, q.y - c.y) < 30 + q.r)) continue;
-    let ok = true; for (let i = 0; i < 12 && ok; i++) { const a = (i / 12) * Math.PI * 2; const h = probe(`chain-housing-lid-${b}`, V(c.x + 30 * Math.cos(a), c.y + 30 * Math.sin(a), 400), V(0, 0, -1)); if (!h || Math.abs(h.point.z - CHAIN_LID.top) > 0.3) ok = false; }
-    if (ok) return c;
-  }
-  throw new Error('adjusterCover: no spot');
 }
 def('cam-temp-switch', () => sender(9, 10, 19), () => [onSurf('cam-housing-left', V(-CAM_X + 14, 36, CH_Z0 - 80), Z)]);
 
