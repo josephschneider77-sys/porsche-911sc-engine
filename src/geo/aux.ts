@@ -504,8 +504,12 @@ export const OIL_COOLER = {
   y0: -232, y1: -92,
   /** Core, 195 mm along Z. Flywheel end is beside the ring gear (gear face z −221). */
   z0: -198, z1: -3,
-  /** Outboard face of the pressed cover. 80 mm from the flange face. Stays inboard of the plug leads (inner surface x ≈ 166). */
-  x1: 162,
+  /**
+   * Outboard face of the pressed cover. 80 mm from the flange's outboard face
+   * (x 90). The heat exchanger closes in at about x 174, so this is the full
+   * core that still clears it. Right-bank plug leads run further out.
+   */
+  x1: 170,
   /** Four stud ears. [y, z]. Inset from the core edge so the hole stays on the flange. Same as the case pad. */
   studs: [[-216, -182], [-216, -19], [-108, -182], [-108, -19]] as [number, number][],
   /**
@@ -514,8 +518,8 @@ export const OIL_COOLER = {
    * big 0 = 999 704 172 50 (22×17).
    */
   ports: [[-190, -170, 1], [-172, -95, 0], [-154, -20, 0]] as [number, number, number][],
-  /** Plate pitch. No published fin count. */
-  finPitch: 2.3,
+  /** Plate 1.8 mm, dark gap 0.7 mm. No published fin count; pitch is about 2.5 mm. */
+  finPitch: 2.5,
 };
 export function oilCooler() {
   const p = new Part();
@@ -533,57 +537,86 @@ export function oilCooler() {
     ear.holes.push(circlePath(5.0) as THREE.Path);
     p.add(extrudeC(ear, C.foot).rotateY(Math.PI / 2), 'castAlu', [C.faceX + C.foot / 2, y, z]);
   }
-  // End tanks and the fin stack start on the flange's outboard face. Each stud ear
-  // carries an M8 nut (tip ≈ x 100), so the core is notched r 13 around the four studs.
-  const xA = C.faceX + C.foot, xB = C.x1 - 2.6;
-  const zTank = 14;
-  const nutCut = C.studs.map(([y, z]) => yToX(cyl(13, 28, 16)).translate(xA + 6, y, z));
-  const cutNuts = (geo: THREE.BufferGeometry) => csgSub(geo, ...nutCut);
-  p.add(cutNuts(boxMM([xA, C.y0 + 1, C.z0], [xB, C.y1 - 1, C.z0 + zTank])), 'castAlu');
-  p.add(cutNuts(boxMM([xA, C.y0 + 1, C.z1 - zTank], [xB, C.y1 - 1, C.z1])), 'castAlu');
+  // Photo: long axis along the crank, flange on the case, ribbed cover facing outboard,
+  // riser at the flywheel end beside the ring gear. Air from the shroud goes through
+  // the open top and bottom. End tanks close the Z ends. The cover is only the outboard face.
+  // Fins start outboard of the M8 nuts (nut tip ≈ x 97) so the pack is not notched.
+  // Full-depth pack starts just outboard of the flange. Around each stud the pack
+  // steps out past the M8 nut (seat x 90, access probe ~11 mm).
+  const xDeep = C.faceX + C.foot + 2, xNut = 108, xSkin = C.x1 - 2.4;
+  const zTank = 22;
   const zFin0 = C.z0 + zTank, zFin1 = C.z1 - zTank;
-  const zSpans = (y0: number, y1: number): [number, number][] => {
+  const clearOfNuts = (z0: number, z1: number, y0: number, y1: number) =>
+    C.studs.every(([sy, sz]) => y1 < sy - 11 || y0 > sy + 11 || z1 < sz - 11 || z0 > sz + 11);
+  // Headers stop short of the outboard corner so the plate edges show on the end, as in the photo.
+  // They also stay off the stud axes.
+  for (const [z0, z1] of [[C.z0, C.z0 + zTank], [C.z1 - zTank, C.z1]] as [number, number][]) {
+    const x0 = clearOfNuts(z0, z1, C.y0, C.y1) ? xDeep : xNut;
+    p.add(boxMM([x0, C.y0 + 6, z0], [xSkin - 14, C.y1 - 6, z1]), 'castAlu');
+  }
+  const plateT = 1.8, gapT = C.finPitch - 1.8;
+  const spansFor = (y0: number, y1: number): [number, number, number][] => {
     let spans: [number, number][] = [[zFin0, zFin1]];
     for (const [sy, sz] of C.studs) {
-      if (y1 < sy - 13 || y0 > sy + 13) continue;
-      const a = sz - 13, b = sz + 13;
-      spans = spans.flatMap(([u, v]) => {
-        const out: [number, number][] = [];
-        if (v <= a || u >= b) return [[u, v]];
-        if (u < a - 0.4) out.push([u, a]);
-        if (v > b + 0.4) out.push([b, v]);
-        return out;
-      });
+      if (y1 < sy - 11 || y0 > sy + 11) continue;
+      const a = sz - 11, b = sz + 11;
+      const next: [number, number][] = [];
+      for (const [u, v] of spans) {
+        if (v <= a || u >= b) { next.push([u, v]); continue; }
+        if (u < a - 0.4) next.push([u, Math.min(v, a)]);
+        if (v > b + 0.4) next.push([Math.max(u, b), v]);
+      }
+      spans = next.filter(([u, v]) => v - u > 1.5);
     }
-    return spans.filter(([u, v]) => v - u > 1.5);
+    const deep = spans.map(([u, v]) => [xDeep, u, v] as [number, number, number]);
+    // The notched bands still carry plates, started outboard of the nut.
+    for (const [sy, sz] of C.studs) {
+      if (y1 < sy - 11 || y0 > sy + 11) continue;
+      const u = Math.max(zFin0, sz - 11), v = Math.min(zFin1, sz + 11);
+      if (v - u > 1.5) deep.push([xNut, u, v]);
+    }
+    return deep;
   };
-  for (let y = C.y0 + 3; y < C.y1 - 3.2; y += C.finPitch) {
-    for (const [u, v] of zSpans(y, y + 0.55)) p.add(boxMM([xA + 2, y, u], [xB, y + 0.55, v]), 'machinedAlu');
+  for (let y = C.y0 + 1.5; y + plateT < C.y1 - 1.2; y += C.finPitch) {
+    for (const [x0, u, v] of spansFor(y, y + plateT)) {
+      p.add(boxMM([x0, y, u], [xSkin - 0.6, y + plateT, v]), 'machinedAlu');
+    }
+    const gy = y + plateT;
+    if (gy + gapT >= C.y1 - 1.2) continue;
+    for (const [x0, u, v] of spansFor(gy, gy + gapT)) {
+      p.add(boxMM([x0 + 1.4, gy, u + 0.6], [xSkin - 2.2, gy + gapT, v - 0.6]), 'darkSteel');
+    }
   }
-  // Pressed cover: three ribs and a stamped BEHR label.
-  const cover = boxMM([C.x1 - 2.4, C.y0 + 2, C.z0 + 2], [C.x1, C.y1 - 2, C.z1 - 2]);
-  const plaque = boxMM([C.x1 - 1.3, yMid - 14, zMid - 28], [C.x1 + 1, yMid + 14, zMid + 28]);
+  // Pressed cover, outboard face only. Inset so the plate edges still read above and below it.
+  const cover = boxMM([C.x1 - 2.2, C.y0 + 16, zFin0 + 2], [C.x1, C.y1 - 16, zFin1 - 2]);
+  const plaque = boxMM([C.x1 - 1.2, yMid - 14, zMid - 28], [C.x1 + 1.2, yMid + 14, zMid + 28]);
   p.add(csgSub(cover, plaque), 'castAlu');
   for (const y of [yMid - 36, yMid, yMid + 36]) {
-    p.add(boxMM([C.x1 - 0.3, y - 2.2, C.z0 + 10], [C.x1 + 1.6, y + 2.2, C.z1 - 10]), 'castAlu');
+    p.add(boxMM([C.x1 - 0.4, y - 2.2, zFin0 + 6], [C.x1 + 1.8, y + 2.2, zFin1 - 6]), 'castAlu');
   }
+  // From outside (+X looking toward the case) screen-left is +Z, so the word runs toward −Z
+  // and each glyph's stem is on the +Z side. The other way reads RHEB.
   const sc = 1.8, adv = 6.4 * sc;
-  const zWord = zMid - 1.5 * adv;
+  const zWord = zMid + 1.5 * adv;
   for (const [i, ch] of [...'BEHR'].entries()) {
     for (const [ax, ay, bx, by] of BEHR[ch]) {
-      const zA = zWord + i * adv + ax * sc, yA = yMid + (ay - 3) * sc;
-      const zB = zWord + i * adv + bx * sc, yB = yMid + (by - 3) * sc;
-      p.add(cylBetween([C.x1 + 0.15, yA, zA], [C.x1 + 0.15, yB, zB], 0.55, 5), 'machinedAlu');
+      const zA = zWord - (i * adv + ax * sc), yA = yMid + (ay - 3) * sc;
+      const zB = zWord - (i * adv + bx * sc), yB = yMid + (by - 3) * sc;
+      p.add(cylBetween([C.x1 + 0.2, yA, zA], [C.x1 + 0.2, yB, zB], 0.55, 5), 'machinedAlu');
     }
   }
-  // Suction riser, Ø22. Steps out past the M8 nuts, then up the flywheel end.
+  // Suction riser, Ø22, on the flywheel end (the big port). Up past the core.
   const big = C.ports.find((q) => q[2] === 1)!;
-  const rx = xA + 28, rz = big[1] + 12, yTop = -36;
-  p.add(cylBetween([xA + 2, big[0], big[1]], [rx, big[0] + 10, rz], 8, 12), 'castAlu');
-  p.add(cylBetween([rx, big[0] + 8, rz], [rx, yTop, rz], 11, 18), 'castAlu');
-  // Barb, then a square-cut stub of 911 107 233 00. No hex fitting.
-  p.add(lathe([[7.2, 0], [11.2, 0], [11.2, 3], [8.4, 5], [8.4, 9], [11.6, 11], [11.6, 13], [7.2, 15]], 20), 'machinedAlu', [rx, yTop, rz]);
-  p.add(cyl(9.2, 28, 18), 'rubber', [rx, yTop + 29, rz]);
+  const rx = xDeep + 22, rz = big[1] + 10, yTop = C.y1 + 48;
+  p.add(cylBetween([C.faceX + C.foot + 1, big[0], big[1]], [rx, big[0] + 8, rz], 8, 12), 'castAlu');
+  p.add(cylBetween([rx, big[0] + 6, rz], [rx, yTop, rz], 11, 16), 'castAlu');
+  // Hex union on the tube, hose barb above it, square-cut stub of 911 107 233 00 on the barb.
+  p.add(hexNut(19, 8), 'zincPlate', [rx, yTop + 4, rz]);
+  p.add(lathe([
+    [5.5, 0], [8.4, 0], [8.4, 2.4],
+    [5.3, 4], [5.3, 9.2], [7.8, 11.4], [5.1, 13.4],
+  ], 16), 'zincPlate', [rx, yTop + 8, rz]);
+  p.add(lathe([[6.5, 3], [10.4, 3], [10.4, 28], [6.5, 28]], 18), 'rubber', [rx, yTop + 11, rz]);
   return p.g;
 }
 /**
@@ -1202,7 +1235,9 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
   // x -216, where the sheet has ended and the chain housing (z 212) has not started.
   const zDrop = s > 0 ? -190 : 192 + lane * 4;
   const xOut = s * (214 + lane * 4); // left drop, inboard of the cam housing
-  const xUnder = s * (170 + lane * 10);
+  // Right bank sits outboard of the oil-cooler cover (x 170), above the heat-exchanger
+  // shell. The old run at x 170 was what kept the core from reaching its depth.
+  const xUnder = s > 0 ? 200 + lane * 6 : s * (170 + lane * 10);
   // The rail is the inboard shroud line. Out past |x| ≈ 160 the runners drop through the wing.
   // Below the oil-return tubes (centre y -78, radius 7) and above the heat-exchanger shell.
   const yUnder = Math.max(-98 - lane * 6, boot.y + 18);
