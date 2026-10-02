@@ -76,13 +76,17 @@ export const TEE_AIR_INJ = {
   axis: [0, -1, 0] as V3,
 };
 /**
- * Ported-vacuum nipple on the throttle housing (107-10 #4). Seat for the EGR hose
- * 202-05 #16 (999 239 003 40, 770 mm). That illustration is not in the extract.
- * Point is THROTTLE.y + 8, THROTTLE.zFace + 18. Axis points out toward the pulley.
+ * Ported-vacuum nipple on throttle housing 930 110 248 02 (107-10 #4, Kat 502 p.110).
+ * Seat for the EGR hose 202-05 #16 (999 239 003 40, 770 mm). That illustration is
+ * not in the extract. On fig 107-10 the takeoff is a nipple on the housing body,
+ * beside the bore, not a pulley-face stub aimed at the fan. A +Z nipple on the
+ * lever pad meets the alternator slip-ring shield at z 164, 18 mm off the tip.
+ * This one leaves the left side of the barrel on −X, 90° from +Z, so the hose
+ * has a straight lead-in clear of that shield.
  */
 export const THROTTLE_PORTED_VAC = {
-  point: [36, THROTTLE.y + 8, THROTTLE.zFace + 18] as V3,
-  axis: [0, 0, 1] as V3,
+  point: [-48, 210, 110] as V3,
+  axis: [-1, 0, 0] as V3,
 };
 /** Auxiliary air valve mount. Prototype +Y is world −Z; the two barbs are prototype ±X. */
 export const AAV_MOUNT = { origin: [52, 200, -95.6] as V3, normal: [0, 0, -1] as V3 };
@@ -1234,12 +1238,19 @@ export function throttleHousingPart() {
   p.add(spring(5.5, 0.55, -8, 8, 4).rotateZ(Math.PI / 2).translate(-18, y, 106), 'darkSteel');
   // Lever pad. Top face y 236.6 is the linkage plate's seat. Nothing of the housing is above it there.
   p.add(boxMM([28, 228, 106], [50, 236.6, 120]), 'castAlu');
-  // Ported-vacuum nipple. Tip and axis are THROTTLE_PORTED_VAC. The last run is +Z
-  // so the seat faces the pulley, where 202-05 #16 arrives. The root cap sits on the lever pad (z 120).
+  // Ported-vacuum nipple. Tip and axis are THROTTLE_PORTED_VAC. The run is −X, outboard
+  // of the bore (107-10 #4), and the root sits on the barrel wall. The ring is 3 mm inboard of the tip.
   {
     const pv = THROTTLE_PORTED_VAC.point;
-    p.add(cylBetween([pv[0], pv[1], 120], pv, 3.2, 12), 'brass');
-    p.add(torus(4.6, 0.7, 6, 14).translate(pv[0], pv[1], pv[2] - 3), 'zincPlate');
+    const ax = THROTTLE_PORTED_VAC.axis;
+    const barrelR = 28;
+    const dy = pv[1] - y;
+    const rootX = -Math.sqrt(barrelR * barrelR - dy * dy);
+    p.add(cylBetween([rootX, pv[1], pv[2]], pv, 3.2, 12), 'brass');
+    const ring = torus(4.6, 0.7, 6, 14);
+    ring.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...ax)));
+    ring.translate(pv[0] - ax[0] * 3, pv[1] - ax[1] * 3, pv[2] - ax[2] * 3);
+    p.add(ring, 'zincPlate');
   }
   // 4 × M6 heads. Angles keep them off the vacuum hose that climbs past the top of the flange.
   for (const a of [0.75, 2.3, 3.95, 5.35]) {
