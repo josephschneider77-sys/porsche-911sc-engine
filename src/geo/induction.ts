@@ -66,9 +66,10 @@ export const PLENUM_AUX = { tip: [32, 180, -134] as V3, axis: [0, 0, -1] as V3 }
 export const MANIFOLD_VAC = { tip: [-30, 268, 40] as V3, axis: [0, 1, 0] as V3 };
 /**
  * Spare branch of the vacuum tee (107-10 #14). Seat for the diverter-valve hose
- * 108-00 #31 (999 239 003 40). That hose is Bottom End's air-hose-vacuum; this
- * model keeps the barb and does not draw a line off it. The tee already reaches
- * MANIFOLD_VAC. Axis points out of the fitting, down, the way that hose leaves.
+ * 108-00 #31 (999 239 003 40). Since #35 (b138b39), Bottom End's air-hose-vacuum
+ * seats on TEE_AIR_INJ [−86, 328, −16], axis [0, −1, 0]. Bottom End is also adding
+ * a rubber vacuum cap on that barb, shown when the "Emissions equipment" toggle is off.
+ * The tee already reaches MANIFOLD_VAC.
  */
 export const TEE_AIR_INJ = {
   point: [-86, 328, -16] as V3,
@@ -1102,8 +1103,9 @@ export function serviceHoses(): FuelLineDef[] {
   return [
     { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis) },
     { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
-    // Three small hoses (3.2×7): manifold, limiter, distributor. TEE_AIR_INJ is the
-    // handoff for 108-00 #31; no hose leaves that barb in this model.
+    // Three small hoses (3.2×7): manifold, limiter, distributor. Since #35 (b138b39),
+    // Bottom End's air-hose-vacuum seats on TEE_AIR_INJ [−86, 328, −16], axis [0, −1, 0].
+    // A rubber vacuum cap on that barb shows when the "Emissions equipment" toggle is off.
     { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: on(t.minusX.tip, t.minusX.axis) },
     { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
     { id: 'vac-distributor', part: 'vacuum-fittings', a: on(VAC_THERMO.dist.tip, VAC_THERMO.dist.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
