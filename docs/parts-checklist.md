@@ -16,11 +16,11 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 
 | status | lines |
 |---|---|
-| modelled | 500 |
+| modelled | 501 |
 | N/A (with reason) | 154 |
 | alternative rows | 228 |
 | excluded (not this engine) | 201 |
-| **MISSING** | 1 |
+| **MISSING** | 0 |
 | countable lines (all but excluded) | 883 |
 
 ## 101-05: Crankcase, left
@@ -756,7 +756,7 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 1 | 930 106 041 13 | Air guide | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 999 507 003 02 | Speed nut | 5 | modelled | `shroud-speed-nuts` |
 | 2 | 999 507 003 01 | Speed nut | 5 | alt | alternative to 105-05 #2 |
-| 3 | 911 106 406 00 | Air guide | 1 | **MISSING** | air duct for the front oil cooler (911 106 406 00, trade 911 106 406 01), right front fender, not on the engine and not the CIS intake air guide |
+| 3 | 911 106 406 00 | Air guide | 1 | modelled | `cooler-air-guide` |
 | 4 | 930 106 326 01 | Hot air socket | 1 | modelled | `upper-air-guide` socket |
 | 5 | 911 106 327 00 | Hot air socket | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 6 | 911 106 036 01 | Cover plate | 1 | modelled | `shroud-cover-plate` |
@@ -993,7 +993,7 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 17 | 911 113 117 02 | Air cleaner | 1 | modelled | `air-pump-cleaner` |
 | 18 | 911 113 145 02 | Union | 6 | N/A | air-tube unions: Top End builds the air tube (108-00 #20) and its fittings |
 | 19 | 900 123 033 20 | Sealing ring | 6 | N/A | sealing rings on the air tube: Top End, with the tube |
-| 20 | 911 113 043 01 | Air tube | 1 | N/A | air tube: Top End. The check valve waits on AIR_CHECK_VALVE_OUTLET for an upward M24 spigot |
+| 20 | 911 113 043 01 | Air tube | 1 | N/A | air tube: Top End. It starts at AIR_CHECK_VALVE_OUTLET. The valve outlet points down; the tube spigot points the other way, up into the hex |
 | 21 | 900 123 060 30 | Sealing ring | 1 | modelled | `air-sealing-ring` |
 | 22 | 930 113 147 01 | Diverter valve | 1 | modelled | `air-diverter` |
 | 23 | 930 113 146 01 | Support | 1 | modelled | `air-diverter-support` |

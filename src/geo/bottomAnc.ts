@@ -6,7 +6,8 @@
 import * as THREE from 'three';
 import { VARIANT } from '../data/variant';
 import { CYL_Z } from '../data/layout';
-import { FAN, AIR_CHECK_VALVE_OUTLET } from './aux';
+import { FAN, AIR_CHECK_VALVE_OUTLET, CHECK_HEX_H, heaterStub, EGR_FEED_PORT } from './aux';
+import { THROTTLE } from './induction';
 import { frame } from './instancing';
 import { Part, cyl, cylBetween, lathe, box, boxMM, hexNut, tube, torus, yToZ, yToX, type V3 } from './util';
 
@@ -94,11 +95,18 @@ export function airRetainer() {
 export function airCheckValve() {
   const p = new Part();
   const [x, y, z] = AIR_CHECK_VALVE_OUTLET.point;
-  // Vertical: hex outlet down, its bottom face 4 mm above the spigot point so ring #21 can sit between.
-  p.add(hexNut(27, 14), 'yellowZinc', [x, y + 12, z]);
-  p.add(cyl(12, 22, 20), 'castAlu', [x, y + 28, z]);
-  p.add(cyl(7, 14, 12), 'castAlu', [x, y + 46, z]);
+  const h = CHECK_HEX_H;
+  // `point` is the bottom face. The hex cylinder is centred, so its centre is h/2 above that face.
+  // Outlet points down (AIR_CHECK_VALVE_OUTLET.direction). Inlet nipple points up.
+  p.add(hexNut(27, h), 'yellowZinc', [x, y + h / 2, z]);
+  p.add(cyl(12, 22, 20), 'castAlu', [x, y + h + 11, z]);
+  p.add(cyl(7, 16, 12), 'castAlu', [x, y + h + 30, z]);
   return p.g;
+}
+/** Top of the check-valve inlet nipple. The hose from the diverter ends here. */
+export function checkValveInlet(): V3 {
+  const [x, y, z] = AIR_CHECK_VALVE_OUTLET.point;
+  return [x, y + CHECK_HEX_H + 30 + 8, z];
 }
 export function airDiverter() {
   const p = new Part();
@@ -107,8 +115,39 @@ export function airDiverter() {
   p.add(yToX(cyl(7, 16, 12)), 'castAlu', [-164, 26, 448]);
   p.add(cyl(7, 16, 12), 'castAlu', [-142, 48, 448]);
   p.add(yToZ(cyl(7, 20, 12)), 'castAlu', [-142, 26, 472]);
+  // Two vacuum nipples on the inboard face, clear of the support ear (ear starts z 440).
+  // Upper: air-injection hose 108-00 #31. Lower: one EGR hose 202-05 #17.
+  p.add(yToX(cyl(3.2, 14, 10)), 'castAlu', [-116, 22, 432]);
+  p.add(yToX(cyl(3.2, 14, 10)), 'castAlu', [-116, 12, 432]);
   return p.g;
 }
+/** Free end of the diverter vacuum nipple (axis +X). The air-injection hose slides on along −X. */
+export const DIVERTER_VAC: V3 = [-109, 22, 432];
+/** Lower nipple, same axis. One EGR vacuum hose (202-05 #17) seats here. */
+export const DIVERTER_VAC_EGR: V3 = [-109, 12, 432];
+
+/**
+ * Handoff for the air-injection vacuum hose (108-00 #31).
+ * Above the existing CIS vacuum harness. The manifold nipple `MANIFOLD_VAC` and the
+ * vacuum tee already occupy the air between them, so this hose stops in the clear band
+ * over that harness (fuel lines top out near y 321, the lower air-cleaner shell starts
+ * near y 336). Intake & Fuel seats a branch from `MANIFOLD_VAC` / the vacuum tee on this point.
+ */
+export const AIR_INJ_VAC_PORT = {
+  point: [-86, 328, -16] as V3,
+  axis: [0, -1, 0] as V3,
+  mates: 'plenum MANIFOLD_VAC / vacuum-fittings tee',
+};
+/**
+ * Handoff for the long EGR vacuum hose (202-05 #16).
+ * Aft of the throttle face (z 128) and clear of the plenum box (ends z 95).
+ * Intake & Fuel owns the ported-vacuum nipple on the throttle body; this is where that nipple meets the hose.
+ */
+export const EGR_VAC_PORT = {
+  point: [36, THROTTLE.y + 8, THROTTLE.zFace + 18] as V3,
+  axis: [0, 0, 1] as V3,
+  mates: 'plenum throttle, ported vacuum',
+};
 export function airDiverterSupport() {
   const p = new Part();
   // Plate shares the valve's bottom face. The ear shares the inboard face, clear of the inlet nipple.
@@ -151,20 +190,30 @@ export function egrValve() {
   p.add(cyl(22, 36, 24), 'castAlu', [e.x, e.y + 10, e.z]);
   p.add(cyl(28, 12, 24), 'castAlu', [e.x, e.y + 32, e.z]);
   p.add(cyl(6, 14, 10), 'castAlu', [e.x + 18, e.y + 36, e.z]);
+  // Second vacuum barb, offset in Z, for one of the 202-05 #17 hoses.
+  p.add(yToZ(cyl(3.2, 14, 8)), 'castAlu', [e.x + 18, e.y + 40, e.z - 16]);
   // Side port for the sealing rubber, proud of the body.
   p.add(yToZ(cyl(6, 16, 12)), 'castAlu', [e.x, e.y + 10, e.z + 26]);
+  // Inlet and outlet nipples the two pipelines seat on.
+  p.add(yToX(cyl(8, 22, 12)), 'castAlu', [e.x - 26, e.y + 4, e.z]);
+  p.add(yToX(cyl(8, 22, 12)), 'castAlu', [e.x + 26, e.y + 4, e.z]);
   return p.g;
 }
 export function egrPipeFeed() {
   const p = new Part();
   const e = EGR;
-  p.add(tube([[e.x - 28, e.y, e.z], [e.x - 80, e.y - 10, e.z - 40], [e.x - 140, e.y - 6, e.z - 90]], 8, 10, 24), 'aluminized');
+  const f = EGR_FEED_PORT;
+  // From the valve inlet nipple, across, then up the takeoff axis so the pipe is seated on the flange.
+  const nose: V3 = [f.tip[0], f.tip[1] + 16, f.tip[2]];
+  p.add(tube([[e.x - 34, e.y + 4, e.z], [e.x - 90, e.y - 8, e.z - 16], [f.tip[0], f.tip[1] - 28, f.tip[2]], f.tip, nose], 8, 12, 28), 'aluminized');
   return p.g;
 }
 export function egrPipeReturn() {
   const p = new Part();
   const e = EGR;
-  p.add(tube([[e.x + 28, e.y, e.z], [e.x + 90, e.y - 8, e.z + 30], [e.x + 150, e.y - 4, e.z + 70]], 8, 10, 24), 'aluminized');
+  const t = EGR_RETURN_PORT.tip;
+  // From the valve outlet nipple to the converter boss, last run on the boss axis (+Z).
+  p.add(tube([[e.x + 34, e.y + 4, e.z], [e.x + 80, e.y - 16, e.z - 40], [t[0], t[1], t[2] + 36], t, [t[0], t[1], t[2] - 14]], 8, 12, 28), 'aluminized');
   return p.g;
 }
 export function egrBracket() {
@@ -173,6 +222,41 @@ export function egrBracket() {
   p.add(slab([e.x - 30, e.y - 28, e.z - 8], [e.x + 30, e.y - 22, e.z + 8]), 'zincPlate');
   return p.g;
 }
+
+/**
+ * Air guide 911 106 406 00 (105-05 #3). Oil-cooler air duct, riveted to the underside of the
+ * left shroud wing. Stoddard lists the successor 911 106 406 01 as "Air Duct For Oil Cooler".
+ * On the 105-05 drawing it is the small duct under the shroud, open toward the fan, over the
+ * engine oil cooler on the left case. Four rivets (no separate catalogue line) go up into the wing.
+ */
+export function coolerAirGuide() {
+  const p = new Part();
+  // Over the flywheel half of the cooler (z 34–72), inboard of intake runner 4.
+  // The distributor cut in the shroud starts at z 90, so these rivets still find the wing.
+  // Flange up against the left wing (skin underside about y 142–146 here).
+  // Stops at z 48 so it misses the ignition-lead holder at z 60.
+  p.add(slab([-168, 140, 32], [-112, 146.5, 48]), 'shroudRed');
+  p.add(slab([-168, 136, 32], [-164, 146.5, 48]), 'shroudRed');
+  p.add(slab([-116, 136, 32], [-112, 146.5, 48]), 'shroudRed');
+  p.add(slab([-168, 136, 32], [-112, 146.5, 36]), 'shroudRed');
+  p.add(slab([-168, 136, 32], [-112, 139.4, 40]), 'shroudRed');
+  p.add(slab([-168, 136, 42], [-112, 139.4, 48]), 'shroudRed');
+  for (const [x, z] of [[-156, 36], [-124, 36], [-156, 44], [-124, 44]] as [number, number][]) {
+    p.add(cyl(2.4, 16, 10), 'zincPlate', [x, 148, z]);
+  }
+  return p.g;
+}
+
+/** World origin of the catalytic converter (smallParts matrix). */
+const CAT_AT: V3 = [0, -250, -330];
+/**
+ * EGR return fitting on the converter (202-05 #11). Local boss centre (0, 8, 26), length 24 along Z,
+ * so the engine-side face is local z 38. `axis` points out of that face (+Z). The pipe slides on along −Z.
+ */
+export const EGR_RETURN_PORT = {
+  tip: [CAT_AT[0], CAT_AT[1] + 8, CAT_AT[2] + 38] as V3,
+  axis: [0, 0, 1] as V3,
+};
 
 /** Catalytic converter 930 113 228 01. Local frame, placed by the small-part matrix at (0, -250, -330). */
 export function catalyticConverterPart() {
@@ -192,6 +276,9 @@ export function catalyticConverterPart() {
   }
   // Test-port boss on the inlet cone (cap is its own part).
   p.add(cyl(6, 8, 12), 'aluminized', [L / 2 + 8, 14, 0]);
+  // EGR return boss (202-05 #11) on the engine side of the can. Axis +Z; the pipe slides on from +Z.
+  p.add(yToZ(cyl(8, 24, 14)), 'aluminized', [0, 8, 26]);
+  p.add(yToZ(lathe([[8, 0], [14, 0], [14, 3], [8, 3]], 16)), 'aluminized', [0, 8, 14]);
   // Existing front-pipe / clamp features the 202-00 checklist already counts, kept short of the muffler.
   p.add(cylBetween([0, -R, 0], [0, -R - 16, -36], 16, 14), 'aluminized');
   p.add(lathe([[14, 0], [18, 0], [18, 8], [14, 8]], 16).rotateX(-Math.PI / 2), 'heatSteel', [0, -R - 16, -36]);
@@ -206,7 +293,7 @@ const nutAt = (p: Part, x: number, y: number, z: number, af = 13, h = 6) => {
 const hose = (pts: V3[], r: number) => {
   const dense: V3[] = [];
   for (let i = 0; i < pts.length - 1; i++) {
-    const steps = 8;
+    const steps = 24;
     for (let s = 0; s < steps; s++) {
       const t = s / steps;
       dense.push([
@@ -240,29 +327,28 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     // Buffers pressed into the retainer's outboard face, clear of the strap joint.
     def('air-buffer', () => new Part().add(yToX(cyl(6, 16, 12)), 'rubber'), () =>
       [[-192, 183, 352], [-192, 220, 352]].map((q) => M(q as V3)));
+    const inlet = checkValveInlet();
     const pumpHose: V3[] = [[-314, 24, 340], [-350, -10, 400], [-250, -40, 460], [-180, 16, 470], [-168, 26, 448]];
-    const valveHose: V3[] = [[-142, 52, 448], [-180, 80, 470], [-230, 60, 440], [-210, 28, 410], [-210, 0, 400]];
+    const valveHose: V3[] = [[-142, 56, 448], [-180, 80, 430], [inlet[0], inlet[1] + 24, inlet[2] + 20], [inlet[0], inlet[1] + 12, inlet[2]], inlet];
     const dumpHose: V3[] = [[-142, 26, 480], [-100, 8, 510], [-60, -16, 545]];
+    const vac = AIR_INJ_VAC_PORT.point;
+    // Outboard of the pump, up behind the fan, then in above the plenum lid. Last point is the handoff.
+    const vacHose: V3[] = [
+      [-116, 22, 432], [-80, 22, 432], [-80, 50, 490],
+      [-340, 140, 490], [-340, 328, 490], [-340, 328, vac[2]],
+      vac,
+    ];
     def('air-hose-pump', () => new Part().add(hose(pumpHose, 6), 'rubber'), () => [new THREE.Matrix4()]);
     def('air-hose-valve', () => new Part().add(hose(valveHose, 6), 'rubber'), () => [new THREE.Matrix4()]);
     def('air-hose-dump', () => new Part().add(hose(dumpHose, 6), 'rubber'), () => [new THREE.Matrix4()]);
-    def('air-hose-vacuum', () => {
-      const p = new Part();
-      const pts: V3[] = [];
-      for (let i = 0; i <= 24; i++) {
-        const a = (i / 24) * Math.PI * 6;
-        pts.push([-430 + 16 * Math.cos(a), 150 + 16 * Math.sin(a), 460 + i * 1.5]);
-      }
-      p.add(tube(pts, 2.2, 6, 40), 'rubber');
-      return p;
-    }, () => [new THREE.Matrix4()]);
+    def('air-hose-vacuum', () => new Part().add(hose(vacHose, 2.2), 'rubber'), () => [new THREE.Matrix4()]);
     def('air-clamp-pump', () => band(8.2), () => [M(mid(pumpHose[1], pumpHose[2]), along(pumpHose[1], pumpHose[2]))]);
     def('air-clamp-valve', () => band(8.2), () => [M(mid(valveHose[1], valveHose[2]), along(valveHose[1], valveHose[2]))]);
     def('air-clamp-dump', () => band(8.2), () =>
       [M(mid(dumpHose[0], dumpHose[1]), along(dumpHose[0], dumpHose[1])), M(mid(dumpHose[1], dumpHose[2]), along(dumpHose[1], dumpHose[2]))]);
     const [vx, vy, vz] = AIR_CHECK_VALVE_OUTLET.point;
-    def('air-sealing-ring', () => new Part().add(torus(13.2, 1.2, 8, 24).rotateX(Math.PI / 2), 'copper'), () => [M([vx, vy + 1.2, vz] as V3)]);
-    def('air-check-gasket', () => new Part().add(torus(12, 1.2, 8, 20).rotateX(Math.PI / 2), 'rubber'), () => [M([vx, vy + 22, vz] as V3)]);
+    def('air-sealing-ring', () => new Part().add(torus(13.2, 1.2, 8, 24).rotateX(Math.PI / 2), 'copper'), () => [M([vx, vy - 0.4, vz] as V3)]);
+    def('air-check-gasket', () => new Part().add(torus(12, 1.2, 8, 20).rotateX(Math.PI / 2), 'rubber'), () => [M([vx, vy + CHECK_HEX_H + 0.4, vz] as V3)]);
     const pulleyBolt = (i: number): V3 => {
       const a = (i / 4) * Math.PI * 2 + 0.5;
       return [P.x + 22 * Math.cos(a), P.y + 22 * Math.sin(a), FAN.zPumpBelt - 2];
@@ -299,19 +385,36 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     def('egr-buffer', () => new Part().add(cyl(6, 8, 12), 'rubber'), () => [M([e.x, e.y - 34, e.z] as V3)]);
     def('egr-tee', () => new Part().add(cyl(4, 20, 8), 'blackPlastic').add(yToX(cyl(4, 16, 8)), 'blackPlastic'), () => [M([e.x + 18, e.y + 50, e.z] as V3)]);
     def('egr-hose-short', () => new Part().add(hose([[e.x + 18, e.y + 40, e.z], [e.x + 18, e.y + 50, e.z]], 2.2), 'rubber'), () => [new THREE.Matrix4()]);
-    def('egr-hose-long', () => {
-      const pts: V3[] = [];
-      for (let i = 0; i <= 28; i++) {
-        const a = (i / 28) * Math.PI * 8;
-        pts.push([e.x - 40 + 16 * Math.cos(a), e.y - 50, e.z - 20 + i * 3]);
-      }
-      return new Part().add(tube(pts, 2.2, 6, 36), 'rubber');
-    }, () => [new THREE.Matrix4()]);
+    const egrVac = EGR_VAC_PORT.point;
+    // 202-05 #16. Down and out to the right, up behind the fan, in to the throttle handoff.
+    def('egr-hose-long', () => new Part().add(hose([
+      [e.x + 20, e.y + 50, e.z + 5],
+      [e.x + 90, e.y + 10, e.z + 40],
+      [240, -310, 80],
+      [500, -310, 240],
+      [500, -310, 520],
+      [500, 340, 520],
+      [200, 340, 520],
+      [200, 340, 180],
+      [egrVac[0] + 30, egrVac[1] + 24, egrVac[2] + 24],
+      egrVac,
+    ], 2.2), 'rubber'), () => [new THREE.Matrix4()]);
     def('egr-hose-pair', () => {
       const p = new Part();
-      // Leave the tee above the valve body and run clear of the case.
-      p.add(hose([[e.x + 24, e.y + 50, e.z], [e.x + 70, e.y + 70, e.z + 30], [e.x + 110, e.y + 40, e.z + 70]], 2.2), 'rubber');
-      p.add(hose([[e.x + 12, e.y + 56, e.z], [e.x + 40, e.y + 80, e.z - 24], [e.x + 80, e.y + 60, e.z - 60]], 2.2), 'rubber');
+      // One leg on the valve's second barb, offset in Z from the short hose. The other reaches the diverter nipple.
+      p.add(hose([[e.x + 18, e.y + 58, e.z], [e.x + 18, e.y + 70, e.z - 16], [e.x + 18, e.y + 46, e.z - 16]], 2.2), 'rubber');
+      p.add(hose([
+        [e.x + 8, e.y + 50, e.z],
+        [e.x + 8, e.y + 10, e.z - 30],
+        [-80, -400, -40],
+        [-460, -400, -40],
+        [-460, -400, 560],
+        [-460, 120, 560],
+        [-40, 12, 560],
+        [-40, 12, 450],
+        [-80, 12, 432],
+        [-116, 12, 432],
+      ], 2.2), 'rubber');
       return p;
     }, () => [new THREE.Matrix4()]);
     def('egr-fasteners', () => {
@@ -348,28 +451,50 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
   }));
   def('cyl-cover-plate', () => new Part().add(plate(40, 3, 220), 'zincPlate'), () => [1, -1].map((s) =>
     M([s * 55, -208, 0] as V3)));
-  // Heater hoses and clamps (108-10). Far runs stay in the clear air already proven against the exchangers.
+  // Heater hoses (108-10 #10 and #13). Each ends on its exchanger spigot, coaxial, slid past the bead.
   const hb = HEATER_BLOWER;
   const link: V3[] = [[230, hb.y, 340], [280, hb.y, 352], [hb.x, hb.y, hb.z - 34]];
-  const rightH: V3[] = [[hb.x + 6, 72, hb.z + 6], [400, 50, 320], [410, -80, 40], [410, -160, -160], [320, -165, -210]];
-  // Left hose drops first, then runs outboard of the right hose (x 470, y −280) so the two never meet.
-  const leftH: V3[] = [[hb.x - 6, 72, hb.z - 6], [hb.x - 6, 20, 380], [470, -20, 280], [470, -280, -60], [0, -280, -60], [-470, -280, -60], [-330, -190, -210]];
-  def('heater-dist-piece', () => new Part().add(cyl(11, 24, 16), 'blackPlastic'), () => [M([hb.x, hb.y - 54, hb.z] as V3)]);
+  const rightStub = heaterStub(1), leftStub = heaterStub(-1);
+  const hoseR = 15;
+  const seat = (stub: ReturnType<typeof heaterStub>, depth = 18): V3 => [stub.tip[0], stub.tip[1], stub.tip[2] - depth];
+  const rightH: V3[] = [
+    [hb.x + 18, 64, hb.z], [hb.x + 36, 64, hb.z],
+    [440, 20, 430], [440, -310, 360],
+    [rightStub.tip[0], -310, 320],
+    [rightStub.tip[0], rightStub.tip[1], 300],
+    rightStub.tip, seat(rightStub),
+  ];
+  const leftH: V3[] = [
+    [hb.x - 18, 64, hb.z], [hb.x - 36, 40, hb.z - 20],
+    [520, -20, 400], [520, -240, 220],
+    [-520, -240, 160],
+    [leftStub.tip[0], -240, 250],
+    [leftStub.tip[0], leftStub.tip[1], 300],
+    leftStub.tip, seat(leftStub),
+  ];
+  def('heater-dist-piece', () => {
+    const p = new Part();
+    // Cross-piece below the blower outlet, with a neck seated in that outlet.
+    p.add(yToX(cyl(14, 56, 16)), 'blackPlastic');
+    p.add(cyl(12, 30, 12), 'blackPlastic', [0, 16, 0]);
+    return p;
+  }, () => [M([hb.x, 64, hb.z] as V3)]);
   def('heater-socket', () => new Part().add(yToX(cyl(11, 18, 14)), 'castAlu').add(boxMM([-6, 18, -6], [6, 28, 6]), 'castAlu'), () => [M([236, hb.y, 340] as V3)]);
   def('heater-hose-link', () => new Part().add(hose(link, 9), 'rubber'), () => [new THREE.Matrix4()]);
-  def('heater-hose-right', () => new Part().add(hose(rightH, 8), 'rubber'), () => [new THREE.Matrix4()]);
-  def('heater-hose-left', () => new Part().add(hose(leftH, 7), 'rubber'), () => [new THREE.Matrix4()]);
-  def('heater-hose-supports', () => band(10), () => [
-    M(mid(rightH[1], rightH[2]), along(rightH[1], rightH[2])),
-    M(mid(leftH[2], leftH[3]), along(leftH[2], leftH[3])),
+  def('heater-hose-right', () => new Part().add(hose(rightH, hoseR), 'rubber'), () => [new THREE.Matrix4()]);
+  def('heater-hose-left', () => new Part().add(hose(leftH, hoseR), 'rubber'), () => [new THREE.Matrix4()]);
+  def('heater-hose-supports', () => band(18), () => [
+    M(mid(rightH[2], rightH[3]), along(rightH[2], rightH[3])),
+    M(mid(leftH[3], leftH[4]), along(leftH[3], leftH[4])),
   ]);
   def('heater-clamp-sp', () => band(12.5), () => [M(at(link[0], link[1], 0.72), along(link[0], link[1]))]);
   def('heater-clamp-band', () => band(11.5), () => [
+    M(at(link[0], link[1], 0.35), along(link[0], link[1])),
     M(at(link[1], link[2], 0.28), along(link[1], link[2])),
-    M(at(rightH[0], rightH[1], 0.62), along(rightH[0], rightH[1])),
   ]);
-  def('heater-clamps', () => band(10), () => {
-    const segs: [V3, V3][] = [[rightH[2], rightH[3]], [rightH[3], rightH[4]], [leftH[2], leftH[3]], [leftH[3], leftH[4]], [leftH[4], leftH[5]], [leftH[5], leftH[6]]];
+  def('heater-clamps', () => band(17), () => {
+    const last = (h: V3[]): [V3, V3] => [h[h.length - 2], h[h.length - 1]];
+    const segs: [V3, V3][] = [last(rightH), last(leftH), [rightH[0], rightH[1]], [leftH[0], leftH[1]], [rightH[3], rightH[4]], [leftH[4], leftH[5]]];
     return segs.map(([a, b]) => M(mid(a, b), along(a, b)));
   });
   def('heater-blower-hardware', () => {

@@ -303,7 +303,7 @@ export const NOT_APPLICABLE: NotApplicable[] = [
   { line: '104-00#37#930 107 347 04', why: 'oil hose whose extracted notes mix an up-to band and a later from-engine band; oil-line routing is outside this bottom-end pass' },
   { line: '108-00#18', why: 'air-tube unions: Top End builds the air tube (108-00 #20) and its fittings' },
   { line: '108-00#19', why: 'sealing rings on the air tube: Top End, with the tube' },
-  { line: '108-00#20', why: 'air tube: Top End. The check valve waits on AIR_CHECK_VALVE_OUTLET for an upward M24 spigot' },
+  { line: '108-00#20', why: 'air tube: Top End. It starts at AIR_CHECK_VALVE_OUTLET. The valve outlet points down; the tube spigot points the other way, up into the hex' },
   { line: '108-00#35', why: 'same pulley as 105-00 #8 (fan-pulley 911 106 208 00); the outer groove is on that part' },
   { line: '202-00#6A', why: 'oxygen sensor 911 606 123 00: 1978 930/04 has no lambda sensor' },
   ...range('104-00', [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 39, 40, 46, 47, 48, 49], 'oil tank, filler, dipstick, external oil lines and their hardware: ' + BODY),

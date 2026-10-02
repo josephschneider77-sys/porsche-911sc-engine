@@ -17,15 +17,34 @@ export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './inducti
 /** Fan axis. y 210.33 is the crank-to-fan centre distance that makes the pitch length 725 mm (crank pitch r 60, fan pitch r 36, belt plane z 303). */
 export const FAN = { y: 210.33, zHousing0: 205, zHousing1: 296, zFan: 262, zBelt: 303, zPumpBelt: 314, zNut: 325, rCrankPulley: 65, rFanPulley: 41 };
 /**
- * Check valve 911 113 115 01 outlet (108-00 #26). Top End's air tube (#20) carries an upward
- * male spigot on this axis; the valve's female hex screws down onto it, ring #21 (A24×29) between.
- * `direction` is the spigot axis, unit, pointing into the hex (+Y). `point` is the outlet face.
+ * Check valve 911 113 115 01 outlet (108-00 #26).
+ *
+ * `direction` is the way the valve's outlet points. The hex stands vertical, outlet down,
+ * so this is (0, −1, 0). Top End's air tube starts at `point`; its male M24 spigot points
+ * the opposite way, up into the hex. Ring #21 (A24×29) sits on the face between them.
+ *
+ * `point` is the centre of the modelled hex's bottom face, not a placed guess. The hex is a
+ * 6-side cylinder, across-flats 27 mm, height `hexH` 14 mm, and CylinderGeometry is centred,
+ * so the mesh centre sits `hexH / 2` above this face.
+ *
+ * Side, end and height, measured off the air-pump axis (−270, 50, 336): 55.5 mm inboard of
+ * the pump, 88.5 mm below it, 42 mm aft of it. That puts the hex on the left of the bay,
+ * below the pump and aft of the fan drum (housing ends z 296). 108-00 (Design911 diagram
+ * 39180) draws item 26 vertical in that left-rear group, inlet up and hex down. The same
+ * stance is in the engine-bay photos on Pelican Parts, "'78 911SC Air Pump + AC removal"
+ * (thread 248903): the check valve stands on the left, hex down on the air-injection tube,
+ * with the pump hose coming in from above.
+ * https://www.design911.com/diagrams/d/39180/91111311302
+ * http://forums.pelicanparts.com/porsche-911-technical-forum/248903-78-911sc-air-pump-ac-removal.html
  */
+export const CHECK_HEX_H = 14;
+const AIR_PUMP_AXIS = { x: -270, y: 50, z: 336 };
 export const AIR_CHECK_VALVE_OUTLET = {
-  point: [-210, -50, 400] as V3,
-  direction: [0, 1, 0] as V3,
+  point: [AIR_PUMP_AXIS.x + 55.5, AIR_PUMP_AXIS.y - 88.5, AIR_PUMP_AXIS.z + 42] as V3,
+  direction: [0, -1, 0] as V3,
   thread: 'M24',
   od: 29,
+  hexH: CHECK_HEX_H,
 };
 /**
  * 1978 air cleaner (106-00 #13/#14). A low rounded canister across the engine, not the old
@@ -1703,12 +1722,41 @@ export function heatExchanger(s: 1 | -1) {
   // heater air outlet (to cabin) at the flywheel end, with adapter (#27)
   p.add(tube([[X(shellX), shellY + 10, zA + 10], [X(shellX), shellY + 20, -240], [X(shellX - 20), shellY + 40, -262]], 26, 20, 16), 'aluminized');
   p.add(yToZ(lathe([[25, -6], [29, -6], [29, 6], [25, 6]], 24)).rotateX(-0.7), 'heatSteel', [X(shellX - 18), shellY + 38, -258]);
-  // fresh-air inlet stub from the blower hose, pointing forward out of the pulley-end cap, low and outboard so it stays
-  // clear of the chain box (box floor >= y -125 over the heat exchanger)
-  p.add(tube([[X(shellX + 12), shellY + 6, zB - 14], [X(shellX + 16), shellY + 8, zB + 10], [X(shellX + 18), shellY + 8, zB + 34]], 15, 12, 12), 'aluminized');
-  p.add(yToZ(torus(15.5, 2.2, 6, 20)), 'steel', [X(shellX + 18), shellY + 8, zB + 28]);
+  // Fresh-air inlet (108-10 #10 left, #13 right). Straight beaded spigot on +Z, out of the pulley-end cap,
+  // low enough to clear the chain box. The blower hose clamps over the plain end; the bead stops it.
+  const stub = heaterStub(s);
+  p.add(tube([stub.root, stub.tip], HEATER_STUB_R, 12, 10), 'aluminized');
+  p.add(yToZ(lathe([[HEATER_STUB_R, -2.4], [HEATER_STUB_R + 3.2, -2.4], [HEATER_STUB_R + 3.2, 2.4], [HEATER_STUB_R, 2.4]], 18)), 'aluminized', [stub.tip[0], stub.tip[1], stub.beadZ]);
+  // EGR takeoff (202-05 #1) is on the left exchanger only: a flanged nipple pointing down.
+  if (s < 0) {
+    const f = EGR_FEED_PORT;
+    p.add(tube([f.root, f.tip], 8, 12, 8), 'aluminized');
+    const fl = circleShape(16); fl.holes.push(circlePath(8) as THREE.Path);
+    const fg = extrudeC(fl, 4, 0.4, 3); fg.rotateX(Math.PI / 2);
+    p.add(fg, 'aluminized', [f.root[0], f.root[1] - 2, f.root[2]]);
+  }
   return p.g;
 }
+
+/** Blower-hose spigot on each heat exchanger. `tip` is the free end; the hose slides on along −Z. */
+export const HEATER_STUB_R = 12;
+export function heaterStub(s: 1 | -1) {
+  const shellX = 228, shellY = -175, zB = 222;
+  const x = s * (shellX + 10), y = shellY + 8;
+  const root: V3 = [x, y, zB - 8];
+  const tip: V3 = [x, y, zB + 40];
+  return { root, tip, beadZ: tip[2] - 16, axis: [0, 0, 1] as V3 };
+}
+
+/**
+ * EGR feed fitting on the left heat exchanger (202-05 #1). `axis` points out of the nipple (down).
+ * `tip` is the free end; the pipe slides on along +Y.
+ */
+export const EGR_FEED_PORT = {
+  root: [-196, -208, -28] as V3,
+  tip: [-196, -246, -28] as V3,
+  axis: [0, -1, 0] as V3,
+};
 export function muffler() {
   // Photo-matched (photo-ref/muffler): aluminised oval drum with a gentle banana curve and a welded seam flange
   // around its middle, two inlet stubs with clamps and the chrome tailpipe on the left.
