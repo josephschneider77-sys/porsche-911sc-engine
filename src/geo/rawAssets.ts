@@ -88,7 +88,6 @@ export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
   'pressure-plate': A.pressurePlate,
   'heater-blower': B.heaterBlower,
   'heater-blower-support': B.heaterBlowerSupport,
-  'cooler-air-guide': B.coolerAirGuide,
   ...(VARIANT.airInjection ? {
     'air-pump': B.airPump,
     'air-pump-pulley': B.airPumpPulley,

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { VARIANT } from '../data/variant';
 import { CYL_Z } from '../data/layout';
-import { FAN, SHROUD, AIR_CHECK_VALVE_OUTLET, CHECK_HEX_H, heaterStub, EGR_FEED_PORT } from './aux';
+import { FAN, AIR_CHECK_VALVE_OUTLET, CHECK_HEX_H, heaterStub, EGR_FEED_PORT } from './aux';
 import { TEE_AIR_INJ, THROTTLE_PORTED_VAC } from './induction';
 import { frame } from './instancing';
 import { Part, cyl, cylBetween, lathe, box, boxMM, hexNut, tube, torus, yToZ, yToX, extrude, polyShape, circlePath, csgSub, type V3 } from './util';
@@ -363,54 +363,6 @@ export function egrBracket() {
   return p.g;
 }
 
-/**
- * Air guide 911 106 406 00 (105-05 #3). Oil-cooler air duct, riveted to the underside of the
- * left shroud wing. Stoddard lists the successor 911 106 406 01 as "Air Duct For Oil Cooler".
- * On the 105-05 drawing it is the small duct under the shroud, open toward the fan, over the
- * engine oil cooler on the left case. Four rivets (no separate catalogue line) go up into the wing.
- */
-/** Left shroud wing: underside is the z=0 face of the sloped sheet. +n goes up into the skin. */
-function leftWingFrame() {
-  const { ax, ay, bx, by } = SHROUD;
-  const ang = Math.atan2(by - ay, bx - ax);
-  const u = new THREE.Vector3(Math.cos(ang) * -1, Math.sin(ang), 0);
-  const e = new THREE.Vector3(0, 0, 1);
-  const n = new THREE.Vector3().crossVectors(u, e).normalize();
-  const origin = new THREE.Vector3(ax * -1, ay, 0);
-  return { u, e, n, origin };
-}
-function wingBox(su0: number, su1: number, se0: number, se1: number, sn0: number, sn1: number) {
-  const { u, e, n, origin } = leftWingFrame();
-  const g = new THREE.BoxGeometry(su1 - su0, se1 - se0, sn1 - sn0, 2, 2, 2);
-  const mid = origin.clone()
-    .addScaledVector(u, (su0 + su1) / 2)
-    .addScaledVector(e, (se0 + se1) / 2)
-    .addScaledVector(n, (sn0 + sn1) / 2);
-  g.applyMatrix4(new THREE.Matrix4().makeBasis(u, e, n).setPosition(mid));
-  return g;
-}
-
-export function coolerAirGuide() {
-  const p = new Part();
-  // Duct under the left wing, over the flywheel half of the right-case cooler.
-  // The flange top lies on the wing underside (sn = 0). The body hangs below it,
-  // open toward the fan. Stops at z 48 so it misses the ignition-lead holder at z 60.
-  // su 17–74 is world x about −112 to −168 along the slope.
-  const su0 = 17, su1 = 74, se0 = 32, se1 = 48, wall = 3.6, drop = -12;
-  p.add(wingBox(su0, su1, se0, se1, -2.4, 0), 'shroudRed');
-  p.add(wingBox(su0, su0 + wall, se0, se1, drop, 0), 'shroudRed');
-  p.add(wingBox(su1 - wall, su1, se0, se1, drop, 0), 'shroudRed');
-  p.add(wingBox(su0, su1, se0, se0 + wall, drop, 0), 'shroudRed');
-  p.add(wingBox(su0, su1, se0, se1 - wall, drop, drop + 2.6), 'shroudRed');
-  const { u, e, n, origin } = leftWingFrame();
-  for (const [su, se] of [[su0 + 8, 36], [su1 - 8, 36], [su0 + 8, 44], [su1 - 8, 44]] as [number, number][]) {
-    const c = origin.clone().addScaledVector(u, su).addScaledVector(e, se);
-    const a = c.clone().addScaledVector(n, -2.2);
-    p.add(cylBetween([a.x, a.y, a.z], [c.x, c.y, c.z], 2.2, 8), 'zincPlate');
-  }
-  return p.g;
-}
-
 /** World origin of the catalytic converter (smallParts matrix). */
 const CAT_AT: V3 = [0, -250, -330];
 /**
@@ -742,9 +694,7 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
       return p;
     }, () => [new THREE.Matrix4()]);
   }
-  // 105-10 baffles under the barrels. The right-case oil cooler (x 82–170, z −202–1,
-  // bottom y −236) and the heat-exchanger shell occupy the old right-bank line, so any
-  // plate whose Z meets the cooler drops below both, outboard of the core.
+  // 105-10 baffles under the barrels, on the fin-gap line [s*70, −186, z].
   // Vertical sprung sheet: thin across the fin gap (Z), standing in Y, with a crowned top edge.
   const baffle = (w: number, h: number, t: number) => {
     const s = new THREE.Shape();
@@ -759,28 +709,22 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
   };
   const gapZ = (a: number, b: number) => (CYL_Z[a] + CYL_Z[b]) / 2;
   const gaps: [number, number][] = [[1, 2], [2, 3], [4, 5], [5, 6]];
-  const overCooler = (z: number, halfZ: number) => z + halfZ > -202 && z - halfZ < 1;
-  // Below the cooler flange (bottom −236) and above the cover plate at −256.
-  const baffleAt = (s: number, halfX: number, z: number, halfZ: number, y: number): V3 =>
-    s > 0 && overCooler(z, halfZ) ? [174 + halfX, -246, z] : [s * 70, y, z];
+  const atBaffle = (s: number, z: number) => M([s * 70, -186, z]);
   def('cyl-baffle-14', () => baffle(48, 14, 2.4), () => gaps.map(([a, b]) => {
     const s = a <= 3 ? 1 : -1;
-    const z = gapZ(a, b);
-    return M(baffleAt(s, 24, z, 1.2, -186));
+    return atBaffle(s, gapZ(a, b));
   }));
   def('cyl-baffle-15', () => baffle(40, 14, 2.4), () => [1, 4].map((c) => {
     const s = c <= 3 ? 1 : -1;
-    const z = CYL_Z[c] + 70;
-    return M(baffleAt(s, 20, z, 1.2, -186));
+    return atBaffle(s, CYL_Z[c] + 70);
   }));
   def('cyl-baffle-16', () => baffle(40, 14, 2.4), () => [3, 6].map((c) => {
     const s = c <= 3 ? 1 : -1;
-    const z = CYL_Z[c] - 70;
-    return M(baffleAt(s, 20, z, 1.2, -186));
+    return atBaffle(s, CYL_Z[c] - 70);
   }));
   def('cyl-baffle-spring', () => new Part().add(tube([[-8, -5, 0], [-3, 3, 1.2], [3, 5, 0], [8, -5, -1.2]], 1.05, 6, 20), 'darkSteel'), () => [1, 2, 3, 4, 5, 6].map((c) => {
     const s = c <= 3 ? 1 : -1;
-    return M(baffleAt(s, 9, CYL_Z[c], 1.2, -186));
+    return atBaffle(s, CYL_Z[c]);
   }));
   def('cyl-cover-plate', () => new Part().add(plate(40, 3, 220), 'zincPlate'), () => [1, -1].map((s) =>
     M(s > 0 ? [174 + 20, -256, 0] as V3 : [-70, -208, 0] as V3)));

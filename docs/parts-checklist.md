@@ -756,7 +756,7 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 1 | 930 106 041 13 | Air guide | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 999 507 003 02 | Speed nut | 5 | modelled | `shroud-speed-nuts` |
 | 2 | 999 507 003 01 | Speed nut | 5 | alt | alternative to 105-05 #2 |
-| 3 | 911 106 406 00 | Air guide | 1 | modelled | `cooler-air-guide` |
+| 3 | 911 106 406 00 | Air guide | 1 | modelled | `oil-cooler-cap` |
 | 4 | 930 106 326 01 | Hot air socket | 1 | modelled | `upper-air-guide` socket |
 | 5 | 911 106 327 00 | Hot air socket | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 6 | 911 106 036 01 | Cover plate | 1 | modelled | `shroud-cover-plate` |

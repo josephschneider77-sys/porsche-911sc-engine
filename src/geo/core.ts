@@ -766,7 +766,9 @@ export function crankshaft() {
       [rMain - 5, -mainW / 2], [rMain - 1.5, -mainW / 2 + 2.4], [rMain, -mainW / 2 + 4],
       [rMain, mainW / 2 - 4], [rMain - 1.5, mainW / 2 - 2.4], [rMain - 5, mainW / 2],
     ], 48)), 'polishedSteel', [0, 0, z]);
-    p.add(yToX(cyl(3, 0.6, 10)), 'bore', [rMain + 0.05, 0, z]); // oil hole
+    // A Ø1 spot, 3 mm deep in the journal. The old Ø6 × 0.6 wafer reached the main-web
+    // face (3 mm from the journal centre); 1 mm of erosion on each side then crossed.
+    p.add(yToX(cyl(0.5, 3, 10)), 'bore', [rMain - 1.4, 0, z]);
   }
   const throws = Object.entries(CYL_Z).map(([c, z]) => ({ c: +c, z, a: THROW_DEG[+c] * DEG }));
   const cheekT = 12.6;

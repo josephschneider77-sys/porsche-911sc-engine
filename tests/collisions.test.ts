@@ -177,7 +177,7 @@ describe('assembled-pose interference', () => {
 
 describe('ancillary clearance at 0 and 0.5 mm', () => {
   // Parts this branch owns. A seated joint may overlap; anything else may not, at either erosion.
-  const OURS = /^(air-(pump|hose|clamp|check|diverter|rubber|sleeve|buffer|sealing|retainer|bracket|pulley)|egr-|cat-|cyl-baffle|cyl-cover-plate|cooler-air-guide|catalytic-converter|muffler-hardware|ignition-leads|heater-blower|heater-dist|heater-socket|heater-hose-link|heater-hose-left|heater-hose-right|heater-hose-supports|heater-clamp)/;
+  const OURS = /^(air-(pump|hose|clamp|check|diverter|rubber|sleeve|buffer|sealing|retainer|bracket|pulley)|egr-|cat-|cyl-baffle|cyl-cover-plate|catalytic-converter|muffler-hardware|ignition-leads|heater-blower|heater-dist|heater-socket|heater-hose-link|heater-hose-left|heater-hose-right|heater-hose-supports|heater-clamp)/;
   for (const tol of [0, 0.5]) {
     it(`no unlisted clash on these parts at ${tol} mm erosion`, () => {
       const hits = findCollisions(tol);

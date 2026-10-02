@@ -317,7 +317,6 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('egr-pipe-feed', 'egr-valve', 'seated: EGR feed pipe on the valve inlet nipple'),
   pair('egr-pipe-return', 'catalytic-converter', 'seated: EGR return pipe on the converter boss'),
   pair('egr-pipe-return', 'egr-valve', 'seated: EGR return pipe on the valve outlet nipple'),
-  pair('cooler-air-guide', 'upper-air-guide', 'seated: oil-cooler air guide riveted to the underside of the left shroud wing'),
   pair('alternator', 'fan-pulley|fan-impeller', 'pressed: impeller and pulley on the alternator shaft'),
   pair('fan-housing', 'fan-impeller', 'seated: impeller running inside the fan housing'),
   pair('fan-belt', 'fan-pulley|crank-pulley', 'seated: belt in the pulley grooves'),
