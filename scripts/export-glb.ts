@@ -32,7 +32,9 @@ for (const [id, build] of Object.entries(ASSET_BUILDERS)) {
     const doc = await io.readBinary(glb);
     // Default 14-bit positions match main, so unchanged meshes stay byte-identical.
     // The hollow crankcase is ~500 mm across, and 14-bit steps (~0.03 mm) stack past the 0.05 mm GLB check.
-    const quantizePosition = id === 'crankcase-left' || id === 'crankcase-right' ? 16 : 14;
+    // The left heater hose runs from the blower (x ≈ 340) out around the left exchanger (x ≈ −520),
+    // so its box is ~1 m across and 14-bit steps (~0.06 mm) miss the same check.
+    const quantizePosition = id === 'crankcase-left' || id === 'crankcase-right' || id === 'heater-hose-left' ? 16 : 14;
     await doc.transform(dedup(), weld(), meshopt({ encoder: MeshoptEncoder, level: 'medium', quantizePosition }));
     out = await io.writeBinary(doc);
   }

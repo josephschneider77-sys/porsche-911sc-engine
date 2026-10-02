@@ -2,6 +2,7 @@ import { SystemKey } from './catalog';
 import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ, SPARK_Z } from './layout';
 import { FASTENER_SPECS } from './fastenerSpec';
 import { SMALL_SPECS, smallRef } from './smallSpec';
+import { VARIANT } from './variant';
 
 export type Vec3 = [number, number, number];
 export interface CatalogRef {
@@ -215,7 +216,7 @@ const single: PartDef[] = [
     description: 'Forged, counterweighted crank with six individual throws and eight main bearings (SC: Ø60 mains 1–7, enlarged nose bearing 8). Thick cheeks, some near-round and some pear-shaped opposite the crankpin. Only the 66 mm 2.0/2.2 T cranks were uncounterweighted.',
     specs: { Stroke: '70.4 mm', 'Main journals': 'Ø60 mm', 'Rod journals': 'Ø53 mm', Throws: '6 @ 120°', 'Firing order': '1-6-2-4-3-5' } },
   { id: 'crank-gears', name: 'Crank timing gear & distributor drive gear', system: 'crank', asset: 'crank-gears', explode: [0, -30, 90],
-    catalog: [{ ill: '102-00', pos: '8', pn: '901 102 111 00', note: 'Timing gear (drives intermediate shaft)' }, { ill: '102-00', pos: '10', pn: '930 102 115 01', note: 'Drive wheel (distributor)' }],
+    catalog: [{ ill: '102-00', pos: '8', pn: '901 102 111 00', note: 'Timing gear (drives intermediate shaft)' }, { ill: '102-00', pos: '10', pn: VARIANT.driveWheel, note: 'Distributor drive wheel for this engine variant' }],
     description: 'Gear on the crank nose driving the intermediate shaft, plus the helical gear that drives the distributor shaft.',
     specs: { Drive: 'Crank → intermediate shaft (gear)', 'Tooth counts': '35 : 60 (module 168/95, 84 mm centres)' } },
   { id: 'intermediate-shaft', name: 'Intermediate shaft', system: 'camdrive', asset: 'intermediate-shaft', explode: [0, -180, 60],
@@ -228,11 +229,11 @@ const single: PartDef[] = [
     specs: { Type: 'Gear, 2-stage, 4-rib', System: 'Dry sump, ~13 L total (typ.)' } },
   { id: 'sump-plate', name: 'Sump cover plate & oil strainer', system: 'lubrication', asset: 'sump-plate', explode: [0, -300, 0],
     catalog: [{ ill: '101-05', pos: '38', pn: '930 107 314 00', qty: 1, note: 'Oil strainer' }, { ill: '101-05', pos: '39', pn: '930 101 391 01', qty: 2, note: 'Gaskets' }, { ill: '101-05', pos: '41', pn: '911 107 176 03', note: 'Drain plug' }],
-    description: 'Pressed-steel sump cover: flat field, raised outer rim, and a wide horseshoe channel (about 5.5 mm deep, 18 mm wall) with the hex drain plug in the notch at the top of the U. The coarse strainer and its two gaskets sit inboard of the plate. Twelve M6 nuts (101-05 #35); the teardown photo shows eight.',
-    specs: { Fasteners: '12 × M6 (catalogue)', Drain: '911 107 176 03' } },
+    description: 'Pressed-steel sump cover: flat field, raised outer rim, and a wide horseshoe channel (about 5.5 mm deep, 18 mm wall) with the hex drain plug in the notch at the top of the U. The coarse strainer and its two gaskets sit inboard of the plate. Eight M6 nuts (101-05 #35); the other four of that line hold the breather lid.',
+    specs: { Fasteners: '8 × M6', Drain: '911 107 176 03' } },
   { id: 'oil-thermostat', name: 'Oil thermostat', system: 'lubrication', asset: 'oil-thermostat', explode: [40, 180, 40],
     catalog: [{ ill: '101-10', pos: '37', pn: '930 107 765 00', qty: 1 }],
-    description: 'Wax-element cartridge (930 107 765 00) in the top of the right case half at the pulley end, beside the oil-pressure switch. Flange, O-ring land, rectangular windows onto the brass element, a yellow band and a dark cup; the body sits down in the case. Three M6 lock nuts, the 1978 count.',
+    description: 'Wax-element cartridge (930 107 765 00) in the top of the right case half at the pulley end, beside the oil-pressure switch. Flange, O-ring land, rectangular windows onto the brass element, a yellow band and a dark cup; the body sits down in the case. Two M6 nuts and two spring washers (101-10 #36/#35). The three lock nuts belong to the intermediate-shaft cover.',
     specs: { Location: 'Top of the right case half, pulley end' } },
   { id: 'oil-cooler', name: 'Engine oil cooler', system: 'lubrication', asset: 'oil-cooler', explode: [220, -60, -40],
     catalog: [{ ill: '104-00', pos: '8', pn: '911 107 041 00', qty: 1 }],
@@ -240,7 +241,7 @@ const single: PartDef[] = [
     specs: { Location: 'Right case deck, flywheel end, between cyl 3 and the ring gear', Type: 'Plate-and-fin, air top to bottom', Fasteners: '4 × M8 stud, nut and spring washer, normal +X', Core: 'model-fit 137 × 140 × 60 mm (real 195 × 140 × 80)', Seals: '2 × 999 704 172 50 (#3), 1 × 999 704 173 50 (#2)' } },
   { id: 'breather-lid', name: 'Crankcase breather cover', system: 'lubrication', asset: 'breather-lid', explode: [0, 260, 60],
     catalog: [{ ill: '101-05', pos: '37', pn: '901 107 073 02', qty: 1, note: '1978 SC lid. 930 107 073 00 is tagged 83-/turbo in this catalogue; Stoddard’s cast 930 107 073 02 is the later supersession.' }],
-    description: 'Cast aluminium breather tower on top of the left case half at the pulley end: ribbed body, angled hose neck to the oil tank, and a small switch boss. The 1978 catalogue line is 901 107 073 02; the shape follows the teardown photos of the cast tower.', specs: { Fasteners: '2 × M6 (101-10 #36)' } },
+    description: 'Cast aluminium breather tower on top of the left case half at the pulley end: ribbed body, angled hose neck to the oil tank, and a small switch boss. The 1978 catalogue line is 901 107 073 02 (101-05 #37, USA). Four M6 nuts (101-05 #35).', specs: { Fasteners: '4 × M6 (101-05 #35)' } },
   { id: 'fan-housing', name: 'Fan housing', system: 'cooling', asset: 'fan-housing', explode: [0, 80, 640],
     catalog: [{ ill: '105-00', pos: '1', pn: '930 106 005 00', qty: 1, note: '-79 up to engine 639 9201' }, { ill: '105-00', pos: '2', pn: '—', note: 'Alternator strap' }],
     description: 'Unpainted dull-grey magnesium drum: grooved barrel, rolled intake bell, five broad stator vanes and a solid alternator cradle. A yellow-zinc band clamp sits on the barrel where the red upper air guide wraps it. Fan and alternator come out as one unit, sliding out through the shroud collar.',
@@ -255,7 +256,7 @@ const single: PartDef[] = [
     specs: { Output: '14 V, ~70 A', Regulator: 'External (1978)' } },
   { id: 'fan-pulley', name: 'Fan / alternator pulley', system: 'cooling', asset: 'fan-pulley', explode: [0, 80, 760],
     catalog: [{ ill: '105-00', pos: '8', pn: '911 106 208 00', qty: 1 }, { ill: '105-00', pos: '10', pn: '911 106 033 03', note: 'Hub extension' }],
-    description: 'Removable outer half of the split 82 mm pulley, with six 0.5 mm shims (five between the halves, one outside) and the cupped cap under the M16 nut. The inner half is the face plate on the fan hub.', specs: { Adjustment: '6 × 0.5 mm shims', 'Outside diameter': '~82 mm' } },
+    description: 'Removable outer half of the split 82 mm pulley (911 106 208 00). Two V-grooves: the inner one takes the alternator belt, the outer one the air-injection belt. Six 0.5 mm shims (five between the halves, one outside) and the cupped cap under the M16 nut. The inner half is the face plate on the fan hub. 108-00 #35 is this same pulley.', specs: { Adjustment: '6 × 0.5 mm shims', 'Outside diameter': '~82 mm', Grooves: '2' } },
   { id: 'fan-belt', name: 'V-belt', system: 'cooling', asset: 'fan-belt', explode: [0, 150, 560],
     catalog: [{ ill: '105-00', pos: '12', pn: '999 192 097 50', qty: 1, note: '9.5 x 725, -79' }],
     description: 'Narrow V-belt from crank pulley to the fan/alternator pulley. Losing it means no cooling.', specs: { Size: '9.5 x 725 mm' } },
@@ -309,7 +310,87 @@ const single: PartDef[] = [
     description: 'Diaphragm-spring pressure plate bolted to the flywheel.', specs: { Diameter: '225 mm' } },
 ];
 
-const base: PartDef[] = [...single, ...perBank(), ...perCylinder()];
+function ancillary(): PartDef[] {
+  const out: PartDef[] = [
+    { id: 'ishaft-cover', name: 'Intermediate-shaft cover', system: 'crankcase', asset: 'ishaft-cover', explode: [40, -40, 220],
+      catalog: [{ ill: '101-10', pos: '39', pn: '911 105 162 00', qty: 1, note: 'Up to engine 63D 4069' }],
+      description: 'Oval cover on the pulley-end face of the right crankcase half, closing the intermediate shaft. Three M6 lock nuts (101-10 #41) and a gasket. These are the three lock nuts that used to be counted on the oil thermostat.',
+      specs: { Fasteners: '3 × M6 lock nut', Applies: 'up to 63D 4069' } },
+  ];
+  if (VARIANT.airInjection) out.push(
+    { id: 'air-pump', name: 'Air-injection pump', system: 'exhaust', asset: 'air-pump', explode: [-220, -80, 80],
+      catalog: [{ ill: '108-00', pos: '7', pn: '911 113 111 03', qty: 1 }],
+      description: 'Air-injection pump 911 113 111 03, low on the left (distributor side) at the pulley end. It swings on the M8×120 pivot screw. The outlet faces the diverter valve.',
+      specs: { 'Centre distance': '~316 mm from the fan axis', Belt: '9.5 × 950' } },
+    { id: 'air-pump-pulley', name: 'Air-injection pump pulley', system: 'exhaust', asset: 'air-pump-pulley', explode: [-220, -40, 160],
+      catalog: [{ ill: '108-00', pos: '8', pn: '911 113 158 01', qty: 1 }],
+      description: 'Pressed-steel pulley 911 113 158 01 on the pump shaft, one V-groove in line with the outer groove of the fan pulley.',
+      specs: { 'Pitch radius': '65 mm' } },
+    { id: 'air-pump-belt', name: 'Air-injection V-belt', system: 'exhaust', asset: 'air-pump-belt', explode: [-80, 40, 160],
+      catalog: [{ ill: '108-00', pos: '34', pn: '900 192 021 50', qty: 1, note: '9.5 × 950' }],
+      description: 'V-belt 900 192 021 50 (9.5 × 950) from the outer groove of the fan pulley to the pump pulley, behind the alternator belt.',
+      specs: { Size: '9.5 × 950 mm' } },
+    { id: 'air-pump-bracket', name: 'Air-injection pump bracket', system: 'exhaust', asset: 'air-pump-bracket', explode: [-160, 40, 40],
+      catalog: [{ ill: '108-00', pos: '1', pn: '911 113 113 02', qty: 1 }],
+      description: 'Bracket 911 113 113 02 carrying the pump pivot. Two feet take M8 nuts; the arm reaches the pump without meeting the case skin.',
+      specs: {} },
+    { id: 'air-pump-strap', name: 'Air-injection tension strap', system: 'exhaust', asset: 'air-pump-strap', explode: [-180, 80, 80],
+      catalog: [{ ill: '108-00', pos: '14', pn: '911 113 125 02', qty: 1 }],
+      description: 'Slotted tension strap 911 113 125 02 from the top of the pump up to the retaining bracket on the fan housing. It sits inboard of the belt.',
+      specs: {} },
+    { id: 'air-retainer', name: 'Air-injection retaining bracket', system: 'exhaust', asset: 'air-retainer', explode: [-80, 120, 80],
+      catalog: [{ ill: '108-00', pos: '12', pn: '911 113 126 02', qty: 1 }],
+      description: 'Retaining bracket 911 113 126 02 on the left of the fan housing, with two bonded rubber buffers.',
+      specs: { Buffers: '2 × 930 110 194 00' } },
+    { id: 'air-check-valve', name: 'Air-injection check valve', system: 'exhaust', asset: 'air-check-valve', explode: [-80, 80, 40],
+      catalog: [{ ill: '108-00', pos: '26', pn: '911 113 115 01', qty: 1 }],
+      description: 'Check valve 911 113 115 01, vertical. The outlet points down: AIR_CHECK_VALVE_OUTLET.direction is (0, −1, 0) and the point is the hex face. Top End’s air tube starts there; its spigot points the other way, up into the hex. Sealing ring #21 sits on the face. The tube itself is not modelled here.',
+      specs: { Outlet: 'M24 hex, A24×29 ring' } },
+    { id: 'air-diverter', name: 'Air-injection diverter valve', system: 'exhaust', asset: 'air-diverter', explode: [-200, -40, 20],
+      catalog: [{ ill: '108-00', pos: '22', pn: '930 113 147 01', qty: 1 }],
+      description: 'Diverter valve 930 113 147 01 beside the pump, sending pump air to the check valve or dumping it.',
+      specs: {} },
+    { id: 'air-diverter-support', name: 'Diverter-valve support', system: 'exhaust', asset: 'air-diverter-support', explode: [-200, -80, 20],
+      catalog: [{ ill: '108-00', pos: '23', pn: '930 113 146 01', qty: 1 }],
+      description: 'Support 930 113 146 01 under the diverter valve, held by two hex nuts and spring washers.',
+      specs: {} },
+    { id: 'air-pump-cleaner', name: 'Air-injection pump air cleaner', system: 'exhaust', asset: 'air-pump-cleaner', explode: [-160, 20, 40],
+      catalog: [{ ill: '108-00', pos: '17', pn: '911 113 117 02', qty: 1 }],
+      description: 'Small air cleaner 911 113 117 02 on the inboard side of the air pump.',
+      specs: {} },
+  );
+  out.push(
+    { id: 'heater-blower', name: 'Heater blower', system: 'cooling', asset: 'heater-blower', explode: [180, 40, 200],
+      catalog: [{ ill: '108-10', pos: '1', pn: '911 624 151 02', qty: 1 }],
+      description: 'Heater blower 911 624 151 02 (108-10) on the right of the fan housing, feeding the two heat-exchanger hoses.',
+      specs: {} },
+    { id: 'heater-blower-support', name: 'Heater blower support', system: 'cooling', asset: 'heater-blower-support', explode: [140, 40, 160],
+      catalog: [{ ill: '108-10', pos: '2', pn: '911 211 139 02', qty: 1 }],
+      description: 'Support 911 211 139 02 carrying the heater blower off the fan-housing side.',
+      specs: {} },
+  );
+  if (VARIANT.egr) out.push(
+    { id: 'egr-valve', name: 'EGR valve', system: 'exhaust', asset: 'egr-valve', explode: [-40, -180, 0],
+      catalog: [{ ill: '202-05', pos: '7', pn: '911 113 183 01', qty: 1 }],
+      description: 'EGR valve 911 113 183 01 (202-05 #7) under the catalytic converter, between the two pipelines.',
+      specs: {} },
+    { id: 'egr-pipe-feed', name: 'EGR feed pipeline', system: 'exhaust', asset: 'egr-pipe-feed', explode: [-80, -160, -40],
+      catalog: [{ ill: '202-05', pos: '1', pn: '930 113 190 01', qty: 1 }],
+      description: 'Pipeline 930 113 190 01 (202-05 #1) from the EGR valve inlet nipple to the flanged takeoff on the left heat exchanger.',
+      specs: {} },
+    { id: 'egr-pipe-return', name: 'EGR return pipeline', system: 'exhaust', asset: 'egr-pipe-return', explode: [80, -160, 40],
+      catalog: [{ ill: '202-05', pos: '11', pn: '911 113 177 03', qty: 1 }],
+      description: 'Pipeline 911 113 177 03 (202-05 #11) from the EGR valve outlet nipple to the boss on the catalytic converter.',
+      specs: {} },
+    { id: 'egr-bracket', name: 'EGR retaining bracket', system: 'exhaust', asset: 'egr-bracket', explode: [-40, -200, 0],
+      catalog: [{ ill: '202-05', pos: '3', pn: '—', qty: 1 }],
+      description: 'Retaining bracket (202-05 #3) under the EGR valve. The audit transcription does not give a part number.',
+      specs: {} },
+  );
+  return out;
+}
+
+const base: PartDef[] = [...single, ...perBank(), ...perCylinder(), ...ancillary()];
 /** Fastener sets (data/fastenerSpec.ts) as removable hardware parts; geometry is in world coordinates (no pose). */
 function hardware(): PartDef[] {
   const ex = (id: string) => base.find((p) => p.id === id)!.explode;
@@ -326,7 +407,7 @@ function hardware(): PartDef[] {
   const small = SMALL_SPECS.map((f) => {
     const e = ex(f.follows); const len = Math.hypot(...e) || 1;
     return { id: f.id, name: f.name, system: 'hardware' as SystemKey, asset: f.id, explode: e.map((v) => v * (1 + 40 / len)) as Vec3,
-      catalog: [{ ill: smallRef(f.id)[0], pos: smallRef(f.id)[1], pn: '—', qty: f.count }], description: f.description, specs: { Quantity: String(f.count), Size: f.size, 'Removed at step': f.step } };
+      catalog: f.catalog?.length ? f.catalog : [{ ill: smallRef(f.id)[0], pos: smallRef(f.id)[1], pn: '—', qty: f.count }], description: f.description, specs: { Quantity: String(f.count), Size: f.size, 'Removed at step': f.step } };
   });
   return [...hw, ...small];
 }

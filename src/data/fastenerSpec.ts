@@ -24,7 +24,9 @@ export const FASTENER_SPECS: FastenerSpec[] = [
   ...b2((b) => ({
     id: `head-nuts-${b}`, name: `Cylinder-head barrel nuts, ${b} bank`, count: 12, step: 'cam-housings', follows: `cam-housing-${b}`, size: 'M10 barrel nut + washer',
     catalog: [{ ill: '103-00', pos: '17', pn: '901 104 382 02', qty: 24, note: 'Barrel nut (12 per bank); washer #16 999 031 091 01 x24' },
-      { ill: '101-05', pos: '3', pn: '930 101 170 00', qty: 12, note: 'Lower head studs (Dilavar) in the case; upper studs 911 101 172 00' }],
+      b === 'left'
+        ? { ill: '101-05', pos: '3', pn: '930 101 170 00', qty: 12, note: 'Lower Dilavar head studs, left bank' }
+        : { ill: '101-05', pos: '3', pn: '911 101 172 00', qty: 12, note: 'Upper steel head studs, right bank' }],
     description: 'Four tall barrel nuts per head on the case head studs (4 studs per cylinder), seated on bosses on top of the head core under the cam housing. Reached with a long hex socket through the cam housing; they come off just before the cam housing + heads lift away.',
   })),
   ...b2((b) => ({
@@ -90,12 +92,14 @@ export const FASTENER_SPECS: FastenerSpec[] = [
     catalog: [{ ill: '105-00', pos: '11', pn: '901 603 905 01', qty: 1 }], description: 'Nut on the alternator shaft clamping the pulley halves and tension shims.' },
   { id: 'oil-pump-nuts', name: 'Oil pump cover nuts', count: 3, step: 'int-shaft', follows: 'oil-pump', size: 'M8 nut + tab washer',
     catalog: [{ ill: '104-00', pos: '5', pn: '900 076 025 02', qty: 7, note: 'Hex nut M8 (7 listed: 3 here with tab washers #4, 4 on the oil cooler)' }], description: 'Nuts holding the pump cover plate and body together on their studs.' },
-  { id: 'sump-nuts', name: 'Sump plate nuts', count: 12, step: 'externals', follows: 'sump-plate', size: 'M6 nut + spring washer',
-    catalog: [{ ill: '101-05', pos: '35', pn: '900 076 010 02', qty: 12, note: 'Spring washers #34 x12. The sump photo shows 8; this line is qty 12 with no split, so the count stays 12.' }], description: 'Twelve M6 nuts and spring washers on the sump-cover studs. The catalogue quantity is 12; a teardown photo shows eight around the plate.' },
-  { id: 'thermostat-nuts', name: 'Oil thermostat nuts', count: 3, step: 'externals', follows: 'oil-thermostat', size: 'M6 lock nut + washer',
-    catalog: [{ ill: '101-10', pos: '41', pn: '900 910 012 02', qty: 3, note: 'Washers #42 x3. Through engine 63D (1978). The 2-bolt flange is 900 075 057 02, tagged after 63D.' }], description: 'Three M6 lock nuts holding the thermostat flange to the pad on top of the right case half at the pulley end.' },
-  { id: 'breather-nuts', name: 'Breather cover nuts', count: 2, step: 'externals', follows: 'breather-lid', size: 'M6 nut + spring washer',
-    catalog: [{ ill: '101-10', pos: '36', pn: '900 076 010 02', qty: 2, note: 'Spring washers #35 x2. Assignment to the breather is estimated; the photo shows four nuts and no catalogue line of qty 4.' }], description: 'Two M6 nuts and spring washers on the breather-tower studs. The catalogue line is qty 2; the tower photo shows four.' },
+  { id: 'sump-nuts', name: 'Sump plate nuts', count: 8, step: 'externals', follows: 'sump-plate', size: 'M6 nut + spring washer',
+    catalog: [{ ill: '101-05', pos: '35', pn: '900 076 010 02', qty: 8, note: '8 of the 12 nuts #35; spring washers #34. The other 4 are the breather lid.' }], description: 'Eight M6 nuts and spring washers on the sump-cover studs. The catalogue line is twelve; four of them hold the breather lid.' },
+  { id: 'thermostat-nuts', name: 'Oil thermostat nuts', count: 2, step: 'externals', follows: 'oil-thermostat', size: 'M6 nut + spring washer',
+    catalog: [{ ill: '101-10', pos: '36', pn: '900 076 010 02', qty: 2, note: 'Spring washers #35 N 012 226 5 x2' }], description: 'Two M6 nuts and spring washers holding the thermostat flange to the pad on top of the right case half at the pulley end.' },
+  { id: 'ishaft-cover-nuts', name: 'Intermediate-shaft cover nuts', count: 3, step: 'externals', follows: 'ishaft-cover', size: 'M6 lock nut + washer',
+    catalog: [{ ill: '101-10', pos: '41', pn: '900 910 012 02', qty: 3, note: 'Washers #42 x3. Cover 911 105 162 00 applies up to engine 63D 4069.' }], description: 'Three M6 lock nuts and washers on the intermediate-shaft cover. These are the three lock nuts the thermostat flange used to be given.' },
+  { id: 'breather-nuts', name: 'Breather cover nuts', count: 4, step: 'externals', follows: 'breather-lid', size: 'M6 nut + spring washer',
+    catalog: [{ ill: '101-05', pos: '35', pn: '900 076 010 02', qty: 4, note: '4 of the 12 nuts #35; spring washers #34' }], description: 'Four M6 nuts and spring washers on the breather-lid studs (101-05 #34/#35, the four that are not on the sump plate).' },
   ...b2((b) => ({
     id: `rocker-shaft-screws-${b}`, name: `Rocker-shaft screws, ${b}`, count: 6, step: 'rockers', follows: `rockers-${b}`, size: 'M6 socket-head screw',
     catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '45', pn: '999 067 008 00', qty: 12, note: 'Expanding-shaft screw' }], description: 'Socket-head screw (999.067.008.00) through each hollow rocker shaft, head on the +Z spot face. Tightening it with the conical nut expands the slotted shaft in the housing bore.',

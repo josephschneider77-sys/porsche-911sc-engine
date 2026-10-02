@@ -15,7 +15,37 @@ export { INTAKE_PORT, INJ };
 export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './induction';
 
 /** Fan axis. y 210.33 is the crank-to-fan centre distance that makes the pitch length 725 mm (crank pitch r 60, fan pitch r 36, belt plane z 303). */
-export const FAN = { y: 210.33, zHousing0: 205, zHousing1: 296, zFan: 262, zBelt: 303, rCrankPulley: 65, rFanPulley: 41 };
+export const FAN = { y: 210.33, zHousing0: 205, zHousing1: 296, zFan: 262, zBelt: 303, zPumpBelt: 314, zNut: 325, rCrankPulley: 65, rFanPulley: 41 };
+/**
+ * Check valve 911 113 115 01 outlet (108-00 #26).
+ *
+ * `direction` is the way the valve's outlet points. The hex stands vertical, outlet down,
+ * so this is (0, −1, 0). Top End's air tube starts at `point`; its male M24 spigot points
+ * the opposite way, up into the hex. Ring #21 (A24×29) sits on the face between them.
+ *
+ * `point` is the centre of the modelled hex's bottom face, not a placed guess. The hex is a
+ * 6-side cylinder, across-flats 27 mm, height `hexH` 14 mm, and CylinderGeometry is centred,
+ * so the mesh centre sits `hexH / 2` above this face.
+ *
+ * Side, end and height, measured off the air-pump axis (−270, 50, 336): 55.5 mm inboard of
+ * the pump, 88.5 mm below it, 42 mm aft of it. That puts the hex on the left of the bay,
+ * below the pump and aft of the fan drum (housing ends z 296). 108-00 (Design911 diagram
+ * 39180) draws item 26 vertical in that left-rear group, inlet up and hex down. The same
+ * stance is in the engine-bay photos on Pelican Parts, "'78 911SC Air Pump + AC removal"
+ * (thread 248903): the check valve stands on the left, hex down on the air-injection tube,
+ * with the pump hose coming in from above.
+ * https://www.design911.com/diagrams/d/39180/91111311302
+ * http://forums.pelicanparts.com/porsche-911-technical-forum/248903-78-911sc-air-pump-ac-removal.html
+ */
+export const CHECK_HEX_H = 14;
+const AIR_PUMP_AXIS = { x: -270, y: 50, z: 336 };
+export const AIR_CHECK_VALVE_OUTLET = {
+  point: [AIR_PUMP_AXIS.x + 55.5, AIR_PUMP_AXIS.y - 88.5, AIR_PUMP_AXIS.z + 42] as V3,
+  direction: [0, -1, 0] as V3,
+  thread: 'M24',
+  od: 29,
+  hexH: CHECK_HEX_H,
+};
 /**
  * 1978 air cleaner (106-00 #13/#14). A low rounded canister across the engine, not the old
  * Ø160 × 440 trough. The paper element is the rectangular Mahle LX 261 panel (see airFilter).
@@ -238,27 +268,28 @@ export function alternator() {
     p.add(yToZ(hexNut(8, 4)), 'zincPlate', at(50, a, 165));
     p.add(yToZ(hexNut(8, 4)), 'zincPlate', at(50, a, 260));
   }
-  // keyed shaft: includes z 289 (nut thread) and ends at 312, short of the nut face at 313
-  p.add(yToZ(cyl(11, 64, 20)), 'steel', [0, y, 280]);
+  // keyed shaft: reaches the M16 nut on the two-groove pulley. Nut face is FAN.zNut (325).
+  p.add(yToZ(cyl(11, 76, 20)), 'steel', [0, y, 286]);
   return p.g;
 }
 export function fanPulley() {
-  // Removable OUTER half of the 82 mm split pulley, five 0.5 mm shims between the halves, one outside, cupped cap.
-  // The inner flank lives on fan-hub. Valley of the V is at z 303. Nut face is the cap at z 313.
+  // Removable OUTER half of the 82 mm split pulley (911 106 208 00, -79). Two V-grooves:
+  // inner valley at z 303 for the alternator belt, outer valley at zPumpBelt (314) for the air-pump belt.
+  // Five 0.5 mm shims between the halves, one outside, cupped cap. Nut face is the cap at zNut.
   const p = new Part();
   const y = FAN.y;
   const outer: [number, number][] = [
-    [33, 299.4], [36, 303], [41, 307.6], [41, 311], [34, 311], [33, 306.5], [33, 299.4],
+    [16, 299.4], [33, 299.4], [36, 303], [41, 306.6], [36, 314], [41, 318.2], [41, 322], [22, 322], [16, 317], [16, 299.4],
   ];
   p.add(yToZ(lathe(outer, 48)), 'yellowZinc', [0, y, 0]);
   for (let i = 0; i < 5; i++) {
     const z = 296.25 + i * 0.55;
     p.add(yToZ(lathe([[16, z], [27, z], [27, z + 0.5], [16, z + 0.5]], 28)), 'yellowZinc', [0, y, 0]);
   }
-  p.add(yToZ(lathe([[15, 311.2], [23, 311.2], [23, 311.7], [15, 311.7]], 24)), 'yellowZinc', [0, y, 0]);
-  // cupped cap: flat nut face exactly at z 313 out past the M16 washer (rho 17), nothing proud of it
+  p.add(yToZ(lathe([[15, 322.2], [23, 322.2], [23, 322.7], [15, 322.7]], 24)), 'yellowZinc', [0, y, 0]);
+  // cupped cap: flat nut face exactly at zNut, out past the M16 washer, nothing proud of it
   const cap: [number, number][] = [
-    [8, 311.9], [16, 311.5], [21, 311.9], [21, 313], [8, 313],
+    [8, 322.9], [16, 322.5], [21, 322.9], [21, FAN.zNut], [8, FAN.zNut],
   ];
   p.add(yToZ(lathe(cap, 32)), 'yellowZinc', [0, y, 0]);
   return p.g;
@@ -647,12 +678,13 @@ export function oilCoolerCap() {
 /**
  * Oil thermostat on TOP of the right case half at the pulley end.
  * seatY is the nut face (top of the flange). The case pad is at seatY − grip.
- * Three ears: 1978 PET 101-10 #41 is three M6 lock nuts (the two-bolt flange is post-63D).
+ * Two ears: 101-10 #36 is two M6 nuts and #35 two spring washers. The three lock nuts are the
+ * intermediate-shaft cover (101-10 #41), not this flange.
  */
 export const THERMO = {
   x: 88, z: 176, seatY: 118, grip: 8,
-  // Ears sit outside the domed cap so an M6 washer (r 6.25) lands on a flat face.
-  ears: [[18, 0], [4, 16], [6, -14]] as [number, number][],
+  // Ears sit outside the domed cap so an M6 spring washer lands on a flat face.
+  ears: [[18, 0], [6, -14]] as [number, number][],
 };
 export function oilThermostat() {
   const p = new Part();
@@ -683,9 +715,33 @@ export function oilThermostat() {
   band(14.6, yTop - 32, yTop - 24, 'darkSteel');
   return p.g;
 }
-/** Breather tower on the left half: flange top y 132, two M6 nuts (101-10 #36 qty 2). */
-export const BREATHER = { x: -50, seatY: 132, grip: 10, studs: [[-35, 122], [-35, 168]] as [number, number][] };
-/** Clearance prism round the distributor cap (plan), height h centred at y. */
+/**
+ * Intermediate-shaft cover (101-10 #39 911 105 162 00), up to engine 63D 4069.
+ * Sits on the flat pulley-end face of the right case (probed at z 282) on three M6 studs.
+ */
+export const ISHAFT_COVER = {
+  zFace: 282,
+  grip: 6,
+  studs: [[64, -40], [80, -40], [72, -56]] as [number, number][],
+};
+export function ishaftCover() {
+  const p = new Part();
+  const { zFace, grip, studs } = ISHAFT_COVER;
+  const sh = new THREE.Shape();
+  sh.absellipse(72, -48, 24, 22, 0, Math.PI * 2, false, 0);
+  for (const [x, y] of studs) sh.holes.push(circlePath(3.2, x, y) as THREE.Path);
+  const g = extrude(sh, grip);
+  g.translate(0, 0, zFace);
+  p.add(g, 'castAlu');
+  p.add(cyl(8, 4, 20), 'castAlu', [72, -48, zFace + grip + 2]);
+  return p.g;
+}
+/** Breather tower on the left half: flange top y 132, four M6 nuts (101-05 #35, split 4 + 8 with the sump). */
+export const BREATHER = {
+  x: -50, seatY: 132, grip: 10,
+  studs: [[-46, 126], [-46, 164], [-58, 138], [-58, 158]] as [number, number][],
+};
+/** Clearance prism round the distributor cap (plan), height h centred at y. Uses the cast-lug distributor pose. */
 function distRelief(h: number, y: number) {
   const c = distW(0, 140, 0);
   return extrudeC(polyShape(circlePts(c[0], c[2], 34, 28)), h).rotateX(Math.PI / 2).translate(0, y, 0);
@@ -695,13 +751,8 @@ export function breatherLid() {
   // flange in the XZ plane. extrude +Z, rotateX(-90) sends that thickness up; shape Y becomes −Z.
   // Ears stay outboard of the perimeter-nut heads (those reach x −28) and outside the distributor relief.
   const stud = BREATHER.studs;
-  // Full-depth flange stays inboard of the shroud collar (at y 122 the collar wall is x ≈ −41)
-  // and outboard of the perimeter-nut heads (they reach x −28).
-  const outline = hull([
-    ...circlePts(stud[0][0], -stud[0][1], 4.6, 10),
-    ...circlePts(stud[1][0], -stud[1][1], 4.6, 10),
-    ...circlePts(-36, -145, 4.6, 8),
-  ]);
+  // Full-depth flange stays outboard of the perimeter-nut heads (they reach x −28).
+  const outline = hull(stud.flatMap(([x, z]) => circlePts(x, -z, 8, 12)));
   const sh = polyShape(outline);
   const g = extrude(sh, BREATHER.grip);
   g.rotateX(-Math.PI / 2);
@@ -770,7 +821,7 @@ function raisedBead(path: V3[], halfW: number, crown: number, depth: number) {
   g.computeVertexNormals();
   return g;
 }
-/** Sump (strainer) cover. Nut face y = seatY, 12 M6 nuts at r 74 (101-05 #35 qty 12). */
+/** Sump (strainer) cover. Nut face y = seatY, 8 M6 nuts at r 74 (101-05 #35 split 8 here, 4 on the breather). */
 export const SUMP = { seatY: -134, zc: -10, boltR: 74, grip: 6 };
 export function sumpPlate() {
   const p = new Part();
@@ -1671,12 +1722,41 @@ export function heatExchanger(s: 1 | -1) {
   // heater air outlet (to cabin) at the flywheel end, with adapter (#27)
   p.add(tube([[X(shellX), shellY + 10, zA + 10], [X(shellX), shellY + 20, -240], [X(shellX - 20), shellY + 40, -262]], 26, 20, 16), 'aluminized');
   p.add(yToZ(lathe([[25, -6], [29, -6], [29, 6], [25, 6]], 24)).rotateX(-0.7), 'heatSteel', [X(shellX - 18), shellY + 38, -258]);
-  // fresh-air inlet stub from the blower hose, pointing forward out of the pulley-end cap, low and outboard so it stays
-  // clear of the chain box (box floor >= y -125 over the heat exchanger)
-  p.add(tube([[X(shellX + 12), shellY + 6, zB - 14], [X(shellX + 16), shellY + 8, zB + 10], [X(shellX + 18), shellY + 8, zB + 34]], 15, 12, 12), 'aluminized');
-  p.add(yToZ(torus(15.5, 2.2, 6, 20)), 'steel', [X(shellX + 18), shellY + 8, zB + 28]);
+  // Fresh-air inlet (108-10 #10 left, #13 right). Straight beaded spigot on +Z, out of the pulley-end cap,
+  // low enough to clear the chain box. The blower hose clamps over the plain end; the bead stops it.
+  const stub = heaterStub(s);
+  p.add(tube([stub.root, stub.tip], HEATER_STUB_R, 12, 10), 'aluminized');
+  p.add(yToZ(lathe([[HEATER_STUB_R, -2.4], [HEATER_STUB_R + 3.2, -2.4], [HEATER_STUB_R + 3.2, 2.4], [HEATER_STUB_R, 2.4]], 18)), 'aluminized', [stub.tip[0], stub.tip[1], stub.beadZ]);
+  // EGR takeoff (202-05 #1) is on the left exchanger only: a flanged nipple pointing down.
+  if (s < 0) {
+    const f = EGR_FEED_PORT;
+    p.add(tube([f.root, f.tip], 8, 12, 8), 'aluminized');
+    const fl = circleShape(16); fl.holes.push(circlePath(8) as THREE.Path);
+    const fg = extrudeC(fl, 4, 0.4, 3); fg.rotateX(Math.PI / 2);
+    p.add(fg, 'aluminized', [f.root[0], f.root[1] - 2, f.root[2]]);
+  }
   return p.g;
 }
+
+/** Blower-hose spigot on each heat exchanger. `tip` is the free end; the hose slides on along −Z. */
+export const HEATER_STUB_R = 12;
+export function heaterStub(s: 1 | -1) {
+  const shellX = 228, shellY = -175, zB = 222;
+  const x = s * (shellX + 10), y = shellY + 8;
+  const root: V3 = [x, y, zB - 8];
+  const tip: V3 = [x, y, zB + 40];
+  return { root, tip, beadZ: tip[2] - 16, axis: [0, 0, 1] as V3 };
+}
+
+/**
+ * EGR feed fitting on the left heat exchanger (202-05 #1). `axis` points out of the nipple (down).
+ * `tip` is the free end; the pipe slides on along +Y.
+ */
+export const EGR_FEED_PORT = {
+  root: [-196, -208, -28] as V3,
+  tip: [-196, -246, -28] as V3,
+  axis: [0, -1, 0] as V3,
+};
 export function muffler() {
   // Photo-matched (photo-ref/muffler): aluminised oval drum with a gentle banana curve and a welded seam flange
   // around its middle, two inlet stubs with clamps and the chrome tailpipe on the left.
