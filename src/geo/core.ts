@@ -1013,7 +1013,7 @@ export function piston() {
   }, 168, 52, true);
   p.add(dome, 'machinedAlu');
   // underside
-  p.add(yToX(lathe([[0.1, top - 6], [R - 6, top - 7], [R - 5, -44]], 48)), 'castAlu');
+  p.add(yToX(lathe([[0.1, top - 7], [R - 6, top - 8], [R - 5, -44]], 48)), 'castAlu');
   // pin bosses and pin (#3) + circlips (#4)
   for (const z of [-1, 1]) {
     p.add(yToZ(lathe([[11.2, -5], [16, -5], [17, 0], [16, 5], [11.2, 5]], 24)), 'machinedAlu', [0, 0, z * (R - 9)]);
@@ -1348,7 +1348,9 @@ export function valveCover(s: 1 | -1, upper: boolean) {
 
 /** Valve-cover frame: local x = along the slope, local y = engine Z, local z = outward normal (seat flange at z 0). */
 export function coverMatrix(s: 1 | -1, upper: boolean) {
-  const a0 = new THREE.Vector3((HEAD_OUT_X + 13) * s, upper ? 74 : -74, 0);
+  // Seat shifted +17 mm outboard in x. The head casting stays short; the cover,
+  // gasket and studs move so the real-length valves land under the pan.
+  const a0 = new THREE.Vector3((HEAD_OUT_X + 13 + 17) * s, upper ? 74 : -74, 0);
   const a1 = new THREE.Vector3((CAM_HOUSING_OUT_X - 7) * s, upper ? 32 : -32, 0);
   const mid = a0.clone().add(a1).multiplyScalar(0.5);
   let u = a1.clone().sub(a0).normalize();

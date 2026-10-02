@@ -4,7 +4,7 @@
  * gives one world matrix per piece. Counts/steps/claims live in data/smallSpec.ts; tests/smallParts check both agree.
  */
 import * as THREE from 'three';
-import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, circleShape, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, type V3 } from './util';
+import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, circleShape, woodruffGeom, spring, yToZ, cylBetween, csgSub, csgUnion, mesh, type V3 } from './util';
 import { manifoldSub } from './manifoldCut';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
@@ -12,7 +12,7 @@ import { partPose, seat, probe } from './probe';
 import { VC_EXT, vcStuds, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf, SPARK_HOLE_R, SPARK_TUBE_R } from '../data/layout';
 import { LIP_Z, chainLidStations } from './stations';
-import { plugCoverLocal } from './valvetrain';
+import { plugCoverLocal, railJogs } from './valvetrain';
 import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
 import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, TEE_AIR_INJ, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
@@ -60,6 +60,35 @@ function earPts(cx: number, cy: number, r: number, n = 14): [number, number][] {
   }
   return o;
 }
+/**
+ * One hole around two overlapping circles. Winding is clockwise, opposite the
+ * gasket outline, so THREE.Shape treats it as a hole.
+ */
+function unionCircles(
+  a: { x: number; y: number; r: number },
+  b: { x: number; y: number; r: number },
+): THREE.Path {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const base = Math.atan2(dy, dx);
+  const clamp = (v: number) => Math.max(-1, Math.min(1, v));
+  const alpha = Math.acos(clamp((a.r * a.r + d * d - b.r * b.r) / (2 * a.r * d)));
+  const beta = Math.acos(clamp((b.r * b.r + d * d - a.r * a.r) / (2 * b.r * d)));
+  const pts: THREE.Vector2[] = [];
+  const arc = (cx: number, cy: number, r: number, a0: number, a1: number, n: number) => {
+    let sweep = a1 - a0;
+    while (sweep <= 0) sweep += Math.PI * 2;
+    for (let i = 0; i <= n; i++) {
+      const t = a0 + sweep * (i / n);
+      pts.push(new THREE.Vector2(cx + Math.cos(t) * r, cy + Math.sin(t) * r));
+    }
+  };
+  arc(a.x, a.y, a.r, base + alpha, base - alpha + Math.PI * 2, 12);
+  const bBase = base + Math.PI;
+  arc(b.x, b.y, b.r, bBase + beta, bBase - beta + Math.PI * 2, 16);
+  pts.reverse();
+  return new THREE.Path(pts);
+}
 function rectHole(cx: number, cy: number, w: number, h: number, r: number) {
   const pts = roundRect(w, h, r, cx, cy).getPoints(6);
   pts.reverse();
@@ -78,6 +107,50 @@ function coverGasket(s: 1 | -1, up: boolean) {
     ...rectPts(58, L, 7),
     ...studs.flatMap((st) => earPts(st.x, st.y, 8)),
   ]);
+  // Exhaust stems and the adjuster arms cross the head-side rail. Bulge the
+  // outline past each jog and leave a slot inside it, so the ring stays closed.
+  const railSlots: { x0: number; x1: number; y0: number; y1: number }[] = [];
+  const circles: { x: number; y: number; r: number }[] = [];
+  const unions: THREE.Path[] = [];
+  const unionYs: number[] = [];
+  if (!up) {
+    const extra: [number, number][] = [];
+    for (const j of railJogs(s, false)) {
+      const cy = (j.y0 + j.y1) / 2;
+      const outer = j.sign * (j.reach + 8);
+      if (Math.abs(cy) > halfL - 28) {
+        // Cap station. The stem sits on the head side and the rocker crosses
+        // near the cover centre. One hole around both, inside a bulged ear.
+        // A rectangle through y = ±halfL is not a valid shape hole.
+        const head = { x: j.sign * 25, y: cy, r: 15 };
+        const rock = { x: j.sign * 8, y: cy, r: 14 };
+        unions.push(unionCircles(rock, head));
+        unionYs.push(cy);
+        const yFar = Math.sign(cy) * (Math.abs(cy) + head.r + 8);
+        extra.push(
+          [j.sign * (25 + head.r + 6), cy],
+          [j.sign * (25 + head.r + 6), yFar],
+          [j.sign * (8 - rock.r - 6), yFar],
+          [j.sign * (8 - rock.r - 6), cy],
+        );
+      } else {
+        const head = j.sign * (j.reach - 1);
+        // Across the bay as well: the arm crosses the cam-side frame, not only the head rail.
+        const cam = -j.sign * 24;
+        railSlots.push({
+          x0: Math.min(head, cam),
+          x1: Math.max(head, cam),
+          y0: j.y0 - 3,
+          y1: j.y1 + 3,
+        });
+        for (const y of [j.y0 - 2, cy, j.y1 + 2]) extra.push([outer, y]);
+      }
+    }
+    if (extra.length) {
+      outline = hull2([...outline, ...extra]);
+      if (ringArea(outline) < 0) outline.reverse();
+    }
+  }
   if (ringArea(outline) < 0) outline.reverse();
   const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)));
   for (const st of studs) shape.holes.push(circlePath(3.4, st.x, st.y) as THREE.Path);
@@ -127,11 +200,33 @@ function coverGasket(s: 1 | -1, up: boolean) {
         dx * sx * along / 2 + nx * sy * across / 2,
         cy + dy * sx * along / 2 + ny * sy * across / 2,
       ));
-      shape.holes.push(new THREE.Path(pts));
+      const hitStem = railSlots.some((h) => Math.abs((h.y0 + h.y1) / 2 - cy) < 36)
+        || unionYs.some((y) => Math.abs(y - cy) < 42);
+      if (!hitStem) shape.holes.push(new THREE.Path(pts));
+    }
+    for (const h of circles) shape.holes.push(circlePath(h.r, h.x, h.y) as THREE.Path);
+    for (const h of unions) shape.holes.push(h);
+    for (const h of railSlots) {
+      shape.holes.push(new THREE.Path([
+        new THREE.Vector2(h.x0, h.y0),
+        new THREE.Vector2(h.x0, h.y1),
+        new THREE.Vector2(h.x1, h.y1),
+        new THREE.Vector2(h.x1, h.y0),
+      ]));
     }
   }
   let g: THREE.BufferGeometry = extrudeC(shape, 0.4);
   g.translate(0, 0, -0.25);
+  // Top face points at the cover. A reversed patch erodes up into the lip.
+  if (!g.attributes.normal) g.computeVertexNormals();
+  {
+    const P = g.attributes.position, N = g.attributes.normal;
+    for (let i = 0; i < P.count; i++) {
+      const z = P.getZ(i), nz = N.getZ(i);
+      if ((z > -0.2 && nz < -0.3) || (z < -0.3 && nz > 0.3)) N.setXYZ(i, -N.getX(i), -N.getY(i), -nz);
+    }
+    N.needsUpdate = true;
+  }
   if (bites.length) g = manifoldSub(g, ...bites);
   return new Part().add(g, 'gasket');
 }

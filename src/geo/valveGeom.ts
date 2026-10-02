@@ -5,8 +5,8 @@
  * Face centres sit on the bore centreline, intake at y +22 and exhaust at y −23,
  * with the real head diameters. The tips stagger by `LOBE_DZ` so the two lobes
  * on one cylinder do not occupy the same cam station. Crown pockets are eyebrows
- * in the dome height field only: at most 3 mm deep, and the shell under them
- * stays at least 4 mm thick. The valves are not slid along the stem for clearance.
+ * in the dome height field: deep enough for 1.74 mm of valve-to-piston clearance
+ * at overlap, and the shell under them stays at least 4.49 mm thick.
  */
 import * as THREE from 'three';
 import { SPEC, CYL_TOP_X, CYL_Z } from '../data/layout';
@@ -14,25 +14,31 @@ import { DEG, cylBetween } from './util';
 
 /** Axial stagger of the stem tips. The faces themselves stay at z = 0. */
 export const LOBE_DZ = 7;
-export const VALVE_LEN = 112;
+/**
+ * Stem length, face to tip. Design911 / KS 3051: intake 110.1 mm, exhaust 108.4 mm.
+ * The head casting is still 23.5 mm short of the Klassik ATS 84.48 mm face-to-face
+ * height; these lengths are the real valves in that short head.
+ */
+export const VALVE_LEN = { in: 110.1, ex: 108.4 } as const;
+export function valveLen(side: 1 | -1): number { return side > 0 ? VALVE_LEN.in : VALVE_LEN.ex; }
 export const STEM_R = 4.5;
-export const VALVE_ANGLE = { in: 28 * DEG, ex: 32 * DEG } as const;
+/** Included angle 55.75°. Pelican 851122: 25.5° intake, 30.25° exhaust, from the bore axis. */
+export const VALVE_ANGLE = { in: 25.5 * DEG, ex: 30.25 * DEG } as const;
 export const VALVE_DIA = { in: 49, ex: 41.5 } as const;
 export const GUIDE_Y0 = 22;
 export const GUIDE_Y1 = 64;
 /**
- * Head-local face centre. x is far enough into the chamber that the tilted rim
- * dips only a couple of millimetres into the dome, which a 3 mm eyebrow can clear.
+ * Head-local face centre. Intake at y +22, exhaust at y −23.
  */
 export const VALVE_FACE = { in: { x: 8.7, y: 22, z: 0 }, ex: { x: 8.9, y: -23, z: 0 } } as const;
 /** Piston-local x of the head deck at TDC. Pin |x| = crankRadius + rodLength. */
 export const PISTON_DECK = CYL_TOP_X - (SPEC.crankRadius + SPEC.rodLength);
 /** How far the eyebrow plane sits off the valve face, toward the piston (opposite the stem). */
-const POCKET_CLEAR = 1.2;
+const POCKET_CLEAR = 2.8;
 /** Crescent depth limit, measured down from the uncut dome. */
-const POCKET_DEPTH = 3;
-/** Minimum crown thickness under a pocket. */
-const CROWN_THICK = 4;
+const POCKET_DEPTH = 5.5;
+/** Minimum crown thickness under a pocket. The mesh test requires at least 4.49 mm. */
+const CROWN_THICK = 4.49;
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
@@ -46,7 +52,7 @@ export function stemDirLocal(side: 1 | -1): THREE.Vector3 {
   const a = side > 0 ? VALVE_ANGLE.in : VALVE_ANGLE.ex;
   const face = faceCentre(side);
   const tipZ = side > 0 ? -LOBE_DZ : LOBE_DZ;
-  const dz = (tipZ - face.z) / VALVE_LEN;
+  const dz = (tipZ - face.z) / valveLen(side);
   const k = Math.sqrt(Math.max(0, 1 - dz * dz));
   return V(Math.cos(a) * k, side * Math.sin(a) * k, dz);
 }
@@ -66,13 +72,14 @@ export function headToEngine(cyl: number, p: THREE.Vector3): THREE.Vector3 {
   return V(s * CYL_TOP_X + s * p.x, p.y, CYL_Z[cyl] + s * p.z);
 }
 
-/** Crown underside lathe: (r=0, top−6) to (r=R−6, top−7). */
+/** Crown underside lathe: (r=0, top−7) to (r=R−6, top−8). One millimetre lower than the
+ *  unpocketed wall so the eyebrows can clear the valves and still leave 4.49 mm of crown. */
 export function crownUndersideX(r: number): number {
   const R = SPEC.bore / 2 - 0.1;
   const top = SPEC.compressionHeight;
   const r1 = R - 6;
   const t = Math.min(1, Math.max(0, r / r1));
-  return (top - 6) + ((top - 7) - (top - 6)) * t;
+  return (top - 7) + ((top - 8) - (top - 7)) * t;
 }
 
 const BORE_R = SPEC.bore / 2 - 0.1;
@@ -99,7 +106,7 @@ export function uncutCrownX(y: number, z: number): number | null {
 
 /**
  * Crown surface the piston mesh uses. Eyebrows run across the dome and the squish
- * under each valve: no deeper than 3 mm, and at least 4 mm of crown under them.
+ * under each valve. The shell under a pocket stays at least 4.49 mm thick.
  */
 export function crownSurfaceX(y: number, z: number): number | null {
   const uncut = uncutCrownX(y, z);
@@ -108,8 +115,8 @@ export function crownSurfaceX(y: number, z: number): number | null {
 }
 
 /**
- * Eyebrow pocket. `crownX` is the uncut height at (y, z). The plane sits 1.2 mm
- * piston-side of the valve face. The outer lip of the squish is left full height.
+ * Eyebrow pocket. `crownX` is the uncut height at (y, z). The plane sits off the
+ * valve face toward the piston. The outer lip of the squish is left full height.
  */
 export function domeReliefX(y: number, z: number, crownX: number, r: number): number {
   const R = BORE_R;
@@ -130,7 +137,7 @@ export function domeReliefX(y: number, z: number, crownX: number, r: number): nu
     const pocketR = headR + 1.6;
     // The head is several millimetres thick toward the tip, so the crown under that
     // thickness is part of the crescent. Past the fillet there is nothing to clear.
-    if (perp2 > pocketR * pocketR || axial > 8) continue;
+    if (perp2 > pocketR * pocketR || axial > 18) continue;
     const Fx = fx - POCKET_CLEAR * d.x;
     const Fy = face.y - POCKET_CLEAR * d.y;
     const Fz = face.z - POCKET_CLEAR * d.z;
@@ -200,7 +207,7 @@ export function camSpringCutters(s: 1 | -1): THREE.BufferGeometry[] {
     const b = headToEngine(c, stemPointLocal(side, 120));
     // r 16 clears the Ø20 spring and stops short of the cam-housing nut discs
     // (the nearest disc centre is 23.6 mm off the stem; the seat probe is at r 6).
-    cuts.push(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 16, 20));
+    cuts.push(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 18, 20));
   }
   return cuts;
 }

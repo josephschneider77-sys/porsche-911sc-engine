@@ -1127,17 +1127,17 @@ These are the sizes the cam housings, camshafts, rockers and valves are built to
 |---|---|---|---|
 | Lash, cold, in and ex | 0.10 mm at the adjuster ball; pad on the base circle | Wayne Dempsey, “911 Valve Adjustment” | verified |
 | Intake / exhaust head | Ø49 mm / Ø41.5 mm | Catalogue 930.105.409 / 930.105.419; previous model | not re-measured |
-| Valve angle | 28° in / 32° ex | Previous model | unverified |
-| Valve length | 112 mm | Previous model | unverified |
+| Valve angle | 25.5° in / 30.25° ex (55.75° included) | Pelican forum 851122 | unverified |
+| Valve length | 110.1 mm intake / 108.4 mm exhaust | Design911 and KS 3051 | unverified |
 | Stem | Ø9 mm, three keeper grooves | Stem size is the common 911 figure; three beads are the 901.105.417.00 photo | unverified |
 | Installed spring height | 34.5 mm | Bentley 911 SC spec 34.5 ± 0.3 mm (DDK quotation). Not Dempsey | unverified |
 | Spring diameters | outer centre Ø20.4 mm, inner Ø14.2 mm | Scaled to clear the cam-housing stud nuts. The spring photo shows a larger outer coil | unverified |
 | Cam journal / housing bore | Ø46.7 mm / Ø47.1 mm, four webs | Audit photos read about Ø47. Peak lobe radius 22.4 mm is under the journal so the cam slides in from the chain end | unverified |
-| Lobe | base radius 16 mm, lift 6.4 mm | Built as base circle, flank and nose. Peak timing is conventional, not a measured cam card | unverified |
+| Lobe | base radius 14.7 mm, lift 7.75 mm intake / 6.90 mm exhaust | FVD 930 105 147 17 / Cat Cams. Peaks stay under 22.85 mm | unverified |
 | Cam shank | Ø28 mm | About 0.6 × the journal on the FVD photo | unverified |
 | Cam nose | r 11 mm, Woodruff key, external M22 | Key, washer and nut still use `CAM_NOSE`. Flange OD 62 mm so the dowel holes clear the hub | key / nut unchanged |
 | Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket, tail in the flange hole | 900 243 001 00, Stoddard 6 × 14. Existing `cam-pin-*`, circle radius 24 mm | parts listing |
 | Valve covers | both banks match the cam-housing seat | Left cover no longer overhangs the flywheel end by 30 mm. Nuts stay on the ear bosses | — |
 | Rocker shaft | Ø18 × 50 mm, hollow, two grooves, slotted | Photo of 901.105.342.04 | unverified |
 | Shaft screw / nut | M6 pan head 999.067.008.00; nut 901.105.376.02 | Kat 502 illustration 103-10 positions 45 and 47 | catalogue |
-| Rocker ratio | ~1.13 in / ~1.21 ex at this layout | Follows from the pad-on-base-circle placement. Not taken from a published ratio | unverified |
+| Rocker ratio | about 1.47 average; about 1.64 in / 1.58 ex at the nose | Pelican forum 1054198 is the published band (about 1.2–1.3 closed, about 1.45 at the nose). This forging is higher because the lift targets fix the average | measured |

@@ -23,7 +23,7 @@ export const DECK_X = 103; // crankcase cylinder face
 export const CYL_TOP_X = 201; // cylinder / head joint
 export const HEAD_OUT_X = 262; // head / cam-housing joint
 export const CAM_X = 292; // camshaft axis
-export const CAM_HOUSING_OUT_X = 320;
+export const CAM_HOUSING_OUT_X = 337;
 export const INT_SHAFT_Y = -84;
 export const CASE_Z = { flywheel: -205, pulley: 212 };
 
@@ -121,9 +121,10 @@ export const SPARK_HEX_AF = 20.8;
 export const SPARK_NIPPLE_Y = -70;
 /**
  * Distance along the axis from the tip to the connector's seal flange.
- * That station is the cover-face crossing (local z of the outer skin).
+ * The cover seat moved +17 mm outboard; this is the new crossing of the
+ * collar (cover-local z ≈ 24), the same station the flange used before the move.
  */
-export const SPARK_FLANGE_T = 144;
+export const SPARK_FLANGE_T = 156.7;
 /** Machined through-hole in the upper cover, mm radius. The seal flange is 0.12 mm larger. */
 export const SPARK_HOLE_R = 13;
 /** Connector tube outer radius, mm. It clears the cover hole; only the flange seats. */

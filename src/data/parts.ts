@@ -67,7 +67,7 @@ function perCylinder(): PartDef[] {
       position: [CYL_TOP_X * s, 0, z], rotation: bankRot(c), explode: [s * 400, 0, 0],
       catalog: [{ ill: '103-00', pos: '1', pn: '930 104 019 05', qty: 6, note: 'Remark 78, model SC, with valves, ready for installation (1978 USA 930/04). No 1978 bare-head number; 029 08 is remark 79.' }],
       description: 'Individual single-cylinder cast aluminium head with a hemispherical chamber, two valves in a V, intake port on top and exhaust port below. The spark plug is threaded in an M14 bore from the chamber up to the cam-housing face, coaxial with the upper valve-cover hole. The exhaust flange is the port plate only.',
-      specs: { Valves: '2 (1 in / 1 ex)', 'Intake valve': 'Ø49 mm', 'Exhaust valve': 'Ø41.5 mm', 'Valve angle': '~28° in / ~32° ex (est.)' },
+      specs: { Valves: '2 (1 in / 1 ex)', 'Intake valve': 'Ø49 mm, 110.1 mm', 'Exhaust valve': 'Ø41.5 mm, 108.4 mm', 'Valve angle': '25.5° in / 30.25° ex' },
     });
     out.push({
       id: `valves-${c}`, name: `Valves & springs, cyl. ${c}`, system: 'valvetrain', asset: `valve-set-${c}`,
@@ -152,7 +152,7 @@ function perBank(): PartDef[] {
     out.push({
       id: `rockers-${b}`, name: `Rocker arms & shafts, ${b}`, system: 'valvetrain', asset: `rockers-${b}`, explode: [s * 600, 30, 60],
       catalog: [{ ill: '103-10', pos: '48', pn: '930 105 043 00', qty: 12, note: 'Rocker arm. Blank remark and model (1978 USA 930/04). 043 02 is the other line.' }, { ill: '103-10', pos: '44', pn: '901 105 342 04', qty: 12, note: 'Rocker shaft (expanding). Blank remark and model.' }, { ill: '103-10', pos: '49/50', pn: '901 105 370 02 / 999 034 005 00', note: 'Adjusting screw / nut. Blank remark and model.' }],
-      description: 'Forged rocker arms on hollow slotted expanding shafts. The pad sits on the cam base circle; clearance is the 0.10 mm gap between the adjuster ball and the valve stem (cold). Intake and exhaust arms mirror across the cam.',
+      description: 'Forged rocker arms on hollow slotted expanding shafts. The slipper face sits on the cam base circle with no gap; cold clearance is the 0.10 mm gap between the adjuster ball and the valve stem. Intake and exhaust arms each have their own shaft station. The adjuster is a screw, a ball and a locknut, one solid.',
       specs: { Count: '6 per bank', 'Shaft': 'Ø18 mm hollow, 2 grooves (unverified)', Ratio: '~1.1 at this layout (unverified)', Lash: '0.10 mm cold at the screw' },
     });
     out.push({

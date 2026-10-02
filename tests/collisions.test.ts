@@ -287,7 +287,7 @@ describe('valve to piston around overlap TDC', () => {
       new THREE.Vector3(1, 1, 1),
     ).invert();
     const pose = trainPose(cyl, side, crank);
-    const face = stemPointLocal(side, 0).addScaledVector(stemDirLocal(side), pose.lift);
+    const face = stemPointLocal(side, 0).addScaledVector(stemDirLocal(side), -pose.lift);
     const faceP = new THREE.Vector3(s * (CYL_TOP_X + face.x), face.y, CYL_Z[cyl] + s * face.z).applyMatrix4(inv);
     const head = valveHeadEngine(cyl, side, crank);
     const P = head.attributes.position;
@@ -314,18 +314,18 @@ describe('valve to piston around overlap TDC', () => {
     return min;
   }
 
-  it('keeps at least 1 mm across ±30° of crank around overlap TDC', () => {
+  it('keeps at least 1.74 mm across ±30° of crank around overlap TDC', () => {
     let min = Infinity;
     for (const cyl of [1, 2, 3, 4, 5, 6]) {
       const overlap = FIRE_CRANK[cyl] + 360;
       for (let crank = overlap - 30; crank <= overlap + 30; crank += 10) {
         for (const side of [1, -1] as const) {
           const g = gapAt(cyl, side, crank);
-          expect(g, `cyl ${cyl} side ${side} crank ${crank}`).toBeGreaterThanOrEqual(1);
+          expect(g, `cyl ${cyl} side ${side} crank ${crank}`).toBeGreaterThanOrEqual(1.74);
           min = Math.min(min, g);
         }
       }
     }
-    expect(min).toBeGreaterThanOrEqual(1);
+    expect(min).toBeGreaterThanOrEqual(1.74);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import {
-  CAM, PEAK_R, LASH, PAD_LEN, EYE_LEN, PAD_W, FIRE_CRANK, ASSEMBLED_CRANK, trainPose, camshaft, camWebZ, lobeRadius,
+  CAM, PEAK_R, PEAK_CRANK, LASH, PAD_W, FIRE_CRANK, ASSEMBLED_CRANK, trainPose, camshaft, camWebZ, lobeRadius,
   rockerStations, plugCoverLocal,
 } from '../src/geo/valvetrain';
 import { CAM_X, SPARK_TIP, SPARK_Z, SPARK_AXIS, SPARK_HOLE_R, SPARK_FLANGE_T, sparkDirHead, sparkRoll, plugTipEngine, plugAxisEngine } from '../src/data/layout';
@@ -11,7 +11,7 @@ import { ASSET_BUILDERS, partPose } from '../src/geo/assets';
 import { rayHit } from './hw';
 import { clearance } from './collide';
 
-const PEAK_AT = { in: 450, ex: 270 } as const;
+const PEAK_AT = PEAK_CRANK;
 
 function worldVerts(obj: THREE.Object3D): THREE.Vector3[] {
   const out: THREE.Vector3[] = [];
@@ -78,10 +78,15 @@ describe('top-end batch 1', () => {
     expect(CAM.journalR).toBeCloseTo(23.35, 2);
     expect(CAM.boreR - CAM.journalR).toBeGreaterThan(0.15);
     expect(CAM.boreR - CAM.journalR).toBeLessThan(0.35);
+    expect(CAM.baseR).toBeCloseTo(14.7, 2);
     expect(PEAK_R).toBeLessThan(CAM.journalR - 0.5);
     expect(PEAK_R).toBeLessThan(CAM.boreR - 0.5);
-    expect(lobeRadius(0)).toBeCloseTo(CAM.baseR + CAM.lift, 5);
-    expect(lobeRadius(Math.PI)).toBeCloseTo(CAM.baseR, 5);
+    expect(lobeRadius(0, 1)).toBeCloseTo(CAM.baseR + CAM.lift.in, 5);
+    expect(lobeRadius(0, -1)).toBeCloseTo(CAM.baseR + CAM.lift.ex, 5);
+    expect(lobeRadius(0, 1)).toBeLessThan(22.85);
+    expect(lobeRadius(0, -1)).toBeLessThan(22.85);
+    expect(lobeRadius(Math.PI, 1)).toBeCloseTo(CAM.baseR, 5);
+    expect(lobeRadius(Math.PI, -1)).toBeCloseTo(CAM.baseR, 5);
   });
 
   it('gives 0.10 mm lash on the base circle at firing TDC and opens the valve on the nose', () => {
@@ -93,23 +98,30 @@ describe('top-end batch 1', () => {
       expect(closed.lift, tag).toBeLessThan(0.05);
       expect(closed.gap, tag).toBeCloseTo(LASH, 2);
       const peak = trainPose(cyl, side, FIRE_CRANK[cyl] + PEAK_AT[which]);
-      expect(peak.lobeR, tag).toBeCloseTo(PEAK_R, 2);
-      // Kat 502 103-10 #48 is one forging, qty 12: pad 42 mm, eye 34 mm, 28°.
-      // That opens the valve 4.54 mm intake and 4.72 mm exhaust with the ball
-      // still on the stem. A longer eye printed 10.5 / 11.1 only by leaving the stem.
-      expect(peak.lift, `${tag} lift`).toBeGreaterThan(side > 0 ? 4.5 : 4.7);
+      expect(peak.lobeR, tag).toBeCloseTo(side > 0 ? lobeRadius(0, 1) : lobeRadius(0, -1), 2);
+      // FVD 930 105 147 17 / Cat Cams, with 0.10 mm lash: 11.3 intake, 9.9 exhaust.
+      const want = side > 0 ? 11.3 : 9.9;
+      expect(Math.abs(peak.lift - want), `${tag} lift`).toBeLessThanOrEqual(0.3);
+      const overlap = trainPose(cyl, side, FIRE_CRANK[cyl] + 360);
+      const wantTdc = side > 0 ? 1.15 : 1.35;
+      expect(Math.abs(overlap.lift - wantTdc), `${tag} overlap TDC`).toBeLessThanOrEqual(0.15);
       const b = peak.lay.ball.clone().sub(peak.lay.P).rotateAround(new THREE.Vector2(0, 0), peak.beta).add(peak.lay.P);
       const dx = b.x - peak.lay.tip.x, dy = b.y - peak.lay.tip.y;
       const along = dx * peak.lay.stem.x + dy * peak.lay.stem.y;
       const off = Math.hypot(dx - peak.lay.stem.x * along, dy - peak.lay.stem.y * along);
-      expect(off, `${tag} ball on the stem`).toBeLessThan(STEM_R);
+      expect(off, `${tag} ball on the stem`).toBeLessThanOrEqual(3);
       const s = cyl <= 3 ? 1 : -1;
       const cam = new THREE.Vector2(s * CAM_X, 0);
       expect(Math.abs(closed.lay.K.distanceTo(cam) - CAM.baseR), `${tag} pad on base circle`).toBeLessThanOrEqual(0.05);
       expect(peak.gap, tag).toBeLessThan(0.02);
-      // Photo proportions: a long pad arm and a distinct shorter eye arm, not a stub on the boss.
-      expect(closed.lay.P.distanceTo(closed.lay.K), `${tag} pad arm`).toBeGreaterThan(PAD_LEN - 1);
-      expect(closed.lay.P.distanceTo(closed.lay.ball), `${tag} eye arm`).toBeGreaterThan(EYE_LEN - 1);
+      const pad = closed.lay.P.distanceTo(closed.lay.K);
+      const eye = closed.lay.P.distanceTo(closed.lay.ball);
+      expect(pad, `${tag} pad arm`).toBeGreaterThanOrEqual(31);
+      expect(pad, `${tag} pad arm`).toBeLessThanOrEqual(35);
+      expect(eye, `${tag} eye arm`).toBeGreaterThanOrEqual(33);
+      expect(eye, `${tag} eye arm`).toBeLessThanOrEqual(40);
+      expect(closed.lay.P.distanceTo(closed.lay.C), `${tag} shaft to cam`).toBeGreaterThanOrEqual(40);
+      expect(closed.lay.P.distanceTo(closed.lay.C), `${tag} shaft to cam`).toBeLessThanOrEqual(42);
       expect(PAD_W, 'pad shoe width').toBe(19);
     }
   });
