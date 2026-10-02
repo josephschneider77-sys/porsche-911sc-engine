@@ -14,7 +14,7 @@ import {
 } from './util';
 import { CAM_X, CAM_HOUSING_OUT_X, CYL_Z, CYL_TOP_X, HEAD_OUT_X, SPARK_HOLE_R, plugTipEngine, plugAxisEngine } from '../data/layout';
 import { HEAD_HW } from './hwLayout';
-import { CH_Z0, CH_Z1, VC_EARS, VC_EDGE, CAM_NOSE, CHAIN_Z, bankZ, coverMatrix } from './core';
+import { CH_Z0, CH_Z1, vcStuds, vcLugs, CAM_NOSE, CHAIN_Z, bankZ, coverMatrix } from './core';
 import {
   VALVE_LEN, STEM_R, GUIDE_Y0, GUIDE_Y1,
   stemDirLocal, stemPointLocal, headToEngine, camSpringCutters,
@@ -1243,10 +1243,10 @@ export function camHousing(s: 1 | -1) {
       p.add(boxMM([X(HEAD_OUT_X + 8), sg > 0 ? 70 : -74, a], [X(HEAD_OUT_X + 16), sg > 0 ? 75 : -69, b]), 'machinedAlu');
     }
   }
-  for (const upper of [true, false]) for (const f of VC_EARS(upper, s)) {
-    const z = zc + f;
-    p.add(yToX(cyl(6.5, 12, 14)), 'castAlu', [X(HEAD_OUT_X + 12), upper ? 69 : -69, z]);
-    p.add(yToX(cyl(6, 10, 14)), 'castAlu', [X(CAM_HOUSING_OUT_X - 10), upper ? 32 : -32, z]);
+  for (const upper of [true, false]) for (const st of vcStuds(upper, s)) {
+    const z = zc + st.y;
+    const headSide = st.x < 0;
+    p.add(yToX(cyl(6.5, 12, 14)), 'castAlu', [X(headSide ? HEAD_OUT_X + 12 : CAM_HOUSING_OUT_X - 10), upper ? (headSide ? 69 : 32) : (headSide ? -69 : -32), z]);
   }
   // end faces: flywheel end (cover, stoppers, banjo and temp-switch probes) and pulley end (chain-housing studs)
   // Flywheel-end cap, outboard of the rearmost rocker-shaft nut so that nut stays reachable.
@@ -1294,17 +1294,13 @@ export function camHousing(s: 1 | -1) {
   // is what the thread ray finds. r 4.2 covers the probe at r 3.6.
   for (const upper of [true, false]) {
     const frame = coverMatrix(s, upper);
-    VC_EARS(upper, s).forEach((yy, i) => {
-      for (const xx of [-VC_EDGE, VC_EDGE]) {
-        // Lower outboard ears 0, 2 and 4 are the special caps, not these studs.
-        if (!upper && xx > 0 && (i === 0 || i === 2 || i === 4)) continue;
-        // Below the cover underside (trimmed to local z −0.15) by more than the 1 mm erosion.
-        const g = yToZ(cyl(4.2, 3.2, 12));
-        g.translate(xx, yy, -9.2);
-        g.applyMatrix4(frame);
-        p.add(g, 'castAlu');
-      }
-    });
+    for (const st of vcStuds(upper, s)) {
+      // Below the cover underside (trimmed to local z −0.15) by more than the 1 mm erosion.
+      const g = yToZ(cyl(4.2, 3.2, 12));
+      g.translate(st.x, st.y, -9.2);
+      g.applyMatrix4(frame);
+      p.add(g, 'castAlu');
+    }
   }
   // After every later solid (lands, towers, stud pads). The outline cutter leaves one
   // side of the arm coplanar with the forging; these cylinders open that face.
@@ -1552,12 +1548,12 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   // The blister can land on an ear. Keep the M8 stud (r 3.84) in a r 6.4 hole,
   // the same clearance the lip already has.
   const frame = coverMatrix(s, upper);
-  const studHoles = VC_EARS(upper, s).flatMap((yy) => [-VC_EDGE, VC_EDGE].map((xx) => {
+  const studHoles = vcStuds(upper, s).map((st) => {
     const g = yToZ(cyl(6.4, 90, 16));
-    g.translate(xx, yy, 5);
+    g.translate(st.x, st.y, 5);
     g.applyMatrix4(frame);
     return g;
-  }));
+  });
   // Boolean scraps from the lip hang below the seat and into the housing.
   // Drop everything under the gasket. The lip itself stays at z ≥ 0.
   const under = boxMM([-140, -260, -90], [140, 260, -0.4]);
@@ -1641,9 +1637,9 @@ function addPlugOpenings(root: THREE.Object3D, s: 1 | -1) {
   // The collar reaches the cam-side studs. Keep the nut face (local z 7) clear
   // out to the washer probe, or those nuts sit in the collar.
   const nutClear: THREE.BufferGeometry[] = [];
-  for (const yy of VC_EARS(true, s)) for (const xx of [-VC_EDGE, VC_EDGE]) {
+  for (const st of vcStuds(true, s)) {
     const g = yToZ(cyl(7.6, 28, 20));
-    g.translate(xx, yy, 7.3 + 14);
+    g.translate(st.x, st.y, 7.3 + 14);
     g.applyMatrix4(frame);
     nutClear.push(g);
   }
@@ -1720,7 +1716,7 @@ function coverRelief(s: 1 | -1, upper: boolean) {
     // Nut hex ends ~18.5 mm on the −Y side of the shaft; the pan-head screw
     // ends ~17 mm on +Y. Keep both inside the blister, and stop short of the
     // ear faces (r 9.2) so the cover-nut seat is not machined away.
-    const ears = VC_EARS(upper, s);
+    const ears = [...vcStuds(upper, s).map((st) => st.y), ...(upper ? [] : vcLugs(s).map((st) => st.y))];
     let yNut = shaft.y - (SHAFT.half + 8);
     let yScr = shaft.y + (SHAFT.half + 4);
     for (const e of ears) {

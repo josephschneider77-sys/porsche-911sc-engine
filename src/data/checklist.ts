@@ -81,7 +81,7 @@ export const POOLS: Record<string, { by: string; what: string }[]> = {
     { by: 'breather-nuts', what: 'stud' }, { by: 'case-m10-nut', what: 'stud' }, { by: 'oil-pump-nuts', what: 'stud' },
     { by: 'sump-nuts', what: 'stud' }, { by: 'crankcase-left', what: 'bellstud' },
   ],
-  // studs in the right half (101-10 #2-#16 except #11); the upper head studs are not a separate line in these groups
+  // studs in the right half (101-10 #2-#16 except #11). Head studs are also claimed on 101-05 as the upper and lower lines.
   'case-right-studs': [
     { by: 'case-perimeter-nuts', what: 'stud' }, { by: 'chain-housing-nuts-right', what: 'stud' }, { by: 'thermostat-nuts', what: 'stud' },
     { by: 'case-right-nut', what: 'stud' }, { by: 'case-through-stud-nut', what: 'stud' }, { by: 'crankcase-right', what: 'bellstud' },
@@ -110,7 +110,8 @@ export const CLAIMS: Claim[] = [
   // ---- 101-05 crankcase, left half
   C('101-05#1', 'crankcase-left'),
   ...['2', '4', '5', '6', '7', '9', '10', '11', '12', '13', '14'].map((p) => C(`101-05#${p}`, 'pool:case-left-studs', 'stud')),
-  C('101-05#3', 'head-nuts-left', 'stud', 12, 'lower head studs, one per head-nut station of the left bank'),
+  C('101-05#3#911 101 172 00', 'head-nuts-*', 'upperStud', 12, 'upper head studs, two per cylinder'),
+  C('101-05#3#930 101 170 00', 'head-nuts-*', 'lowerStud', 12, 'lower Dilavar head studs, two per cylinder'),
   C('101-05#15', 'case-dowels', 'item', 2), C('101-05#16', 'oil-return-tubes'), C('101-05#17', 'oil-return-tubes', 'seal'),
   C('101-05#18', 'case-connection-left'), C('101-05#19', 'case-connection-left', 'ring'),
   C('101-05#-#911 101 011 01', 'spray-jets', 'item', 3),

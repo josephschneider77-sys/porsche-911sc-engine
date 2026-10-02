@@ -24,7 +24,8 @@ export const FASTENER_SPECS: FastenerSpec[] = [
   ...b2((b) => ({
     id: `head-nuts-${b}`, name: `Cylinder-head barrel nuts, ${b} bank`, count: 12, step: 'cam-housings', follows: `cam-housing-${b}`, size: 'M10 barrel nut + washer',
     catalog: [{ ill: '103-00', pos: '17', pn: '901 104 382 02', qty: 24, note: 'Barrel nut (12 per bank); washer #16 999 031 091 01 x24' },
-      { ill: '101-05', pos: '3', pn: '930 101 170 00', qty: 12, note: 'Lower head studs (Dilavar) in the case; upper studs 911 101 172 00' }],
+      { ill: '101-05', pos: '3', pn: '911 101 172 00', qty: 12, note: 'Upper head studs, two per cylinder' },
+      { ill: '101-05', pos: '3', pn: '930 101 170 00', qty: 12, note: 'Lower Dilavar head studs, two per cylinder. A separate line from the upper studs' }],
     description: 'Four tall barrel nuts per head on the case head studs (4 studs per cylinder), seated on bosses on top of the head core under the cam housing. Reached with a long hex socket through the cam housing; they come off just before the cam housing + heads lift away.',
   })),
   ...b2((b) => ({
@@ -34,9 +35,9 @@ export const FASTENER_SPECS: FastenerSpec[] = [
     description: 'Four M8 nuts per head on studs from the head through the cam-housing base plate. The cam housing lifts off with the heads still attached; these come off on the bench to separate them.',
   })),
   ...(['upper', 'lower'] as const).flatMap((u) => b2((b) => ({
-    id: `valve-cover-nuts-${u}-${b}`, name: `Valve-cover nuts, ${u} ${b}`, count: u === 'upper' ? 8 : 9, step: 'valve-covers', follows: `valve-cover-${u}-${b}`, size: 'M8 hex nut + spring washer',
-    catalog: [{ ill: '103-05', pos: '25', pn: '900 076 025 02', qty: 34, note: 'M8 nut: 8 per upper and 9 per lower cover (34); the 3 outboard lower-cover stations per bank take the special nuts #24 (valve-cover-special-*)' },
-      { ill: '103-05', pos: '14/15', pn: '999 062 009 02 / 999 062 010 02', qty: 34, note: 'Studs BM8x28 x12 / BM8x35 x22 in the cam housing' }],
+    id: `valve-cover-nuts-${u}-${b}`, name: `Valve-cover nuts, ${u} ${b}`, count: u === 'upper' ? 6 : 11, step: 'valve-covers', follows: `valve-cover-${u}-${b}`, size: 'M8 hex nut + spring washer',
+    catalog: [{ ill: '103-05', pos: '25', pn: '900 076 025 02', qty: 34, note: 'M8 nut: 6 per upper cover (3 per edge) and 11 per lower cover (34). The 3 raised lugs on each lower cover take the special nuts #24' },
+      { ill: '103-05', pos: '14/15', pn: '999 062 009 02 / 999 062 010 02', qty: 34, note: 'Studs BM8x28 x12 on the upper covers / BM8x35 x22 on the lower covers' }],
     description: `Nuts on the ${u} valve cover ear studs (studs in the cam-housing rails), axis normal to the cover seat flange.`,
   }))),
   ...b2((b, s) => ({
@@ -112,7 +113,7 @@ export const FASTENER_SPECS: FastenerSpec[] = [
     description: 'Two nuts per side on studs from the cam-housing end face, through ears on the chain housing just above the chain box (E: the model has no room inside the box behind the sprocket).' })),
   ...b2((b) => ({ id: `valve-cover-special-${b}`, name: `Valve-cover special nuts, ${b}`, count: 3, step: 'valve-covers', follows: `valve-cover-lower-${b}`, size: 'M8 special cap nut + washer',
     catalog: [{ ill: '103-05', pos: '24', pn: '901 111 271 00', qty: 6 }],
-    description: 'Three special nuts on the outboard edge of each lower valve cover.' })),
+    description: 'Three special nuts on the raised lugs of each lower valve cover.' })),
   ...b2((b) => ({ id: `chain-lid-nuts-${b}`, name: `Chain-housing lid centre nuts, ${b}`, count: b === 'right' ? 2 : 1, step: 'chain-covers', follows: `chain-housing-lid-${b}`, size: 'M8 nut + spring washer',
     catalog: [{ ill: '103-05', pos: '-', pn: '900 076 025 02', qty: 3, note: 'Hex nuts with spring washers N 012 241 8 on the long lid studs' }],
     description: 'Nuts on long studs through the middle of the lid, clear of the chain and tensioner.' })),

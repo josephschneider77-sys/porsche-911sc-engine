@@ -4,11 +4,11 @@
  * gives one world matrix per piece. Counts/steps/claims live in data/smallSpec.ts; tests/smallParts check both agree.
  */
 import * as THREE from 'three';
-import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, type V3 } from './util';
+import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, circleShape, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, type V3 } from './util';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
-import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
+import { VC_EXT, vcStuds, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf, SPARK_HOLE_R } from '../data/layout';
 import { LIP_Z, chainLidStations } from './stations';
 import { railJogs, joggedSheet, plugCoverLocal } from './valvetrain';
@@ -157,6 +157,13 @@ for (const s of BANKS) {
         if (notches.length) g = csgSub(g, ...notches);
       }
       const part = new Part().add(g, 'gasket');
+      // Stud holes sit on the ears, just outside the lip. Each is its own disc so the seal ring stays closed.
+      // Upper gasket: 6 holes. Lower gasket: 11.
+      for (const st of vcStuds(up, s)) {
+        const disc = circleShape(8, st.x, st.y);
+        disc.holes.push(circlePath(3.4, st.x, st.y) as THREE.Path);
+        part.add(extrudeC(disc, 0.4).translate(0, 0, -0.25), 'gasket');
+      }
       // Upper gasket (930 105 194): bridges across the window where the plug
       // collars sit. The bridge is holed for the connector tube, smaller than
       // the collar, so the collar bears on gasket rather than on open oil space.

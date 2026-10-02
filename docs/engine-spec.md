@@ -44,6 +44,7 @@ The part numbers come from the Porsche Classic parts catalogue **Kat 002, 911 19
 | Group / ill. | Pos | Part (model id) | Porsche P/N |
 |---|---|---|---|
 | **101-05 Crankcase, left** | 1 | Crankcase pair (`crankcase-left`) | 930 101 915 00 |
+| | 3 | Head studs, upper ×12 | 911 101 172 00 |
 | | 3 | Head studs, lower (Dilavar) ×12 | 930 101 170 00 |
 | | 37 | Breather lid (`breather-lid`) | 901 107 073 02 |
 | | 38/39/41 | Oil strainer / gaskets / drain plug (`sump-plate`) | 930 107 314 00 / 930 101 391 01 / 911 107 176 03 |
@@ -90,7 +91,7 @@ The full registry, with descriptions, specs and explode vectors, is in `src/data
 ## 4. Teardown order (engine on stand)
 Adapted from Pelican Parts / Wayne Dempsey, *101 Projects*, Project 12 "Engine Teardown" [W2], plus Joe Engineer's teardown write-up [W3] and the Pelican rebuild overview [W4]:
 
-1. Clutch pressure plate and disc (9 bolts) → 2. Flywheel (9 bolts) → 3. Silencer → 4. Heat exchangers (6 port nuts per side) → 5. Air-cleaner lid and element → 6. Mixture control unit, injection lines and injectors → 7. Air distributor and intake pipes (6 flange nuts per side) → 8. V-belt and fan pulley (pulley nut) → 9. Fan housing with fan and alternator → 10. Distributor and plugs → 11. Upper air guide and oil cooler → 12. Crank pulley (centre bolt) → 13. Valve covers (8 upper hex nuts + 9 lower hex nuts + 3 special nuts per bank) → 14. Chain-housing covers (10 right / 9 left lock nuts); with the covers off the tensioned chains are visible → 15. Chain tensioners and idler arms → 16. Cam sprockets and timing chains (on the real engine the chains hang slack round the intermediate shaft until the case is split; the viewer removes them here so they don't hang as rigid loops) → 17. Rocker arms and shafts (6 shaft screws + 6 nuts per bank) → 18. Camshafts → 19. Chain housings (5 nuts per side) → 20. Cam housings with heads (12 barrel nuts per bank; the heads and valves lift off with their cam housing as one unit, via the step's `carries` list, together with the 24 cam-housing-to-head nuts) → 21. Valves (bench, on the lifted unit) → 22. Heads off the cam housings (bench; the 24 cam-housing nuts) → 23. Cylinders → 24. Pistons → 25. Breather (2 nuts), thermostat (3 nuts), sump plate (12 nuts) → 26. Split the case (11 through-bolts, 13 through-bolt nuts, 24 perimeter nuts) → 27. Crank with rods → 28. Intermediate shaft and oil pump (4 nuts) → 29. Main bearing shells. The right case half stays on the stand.
+1. Clutch pressure plate and disc (9 bolts) → 2. Flywheel (9 bolts) → 3. Silencer → 4. Heat exchangers (6 port nuts per side) → 5. Air-cleaner lid and element → 6. Mixture control unit, injection lines and injectors → 7. Air distributor and intake pipes (6 flange nuts per side) → 8. V-belt and fan pulley (pulley nut) → 9. Fan housing with fan and alternator → 10. Distributor and plugs → 11. Upper air guide and oil cooler → 12. Crank pulley (centre bolt) → 13. Valve covers (6 upper hex nuts + 11 lower hex nuts + 3 special nuts per bank) → 14. Chain-housing covers (10 right / 9 left lock nuts); with the covers off the tensioned chains are visible → 15. Chain tensioners and idler arms → 16. Cam sprockets and timing chains (on the real engine the chains hang slack round the intermediate shaft until the case is split; the viewer removes them here so they don't hang as rigid loops) → 17. Rocker arms and shafts (6 shaft screws + 6 nuts per bank) → 18. Camshafts → 19. Chain housings (5 nuts per side) → 20. Cam housings with heads (12 barrel nuts per bank; the heads and valves lift off with their cam housing as one unit, via the step's `carries` list, together with the 24 cam-housing-to-head nuts) → 21. Valves (bench, on the lifted unit) → 22. Heads off the cam housings (bench; the 24 cam-housing nuts) → 23. Cylinders → 24. Pistons → 25. Breather (2 nuts), thermostat (3 nuts), sump plate (12 nuts) → 26. Split the case (11 through-bolts, 13 through-bolt nuts, 24 perimeter nuts) → 27. Crank with rods → 28. Intermediate shaft and oil pump (4 nuts) → 29. Main bearing shells. The right case half stays on the stand.
 
 The order is encoded in `src/data/teardown.ts` and checked in `tests/teardown.test.ts`.
 
@@ -227,14 +228,14 @@ Each set is its own removable registry part (system `hardware`, catalogue group 
 
 | Set | Qty | Size | Removed at step | Catalogue (ill. #pos part no. ×qty per engine) |
 |---|---|---|---|---|
-| `head-nuts-right` | 12 | M10 barrel nut + washer | cam-housings | 103-00 #17 901 104 382 02 ×24; 101-05 #3 930 101 170 00 ×12 |
-| `head-nuts-left` | 12 | M10 barrel nut + washer | cam-housings | 103-00 #17 901 104 382 02 ×24; 101-05 #3 930 101 170 00 ×12 |
+| `head-nuts-right` | 12 | M10 barrel nut + washer | cam-housings | 103-00 #17 901 104 382 02 ×24; 101-05 #3 911 101 172 00 ×12 upper and 930 101 170 00 ×12 lower Dilavar |
+| `head-nuts-left` | 12 | M10 barrel nut + washer | cam-housings | 103-00 #17 901 104 382 02 ×24; 101-05 #3 911 101 172 00 ×12 upper and 930 101 170 00 ×12 lower Dilavar |
 | `cam-housing-nuts-right` | 12 | M8 hex nut + washer | heads (lifted with `cam-housing-right`) | 103-05 #22 900 084 004 03 ×40; 103-00 #7 999 062 041 02 ×24 |
 | `cam-housing-nuts-left` | 12 | M8 hex nut + washer | heads (lifted with `cam-housing-left`) | 103-05 #22 900 084 004 03 ×40; 103-00 #7 999 062 041 02 ×24 |
-| `valve-cover-nuts-upper-right` | 8 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #14/15 999 062 009 02 / 999 062 010 02 ×34 |
-| `valve-cover-nuts-upper-left` | 8 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #14/15 999 062 009 02 / 999 062 010 02 ×34 |
-| `valve-cover-nuts-lower-right` | 9 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #14/15 999 062 009 02 / 999 062 010 02 ×34 |
-| `valve-cover-nuts-lower-left` | 9 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #14/15 999 062 009 02 / 999 062 010 02 ×34 |
+| `valve-cover-nuts-upper-right` | 6 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #14 999 062 009 02 ×12 |
+| `valve-cover-nuts-upper-left` | 6 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #14 999 062 009 02 ×12 |
+| `valve-cover-nuts-lower-right` | 11 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #15 999 062 010 02 ×22 |
+| `valve-cover-nuts-lower-left` | 11 | M8 hex nut + spring washer | valve-covers | 103-05 #25 900 076 025 02 ×34; 103-05 #15 999 062 010 02 ×22 |
 | `chain-cover-nuts-right` | 10 | M6 lock nut + washer | chain-covers | 103-05 #12 900 910 012 02 ×19; 103-05 #3 999 062 102 02 ×19 |
 | `chain-cover-nuts-left` | 9 | M6 lock nut + washer | chain-covers | 103-05 #12 900 910 012 02 ×19; 103-05 #3 999 062 102 02 ×19 |
 | `chain-housing-nuts-right` | 5 | M8 hex nut + washer | chain-housings | 103-05 #22 900 084 004 03 ×40 |

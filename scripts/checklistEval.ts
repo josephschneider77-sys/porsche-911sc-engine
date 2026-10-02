@@ -26,7 +26,7 @@ function sources(by: string, what: string): { id: string; what: string; cap: num
   const fs = fastenerSets().filter((f) => re.test(f.id));
   for (const f of fs) {
     const n = f.items.length;
-    const cap = what === 'item' ? n : what === 'washer' ? (f.washer > 0 ? n : 0) : what === 'spring' ? ((f as any).spring ? n : 0) : what === 'tab' ? ((f as any).tab ? n : 0) : what === 'stud' ? f.items.filter((i) => i.stud).length : -1;
+    const cap = what === 'item' ? n : what === 'washer' ? (f.washer > 0 ? n : 0) : what === 'spring' ? ((f as any).spring ? n : 0) : what === 'tab' ? ((f as any).tab ? n : 0) : what === 'stud' ? f.items.filter((i) => i.stud).length : what === 'upperStud' ? f.items.filter((i) => i.studKind === 'upper').length : what === 'lowerStud' ? f.items.filter((i) => i.studKind === 'lower').length : -1;
     if (cap < 0) throw new Error(`fastener set ${f.id}: unknown what "${what}"`);
     out.push({ id: f.id, what, cap });
   }

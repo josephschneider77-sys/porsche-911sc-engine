@@ -1248,9 +1248,9 @@ export function sparkPlug() {
   const threadR = SPARK_MINOR_D / 2 - 0.12;
   const shellEnd = -SPARK_PROJ;
   const seat = SPARK_SEAT_Y;
-  // Centre electrode. The tip is 0.65 mm behind the datum; the strap's inner face
-  // is 0.05 mm in front of the datum, so the gap is 0.70 mm.
-  const tipY = -0.65;
+  // Centre electrode. The tip is 0.75 mm behind the datum; the strap's inner face
+  // is 0.05 mm in front of the datum, so the gap is 0.80 mm (catalogue 0,8).
+  const tipY = -0.75;
   p.add(lathe([[0.15, tipY], [1.25, tipY], [1.25, shellEnd - 1.2], [0.15, shellEnd - 1.2]], 16), 'polishedSteel');
   // Shell and thread. Grooves are the 1.25 mm pitch; the crest stays inside the bore.
   const thread: [number, number][] = [[1.6, shellEnd], [threadR, shellEnd]];

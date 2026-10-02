@@ -1073,18 +1073,33 @@ export function cylinderHead() {
 // The housing, camshaft and rocker meshes live in valvetrain.ts. These stations stay here because the
 // valve covers, chain housings and the keyed cam-nose hardware are built from them.
 export const CH_Z0 = -168, CH_Z1 = CASE_Z.pulley;
-/**
- * Valve-cover ear stations along cover-local Y (engine Z minus the housing centre).
- * 4 per edge upper, 6 lower. The 10–11 mm rockers land on the old outboard ear
- * line, so a stud there passes through the shaft. These stations sit in the gaps
- * between shafts, at least 10 mm clear of the boss and the washer. The banks are
- * staggered, so each side has its own list. Same count as the catalogue.
- */
-export const VC_EARS = (upper: boolean, s: 1 | -1) => (upper
-  ? (s > 0 ? [-156, -58, 60, 158] : [-104, 14, 124, 166])
-  : (s > 0 ? [-152, -60, -18, 58, 100, 162] : [-136, -98, -22, 18, 112, 158]));
-/** Ear centre offset across the cover (cover-local x). */
+/** Ear centre offset across the cover (cover-local x). Negative x is the head edge. */
 export const VC_EDGE = 31;
+/** Flat top of the three raised lugs on the lower cover (special nuts). Same plane as the hex-nut faces. */
+export const VC_LUG_Z = 7;
+export interface CoverStud { x: number; y: number }
+/**
+ * Cover studs, cover-local. Stations sit in the gaps between rocker shafts.
+ * Upper: 3 per edge (6 per cover, 12 per engine). The upper gasket is drawn with those 6 holes.
+ * Lower: 6 on the head edge and 5 on the cam edge (11 per cover, 22 per engine).
+ * The banks are staggered, so each side has its own list.
+ */
+export function vcStuds(upper: boolean, s: 1 | -1): CoverStud[] {
+  if (upper) {
+    const ys = s > 0 ? [-150, -52, 155] : [-110, 8, 148];
+    return ys.flatMap((y) => [-VC_EDGE, VC_EDGE].map((x) => ({ x, y })));
+  }
+  // Keep each station far enough from the exhaust shaft that the cover pocket still
+  // clears the shaft screw, and the tower does not meet the housing.
+  const head = s > 0 ? [-165, -145, -55, -30, 52, 90] : [-125, -100, -15, 10, 115, 165];
+  const cam = s > 0 ? [-170, -60, 56, 98, 170] : [-132, -8, 105, 148, 170];
+  return [...head.map((y) => ({ x: -VC_EDGE, y })), ...cam.map((y) => ({ x: VC_EDGE, y }))];
+}
+/** Three raised lugs on the lower cover, on the cam edge between the hex studs. */
+export function vcLugs(s: 1 | -1): CoverStud[] {
+  const ys = s > 0 ? [-148, -38, 76] : [-108, 14, 128];
+  return ys.map((y) => ({ x: VC_EDGE, y }));
+}
 
 /** Minimal stroke font for cast lettering (4x6 grid). */
 const STROKES: Record<string, number[][]> = {
@@ -1110,7 +1125,7 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
  * Upper / lower valve cover (103-05 positions 17 and 19), engine coords. Kat 502 draws the upper lid
  * (901 105 115 03) with two round plug holes one cylinder pitch apart and a half-round opening at one
  * end, each on a collar, and the lower lid (930 105 116) as a ribbed pan with no holes. The holes are
- * cut in pocketValveCover, coaxial with the plug bore. The lower lid keeps the stiffening ribs.
+ * cut in pocketValveCover, coaxial with the plug bore. The lower lid has diagonal ribs and three raised lugs.
  */
 /** Valve-cover cavity: half-width at the seat (w0 + 8 bevel = 26) and how much the v5 hollow pan top rose (z 13.5 -> 22). */
 export const VC_CAV = { w0: 18 }, VC_RAISE = 8.5;
@@ -1123,17 +1138,20 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   const loc = new Part();
   const len = CH_Z1 - CH_Z0 - 8, w = 58;
   // hollow cast pan (v5): drafted outer shell 2.5-3 mm thick over a matching cavity that clears the rocker gear,
-  // on a seat flange ring; everything below the seat plane is trimmed off. Ears stay on VC_EARS so the nuts land on the housing bosses.
+  // on a seat flange ring; everything below the seat plane is trimmed off. Stud towers sit on vcStuds.
   const ext = VC_EXT(s), cy = -ext / 2;
+  // Same end radius on both banks so the seal lips stay the same length.
+  const endR = 7;
   const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
   cavity.translate(0, cy, -20);
   const below = boxMM([-w, -len, -40], [w, len, 0.01]);
   // Stepped seat flange: thin outer lip, then a raised land the pan walls leave from.
-  const lip = extrude(roundRect(w, len + ext, 7), 1.15, 0.25, 6).translate(0, cy, 0);
-  const step = extrude(roundRect(w - 7, len - 6 + ext, 5), 2.15, 0.4, 6).translate(0, cy, 1.15);
+  const lip = extrude(roundRect(w, len + ext, endR), 1.15, 0.25, 6).translate(0, cy, 0);
+  const step = extrude(roundRect(w - 7, len - 6 + ext, Math.max(5, endR - 4)), 2.15, 0.4, 6).translate(0, cy, 1.15);
   // M8 cover studs (r 3.84) are part of the cam-housing asset. The hole is 6.4
   // so the shank clears the lip by more than 2 mm; the washer still has a face.
-  const studHoles = VC_EARS(upper, s).flatMap((yy) => [-VC_EDGE, VC_EDGE].map((xx) => yToZ(cyl(6.4, 28, 16)).translate(xx, yy, -2)));
+  const studs = vcStuds(upper, s);
+  const studHoles = studs.map((st) => yToZ(cyl(6.4, 28, 16)).translate(st.x, st.y, -2));
   // Sprocket-end notch (pulley / chain end, local +y). Deep enough to read, clear of the ear pads.
   const notch = boxMM([-15, len / 2 - 16 + cy, -1], [15, len / 2 + 4 + cy, 16]);
   loc.add(csgSub(lip, cavity, notch, ...studHoles), 'castAlu');
@@ -1144,9 +1162,7 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   // The cavity runs through the ear centres. Keep the nut face (z = 7, out to r 8.8)
   // so an M8 washer probe at r 6.8 still lands on the disc.
   const faceKeeps: THREE.BufferGeometry[] = [];
-  for (const yy of VC_EARS(upper, s)) for (const xx of [-VC_EDGE, VC_EDGE]) {
-    faceKeeps.push(yToZ(cyl(9.2, 1.8, 24)).translate(xx, yy, 6.7));
-  }
+  for (const st of studs) faceKeeps.push(yToZ(cyl(9.2, 1.8, 24)).translate(st.x, st.y, 6.7));
   const earCut = csgSub(
     new THREE.ExtrudeGeometry(roundRect(31, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 }).translate(0, cy, -20),
     ...faceKeeps,
@@ -1154,20 +1170,17 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   const earBoss = yToZ(lathe([
     [16.4, 0], [14.8, 1.4], [12.4, 3.0], [10.2, 4.8], [8.8, 6.3], [8.8, 7], [0.4, 7],
   ], 24));
-  for (const yy of VC_EARS(upper, s)) {
-    for (const xx of [-VC_EDGE, VC_EDGE]) {
-      const studHole = studHoles[VC_EARS(upper, s).indexOf(yy) * 2 + (xx < 0 ? 0 : 1)];
-      loc.add(csgSub(earBoss.clone().translate(xx, yy, 0), earCut, studHole), 'castAlu');
-      // Wide at the pan wall, narrowing into the tower, and kept below the nut face.
-      const sign = xx > 0 ? 1 : -1;
-      const wall = xx - sign * 17;
-      const root = xx - sign * 4.5;
-      const gussetPts: [number, number][] = sign > 0
-        ? [[wall, yy - 13], [root, yy - 8], [root, yy + 8], [wall, yy + 13]]
-        : [[root, yy - 8], [wall, yy - 13], [wall, yy + 13], [root, yy + 8]];
-      loc.add(csgSub(extrude(polyShape(gussetPts), 5.8, 0.45, 2), earCut, studHole), 'castAlu');
-    }
-  }
+  studs.forEach((st, i) => {
+    const studHole = studHoles[i];
+    loc.add(csgSub(earBoss.clone().translate(st.x, st.y, 0), earCut, studHole), 'castAlu');
+    const sign = st.x > 0 ? 1 : -1;
+    const wall = st.x - sign * 17;
+    const root = st.x - sign * 4.5;
+    const gussetPts: [number, number][] = sign > 0
+      ? [[wall, st.y - 13], [root, st.y - 8], [root, st.y + 8], [wall, st.y + 13]]
+      : [[root, st.y - 8], [wall, st.y - 13], [wall, st.y + 13], [root, st.y + 8]];
+    loc.add(csgSub(extrude(polyShape(gussetPts), 5.8, 0.45, 2), earCut, studHole), 'castAlu');
+  });
   if (upper) {
     // Raised cast PORSCHE lettering on the flat top, in the gap between plug holes.
     // Right holes sit near local Y −60 and +58; left holes sit near +16 and −102.
@@ -1176,8 +1189,19 @@ export function valveCover(s: 1 | -1, upper: boolean) {
     // Holes are centred at local x −8. The lettering sits on the head side of them.
     raisedText(loc, 'PORSCHE', s > 0 ? 12 : 22, letterY, 1.65, 13.2 + VC_RAISE, 1.3, 1.5, s, -s);
   } else {
-    // lower covers: low longitudinal stiffening ribs
-    for (const dx of [-8, 8]) loc.add(boxMM([dx - 1.2, -len / 2 + 20, 13 + VC_RAISE], [dx + 1.2, len / 2 - 20, 15.5 + VC_RAISE]), 'castAlu');
+    // Lower lid: diagonal ribs across the pan, as drawn, and three raised lugs for the special nuts.
+    const z0 = 13 + VC_RAISE, z1 = 16.2 + VC_RAISE;
+    for (const k of [-2, -1, 0, 1, 2]) {
+      const g = boxMM([-1.15, -46, z0], [1.15, 46, z1]);
+      g.rotateZ(0.62 * s);
+      g.translate(0, k * 64, 0);
+      loc.add(g, 'castAlu');
+    }
+    for (const lug of vcLugs(s)) {
+      loc.add(yToZ(lathe([
+        [12.4, 0.6], [11, 2.2], [10, 4.2], [9.4, VC_LUG_Z], [0.4, VC_LUG_Z],
+      ], 20)).translate(lug.x, lug.y, 0), 'castAlu');
+    }
   }
   loc.g.applyMatrix4(coverMatrix(s, upper));
   const out = new Part(); out.addObj(loc.g); return out.g;

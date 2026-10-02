@@ -16,9 +16,9 @@ Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) 
 
 | status | lines |
 |---|---|
-| modelled | 418 |
+| modelled | 419 |
 | N/A (with reason) | 150 |
-| alternative rows | 230 |
+| alternative rows | 229 |
 | excluded (not this engine) | 199 |
 | **MISSING** | 1 |
 | countable lines (all but excluded) | 799 |
@@ -34,8 +34,8 @@ Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) 
 | 1 | 930 101 918 00 | Crankcase | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 999 062 090 02 | Stud | 1 | modelled | `pool:case-left-studs` stud |
 | 2 | 999 062 207 02 | Stud | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 3 | 911 101 172 00 | Stud | 12 | modelled | `head-nuts-left` stud × 12 (lower head studs, one per head-nut station of the left bank) |
-| 3 | 930 101 170 00 | Stud | 12 | alt | alternative to 101-05 #3 |
+| 3 | 911 101 172 00 | Stud | 12 | modelled | `head-nuts-*` upperStud × 12 (upper head studs, two per cylinder) |
+| 3 | 930 101 170 00 | Stud | 12 | modelled | `head-nuts-*` lowerStud × 12 (lower Dilavar head studs, two per cylinder) |
 | 3 | 993 101 170 51 | Stud | 12 | alt | alternative to 101-05 #3 |
 | 3 | 930 101 170 00 | Stud | 24 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 3 | 993 101 170 51 | Stud | 24 | excluded | other model (Turbo / Carrera / Sportomatic) |

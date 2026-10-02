@@ -64,7 +64,7 @@ export function pinX(cyl: number, crankDeg = 0): { pinX: number; throwXY: [numbe
  *
  * The upper-cover plane on the right bank has normal (0.742, 0.671, 0), 42.1°
  * above horizontal. The datum is head-local (2.36, −20, 34): the centre electrode
- * is 0.65 mm behind it and the ground strap's outer face is 0.75 mm in front, so
+ * is 0.75 mm behind it and the ground strap's outer face is 0.75 mm in front, so
  * that face is 2.3 mm clear of the piston crown at TDC. The cover hole is 51 mm
  * rearward of the cylinder centre and 8 mm toward the cam side of the lid (local
  * x −8), which keeps the ceramic off the M10 barrel nuts. The same head bore,
@@ -80,7 +80,7 @@ export function pinX(cyl: number, crankDeg = 0): { pinX: number; throwXY: [numbe
  * staggered left bank), so that opening is a boss on the end of the upper-left
  * lid, still on this axis. The seal rail is not lengthened.
  *
- * partPose: position is this datum, 0.65 mm piston-side of the centre electrode.
+ * partPose: position is this datum, 0.75 mm piston-side of the centre electrode.
  * The quaternion maps plug-local (0, −1, 0) onto the engine axis (s·dx, dy, s·dz).
  * `sparkRoll` spins about local +Y first. A plug-local point (0, y, 0) is
  * datum + (−y) · axis in the engine frame.
