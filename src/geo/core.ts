@@ -31,7 +31,11 @@ export const bankZ = (s: 1 | -1) => (s === 1 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : 
  * Chain well stays at the pulley end (+Z): that is where the cam-drive chain housings bolt on.
  */
 const CASE_CAST: MatKey = 'sandCast';
-/** Drop loft triangles that enter the distributor bore. The open skin cannot be CSG'd. Axis matches DIST in aux.ts. */
+/**
+ * Drop loft triangles that sit inside the cast distributor boss. The open skin cannot be CSG'd.
+ * The boss flange (r 16–38) covers this opening, so the cut edge is not a hole in the case.
+ * Axis matches DIST in aux.ts.
+ */
 function punchDistributor(g: THREE.BufferGeometry) {
   const src = g.index ? g.toNonIndexed() : g;
   const P = src.getAttribute('position');
@@ -41,7 +45,7 @@ function punchDistributor(g: THREE.BufferGeometry) {
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), w = new THREE.Vector3();
   const near = (p: THREE.Vector3) => {
     const t = w.copy(p).sub(o).dot(A);
-    if (t < 8 || t > 100) return false;
+    if (t < 12 || t > 102) return false;
     return w.copy(o).addScaledVector(A, t).distanceTo(p) < 18;
   };
   const pos: number[] = [];
@@ -455,16 +459,34 @@ export function crankcaseHalf(s: 1 | -1) {
     // warm-up regulator flange underside is y = 116.2 (WUR.flangeTop - 5). Screws thread down into this pad.
     p.add(boxMM([-72, 114.8, -198], [-48, 116.2, -142]), 'machinedAlu');
     p.add(boxMM([-76, 46, -202], [-44, 114.8, -138]), CAST);
-    // Distributor mount. Sleeve around the bore; the hold-down stud lands in the pad above.
-    // Axis matches DIST in aux.ts: pinion (−36.2, 26.5, 216) toward (−150, 168, 150).
+    // Cast distributor boss, blended out of the pulley-end skin. Same axis as DIST in aux.ts.
+    // The flange (r 16–38) covers the skin opening. The hold-down stud lands on its own pad,
+    // not on a box corner. Mouth face is local t 93, just behind the distributor shoulder.
     {
-      const o = [-36.2, 26.5, 216], aim = [-150, 168, 150];
-      const d = [aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]];
-      const L = Math.hypot(d[0], d[1], d[2]);
-      const u = d.map((v) => v / L);
-      const at = (t: number): [number, number, number] => [o[0] + u[0] * t, o[1] + u[1] * t, o[2] + u[2] * t];
-      // Starts past the crank gear. r 18 stays outside the fan drum and the shroud collar.
-      p.add(cylBetween(at(40), at(94), 18, 20), CAST);
+      const o = new THREE.Vector3(-36.2, 26.5, 216);
+      const Y = new THREE.Vector3(-150, 168, 150).sub(o).normalize();
+      const hint = new THREE.Vector3(-1, 0.08, 0.42);
+      const X = hint.clone().addScaledVector(Y, -hint.dot(Y)).normalize();
+      const Z = new THREE.Vector3().crossVectors(X, Y);
+      const m = new THREE.Matrix4().makeBasis(X, Y, Z).setPosition(o);
+      const boss = lathe([
+        [16.4, 40], [22, 40], [26, 60], [30, 74], [32, 84], [32, 93],
+        [17.2, 93], [16.4, 88], [16.4, 40],
+      ], 28);
+      boss.applyMatrix4(m);
+      // Notch only where the flange would cover a through-bolt or enter the fan mouth.
+      // The rest of the collar still spans r 18–30.
+      const bossHold = new THREE.Group();
+      bossHold.add(new THREE.Mesh(boss));
+      subtractSolids(bossHold, [
+        boxMM([-140, 48, 163], [-103, 78, 191]),
+        boxMM([-115, 58, 200], [-40, 125, 228]),
+      ]);
+      p.add((bossHold.children[0] as THREE.Mesh).geometry, CAST);
+      const atStud = (y: number) => new THREE.Vector3(-28, y, 2).applyMatrix4(m);
+      const s0 = atStud(70), s1 = atStud(90), s2 = atStud(97.5);
+      p.add(cylBetween([s0.x, s0.y, s0.z], [s1.x, s1.y, s1.z], 12, 16), CAST);
+      p.add(cylBetween([s1.x, s1.y, s1.z], [s2.x, s2.y, s2.z], 11, 16), 'machinedAlu');
     }
   }
   // round sump boss (strainer cover seats here). The right half is faced back to x 81.2
@@ -565,8 +587,8 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
   }
   // Fan-collar tab relief (solid chain-well strips; the shoulder loft is ducked in the section).
   cuts.push(yToZ(cyl(22, 36, 20)).translate(s * 39, 84.2, 200));
-  // Distributor bore on the left (r 14.6 around the shaft). The boss added above is the land.
-  // Pinion (−36.2, 26.5, 216) to just past the shoulder. Keep in step with DIST in aux.ts.
+  // Distributor bore on the left. Opens the chain-well solids the shaft passes through.
+  // The cast boss is a lathe, so this cutter does not touch it. Keep in step with DIST in aux.ts.
   if (s < 0) {
     const o = [-36.2, 26.5, 216], aim = [-150, 168, 150];
     const d = [aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]];
