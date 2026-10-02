@@ -582,8 +582,9 @@ A shaft that leaned toward the fan would put the cap inside the fan housing (z �
 | Shank | r 13.2 in the bore, O-ring in the groove, shoulder just outside the mouth |
 | Pinion | tip r 12, 0.5 mm off the crank wheel (tip r 32.4) |
 | Clamp | Slotted steel arm. Stud at local (−28, 2) on a cast pad, M8 nut |
-| Cap | Black Bosch cylinder, Ø70, shoulder, two steel spring clips |
-| Towers | Ø14 × 34 mm, flared tips and boots, on a 16 mm radius. Phase unchanged |
+| Housing | Short neck at the case mouth, then a cast body. The can neck enters just under the cap |
+| Cap | Black Bosch cylinder, Ø70, shoulder ring, two 1.5 mm spring-steel bails |
+| Towers | Ø14 × 34 mm, distinct bases, flared tips and boots, on a 16 mm radius. Phase unchanged |
 | Vacuum can | Zinc, domed, Ø60 × 30, crimped rim, neck into the housing |
 
 `DIST_VAC_NIPPLE` is the hose seat on the dome. Point (−156.13, 102.08, 198.40), direction (−0.7296, −0.3001, 0.6145), away from the diaphragm. A can aimed at the suggested (−145, 97, 209) would meet the left chain-housing gasket, so the nipple is the nearest seat that keeps the Ø60 can clear of that gasket and of the case mouth. The vacuum hose is Intake & Fuel's and ends on `DIST_VAC_NIPPLE`.

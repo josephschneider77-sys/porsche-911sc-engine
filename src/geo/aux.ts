@@ -392,7 +392,7 @@ function addFanMouth(p: Part) {
 function distClearanceCuts(): THREE.BufferGeometry[] {
   const along = (y0: number, y1: number, r: number) => cylBetween(distW(0, y0, 0), distW(0, y1, 0), r, 20);
   const can = cylBetween(distW(18, 132, 8), distW(60, 132, 8), 34, 20);
-  return [along(40, 100, 36), along(104, 172, 22), along(168, 216, 38), along(204, 252, 26), can];
+  return [along(40, 100, 36), along(102, 170, 32), along(168, 220, 41), along(204, 252, 29), can];
 }
 export function upperAirGuide() {
   const p = new Part();
@@ -1221,22 +1221,33 @@ export function distributor() {
   p.add(bake(lathe([
     [7.2, 8], [8.4, 12], [DIST.shankR, 18], [DIST.shankR, 60],
     [11.4, 62.4], [11.4, 67.2], [DIST.shankR, 69.6], [DIST.shankR, 92],
-    [16.4, 94], [16.4, 102],
-    [18, 108], [18, 166], [16.2, 170],
+    [16.4, 94], [16.4, 114],
+    [26, 122], [26, 158], [22, 166], [20, 169],
   ], 32)), 'castAlu');
-  // Bosch cap (#8): Ø70 cylinder, shoulder, black. Shell so the rotor sits inside.
-  // Sits above the Ø60 vacuum can.
+  // Bosch cap (#8): crisp Ø70 skirt, a defined shoulder ring, black. Shell so the rotor sits inside.
   p.add(bake(lathe([
-    [17, 168], [26, 172], [35, 176], [35, 206], [31, 210], [18, 212],
-    [15, 206], [20, 182], [20, 174], [17, 170], [17, 168],
-  ], 40)), 'blackPlastic');
-  // Two steel spring clips, opposite each other, hooked under the shoulder.
+    [20, 168], [20, 170],
+    [34.4, 170.6], [37.4, 172.2], [37.4, 175.4], [35.05, 176.6],
+    [35.05, 204.6], [33, 206], [27, 208.2], [18, 210.4],
+    [15, 207.6], [22, 178], [22, 172], [20, 170], [20, 168],
+  ], 48)), 'blackPlastic');
+  // Two spring-steel bails, 1.5 mm, hugging the skirt and hooking the lip and the shoulder ring.
   for (const side of [1, -1] as const) {
-    p.add(bake(boxMM([-2.4, 172, side * 34.2], [2.4, 208, side * 37.6])), 'steel');
-    p.add(bake(boxMM([-2.4, 168, side * 28], [2.4, 176, side * 37.6])), 'steel');
+    const phi = side > 0 ? -0.14 : Math.PI - 0.14;
+    const span = 0.28;
+    const band = lathe([[35.15, 176.8], [36.65, 176.8], [36.65, 204.2], [35.15, 204.2]], 6, phi, span);
+    const over = lathe([
+      [35.15, 202.4], [36.65, 202.4], [36.65, 206.2], [32.4, 208.4], [32.4, 207], [35.15, 204.8],
+    ], 6, phi, span);
+    const under = lathe([
+      [35.15, 175.2], [36.65, 175.2], [38.6, 173.6], [38.6, 171.6], [35.15, 170.8],
+    ], 6, phi, span);
+    p.add(bake(band), 'steel');
+    p.add(bake(over), 'steel');
+    p.add(bake(under), 'steel');
   }
   const phase = 0; // tower 0 is local +X: outboard, toward the left wing. Do not rephase.
-  const postProf: [number, number][] = [[6.4, 0], [7, 4], [7, 26], [9.2, 32], [7.4, 34]];
+  const postProf: [number, number][] = [[9.2, 0], [9.6, 2.2], [7.05, 4], [7.05, 26], [9.2, 32], [7.4, 34]];
   const bootProf: [number, number][] = [[7.2, 18], [8.6, 22], [8.6, 31], [7.6, 35], [7.2, 33], [7.2, 18]];
   for (let i = 0; i < 6; i++) {
     const a = phase + (i / 6) * Math.PI * 2;
@@ -1261,9 +1272,9 @@ export function distributor() {
   // Vacuum can (#2): Ø60 × 30 domed diaphragm, crimped rim, neck into the housing, nipple on the dome.
   // Tip of the nipple is local (54, 132, 8), exported as DIST_VAC_NIPPLE.
   const can = yToX(lathe([
-    [0.1, 16], [8, 16], [8, 22],
-    [30, 23.4], [31.6, 24.6], [31.6, 26.6], [30, 27.8],
-    [29.2, 28.6], [29.2, 46],
+    [0.1, 22], [8, 22], [8, 27],
+    [30, 28.2], [31.6, 29.2], [31.6, 30.6], [30, 31.6],
+    [29.2, 32.2], [29.2, 46],
     [24, 49], [12, 51.6], [4.2, 52.6],
     [2.6, 52.6], [3.8, 53.6], [2.4, 54], [0.1, 54],
   ], 36));
