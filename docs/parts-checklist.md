@@ -10,7 +10,7 @@ Every line from the PET catalogue illustrations in `docs/catalog/engine-lines.js
 - **excluded**: a row for another model year, engine number range, model or RHD. It does not apply to this engine.
 - **MISSING**: still to be modelled.
 
-Illustration 108-00 (air injection) is outside the checklist and is not modelled.
+Illustration 108-00 (air injection, model column 911 SC, model life 1978>>1983) is outside the checklist and is not modelled. Position 18 unions 911 113 145 02 and 911 113 145 04 (qty 6) and position 19 sealing ring 900 123 033 20 (qty 6, A 10×13.5 CU) have a blank remark and model column, so they cover the 1978 USA 930/04 heads. They are not in this model.
 
 ## Totals
 
@@ -19,7 +19,7 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | modelled | 418 |
 | N/A (with reason) | 150 |
 | alternative rows | 230 |
-| excluded (not this engine) | 198 |
+| excluded (not this engine) | 199 |
 | **MISSING** | 1 |
 | countable lines (all but excluded) | 799 |
 
@@ -324,7 +324,8 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 
 | pos | part no. | description | qty | status | source / reason |
 |---|---|---|---|---|---|
-| 1 | 930 104 029 08 | Cylinder head | 6 | modelled | `^head-\d$` |
+| 1 | 930 104 019 05 | Cylinder head | 6 | modelled | `^head-\d$` |
+| 1 | 930 104 029 08 | Cylinder head | 6 | excluded | model years 79: not a 1978 engine |
 | 1 | 930 104 043 09 | Cylinder head | 6 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 930 104 321 50 | Valve guide | 12 | excluded | repair oversize |
 | 3 | 930 104 331 50 | Valve seat ring | 6 | excluded | repair oversize |
@@ -1061,10 +1062,10 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 14 | N 012 241 8 | Spring washer | 2 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 15 | 900 076 025 02 | Hexagon nut | 2 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 15 | 900 076 064 02 | Hexagon nut | 2 | alt | alternative to 901-00 #15 |
-| 16 | 999 170 055 90 | Spark plug | 6 | modelled | `spark-plug-*` |
-| 16 | 999 170 165 90 | Spark plug | 6 | alt | alternative to 901-00 #16 |
-| 16 | 999 170 170 90 | Spark plug | 6 | excluded | not the plug this model uses (999 170 055 90) |
-| 16 | 999 170 136 90 | Spark plug | 6 | excluded | not the plug this model uses (999 170 055 90) |
+| 16 | 999 170 055 90 | Spark plug | 6 | excluded | model years 80-: not a 1978 engine |
+| 16 | 999 170 165 90 | Spark plug | 6 | excluded | model years 80-: not a 1978 engine |
+| 16 | 999 170 170 90 | Spark plug | 6 | modelled | `spark-plug-*` |
+| 16 | 999 170 136 90 | Spark plug | 6 | alt | alternative to 901-00 #16 |
 | 16 | 999 170 128 90 | Spark plug | 6 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 17 | 911 609 011 07 | Set of ignition cables | 1 | modelled | `ignition-leads` |
 | 18 | 911 609 061 07 | Ignition lead | 1 | modelled | `ignition-leads` coil |

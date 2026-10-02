@@ -1,6 +1,8 @@
 # Catalogue references (Kat 502)
 
-Source of truth for part number, quantity, shape, proportions, features, placement and orientation: the official Porsche parts catalogue, USA 911 1983, Kat 502 (`kat502-usa-911-83-katalog.pdf`). The PDF is not in the repo. Page numbers below are the PDF page index (the sheet itself is numbered as sheet “- 1” of that illustration). Only lines that apply to the 1978 930/03 are used. Photos are for finish and colour only.
+Source of truth for part number, quantity, shape, proportions, features, placement and orientation: the official Porsche parts catalogue, USA 911 1983, Kat 502 (`kat502-usa-911-83-katalog.pdf`). The PDF is not in the repo. Page numbers below are the PDF page index (the sheet itself is numbered as sheet “- 1” of that illustration). Photos are for finish and colour only.
+
+The parts on this page are cited for the 1978 US engine, type **930/04**. Kat 502 summary engines (PDF p.7) lists `911 SC (USA)(CDN)`, engine type **930.04**, model year 78, engine number `628 0001>>`. California the same year is 930.06; the RoW 911 SC is 930.03. Each illustration below is headed `Model: 911 78`, `Model life 1978>>1983`. A blank model column applies to every model on that illustration, so the line covers 1978 USA 930/04. A model column of `SC` covers it for the same reason: 930.04 is the 1978 USA/CDN 911 SC. A year remark restricts the line: `78` is 1978, `-79` is through 1979, `80-` is 1980 on.
 
 Plugs enter through the upper lid. Illustration 103-05 (drawing PDF p.66, list p.67–68) draws lid position 17, 901 105 115 03, with two round machined holes about one cylinder pitch apart and a half-round opening at one end: three plug openings per bank. Each has a cast collar on the underside, between the rocker pockets and outside the oil space. Gasket position 18, 930 105 194 00, has separate windows and bridges where those collars sit. The drawing’s gasket is called out with six stud holes; this model keeps eight studs per upper lid so nut position 25 stays at qty 34. Lid position 19, 930 105 116, is the exhaust-side pan and has no holes. Illustration 901-00 (drawing PDF p.582, list p.583–584) draws the plug (position 16) and the connector (position 21, 911 602 315 00) as a long straight tube, a round seal flange near the outer end, and a 90° elbow.
 
@@ -12,8 +14,8 @@ The bore is coaxial with the cover hole. The upper-cover normal on the right ban
 |---|---|
 | Drawing | PDF page 63 (sheet - 1) |
 | List | PDF pages 64–65 |
-| Position 1 | Cylinder head, qty 6. For 1978 the line is **930 104 029 08** (remark “79”, SC, without valves). 930 104 028 03 is the 1980 head. Turbo heads are not used. |
-| Positions 9, 10 | Intake valve **930 105 409 01** and exhaust valve **930 105 419 08**, qty 6 each |
+| Position 1 | Cylinder head, qty 6. The 1978 line is **930 104 019 05**, remark `78`, model SC, description “with valves / Ready for installation”. That is the only 1978 head number on the sheet. There is no 1978 “without valves” line. **930 104 029 08** is remark `79` (the bare head, and again as a complete head) and does not cover 1978. 930 104 028 03 is remark `80`. Turbo heads are not used. The valves stay positions 9 and 10. |
+| Positions 9, 10 | Intake valve **930 105 409 13** (first SC line, end of PDF p.64) and exhaust valve **930 105 419 08** (first SC line, PDF p.65). Both have a blank remark and model SC, so they cover 1978 USA 930/04. 930 105 409 01 and 930 105 419 51 are the other SC lines at those positions. |
 
 The head carries the plug bore. The plug itself is illustration 901-00 position 16, not a 103-00 line.
 
@@ -36,6 +38,8 @@ The head carries the plug bore. The plug itself is illustration 901-00 position 
 
 Positions 21–23 (washer, hexagon nut, spring washer, qty 40) are the cam-chain nut pool, not the cover studs. The upper lid carries the three plug openings and their collars. The lower lid is the ribbed pan, with no holes.
 
+Positions 13, 17, 18, 19 and 20 are the first line at each position. The remark column and the model column are both blank, so each covers 1978 USA 930/04. The other unrestricted lines at the same positions are upper gasket 930 105 194 02 and 194 04, lower lid 930 105 116 05, and lower gasket 930 105 195 02, 05, 06 and 07.
+
 ## Rocker gear — illustration 103-10
 
 The left valve-control sheet lists the rocker gear for the engine (qty 12). Illustration 103-15 is the right chain drive; its positions 44 and 45 are circlips, not rockers.
@@ -57,6 +61,8 @@ The left valve-control sheet lists the rocker gear for the engine (qty 12). Illu
 
 Position 45 is a pan-head screw. The model uses that head, not a hex socket. Six screws and six nuts on each bank. The nut’s flange sits on the housing spot face; the cone enters the shaft.
 
+Every rocker-gear line above (positions 44–50, PDF p.73) has a blank remark and a blank model column. The illustration’s model life is 1978>>1983, so these lines cover 1978 USA 930/04. 930 105 043 02 is the other rocker-arm line, and 901 105 344 03 is the other bush. The quantity is 12 for the engine; illustration 103-15 positions 44 and 45 are circlips, not a second set of rockers.
+
 ## Spark plug — illustration 901-00
 
 | | |
@@ -66,10 +72,14 @@ Position 45 is a pan-head screw. The model uses that head, not a hex socket. Six
 
 | Pos | Part | Qty | 1978 line |
 |---|---|---|---|
-| 16 | Spark plug | 6 | **999 170 055 90**. 999 170 165 90 is the other line at this position. 999 170 170 90 and 999 170 136 90 are on the sheet (remark “-79”) and are not the plug this model uses. 999 170 128 90 is Turbo. |
-| 21 | Spark plug connector | 6 | 911 602 315 00. Straight tube, round seal flange near the outer end, 90° elbow. |
+| 16 | Spark plug | 6 | **999 170 170 90**. Remark `-79`, model SC, qty 6. The description column continues `145 EA 0,8`: heat range 145 EA, printed gap 0,8. That is the catalogue line for an SC through 1979, which includes 1978 USA 930/04. **999 170 136 90** is the other `-79` line, same heat range. 999 170 055 90 and 999 170 165 90 are remark `80-`, type line `225 EA 0,7`, and do not cover 1978. 999 170 128 90 is Turbo (`280 EA 0,6`). |
+| 21 | Spark plug connector | 6 | **911 602 315 00**. Blank remark and blank model column, so it covers 1978 USA 930/04. Straight tube, round seal flange near the outer end, 90° elbow. |
 
-The sheet does not print a thread reach. The modelled plug is the Bosch W-series already specified for this work: M14×1.25, 19 mm reach, sealing washer, 20.8 mm hex, ribbed ceramic, terminal nut, ground strap and centre electrode. The connector is drawn on the plug. 999 170 162 90 (“W 3CC”) is not on this Kat 502 sheet.
+The sheet does not print a thread reach. The modelled plug is the Bosch W-series already specified for this work: M14×1.25, 19 mm reach, sealing washer, 20.8 mm hex, ribbed ceramic, terminal nut, ground strap and centre electrode. The mesh gap is 0.70 mm; the catalogue type line prints 0,8. The connector is drawn on the plug. 999 170 162 90 (“W 3CC”) is not on this Kat 502 sheet.
+
+## Air injection — illustration 108-00 (not modelled)
+
+The 1978 US heads take air-injection fittings in the catalogue. Illustration 108-00 (PDF p.142–143) is titled “Air injection”, model column `911 SC`, model life 1978>>1983. Sheet 103-00 does not list the port as its own part. The fittings are position 18, unions **911 113 145 02** and **911 113 145 04**, qty 6, and position 19, sealing ring **900 123 033 20**, qty 6, A 10×13.5 CU. Those three rows have a blank remark and a blank model column, so they apply to the 911 SC illustration, which includes 1978 USA 930/04. They are not modelled here. Illustration 108-05 is the Turbo air injection and is not this engine.
 
 ## Review sheets
 

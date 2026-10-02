@@ -4034,6 +4034,23 @@
 "auto": ""
 },
 {
+"key": "103-00#1#930 104 019 05",
+"ill": "103-00",
+"pos": "1",
+"pn": "930 104 019 05",
+"desc": "Cylinder head",
+"qty": "6",
+"tags": [
+"SC"
+],
+"notes": [
+"78",
+"with valves",
+"Ready for installation"
+],
+"auto": ""
+},
+{
 "key": "103-00#1#930 104 029 08",
 "ill": "103-00",
 "pos": "1",
@@ -4044,9 +4061,10 @@
 "SC"
 ],
 "notes": [
+"79",
 "without valves"
 ],
-"auto": ""
+"auto": "model years 79: not a 1978 engine"
 },
 {
 "key": "103-00#1#930 104 043 09",
@@ -12923,7 +12941,7 @@
 "80-",
 "225 EA 0,7"
 ],
-"auto": ""
+"auto": "model years 80-: not a 1978 engine"
 },
 {
 "key": "901-00#16#999 170 165 90",
@@ -12939,7 +12957,7 @@
 "80-",
 "225 EA 0,7"
 ],
-"auto": ""
+"auto": "model years 80-: not a 1978 engine"
 },
 {
 "key": "901-00#16#999 170 170 90",
@@ -12955,7 +12973,7 @@
 "-79",
 "145 EA 0,8"
 ],
-"auto": "not the plug this model uses (999 170 055 90)"
+"auto": ""
 },
 {
 "key": "901-00#16#999 170 136 90",
@@ -12971,7 +12989,7 @@
 "-79",
 "145 EA 0,8"
 ],
-"auto": "not the plug this model uses (999 170 055 90)"
+"auto": ""
 },
 {
 "key": "901-00#16#999 170 128 90",
