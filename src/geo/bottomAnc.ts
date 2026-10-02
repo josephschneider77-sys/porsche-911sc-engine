@@ -109,7 +109,7 @@ const PUMP_EAR_HI: V3 = [-262, 124, BODY_ZC];
  */
 const EAR_HALF_Z = 11, EYE_HALF_Z = 7;
 /**
- * Pump eye on the lower ear's axis, stacked on the ear's aft face (z 341).
+ * Pump eye on the lower ear's axis, stacked on the ear's aft face (z 347).
  * The old eye sat 13 mm beside the ear at the same Z.
  */
 const BR_PUMP: V3 = [PUMP_EAR_LO[0], PUMP_EAR_LO[1], BR_Z + EAR_HALF_Z + EYE_HALF_Z + 0.4];
@@ -211,7 +211,7 @@ export function airPumpBracket() {
   eye(BR_PIVOT, 12);
   eye(BR_CASE, 13);
   // Neck to the eye. The riser stays inboard of the ear (ear reaches x −185).
-  // The cross run is above the ear face (z 341); a Ø12 tube centred here bottoms at z 344.
+  // The cross run is above the ear face (z 347); a Ø12 tube centred here bottoms clear of that face.
   const zRun = BR_PUMP[2] + 2;
   p.add(cylBetween([-176, BR_PUMP[1], BR_Z], [-176, BR_PUMP[1], zRun], 6, 12), 'castAlu');
   p.add(cylBetween([-176, BR_PUMP[1], zRun], [BR_PUMP[0], BR_PUMP[1], zRun], 6, 12), 'castAlu');
@@ -305,6 +305,12 @@ export function airPumpCleaner() {
 
 /** Heater blower on the right of the fan housing (108-10). */
 export const HEATER_BLOWER = { x: 340, y: 140, z: 410 };
+/** Two bolts through the lapped arm and foot. Clear of the foot edges and the scroll tangent. */
+const HEATER_BOLT_HOLE = 4.2;
+const HEATER_BOLTS: [number, number][] = [
+  [HEATER_BLOWER.x - 57, HEATER_BLOWER.y - 6],
+  [HEATER_BLOWER.x - 57, HEATER_BLOWER.y + 4],
+];
 export function heaterBlower() {
   const p = new Part();
   const b = HEATER_BLOWER;
@@ -317,22 +323,26 @@ export function heaterBlower() {
   p.add(yToZ(cyl(6, 8, 10)), 'darkSteel', [b.x, b.y, b.z + 80]);
   // Outlet nipple down, same place as before so the distributing piece still seats.
   p.add(cyl(14, 20, 16), 'blackPlastic', [b.x, b.y - 44, b.z]);
-  // Mounting foot on the scroll's inboard face. Radius 48 puts that face at x 292;
-  // the foot used to sit inside the scroll (x 300–312).
+  // Mounting foot on the scroll's inboard tangent (x 292). Its aft face is the lap
+  // the support arm sits on; the two bolt holes go through that lap.
   const face = b.x - 48;
-  p.add(boxMM([face - 12, b.y - 18, b.z - 16], [face, b.y + 12, b.z + 14]), 'blackPlastic');
-  p.add(boxMM([face - 8, b.y - 22, b.z - 8], [face, b.y - 16, b.z + 8]), 'blackPlastic');
+  const z1 = b.z - 3;
+  const foot = polyShape([[face - 18, b.y - 18], [face, b.y - 18], [face, b.y + 12], [face - 18, b.y + 12]]);
+  for (const [x, y] of HEATER_BOLTS) foot.holes.push(circlePath(HEATER_BOLT_HOLE, x, y) as THREE.Path);
+  p.add(extrude(foot, z1 - (b.z - 16)).translate(0, 0, b.z - 16), 'blackPlastic');
+  p.add(boxMM([face - 8, b.y - 22, b.z - 8], [face, b.y - 16, z1]), 'blackPlastic');
   return p.g;
 }
 export function heaterBlowerSupport() {
   const p = new Part();
   const b = HEATER_BLOWER;
-  // Cast arm with a lightening hole. It ends on the foot's inboard face (x 280),
-  // outside the scroll, sharing that plane rather than burying into the foot.
+  // Arm laps 10 mm onto the foot (x 280–290) and shares the foot's aft face.
+  // It used to stop at x 280, end-on, with the bolts 6 mm short of that lap.
   const face = b.x - 48;
-  const x0 = b.x - 96, x1 = face - 12, y0 = b.y - 20, y1 = b.y + 18;
+  const x0 = b.x - 96, x1 = face - 2, y0 = b.y - 20, y1 = b.y + 18;
   const shape = polyShape([[x0, y0 + 6], [x1, y0], [x1, y1], [x0 + 18, y1], [x0, (y0 + y1) / 2 + 8]]);
   shape.holes.push(circlePath(7, (x0 + x1) / 2 - 4, b.y) as THREE.Path);
+  for (const [x, y] of HEATER_BOLTS) shape.holes.push(circlePath(HEATER_BOLT_HOLE, x, y) as THREE.Path);
   p.add(extrude(shape, 6).translate(0, 0, b.z - 3), 'zincPlate');
   p.add(boxMM([x0 - 2, y0 - 2, b.z - 10], [x0 + 18, y0 + 3, b.z + 10]), 'zincPlate');
   return p.g;
@@ -405,6 +415,15 @@ export function egrBracket() {
 
 /** World origin of the catalytic converter (smallParts matrix). */
 const CAT_AT: V3 = [0, -250, -330];
+/** Shield arch in the shield's own frame. Outer crown is a quadratic; the sheet is 2 mm thick. */
+function catArchOuter(x: number) {
+  const t = (x / 46 + 1) / 2;
+  return 24 * t * (1 - t);
+}
+/** Can crown in that same frame. Shield origin is 30 mm above the can centre; bolts sit at z ±12. */
+function catCanTop(z: number) {
+  return -30 + Math.sqrt(28 * 28 - z * z);
+}
 /**
  * EGR return fitting on the converter (202-05 #11). Local boss centre (0, 8, 26), length 24 along Z,
  * so the engine-side face is local z 38. `axis` points out of that face (+Z). The pipe slides on along −Z.
@@ -673,10 +692,12 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
       const d: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
       const L = Math.hypot(d[0], d[1], d[2]) || 1;
       const u: V3 = [d[0] / L, d[1] / L, d[2] / L];
-      // The tube is Ø4.4 and the run is angled, so each end sits 1.2 mm off the fitting
-      // face. Closer than that, the wall clips the barb rim and the tee port.
-      const start: V3 = [a[0] + u[0] * 1.2, a[1] + u[1] * 1.2, a[2] + u[2] * 1.2];
-      const end: V3 = [b[0] - u[0] * 1.2, b[1] - u[1] * 1.2, b[2] - u[2] * 1.2];
+      // 4 mm onto the valve barb and 1.5 mm onto the tee. Both ends used to stop
+      // short of the fitting. The catalogue length is 40 ± 8, so the tee overlap
+      // stays under the 4 mm the barb gets.
+      const onBarb = 4, onTee = 1.5;
+      const start: V3 = [a[0] - u[0] * onBarb, a[1] - u[1] * onBarb, a[2] - u[2] * onBarb];
+      const end: V3 = [b[0] + u[0] * onTee, b[1] + u[1] * onTee, b[2] + u[2] * onTee];
       return new Part().add(hose([start, end], 2.2), 'rubber');
     }, () => [new THREE.Matrix4()]);
     const egrVac = THROTTLE_PORTED_VAC.point;
@@ -701,16 +722,18 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
       // second barb along −Z. The other is the short hose 202-05 #17 to the diverter nipple.
       const tip = EGR_BARB_2.point;
       // Upper port of the cross, axis +Y. Outboard of the cover plate, then onto the barb along −Z.
+      // Each end slides 4 mm onto its fitting instead of stopping 0.4 mm short of the barb.
       const top: V3 = [teeCentre[0], teeCentre[1] + 8, teeCentre[2]];
       const xOut = -110;
+      const slide = 4;
       p.add(hose([
-        top,
+        [top[0], top[1] - slide, top[2]],
         [top[0], top[1] + 24, top[2]],
         [xOut, top[1] + 24, top[2]],
         [xOut, tip[1], top[2]],
         [xOut, tip[1], tip[2] - 30],
         [tip[0], tip[1], tip[2] - 30],
-        [tip[0], tip[1], tip[2] - 0.4],
+        [tip[0], tip[1], tip[2] + slide],
       ], 2.2), 'rubber');
       // 202-05 #17 is a short hose. Under the left exchanger, up inboard of the
       // muffler and the chain box, then aft onto the diverter nipple along −X.
@@ -827,9 +850,16 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
   });
   def('heater-blower-hardware', () => {
     const p = new Part();
-    // Bolt heads on the support's aft face, beside the foot. Clear of the scroll (x 292).
-    p.add(yToZ(hexNut(8, 3)), 'zincPlate', [270, hb.y - 6, hb.z + 3 + 1.7]);
-    p.add(yToZ(hexNut(8, 3)), 'zincPlate', [270, hb.y + 8, hb.z + 3 + 1.7]);
+    // Heads seated on the arm's aft face; shanks run through the arm and the foot.
+    const zArm = hb.z - 3;
+    const zFoot0 = hb.z - 16;
+    const headZ = zArm + 6 + 1.5;
+    const shankZ1 = zArm + 6;
+    const shankZ0 = zFoot0 + 0.4;
+    for (const [x, y] of HEATER_BOLTS) {
+      p.add(yToZ(hexNut(8, 3)), 'zincPlate', [x, y, headZ]);
+      p.add(yToZ(cyl(2.2, shankZ1 - shankZ0, 8)), 'zincPlate', [x, y, (shankZ0 + shankZ1) / 2]);
+    }
     p.add(hexNut(10, 5), 'zincPlate', [236, hb.y + 23, 340]);
     p.add(hexNut(10, 5), 'zincPlate', [234, hb.y + 23, 338]);
     return p;
@@ -839,13 +869,27 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     // Can radius is 28. The arch's lower edge is local y −2, so a placement y of 30
     // sits that edge on the crown. Centred on the can (z 0), not 24 mm off to one side.
     const shieldAt = c(0, 30, 0);
+    const CAT_BOLTS: [number, number][] = [];
+    for (const x of [-36, -12, 12, 36]) for (const z of [-12, 12]) CAT_BOLTS.push([x, z]);
     def('cat-cover', () => {
       const p = new Part();
       // Pressed heat shield: a shallow arch, not a flat plate. Edges at x ±46.
       const s = new THREE.Shape();
       s.moveTo(-46, 0); s.quadraticCurveTo(0, 12, 46, 0); s.lineTo(46, -2);
       s.quadraticCurveTo(0, 10, -46, -2); s.closePath();
-      p.add(extrude(s, 36).translate(0, 0, -18), 'aluminized');
+      let shield: THREE.BufferGeometry = extrude(s, 36).translate(0, 0, -18);
+      const holes = CAT_BOLTS.map(([x, z]) => cyl(4.6, 8, 12).translate(x, catArchOuter(x) - 2, z));
+      const random = Math.random;
+      let sRand = 0xCA7B01 >>> 0;
+      Math.random = () => {
+        sRand = (sRand + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(sRand ^ (sRand >>> 15), 1 | sRand);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+      try { shield = csgSub(shield, ...holes); }
+      finally { Math.random = random; }
+      p.add(shield, 'aluminized');
       return p;
     }, () => [M(shieldAt)]);
     def('cat-cap', () => new Part().add(cyl(8, 6, 12), 'zincPlate'), () => [M(c(96, 20, 0))]);
@@ -859,16 +903,12 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     }, () => [M(c(40, -29.5, 0))]);
     def('cat-cover-fasteners', () => {
       const p = new Part();
-      // Eight bolts inside the shield (x ±46, z ±18), heads on the arch.
-      const yTop = (x: number) => {
-        const t = (x / 46 + 1) / 2;
-        return 24 * t * (1 - t);
-      };
-      for (const x of [-36, -12, 12, 36]) for (const z of [-12, 12]) {
-        const y = yTop(x) + 1.4;
-        // Head and shank sit above the arch. The sheet is ~2 mm thick; this clears it.
-        p.add(hexNut(8, 3), 'zincPlate', [x, y + 1.6, z]);
-        p.add(cyl(2.2, 1.4, 8), 'zincPlate', [x, y + 0.75, z]);
+      // Head seated on the arch. Shank through the sheet and 4 mm into the can.
+      for (const [x, z] of CAT_BOLTS) {
+        const yOut = catArchOuter(x);
+        const yTip = catCanTop(z) - 4;
+        p.add(hexNut(8, 3), 'zincPlate', [x, yOut + 1.5, z]);
+        p.add(cyl(2.2, yOut - yTip, 8), 'zincPlate', [x, (yOut + yTip) / 2, z]);
       }
       return p;
     }, () => [M(shieldAt)]);

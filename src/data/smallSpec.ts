@@ -166,7 +166,7 @@ function ancillarySmall(): SmallSpec[] {
     S('heater-clamp-sp', 'Heater blower clamp', 1, 'shroud', 'upper-air-guide', ['heater-hose-link'], 'Clamp', 'Worm-drive clamp (108-10 #3) on the blower hose.', line('108-10', '3', '999 512 244 02', 1)),
     S('heater-clamp-band', 'Heater hose clamps', 2, 'shroud', 'upper-air-guide', ['heater-hose-link'], 'Hose clamp', 'Worm-drive clamps (108-10 #9) on the blower hose.', line('108-10', '9', '—', 2)),
     S('heater-clamps', 'Heater hose clamps', 6, 'shroud', 'upper-air-guide', ['heater-hose-left', 'heater-hose-right', 'heat-exchanger-left', 'heat-exchanger-right', 'heater-dist-piece'], 'Hose clamp', 'Hose clamps (108-10 #12). Two clamp the hoses onto the exchanger spigots, two onto the distributing piece, two along the runs.', line('108-10', '12', '—', 6)),
-    S('heater-blower-hardware', 'Heater blower fasteners', 1, 'shroud', 'upper-air-guide', ['heater-blower', 'heater-blower-support', 'heater-socket'], 'Screws, nuts, washers', 'Tapping screws (108-10 #5) threaded through the blower lug into the support, plus hex nuts (#16) seated on the socket tab.', line('108-10', '5', '—', 2, 'Also #6/#7/#15/#16')),
+    S('heater-blower-hardware', 'Heater blower fasteners', 1, 'shroud', 'upper-air-guide', ['heater-blower', 'heater-blower-support', 'heater-socket'], 'Screws, nuts, washers', 'Tapping screws (108-10 #5) through the support arm and the blower foot where the arm laps the foot, plus hex nuts (#16) seated on the socket tab.', line('108-10', '5', '—', 2, 'Also #6/#7/#15/#16')),
   ];
   if (VARIANT.airInjection) out.push(
     S('air-rubber', 'Air-pump rubber mounting', 2, 'belt', 'fan-pulley', ['air-pump-bracket'], 'Rubber mounting', 'Rubber mountings 911 113 121 00 (108-00 #2) pressed in the pump bracket feet.', line('108-00', '2', '911 113 121 00', 2)),
@@ -202,7 +202,7 @@ function ancillarySmall(): SmallSpec[] {
     S('cat-cap', 'Catalytic-converter cap', 1, 'muffler', 'muffler', [FRONT], 'Cap', 'Cap 930 113 153 00 (202-00 #8) threaded on the test-port boss.', line('202-00', '8', '930 113 153 00', 1)),
     S('cat-plug', 'Catalytic-converter test-port plug', 1, 'muffler', 'muffler', [FRONT, 'cat-cap'], 'Plug + sealing ring', 'Screw plug (202-00 #8B) and sealing ring (#8A). The audit does not give part numbers; both are drawn on the cap.', line('202-00', '8B', '—', 1)),
     S('cat-bracket', 'Catalytic-converter bracket', 1, 'muffler', 'muffler', [FRONT], 'Retaining bracket', 'Retaining bracket 930 113 196 00 (202-00 #12) seated under the converter.', line('202-00', '12', '930 113 196 00', 1)),
-    S('cat-cover-fasteners', 'Catalytic-converter cover fasteners', 1, 'muffler', 'muffler', ['cat-cover', FRONT], '8 nuts, bolts, washers', 'Eight hex nuts (202-00 #9), hex bolts (#10) and washers (#11) threaded through the heat shield. Part numbers are not in the audit transcription.', line('202-00', '9', '—', 8)),
+    S('cat-cover-fasteners', 'Catalytic-converter cover fasteners', 1, 'muffler', 'muffler', ['cat-cover', FRONT], '8 nuts, bolts, washers', 'Eight hex bolts (202-00 #10) through the heat shield into the converter, with nuts (#9) and washers (#11). Part numbers are not in the audit transcription.', line('202-00', '9', '—', 8)),
   );
   return out;
 }
