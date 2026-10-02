@@ -1735,7 +1735,7 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   // The gasket occupies cover-local z −0.45..−0.05. Keep the cover above it.
   const under = boxMM([-140, -260, -90], [140, 260, -0.02]);
   under.applyMatrix4(frame);
-  const cuts = [under];
+  const cuts: THREE.BufferGeometry[] = [under];
   // The chain-end stud (engine z ≈ 220, axis +Z) embeds back through the pulley
   // end of the upper cover. Open that end around the stud. The side rails are
   // untouched: the cut is only the existing sprocket-end notch, widened in x.
