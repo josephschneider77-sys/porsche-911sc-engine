@@ -577,8 +577,8 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 1 | 911 107 008 05 | Oil pump | 1 | excluded | from engine no. 63D (after 1978) |
 | 1 | 930 107 008 02 | Oil pump | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 1 | 996 107 008 70 | Oil pump | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 2 | 999 704 173 50 | Sealing ring | 2 | modelled | `oil-pump-seals` × 2 |
-| 3 | 999 704 172 50 | Sealing ring | 4 | modelled | `oil-pump-seals` × 4 |
+| 2 | 999 704 173 50 | Sealing ring | 2 | modelled | `oil-pump-seals` × 1 + `oil-cooler-seal-riser` |
+| 3 | 999 704 172 50 | Sealing ring | 4 | modelled | `oil-pump-seals` × 2 + `oil-cooler-seals` |
 | 4 | 999 039 001 00 | Tab washer | 3 | modelled | `oil-pump-nuts` tab |
 | 5 | 900 076 025 02 | Hexagon nut | 7 | modelled | `oil-pump-nuts` × 3 + `oil-cooler-nuts` × 4 |
 | 5 | 900 076 064 02 | Hexagon nut | 7 | alt | alternative to 104-00 #5 |

@@ -80,7 +80,7 @@ describe('assembled-pose interference', () => {
     expect(OIL_COOLER.ports).toHaveLength(3);
     const big = OIL_COOLER.ports.filter((q) => q[2] === 1);
     expect(big).toHaveLength(1);
-    expect(big[0][1]).toBe(Math.min(...OIL_COOLER.ports.map((q) => q[1])));
+    expect(big[0][0]).toBe(Math.min(...OIL_COOLER.ports.map((q) => q[0])));
     expect(coolerPair('crankcase-left')).toBe(false);
     expect(coolerPair('crankcase-right')).toBe(false);
     const faceX = OIL_COOLER.faceX;

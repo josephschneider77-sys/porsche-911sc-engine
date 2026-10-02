@@ -572,7 +572,7 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
     const y0 = -240, y1 = -84, z0 = -206, z1 = 6;
     const zMid = (z0 + z1) / 2, yMid = (y0 + y1) / 2;
     const studs = [[-216, -182], [-216, -19], [-108, -182], [-108, -19]] as const;
-    const ports = [[-190, -170, 1], [-172, -95, 0], [-154, -20, 0]] as const;
+    const ports = [[-140, -150, 0], [-140, -50, 0], [-200, -100, 1]] as const;
     const sh = roundRect(z1 - z0, y1 - y0, 16, -zMid, yMid);
     for (const [y, z] of studs) sh.holes.push(circlePath(5.2, -z, y) as THREE.Path);
     for (const [y, z, big] of ports) sh.holes.push(circlePath(big ? 10 : 9, -z, y) as THREE.Path);
