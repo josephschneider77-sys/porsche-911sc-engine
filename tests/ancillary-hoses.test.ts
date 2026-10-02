@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { ASSET_BUILDERS } from '../src/geo/assets';
-import { PART_BY_ID } from '../src/data/parts';
+import { PARTS, PART_BY_ID } from '../src/data/parts';
 import { TEE_AIR_INJ, THROTTLE_PORTED_VAC } from '../src/geo/induction';
 import { AIR_CHECK_VALVE_OUTLET, heaterStub, EGR_FEED_PORT } from '../src/geo/aux';
 import { checkValveInlet, DIVERTER_VAC, DIVERTER_VAC_EGR, EGR_BARB_2 } from '../src/geo/bottomAnc';
@@ -201,5 +201,54 @@ describe('ancillary hose bend and length', () => {
       }
     }
     expect(bad).toEqual([]);
+  });
+});
+
+describe('ported-vacuum lead-in', () => {
+  it('a ray of at least 30 mm from the throttle nipple tip along its axis misses every assembled part', () => {
+    const point = new THREE.Vector3(...THROTTLE_PORTED_VAC.point);
+    const axis = new THREE.Vector3(...THROTTLE_PORTED_VAC.axis).normalize();
+    // Half a millimetre off the cap, so the ray starts in the lead-in rather than on the face.
+    const origin = point.clone().addScaledVector(axis, 0.5);
+    const solids: { id: string; bvh: MeshBVH; box: THREE.Box3 }[] = [];
+    for (const p of PARTS) {
+      const root = ASSET_BUILDERS[p.asset]();
+      root.updateMatrixWorld(true);
+      const pose = new THREE.Matrix4().compose(
+        new THREE.Vector3(...(p.position ?? [0, 0, 0])),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(...(p.rotation ?? [0, 0, 0]))),
+        new THREE.Vector3(1, 1, 1),
+      );
+      const out: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o: any) => {
+        if (!o.isMesh) return;
+        const g: THREE.BufferGeometry = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
+        const P = g.attributes.position;
+        const inst: THREE.Matrix4[] = o.isInstancedMesh
+          ? Array.from({ length: o.count }, (_, i) => { const m = new THREE.Matrix4(); o.getMatrixAt(i, m); return m; })
+          : [new THREE.Matrix4()];
+        for (const im of inst) {
+          const w = pose.clone().multiply(o.matrixWorld).multiply(im);
+          for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(w); out.push(v.x, v.y, v.z); }
+        }
+      });
+      if (!out.length) continue;
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+      const bvh = new MeshBVH(geom);
+      geom.computeBoundingBox();
+      solids.push({ id: p.id, bvh, box: geom.boundingBox!.clone() });
+    }
+    let best = Infinity;
+    let who = '';
+    for (const s of solids) {
+      const ray = new THREE.Ray(origin, axis);
+      if (!ray.intersectsBox(s.box)) continue;
+      const hit = s.bvh.raycastFirst(ray, THREE.DoubleSide) as { distance: number } | null;
+      if (hit && hit.distance < best) { best = hit.distance; who = s.id; }
+    }
+    const fromTip = best + 0.5;
+    expect(fromTip, `first hit ${who} at ${fromTip.toFixed(1)} mm`).toBeGreaterThanOrEqual(30);
   });
 });

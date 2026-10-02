@@ -478,12 +478,15 @@ def('vacuum-fittings', () => {
   t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, 276, 78]));
   t.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ox, oy, oz - 6]));
   p.g.add(t);
-  // Handoff nipple for Bottom End's air-hose-vacuum. No hose mesh leaves this barb. Top stays under the shell.
+  // Handoff nipple for Bottom End's air-hose-vacuum. No hose mesh leaves this barb.
+  // Tip stays at TEE_AIR_INJ. The clamp ring's lower edge is 5.3 mm above that tip
+  // (centre iy+6, tube r 0.7), so a rubber cap can grip more than 5 mm of free barb.
+  // The root stops at iy+8, under the air-cleaner shell.
   const inj = new THREE.Group();
   inj.name = 'fitting:vac-airinj';
   const [ix, iy, iz] = TEE_AIR_INJ.point;
-  inj.add(mesh(cylBetween([ix, iy + 6, iz], [ix, iy, iz], 2.8, 10), 'brass'));
-  inj.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ix, iy + 2.2, iz]));
+  inj.add(mesh(cylBetween([ix, iy + 8, iz], [ix, iy, iz], 2.8, 10), 'brass'));
+  inj.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ix, iy + 6, iz]));
   p.g.add(inj);
   p.g.add(vacuumCluster().g);
   p.g.add(vacuumHosesPart().g);
