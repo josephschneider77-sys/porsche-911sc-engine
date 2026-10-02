@@ -1047,7 +1047,8 @@ export function piston() {
   }, 168, 52, true);
   p.add(dome, 'machinedAlu');
   // underside
-  p.add(yToX(lathe([[0.1, top - 7], [R - 6, top - 8], [R - 5, -44]], 48)), 'castAlu');
+  // Same stations as crownUndersideX: top−7.7 at the centre, top−8.7 at r = R−6.
+  p.add(yToX(lathe([[0.1, top - 7.7], [R - 6, top - 8.7], [R - 5, -44]], 48)), 'castAlu');
   // pin bosses and pin (#3) + circlips (#4)
   for (const z of [-1, 1]) {
     p.add(yToZ(lathe([[11.2, -5], [16, -5], [17, 0], [16, 5], [11.2, 5]], 24)), 'machinedAlu', [0, 0, z * (R - 9)]);

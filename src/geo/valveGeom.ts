@@ -33,10 +33,14 @@ export const GUIDE_Y1 = 64;
 export const VALVE_FACE = { in: { x: 8.7, y: 22, z: 0 }, ex: { x: 8.9, y: -23, z: 0 } } as const;
 /** Piston-local x of the head deck at TDC. Pin |x| = crankRadius + rodLength. */
 export const PISTON_DECK = CYL_TOP_X - (SPEC.crankRadius + SPEC.rodLength);
-/** How far the eyebrow plane sits off the valve face, toward the piston (opposite the stem). */
-const POCKET_CLEAR = 2.8;
-/** Crescent depth limit, measured down from the uncut dome. */
-const POCKET_DEPTH = 5.5;
+/**
+ * How far the eyebrow plane sits off the valve face, toward the piston.
+ * Exhaust is deeper: a 1° mesh sweep bottoms out 4–5° before overlap TDC, and
+ * the dome facets sit proud of this field. Intake only needs a small extra cut.
+ */
+const POCKET_CLEAR = { in: 3.15, ex: 3.85 } as const;
+/** Crescent depth limit, measured down from the uncut dome. Exhaust can use more of it. */
+const POCKET_DEPTH = { in: 6.4, ex: 7.6 } as const;
 /** Minimum crown thickness under a pocket. The mesh test requires at least 4.49 mm. */
 const CROWN_THICK = 4.49;
 
@@ -72,14 +76,17 @@ export function headToEngine(cyl: number, p: THREE.Vector3): THREE.Vector3 {
   return V(s * CYL_TOP_X + s * p.x, p.y, CYL_Z[cyl] + s * p.z);
 }
 
-/** Crown underside lathe: (r=0, top−7) to (r=R−6, top−8). One millimetre lower than the
- *  unpocketed wall so the eyebrows can clear the valves and still leave 4.49 mm of crown. */
+/**
+ * Crown underside lathe: (r=0, top−7.7) to (r=R−6, top−8.7). Dropped with the
+ * exhaust eyebrow so the shell under the pocket stays at least 4.49 mm.
+ * The piston lathe in `piston()` uses the same two stations.
+ */
 export function crownUndersideX(r: number): number {
   const R = SPEC.bore / 2 - 0.1;
   const top = SPEC.compressionHeight;
   const r1 = R - 6;
   const t = Math.min(1, Math.max(0, r / r1));
-  return (top - 7) + ((top - 8) - (top - 7)) * t;
+  return (top - 7.7) + ((top - 8.7) - (top - 7.7)) * t;
 }
 
 const BORE_R = SPEC.bore / 2 - 0.1;
@@ -121,9 +128,11 @@ export function crownSurfaceX(y: number, z: number): number | null {
 export function domeReliefX(y: number, z: number, crownX: number, r: number): number {
   const R = BORE_R;
   if (r > R - 0.5) return crownX;
-  const floor = Math.max(crownUndersideX(r) + CROWN_THICK, crownX - POCKET_DEPTH);
   let x = crownX;
   for (const side of [1, -1] as const) {
+    const clear = side > 0 ? POCKET_CLEAR.in : POCKET_CLEAR.ex;
+    const depth = side > 0 ? POCKET_DEPTH.in : POCKET_DEPTH.ex;
+    const floor = Math.max(crownUndersideX(r) + CROWN_THICK, crownX - depth);
     const headR = (side > 0 ? VALVE_DIA.in : VALVE_DIA.ex) / 2;
     const d = stemDirLocal(side);
     const face = stemPointLocal(side, 0);
@@ -138,9 +147,9 @@ export function domeReliefX(y: number, z: number, crownX: number, r: number): nu
     // The head is several millimetres thick toward the tip, so the crown under that
     // thickness is part of the crescent. Past the fillet there is nothing to clear.
     if (perp2 > pocketR * pocketR || axial > 18) continue;
-    const Fx = fx - POCKET_CLEAR * d.x;
-    const Fy = face.y - POCKET_CLEAR * d.y;
-    const Fz = face.z - POCKET_CLEAR * d.z;
+    const Fx = fx - clear * d.x;
+    const Fy = face.y - clear * d.y;
+    const Fz = face.z - clear * d.z;
     const planeX = Fx - ((y - Fy) * d.y + (z - Fz) * d.z) / d.x;
     const perp = Math.sqrt(Math.max(0, perp2));
     const blend = 1.4;

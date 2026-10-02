@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { MeshBVH } from 'three-mesh-bvh';
 import {
   CAM, PEAK_R, PEAK_CRANK, LASH, PAD_W, FIRE_CRANK, ASSEMBLED_CRANK, trainPose, camshaft, camWebZ, lobeRadius,
-  rockerStations, plugCoverLocal,
+  rockerStations, plugCoverLocal, valveHeadEngine,
 } from '../src/geo/valvetrain';
 import { CAM_X, SPARK_TIP, SPARK_Z, SPARK_AXIS, SPARK_HOLE_R, SPARK_FLANGE_T, sparkDirHead, sparkRoll, plugTipEngine, plugAxisEngine } from '../src/data/layout';
 import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1, coverMatrix } from '../src/geo/core';
@@ -212,7 +213,9 @@ describe('top-end batch 1', () => {
   it('trims the left valve cover to the cam-housing seat, matching the right cover', () => {
     const box = (id: string) => new THREE.Box3().setFromObject(ASSET_BUILDERS[id]());
     const lowerL = box('valve-cover-lower-left'), lowerR = box('valve-cover-lower-right');
-    expect(Math.abs(lowerL.min.z - lowerR.min.z), 'lower flywheel end').toBeLessThan(2);
+    expect(lowerL.min.z, 'lower flywheel end').toBeCloseTo(lowerR.min.z, 0);
+    expect(lowerR.max.z - lowerR.min.z, 'lower right length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
+    expect(lowerL.max.z - lowerL.min.z, 'lower left length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
     expect(lowerL.max.z, 'lower pulley end').toBeCloseTo(lowerR.max.z, 0);
     expect(lowerL.min.z).toBeGreaterThan(CH_Z0 - 1);
     expect(lowerL.max.z).toBeLessThan(CH_Z1 + 1);
@@ -245,6 +248,8 @@ describe('top-end batch 1', () => {
     const upperL = box('valve-cover-upper-left'), upperR = box('valve-cover-upper-right');
     expect(upperL.min.z, 'upper flywheel end').toBeCloseTo(upperR.min.z, 0);
     expect(upperL.max.z, 'upper pulley end').toBeCloseTo(upperR.max.z, 0);
+    expect(upperR.max.z - upperR.min.z, 'upper right length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
+    expect(upperL.max.z - upperL.min.z, 'upper left length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
     expect(upperL.min.z, 'scallop stays on the rail').toBeGreaterThan(CH_Z0 - 1);
     expect(upperL.max.z).toBeLessThan(CH_Z1 + 1);
   });
@@ -525,5 +530,159 @@ describe('top-end batch 1', () => {
     }
     expect(clearance('spark-plug-1', 'heat-exchanger-right')).toBeGreaterThanOrEqual(2.5);
     expect(clearance('spark-plug-4', 'heat-exchanger-left')).toBeGreaterThanOrEqual(2.5);
+  });
+
+  it('keeps rockers and valves at least 0.5 mm off the covers through a 2° crank sweep', () => {
+    const bake = (id: string) => {
+      const root = ASSET_BUILDERS[id]();
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    const coverOf = (s: 1 | -1, upper: boolean) =>
+      bake(`valve-cover-${upper ? 'upper' : 'lower'}-${s > 0 ? 'right' : 'left'}`);
+    const covers = new Map<string, MeshBVH>();
+    for (const s of [1, -1] as const) for (const upper of [true, false]) {
+      covers.set(`${s}:${upper ? 1 : 0}`, coverOf(s, upper));
+    }
+    const odd = (bvh: MeshBVH, p: THREE.Vector3) => {
+      const hits = bvh.raycast(new THREE.Ray(p, new THREE.Vector3(0.2, 0.9, 0.15).normalize()), THREE.DoubleSide) as { distance: number }[];
+      return hits.filter((h) => h.distance > 1e-3).length % 2 === 1;
+    };
+    const target = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
+    let min = Infinity, where = '';
+    const q = new THREE.Vector3();
+    for (const s of [1, -1] as const) {
+      const id = s > 0 ? 'rockers-right' : 'rockers-left';
+      const root = ASSET_BUILDERS[id]();
+      root.updateMatrixWorld(true);
+      const stations = rockerStations(s);
+      const groups = stations.map(() => [] as THREE.Vector3[]);
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const P = m.geometry.attributes.position;
+        const v = new THREE.Vector3();
+        const pts: THREE.Vector3[] = [];
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pts.push(v.clone());
+        }
+        if (!pts.length) return;
+        const c = pts.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / pts.length);
+        let best = 0, bestD = Infinity;
+        stations.forEach((st, i) => {
+          const d = Math.hypot(c.x - st.x, c.y - st.y, c.z - st.z);
+          if (d < bestD) { bestD = d; best = i; }
+        });
+        groups[best].push(...pts);
+      });
+      const valves = stations.map((st) => {
+        const head = valveHeadEngine(st.cyl, st.side, ASSEMBLED_CRANK);
+        const g = head.index ? head.toNonIndexed() : head;
+        const P = g.attributes.position;
+        const pts: THREE.Vector3[] = [];
+        const v = new THREE.Vector3();
+        for (let i = 0; i < P.count; i += 2) {
+          v.fromBufferAttribute(P, i);
+          pts.push(v.clone());
+        }
+        const d = stemDirLocal(st.side);
+        const stem = new THREE.Vector3(s * d.x, d.y, s * d.z).normalize();
+        const closed = trainPose(st.cyl, st.side, ASSEMBLED_CRANK);
+        return { pts, stem, lift0: closed.lift, beta0: closed.beta };
+      });
+      for (let crank = 0; crank < 720; crank += 2) {
+        stations.forEach((st, i) => {
+          const pose = trainPose(st.cyl, st.side, crank);
+          const dlt = pose.beta - valves[i].beta0;
+          const cs = Math.cos(dlt), sn = Math.sin(dlt);
+          const bvh = covers.get(`${s}:${st.side > 0 ? 1 : 0}`)!;
+          const consider = (p: THREE.Vector3) => {
+            bvh.closestPointToPoint(p, target as never);
+            if (target.distance > 6) return;
+            const signed = target.distance < 2.5 && odd(bvh, p) ? -target.distance : target.distance;
+            if (signed < min) {
+              min = signed;
+              where = `cyl ${st.cyl} side ${st.side} crank ${crank}`;
+            }
+          };
+          for (let k = 0; k < groups[i].length; k++) {
+            const p = groups[i][k];
+            const dx = p.x - st.x, dy = p.y - st.y;
+            q.set(st.x + cs * dx - sn * dy, st.y + sn * dx + cs * dy, p.z);
+            consider(q);
+          }
+          const shift = valves[i].lift0 - pose.lift;
+          for (const p of valves[i].pts) {
+            q.copy(p).addScaledVector(valves[i].stem, shift);
+            consider(q);
+          }
+        });
+      }
+    }
+    console.log(`cover sweep minimum ${min.toFixed(3)} mm at ${where}`);
+    expect(min, where).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('sends rays from the cover side into each cam-housing cover land', () => {
+    // A ray from the cover toward the seat must meet a front face. The left rails
+    // and machined lands used to be inside-out, so the ray entered through the back.
+    const halfL = (CH_Z1 - CH_Z0 - 8) / 2;
+    const bake = (id: string) => {
+      const root = ASSET_BUILDERS[id]();
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    for (const s of [1, -1] as const) {
+      const id = `cam-housing-${s > 0 ? 'right' : 'left'}`;
+      const bvh = bake(id);
+      for (const upper of [true, false]) {
+        const frame = coverMatrix(s, upper);
+        const inward = new THREE.Vector3().setFromMatrixColumn(frame, 2).negate();
+        const p = new THREE.Vector3();
+        const samples: [number, number][] = [];
+        for (let y = -halfL + 8; y <= halfL - 8; y += 2) samples.push([-23.2, y], [23.2, y]);
+        for (let x = -18; x <= 18; x += 4) samples.push([x, halfL - 4], [x, -halfL + 4]);
+        let miss = 0, n = 0;
+        for (const [x, y] of samples) {
+          p.set(x, y, 1.5).applyMatrix4(frame);
+          const front = bvh.raycastFirst(new THREE.Ray(p, inward), THREE.FrontSide) as { distance: number } | null;
+          const dbl = bvh.raycastFirst(new THREE.Ray(p, inward), THREE.DoubleSide) as { distance: number } | null;
+          if (!dbl || dbl.distance > 12) continue;
+          n++;
+          if (!front || front.distance > dbl.distance + 0.05) miss++;
+        }
+        expect(n, `${id} ${upper ? 'upper' : 'lower'} samples`).toBeGreaterThan(80);
+        expect(miss, `${id} ${upper ? 'upper' : 'lower'} escaping rays`).toBe(0);
+      }
+    }
   });
 });

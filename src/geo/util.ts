@@ -28,9 +28,10 @@ export function closedLathe(pts: [number, number][], segs = 48) {
 }
 
 export function box(w: number, h: number, d: number) { return new THREE.BoxGeometry(w, h, d); }
-/** Box spanning explicit min/max corners. */
+/** Box spanning explicit min/max corners. A swapped corner used to come out inside-out (negative BoxGeometry width), so the left-bank rails and cover lands faced inward. */
 export function boxMM(min: V3, max: V3) {
-  const g = new THREE.BoxGeometry(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
+  const dx = max[0] - min[0], dy = max[1] - min[1], dz = max[2] - min[2];
+  const g = new THREE.BoxGeometry(Math.abs(dx), Math.abs(dy), Math.abs(dz));
   g.translate((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
   return g;
 }

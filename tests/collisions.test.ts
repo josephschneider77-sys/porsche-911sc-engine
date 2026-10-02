@@ -4,10 +4,10 @@ import { MeshBVH } from 'three-mesh-bvh';
 import { findCollisions, findIntraPartHits, erodedSolidsClash, allowedClash, isMating, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
 import { rayHit } from './hw';
 import { OIL_COOLER, oilCooler, DIST, DIST_AXIS, distW } from '../src/geo/aux';
-import { cylinder, conrod } from '../src/geo/core';
+import { cylinder, conrod, piston } from '../src/geo/core';
 import { SMALL_GEOM } from '../src/geo/smallParts';
 import { valveHeadEngine, trainPose, FIRE_CRANK } from '../src/geo/valvetrain';
-import { crownSurfaceX, stemPointLocal, stemDirLocal } from '../src/geo/valveGeom';
+import { crownSurfaceX, crownUndersideX, stemPointLocal, stemDirLocal } from '../src/geo/valveGeom';
 import { bankOf, CYL_Z, CYL_TOP_X, DECK_X, pinX } from '../src/data/layout';
 
 const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|timing-chain|cam-sprocket)-(left|right)$/;
@@ -288,8 +288,31 @@ describe('conrod swing versus the cylinder skirt', () => {
 });
 
 describe('valve to piston around overlap TDC', () => {
-  /** Signed gap from a head vertex to the crown height field. Positive is toward the head. */
-  function gapAt(cyl: number, side: 1 | -1, crank: number) {
+  function pistonBVH() {
+    const root = piston();
+    root.updateMatrixWorld(true);
+    const pos: number[] = [];
+    const v = new THREE.Vector3();
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+      const P = g.attributes.position;
+      for (let i = 0; i < P.count; i++) {
+        v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+        pos.push(v.x, v.y, v.z);
+      }
+    });
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    return new MeshBVH(geom);
+  }
+  function oddHits(bvh: MeshBVH, p: THREE.Vector3) {
+    const hits = bvh.raycast(new THREE.Ray(p, new THREE.Vector3(1, 0.137, 0.051).normalize()), THREE.DoubleSide) as { distance: number }[];
+    return hits.filter((h) => h.distance > 1e-4).length % 2 === 1;
+  }
+  /** True mesh distance from the valve head to the piston. Positive is outside the solid. */
+  function meshGap(bvh: MeshBVH, cyl: number, side: 1 | -1, crank: number) {
     const s = bankOf(cyl);
     const { pinX: px } = pinX(cyl, crank);
     const inv = new THREE.Matrix4().compose(
@@ -301,43 +324,45 @@ describe('valve to piston around overlap TDC', () => {
     const face = stemPointLocal(side, 0).addScaledVector(stemDirLocal(side), -pose.lift);
     const faceP = new THREE.Vector3(s * (CYL_TOP_X + face.x), face.y, CYL_Z[cyl] + s * face.z).applyMatrix4(inv);
     const head = valveHeadEngine(cyl, side, crank);
-    const P = head.attributes.position;
-    const idx = head.index;
-    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), m = new THREE.Vector3();
+    const g = head.index ? head.toNonIndexed() : head;
+    const P = g.attributes.position;
+    const target = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
+    const p = new THREE.Vector3();
     let min = Infinity;
-    const consider = (p: THREE.Vector3) => {
-      if (p.distanceTo(faceP) > 30) return;
-      const sx = crownSurfaceX(p.y, p.z);
-      if (sx == null || !Number.isFinite(sx) || !Number.isFinite(p.x)) return;
-      min = Math.min(min, p.x - sx);
-    };
-    const nTri = idx ? idx.count : P.count;
-    for (let i = 0; i < nTri; i += 3) {
-      const ia = idx ? idx.getX(i) : i;
-      const ib = idx ? idx.getX(i + 1) : i + 1;
-      const ic = idx ? idx.getX(i + 2) : i + 2;
-      a.fromBufferAttribute(P, ia).applyMatrix4(inv);
-      b.fromBufferAttribute(P, ib).applyMatrix4(inv);
-      c.fromBufferAttribute(P, ic).applyMatrix4(inv);
-      consider(a); consider(b); consider(c);
-      consider(m.copy(a).add(b).add(c).multiplyScalar(1 / 3));
+    for (let i = 0; i < P.count; i++) {
+      p.fromBufferAttribute(P, i).applyMatrix4(inv);
+      if (p.distanceTo(faceP) > 22) continue;
+      bvh.closestPointToPoint(p, target as never);
+      const signed = oddHits(bvh, p) ? -target.distance : target.distance;
+      if (signed < min) min = signed;
     }
     return min;
   }
 
-  it('keeps at least 1.74 mm across ±30° of crank around overlap TDC', () => {
-    let min = Infinity;
+  it('keeps at least 1.74 mm at 1° steps across ±30° of overlap TDC', () => {
+    const bvh = pistonBVH();
+    let min = Infinity, where = '';
     for (const cyl of [1, 2, 3, 4, 5, 6]) {
       const overlap = FIRE_CRANK[cyl] + 360;
-      for (let crank = overlap - 30; crank <= overlap + 30; crank += 10) {
+      for (let crank = overlap - 30; crank <= overlap + 30; crank += 1) {
         for (const side of [1, -1] as const) {
-          const g = gapAt(cyl, side, crank);
+          const g = meshGap(bvh, cyl, side, crank);
           expect(g, `cyl ${cyl} side ${side} crank ${crank}`).toBeGreaterThanOrEqual(1.74);
-          min = Math.min(min, g);
+          if (g < min) { min = g; where = `cyl ${cyl} side ${side} ${crank - overlap}° from overlap`; }
         }
       }
     }
+    console.log(`valve-to-piston minimum ${min.toFixed(3)} mm at ${where}`);
     expect(min).toBeGreaterThanOrEqual(1.74);
+    let thick = Infinity;
+    for (let y = -46; y <= 46; y += 1) for (let z = -46; z <= 46; z += 1) {
+      const sx = crownSurfaceX(y, z);
+      if (sx == null) continue;
+      thick = Math.min(thick, sx - crownUndersideX(Math.hypot(y, z)));
+    }
+    // The crown floor is 4.49. The sample lands on that floor; a binary float
+    // prints just under it (4.49 − 2e−15) and must still pass.
+    expect(thick + 1e-9, 'crown under the eyebrows').toBeGreaterThanOrEqual(4.49);
   });
 });
 

@@ -796,7 +796,9 @@ export function rockers(s: 1 | -1) {
     );
     const ballGeo = new THREE.SphereGeometry(BALL_R, 16, 12);
     ballGeo.translate(centerL.x, centerL.y, 0);
-    const nut = hexNut(11, 3.2);
+    // Across-flats 10 (was 11). The corner was meeting the head-side wall of the
+    // lower cover; a flat-to-flat of 10 pulls that corner inside the shell.
+    const nut = hexNut(10, 3.2);
     const nutC = bossL.clone().lerp(centerL, 0.22);
     const ax = new THREE.Vector3(centerL.x - bossL.x, centerL.y - bossL.y, 0).normalize();
     nut.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), ax));
@@ -1523,6 +1525,45 @@ function pointLandUp(g: THREE.BufferGeometry, frame: THREE.Matrix4) {
   }
   N.needsUpdate = true;
 }
+/**
+ * The land sheet has to face outward. An inverted extrusion (and the left bank's
+ * stem boolean) leaves the top pointing into the metal, so a ray that starts in
+ * the sheet escapes. Flip the winding when the top faces disagree with the cover
+ * normal, then recompute normals and correct any top vertex that still points down.
+ */
+function orientLandOutward(g: THREE.BufferGeometry, frame: THREE.Matrix4) {
+  const idx = g.index;
+  if (!idx) {
+    g.computeVertexNormals();
+    pointLandUp(g, frame);
+    return;
+  }
+  const axis = new THREE.Vector3().setFromMatrixColumn(frame, 2);
+  const inv = frame.clone().invert();
+  const P = g.attributes.position;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const n = new THREE.Vector3(), mid = new THREE.Vector3();
+  let vote = 0;
+  for (let t = 0; t < idx.count; t += 3) {
+    a.fromBufferAttribute(P, idx.getX(t));
+    b.fromBufferAttribute(P, idx.getX(t + 1));
+    c.fromBufferAttribute(P, idx.getX(t + 2));
+    mid.copy(a).add(b).add(c).multiplyScalar(1 / 3).applyMatrix4(inv);
+    if (mid.z < -1.3) continue;
+    n.copy(b).sub(a).cross(c.clone().sub(a));
+    if (n.lengthSq() < 1e-8) continue;
+    vote += n.dot(axis) >= 0 ? 1 : -1;
+  }
+  if (vote < 0) {
+    for (let t = 0; t < idx.count; t += 3) {
+      const i0 = idx.getX(t);
+      idx.setX(t, idx.getX(t + 2));
+      idx.setX(t + 2, i0);
+    }
+  }
+  g.computeVertexNormals();
+  pointLandUp(g, frame);
+}
 function addCoverLands(p: Part, s: 1 | -1) {
   const L = CH_Z1 - CH_Z0 - 8;
   const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
@@ -1567,8 +1608,8 @@ function addCoverLands(p: Part, s: 1 | -1) {
         return cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], STEM_R + 6.5, 16);
       });
       g = manifoldSub(g, ...cuts);
-      pointLandUp(g, frame);
     }
+    orientLandOutward(g, frame);
     p.add(g, 'machinedAlu');
   }
 }
@@ -1735,6 +1776,62 @@ function exhaustStemCuts(s: 1 | -1): THREE.BufferGeometry[] {
     return cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 13, 16);
   });
 }
+/**
+ * Interior pocket for the exhaust adjuster through the whole cam cycle.
+ * Each cutter is a sphere around the ball, the locknut or the screw at one
+ * rocker angle. It is shifted back along the cover normal if it would break
+ * the outer skin (local z ≈ 22) or the ribs (z ≈ 24).
+ */
+function adjusterSweepCuts(s: 1 | -1): THREE.BufferGeometry[] {
+  const frame = coverMatrix(s, false);
+  const inv = frame.clone().invert();
+  const axis = new THREE.Vector3().setFromMatrixColumn(frame, 2);
+  const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+  const cuts: THREE.BufferGeometry[] = [];
+  /** Outer skin is local z ≈ 22. Stay under it so the pan outline does not change. */
+  const SKIN = 21.0;
+  // 1 mm past the hex corner. Eight samples left a gap between stations; the
+  // corner swings farther from the shaft than the ball, so the steps are fine.
+  const PAD = 1.2;
+  const keep = (g: THREE.BufferGeometry) => {
+    g.computeBoundingBox();
+    const bb = g.boundingBox!;
+    const centre = bb.getCenter(new THREE.Vector3());
+    const reach = bb.getSize(new THREE.Vector3()).length() * 0.5;
+    const lz = centre.clone().applyMatrix4(inv).z;
+    if (lz - reach >= SKIN) return;
+    if (lz + reach > SKIN) {
+      const shift = lz + reach - SKIN;
+      g.translate(-axis.x * shift, -axis.y * shift, -axis.z * shift);
+    }
+    cuts.push(g);
+  };
+  for (const c of cyls) {
+    const lay = rockerLayout(c, -1);
+    let bMin = 0, bMax = 0;
+    for (let crank = 0; crank < 720; crank += 3) {
+      const b = trainPose(c, -1, crank).beta;
+      if (b < bMin) bMin = b;
+      if (b > bMax) bMax = b;
+    }
+    const steps = 24;
+    for (let i = 0; i <= steps; i++) {
+      const beta = bMin + (bMax - bMin) * (i / steps);
+      const bossL = adjusterBoss(lay);
+      const centerL = rot2(ballCenterWorld(lay, beta).sub(lay.P), -(lay.ang + beta));
+      const nutC = bossL.clone().lerp(centerL, 0.22);
+      const ball = new THREE.SphereGeometry(BALL_R + PAD, 12, 8);
+      ball.translate(centerL.x, centerL.y, 0);
+      const nut = new THREE.SphereGeometry(10 / Math.sqrt(3) + PAD, 10, 8);
+      nut.translate(nutC.x, nutC.y, 0);
+      const mid = bossL.clone().lerp(centerL, 0.55);
+      const screw = new THREE.SphereGeometry(2.6 + PAD, 8, 6);
+      screw.translate(mid.x, mid.y, 0);
+      for (const g of [ball, nut, screw]) keep(placeRocker(g, lay.ang, beta, lay.P, lay.z));
+    }
+  }
+  return cuts;
+}
 export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean) {
   flattenWorld(root);
   // Main's pan. No rocker-clearance box on the roof.
@@ -1757,8 +1854,7 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   }
   if (!upper) {
     // The Ø6.4 ball sits on the exhaust tip, in the corner where the head-side
-    // wall meets the roof. The recess is 1 mm past the ball; an 18-side sphere
-    // cuts about 0.1 mm inside that, and the wall there is 4 mm thick.
+    // wall meets the roof. The wall there is about 4 mm thick.
     const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
     // The rounded stem tip meets a thin spot in the head-side wall. Bore 0.8 mm
     // past the stem radius and 1.6 mm past the tip. The wall stays closed.
@@ -1772,19 +1868,19 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
         STEM_R + 0.8, 16,
       ));
     }
-    for (const c of cyls) for (const crank of [ASSEMBLED_CRANK, FIRE_CRANK[c] + PEAK_CRANK.ex]) {
-      const pose = trainPose(c, -1, crank);
-      const ctr = ballCenterWorld(pose.lay, pose.beta);
-      const g = new THREE.SphereGeometry(BALL_R + 1.0, 18, 14);
-      g.translate(ctr.x, ctr.y, pose.lay.z);
-      cuts.push(g);
-    }
+    // Screw, ball and locknut sweep an arc as the rocker opens. A pocket only at
+    // the assembled angle and at peak lift leaves the stack kissing the shell
+    // in between. Cut 0.7 mm past each of them along that arc, and stop the
+    // cutter under the outer skin so the ribs and the pan outline stay.
+    cuts.push(...adjusterSweepCuts(s));
   }
   if (!upper && s < 0) {
     cuts.push(...exhaustStemCuts(s));
-    // Cylinder 6's exhaust rocker runs past the pan into the flywheel lip.
-    // Notch that lip only; stay above the housing (local z > 0).
-    const endPocket = boxMM([-26, -192, -40], [26, -148, 50]);
+    // Cylinder 6's exhaust rocker crosses the seal lip (local z 0..0.4, y about −181).
+    // Hollow that lip from the inside. Stop short of the outer end face (local y −186)
+    // and under the outer skin so the flywheel end matches the right cover and the pan
+    // stays one shell.
+    const endPocket = boxMM([-20, -184.2, -1], [24, -148, 21]);
     endPocket.applyMatrix4(frame);
     cuts.push(endPocket);
   } else if (!upper) cuts.push(...exhaustStemCuts(s));

@@ -466,7 +466,6 @@ export const MATING: [RegExp, RegExp, string][] = [
 
   pair('piston', 'cylinder', 'JOINT piston in bore'),
   pair('cylinder', 'head', 'JOINT cylinder/head sealing joint'),
-  pair('head', 'intake-runner', 'seated: intake-port flange on the head'),
   pair('head', 'valves', 'seated: valve guide and seat in the head'),
   // cam-housing × head is not a blanket pair. narrowSeat allows the face plane and the stud bores only.
   // Pad-on-lobe and ball-on-stem are a 0–0.10 mm seat. They are not a blanket pair:
@@ -484,14 +483,12 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('heat-exchanger', 'head', 'JOINT primaries in the exhaust ports'),
   ...sameSide('cam-flange', 'camshaft|cam-sprocket', 'JOINT keyed flange on the cam nose, dowel into the sprocket'),
   pair('cam-housing-plug', 'cam-splash-tube', 'JOINT gallery screw plug shank reaches the splash-tube bore it closes (E position)'),
-  pair('cam-key', 'cam-shim', 'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)'),
 ];
 
 /** Why-strings owned by the top-end / chain-drive work. Bottom-end entries are not in this set. */
 export const TOP_END_WHY = new Set<string>([
   'JOINT piston in bore',
   'JOINT cylinder/head sealing joint',
-  'seated: intake-port flange on the head',
   'seated: valve guide and seat in the head',
   'JOINT cam-housing end face gasketed into the chain box',
   'JOINT sprocket on cam nose',
@@ -500,7 +497,6 @@ export const TOP_END_WHY = new Set<string>([
   'JOINT primaries in the exhaust ports',
   'JOINT keyed flange on the cam nose, dowel into the sprocket',
   'JOINT gallery screw plug shank reaches the splash-tube bore it closes (E position)',
-  'JOINT key passes through the keyed notch of the 0.6 mm shim (the thin shim inverts under the 1 mm erosion; clean at 0.5 mm)',
 ]);
 /**
  * Fastener joints (JOINT, generated): each hardware set may overlap the part it seats on and the part it threads

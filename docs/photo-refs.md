@@ -69,6 +69,8 @@ The left valve-control sheet lists the rocker gear for the engine (qty 12). Illu
 
 Position 45 is a pan-head screw. The model uses that head, not a hex socket. Six screws and six nuts on each bank. The nut’s flange sits on the housing spot face; the cone enters the shaft.
 
+Kat 502 lists one rocker forging, **930 105 043 00**, quantity 12, so intake and exhaust are the same part. One outline does not fit both stations on this head. The slipper radii are 36 mm intake and 30 mm exhaust, the eye arms are 34.7 mm and 39.8 mm, and the shafts sit at different places (intake 314, +35 and exhaust 308, −38, cam still at 292). A single shape cannot put both balls on the stem at the two lifts (11.29 mm intake, 9.90 mm exhaust) with the pad on the base circle. The model therefore keeps two machined outlines of that one forging number.
+
 Every rocker-gear line above (positions 44–50, PDF p.73) has a blank remark and a blank model column. The illustration’s model life is 1978>>1983, so these lines cover 1978 USA 930/04. 930 105 043 02 is the other rocker-arm line, and 901 105 344 03 is the other bush. The quantity is 12 for the engine; illustration 103-15 positions 44 and 45 are circlips, not a second set of rockers.
 
 ## Spark plug — illustration 901-00
@@ -91,7 +93,7 @@ The 1978 US heads take air-injection fittings in the catalogue. Illustration 108
 
 ## Review sheets
 
-`docs/review/valve-cover-upper.png`, `docs/review/valve-cover-lower.png`, `docs/review/valve-cover-gasket-upper.png`, `docs/review/valve-cover-gasket-lower.png`, `docs/review/spark-plugs.png` and `docs/review/connector.png` are drawing | old | new. The left column is a crop of the Kat 502 sheet named above. The middle column is main `700a1b3`. The right column is this branch. Photos are not in those sheets. The plug line on the spark-plug sheet is 999 170 170 90. `docs/review/rockers.png` and `docs/review/valve-covers.png` are the earlier combined sheets, same three columns.
+`docs/review/valve-cover-upper.png`, `docs/review/valve-cover-lower.png`, `docs/review/valve-cover-gasket-upper.png`, `docs/review/valve-cover-gasket-lower.png`, `docs/review/spark-plugs.png` and `docs/review/connector.png` are drawing | old | new. The left column is a crop of the Kat 502 sheet named above. The middle column is main `1277bdf`. The right column is this branch. The upper-cover sheet shows the two round plug holes and the half-round end scallop. Each gasket sheet shows both banks. Photos are not in those sheets. The plug line on the spark-plug sheet is 999 170 170 90. `docs/review/rockers.png` and `docs/review/valve-covers.png` are the earlier combined sheets, same three columns.
 
 ## Chain-end cam cover (was the lid washer)
 

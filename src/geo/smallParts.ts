@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import { Part, lathe, closedLathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, polyShape, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, type V3 } from './util';
-import { manifoldSub } from './manifoldCut';
+import { manifoldAdd, manifoldSub } from './manifoldCut';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
@@ -96,6 +96,138 @@ function rectHole(cx: number, cy: number, w: number, h: number, r: number) {
   pts.reverse();
   return new THREE.Path(pts);
 }
+function clipHalfPlane(pts: THREE.Vector2[], inside: (p: THREE.Vector2) => boolean, at: (a: THREE.Vector2, b: THREE.Vector2) => number) {
+  if (pts.length < 3) return pts;
+  const out: THREE.Vector2[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const ina = inside(a), inb = inside(b);
+    if (ina && inb) out.push(b.clone());
+    else if (ina !== inb) {
+      const t = at(a, b);
+      const hit = a.clone().lerp(b, Math.min(1, Math.max(0, t)));
+      out.push(hit);
+      if (inb) out.push(b.clone());
+    }
+  }
+  return out;
+}
+/** Keep a hole polygon inside the cover frame so it cannot run past the rail. */
+function clipWindow(pts: THREE.Vector2[], x0: number, y0: number, x1: number, y1: number) {
+  const div = (n: number) => (Math.abs(n) < 1e-9 ? 1e-9 : n);
+  let p = pts;
+  p = clipHalfPlane(p, (q) => q.x >= x0, (a, b) => (x0 - a.x) / div(b.x - a.x));
+  p = clipHalfPlane(p, (q) => q.x <= x1, (a, b) => (x1 - a.x) / div(b.x - a.x));
+  p = clipHalfPlane(p, (q) => q.y >= y0, (a, b) => (y0 - a.y) / div(b.y - a.y));
+  p = clipHalfPlane(p, (q) => q.y <= y1, (a, b) => (y1 - a.y) / div(b.y - a.y));
+  return p;
+}
+/**
+ * Cover-local image of an engine-space mirror about z = 0.
+ * Local y is engine z minus the cover origin, and that origin is
+ * (CH_Z0 + CH_Z1) / 2, not 0, so negating local y alone misses the left bank.
+ */
+function mirrorLocal(x: number, y: number): [number, number] {
+  const z0 = (CH_Z0 + CH_Z1) / 2;
+  return [-x, -y - 2 * z0];
+}
+/**
+ * Lower-right windows: three upright slots (the arm crossings) and the three
+ * diagonal webs that sit between them. The left bank is this set mirrored
+ * about engine z = 0, then clipped inside the cover.
+ */
+function rightLowerWindows(): { diagonals: THREE.Vector2[][]; slots: THREE.Vector2[][] } {
+  const slots: { x0: number; x1: number; y0: number; y1: number }[] = [];
+  for (const j of railJogs(1, false)) {
+    const head = j.sign * (j.reach - 1);
+    const cam = -j.sign * 24;
+    slots.push({
+      x0: Math.min(head, cam), x1: Math.max(head, cam),
+      y0: j.y0 - 3, y1: j.y1 + 3,
+    });
+  }
+  const diagonals: THREE.Vector2[][] = [];
+  const slotsOut: THREE.Vector2[][] = [];
+  const ang = 0.72;
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  const nx = -dy, ny = dx;
+  const along = 36, across = 24;
+  for (let k = -3; k <= 2; k++) {
+    const cy = (k + 0.5) * 58;
+    if (slots.some((h) => Math.abs((h.y0 + h.y1) / 2 - cy) < 36)) continue;
+    const corners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    diagonals.push(corners.reverse().map(([sx, sy]) => new THREE.Vector2(
+      dx * sx * along / 2 + nx * sy * across / 2,
+      cy + dy * sx * along / 2 + ny * sy * across / 2,
+    )));
+  }
+  for (const h of slots) {
+    slotsOut.push([
+      new THREE.Vector2(h.x0, h.y0), new THREE.Vector2(h.x0, h.y1),
+      new THREE.Vector2(h.x1, h.y1), new THREE.Vector2(h.x1, h.y0),
+    ]);
+  }
+  return { diagonals, slots: slotsOut };
+}
+/** Left diagonal at the mirrored centre, leaned with this bank's ribs (angle flips). */
+function leanedDiagonal(cx: number, cy: number, ang: number): THREE.Vector2[] {
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  const nx = -dy, ny = dx;
+  const along = 36, across = 24;
+  const corners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  return corners.reverse().map(([sx, sy]) => new THREE.Vector2(
+    cx + dx * sx * along / 2 + nx * sy * across / 2,
+    cy + dy * sx * along / 2 + ny * sy * across / 2,
+  ));
+}
+/**
+ * Upper windows for one bank. The left plug that is past the rail is pulled
+ * onto the end so the third window stays on the sheet, the same three sizes
+ * as the right (the cover is not centred on z = 0, so a pure mirror misses
+ * the left valves).
+ */
+function bankUpperWindows(s: 1 | -1, halfL: number): { cx: number; cy: number; w: number; h: number }[] {
+  const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+  const ys = cyls
+    .map((c) => plugCoverLocal(c, 0).y)
+    .filter((y) => Math.abs(y) < halfL - SPARK_HOLE_R - 4)
+    .sort((a, b) => a - b);
+  const yLo = -halfL + 16;
+  let yHi = halfL - 16;
+  const endLoc = plugCoverLocal(s > 0 ? 1 : 6, 0);
+  const inboard = halfL - Math.abs(endLoc.y);
+  const tubeClear = SPARK_TUBE_R + 4.2;
+  if (inboard > -tubeClear && inboard < halfL) {
+    const depth = Math.max(tubeClear, inboard + tubeClear);
+    yHi = halfL - depth - 8;
+  }
+  const bands = [yLo, ...ys.flatMap((y) => [y - 18, y + 18]), yHi];
+  const out: { cx: number; cy: number; w: number; h: number }[] = [];
+  for (let i = 0; i < bands.length; i += 2) {
+    const a = bands[i], b = bands[i + 1];
+    if (b - a > 8) out.push({ cx: 0, cy: (a + b) / 2, w: 52, h: b - a });
+  }
+  return out;
+}
+/** Half-round end notch at the plug that leaves the rail. Same bite on both banks. */
+function plugEndNotch(s: 1 | -1, halfL: number): THREE.BufferGeometry | null {
+  const endCyl = s > 0 ? 1 : 6;
+  const endLoc = plugCoverLocal(endCyl, 0);
+  const tubeClear = SPARK_TUBE_R + 4.2;
+  const end = Math.sign(endLoc.y) || 1;
+  const inboard = halfL - Math.abs(endLoc.y);
+  // On the rail, match the cover scallop (inboard + tube clearance). Past the
+  // rail, still bite the end wall at that plug's x so the left bank is notched.
+  const depth = inboard > -tubeClear && inboard < halfL
+    ? Math.max(tubeClear, inboard + tubeClear)
+    : tubeClear + 8;
+  const yTip = end * (halfL + 8);
+  const yIn = end * (halfL - depth);
+  return boxMM(
+    [endLoc.x - tubeClear, Math.min(yIn, yTip), -4],
+    [endLoc.x + tubeClear, Math.max(yIn, yTip), 4],
+  );
+}
 /**
  * One closed sheet. Stud ears are part of the outline, so the ring is not a
  * stack of floating discs. The upper gasket's plug bridges are the material
@@ -115,7 +247,10 @@ function coverGasket(s: 1 | -1, up: boolean) {
   const circles: { x: number; y: number; r: number }[] = [];
   const unions: THREE.Path[] = [];
   const unionYs: number[] = [];
-  if (!up) {
+  // The left bank is the mirror of the right pattern, clipped inside this
+  // outline. The old left path bulged 12.7 mm past the cover end and closed
+  // two of the three diagonal windows into a figure-8.
+  if (!up && s > 0) {
     const extra: [number, number][] = [];
     for (const j of railJogs(s, false)) {
       const cy = (j.y0 + j.y1) / 2;
@@ -152,42 +287,72 @@ function coverGasket(s: 1 | -1, up: boolean) {
       outline = hull2([...outline, ...extra]);
       if (ringArea(outline) < 0) outline.reverse();
     }
+  } else if (!up) {
+    // Same side bulge as the right, at this bank's jogs. Clamp y so the hull
+    // cannot run past the cover end the way the old figure-8 ear did.
+    const extra: [number, number][] = [];
+    const clampY = (y: number) => Math.max(-halfL + 4, Math.min(halfL - 4, y));
+    for (const j of railJogs(s, false)) {
+      const outer = j.sign * (j.reach + 8);
+      const cy = (j.y0 + j.y1) / 2;
+      for (const y of [j.y0 - 8, cy, j.y1 + 8]) extra.push([outer, clampY(y)]);
+    }
+    if (extra.length) {
+      outline = hull2([...outline, ...extra]);
+      if (ringArea(outline) < 0) outline.reverse();
+    }
   }
   if (ringArea(outline) < 0) outline.reverse();
   const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)));
   for (const st of studs) shape.holes.push(circlePath(3.4, st.x, st.y) as THREE.Path);
   const bites: THREE.BufferGeometry[] = [];
-  if (up) {
-    const plugs = (s > 0 ? [1, 2, 3] : [4, 5, 6])
+  if (up && s > 0) {
+    const plugs = [1, 2, 3]
       .map((c) => plugCoverLocal(c, 0))
       .filter((p) => Math.abs(p.y) < halfL - SPARK_HOLE_R - 4);
-    const ys = plugs.map((p) => p.y).sort((a, b) => a - b);
-    // Left flywheel rail: cylinder 6's stem and the intake rocker cross near y −163.
-    // The window stops 10 mm short of the outline so the hole does not split the ring.
-    const yLo = s < 0 ? -176 : -halfL + 16;
-    let yHi = halfL - 16;
-    const endLoc = plugCoverLocal(s > 0 ? 1 : 6, 0);
-    const inboard = halfL - Math.abs(endLoc.y);
-    const tubeClear = SPARK_TUBE_R + 4.2;
-    if (inboard > -tubeClear && inboard < halfL) {
-      const depth = Math.max(tubeClear, inboard + tubeClear);
-      const endSign: 1 | -1 = endLoc.y > 0 ? 1 : -1;
-      if (endSign > 0) yHi = halfL - depth - 8;
-      const y0 = endSign * (halfL - depth);
-      const y1 = endSign * (halfL + 8);
-      bites.push(boxMM(
-        [endLoc.x - tubeClear, Math.min(y0, y1), -4],
-        [endLoc.x + tubeClear, Math.max(y0, y1), 4],
-      ));
-    }
-    const bands = [yLo, ...ys.flatMap((y) => [y - 18, y + 18]), yHi];
-    for (let i = 0; i < bands.length; i += 2) {
-      const a = bands[i], b = bands[i + 1];
-      if (b - a > 8) shape.holes.push(rectHole(0, (a + b) / 2, 52, b - a, 3));
-    }
+    for (const w of bankUpperWindows(1, halfL)) shape.holes.push(rectHole(w.cx, w.cy, w.w, w.h, 3));
     // Larger than the cover hole: the seal flange (r = SPARK_HOLE_R + 0.12) crosses
     // this sheet, and the elbow swings off the axis beside the hole.
     for (const p of plugs) shape.holes.push(circlePath(SPARK_HOLE_R + 2.4, p.x, p.y) as THREE.Path);
+    const notch = plugEndNotch(1, halfL);
+    if (notch) bites.push(notch);
+  } else if (up) {
+    // Right windows, mirrored about engine z = 0. The flywheel window is clipped
+    // where that mirror runs off the cover (the cover is centred at z = 22).
+    const plugs = [4, 5, 6]
+      .map((c) => plugCoverLocal(c, 0))
+      .filter((p) => Math.abs(p.y) < halfL - SPARK_HOLE_R - 4);
+    const yLim = halfL - 8;
+    for (const w of bankUpperWindows(1, halfL)) {
+      const [cx, cy0] = mirrorLocal(w.cx, w.cy);
+      const ya = Math.max(-yLim, cy0 - w.h / 2);
+      const yb = Math.min(yLim, cy0 + w.h / 2);
+      if (yb - ya < 8) continue;
+      shape.holes.push(rectHole(cx, (ya + yb) / 2, w.w, yb - ya, 3));
+    }
+    for (const p of plugs) shape.holes.push(circlePath(SPARK_HOLE_R + 2.4, p.x, p.y) as THREE.Path);
+    const notch = plugEndNotch(-1, halfL);
+    if (notch) bites.push(notch);
+  } else if (s < 0) {
+    // Three upright slots and three diagonals, the right pattern mirrored about
+    // engine z = 0. Clipped inside the cover so the flywheel end stays a closed ring.
+    const yLim = halfL - 4;
+    const src = rightLowerWindows();
+    for (const poly of src.slots) {
+      const moved = poly.map((p) => { const [x, y] = mirrorLocal(p.x, p.y); return new THREE.Vector2(x, y); });
+      const clipped = clipWindow(moved, -46, -yLim, 46, yLim);
+      if (clipped.length >= 3) shape.holes.push(new THREE.Path(clipped));
+    }
+    for (const poly of src.diagonals) {
+      let cx = 0, cy = 0;
+      for (const p of poly) { const [x, y] = mirrorLocal(p.x, p.y); cx += x; cy += y; }
+      cx /= poly.length; cy /= poly.length;
+      const clipped = clipWindow(leanedDiagonal(cx, cy, -0.72), -28, -yLim, 28, yLim);
+      if (clipped.length >= 3) shape.holes.push(new THREE.Path(clipped));
+    }
+    // Cylinder 6's exhaust head sits on the flywheel land, past the clipped slot.
+    // Open that corner through the end wall. The outline stays at ±halfL.
+    bites.push(boxMM([14, -halfL - 8, -4], [42, -168, 4]));
   } else {
     // Diagonal webs, the same lean as the lower-cover ribs. Each window stays
     // inside the frame, including the flywheel end of the left bank.
