@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PART_BY_ID } from '../src/data/parts';
-import { BOX, SLEEVE, FUEL_LINES, FUEL_BANJOS, BANJO, serviceHoses, bootFrames, SLEEVE_IN_X, STUB_TIP_X, RUNNER_TIP_X, injectorFace, injectorAxis, FD_CX, FD_CZ, FD_RING_R, FD_HUB, distributorFuelSeats } from '../src/geo/induction';
+import { BOX, SLEEVE, FUEL_LINES, FUEL_BANJOS, BANJO, serviceHoses, bootFrames, SLEEVE_IN_X, STUB_TIP_X, RUNNER_TIP_X, injectorFace, injectorAxis, FD_CX, FD_CZ, FD_RING_R, FD_HUB, distributorFuelSeats, TEE_AIR_INJ } from '../src/geo/induction';
 import { AIRBOX } from '../src/geo/aux';
 import { HEATER_HOSE_ENDS } from '../src/geo/smallParts';
 
@@ -142,6 +142,22 @@ describe('1978 CIS fuel lines', () => {
       });
     }
     expect(bad).toEqual([]);
+  });
+
+  it('the air-injection handoff barb has no hose of its own', () => {
+    const tip = new THREE.Vector3(...TEE_AIR_INJ.point);
+    const ends = serviceHoses().flatMap((h) => [h.a, h.b]);
+    const seated = ends.filter((e) => new THREE.Vector3(...e.point).distanceTo(tip) <= 0.5);
+    expect(seated, 'TEE_AIR_INJ is a handoff to Bottom End, not an end of a hose drawn here').toEqual([]);
+    const root = ASSET_BUILDERS[PART_BY_ID['vacuum-fittings'].asset]();
+    let fitting = false;
+    let line = false;
+    root.traverse((o: any) => {
+      if (o.name === 'fitting:vac-airinj') fitting = true;
+      if (typeof o.name === 'string' && o.name.startsWith('line:vac-airinj')) line = true;
+    });
+    expect(fitting).toBe(true);
+    expect(line).toBe(false);
   });
 
   it('every banjo or union on the distributor has exactly one fuel line', () => {
