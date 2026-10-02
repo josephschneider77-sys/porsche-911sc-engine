@@ -174,3 +174,17 @@ describe('assembled-pose interference', () => {
     expect(hit!.normal.dot(axis)).toBeGreaterThan(0.9);
   });
 });
+
+describe('ancillary clearance at 0 and 0.5 mm', () => {
+  // Parts this branch owns. A seated joint may overlap; anything else may not, at either erosion.
+  const OURS = /^(air-(pump|hose|clamp|check|diverter|rubber|sleeve|buffer|sealing|retainer|bracket|pulley)|egr-|cat-|cyl-baffle|cyl-cover-plate|cooler-air-guide|catalytic-converter|muffler-hardware|ignition-leads|heater-blower|heater-dist|heater-socket|heater-hose-link|heater-hose-left|heater-hose-right|heater-hose-supports|heater-clamp)/;
+  for (const tol of [0, 0.5]) {
+    it(`no unlisted clash on these parts at ${tol} mm erosion`, () => {
+      const hits = findCollisions(tol);
+      const bad = hits
+        .filter((h) => (OURS.test(h.a) || OURS.test(h.b)) && !isMating(h.a, h.b))
+        .map((h) => `${h.a} x ${h.b} (${h.tris} tri, box ${h.box.min.toArray().map((n) => n.toFixed(0)).join(',')})`);
+      expect(bad).toEqual([]);
+    });
+  }
+});

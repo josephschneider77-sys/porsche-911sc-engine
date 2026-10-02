@@ -51,7 +51,7 @@ The part numbers come from the Porsche Classic parts catalogue **Kat 002, 911 19
 | | 37 | Oil thermostat (`oil-thermostat`) | 930 107 765 00 |
 | **102-00 Crankshaft** | 1 | Crankshaft (`crankshaft`) | 930 102 015 01 |
 | | 2 | Flywheel (`flywheel`) | 930 102 204 00 |
-| | 8 / 10 | Timing gear / distributor drive wheel (`crank-gears`) | 901 102 111 00 / 930 102 115 01 |
+| | 8 / 10 | Timing gear / distributor drive wheel (`crank-gears`) | 901 102 111 00 / 930 102 115 02 |
 | | 12 | Crank pulley (`crank-pulley`) | 930 102 028 01 |
 | | 16 | Connecting rod ×6 (`conrod-1…6`) | 930 103 015 5x |
 | | 21-24 | Main bearing set (`main-bearings`) | 930 101 901 00 |
@@ -565,7 +565,7 @@ Photos of normally aspirated 911 engines (the SC bay is the same layout) show th
 - Wikimedia, 911 2.0 engine: https://commons.wikimedia.org/wiki/File:Porsche_911_2.0_003.JPG
 - Wikimedia, 911L at Nottuln: https://commons.wikimedia.org/wiki/File:Nottuln,_Oldtimermuseum,_Porsche_911L_--_2021_--_4496.jpg
 - Stoddard, pinion 930 602 422 03, counterclockwise, 78–83 SC: https://www.stoddard.com/en/distributor-pinion-counterclockwise-rotation-P990031475
-- The crank wheel stays 930 102 115 01, the number already on `crank-gears`. 930 602 422 02 is the 930/03 pinion and is not used.
+- The crank wheel is 930 102 115 02, the number already on `crank-gears`. 930 602 422 02 is the 930/03 pinion and is not used.
 
 A shaft that leaned toward the fan would put the cap inside the fan housing (z ≥ 208) or the chain box. The open bay is flywheel of the fan, so the rotor axis points up, outboard, and slightly toward the flywheel. The towers follow that axis. The vacuum can sits on local +X, outboard and toward the fan, and its nipple points along the rotor axis toward the cap.
 

@@ -1,4 +1,5 @@
 import './style.css';
+import { ENGINE_VARIANT } from './data/variant';
 import { Viewer } from './app/viewer';
 import { cameraFromQuery, viewFromQuery } from './app/queryCamera';
 import { PARTS, PART_BY_ID } from './data/parts';
@@ -6,6 +7,12 @@ import { TEARDOWN, stepIndexOf } from './data/teardown';
 import { SYSTEMS, SystemKey, design911Url, ILLUSTRATIONS } from './data/catalog';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const variantLabel = `Type ${ENGINE_VARIANT}`;
+document.title = `911 SC 3.0 Engine — ${variantLabel} teardown`;
+const variantEl = document.getElementById('variant-label');
+if (variantEl) variantEl.textContent = `${variantLabel} · 2994 cc flat-six`;
+document.querySelector('meta[name="description"]')?.setAttribute('content',
+  `Interactive, disassemblable 3D model of the 1978 Porsche 911 SC 3.0 air-cooled flat-six (${variantLabel}, US).`);
 const viewer = new Viewer($('view'));
 (window as any).viewer = viewer;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));

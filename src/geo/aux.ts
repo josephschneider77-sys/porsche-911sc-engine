@@ -1516,7 +1516,7 @@ export function plugLeadPoints(c: number, i: number, pose = partPose(`spark-plug
   const a = (i / 6) * Math.PI * 2;
   // Inboard of |x| 160, where the intake runners are still on the stub height (bottom y ≈ 192).
   const xLoom = s * (124 + lane * 8);
-  const yLoom = wingTop(xLoom) + 9;
+  const yLoom = wingTop(xLoom) + 13;
   const zRail = CYL_Z[c] + s * 34;
   const boot = new THREE.Vector3(0, -92, 0).applyMatrix4(pose);
   const axis = new THREE.Vector3(0, -1, 0).transformDirection(pose).normalize();
