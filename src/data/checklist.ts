@@ -70,7 +70,16 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'wur-lines': { socket: 1, ring2: 1, tube: 1, conn: 1, ring3: 1, banjo: 3, ring: 6 },
   'throttle-linkage': { bracket: 1, sleeve: 2, lever: 2, washer: 1, spring: 4, nut: 4, rod: 1, spring2: 1 },
   'muffler-hardware': { gasket: 1, gasket2: 1, screw: 3, nut: 3, clamp: 2 },
+  'catalytic-converter': { gasket: 2, gasket1: 1, bolt: 6, nut: 6, pipe: 1, socket: 1, clamp: 2, clampbolt: 2, clampnut: 2, washer: 1 },
   'pre-muffler': { gasket: 2, gasket1: 1, bolt: 6, nut: 6, pipe: 1, socket: 1, clamp: 2, clampbolt: 2, clampnut: 2, washer: 1 },
+  'air-bracket-nuts': { nut: 2, spring: 2, washer: 2 },
+  'air-pump-fasteners': { nut: 4, spring: 4, pivot: 1, bolt: 1, washer: 1 },
+  'air-diverter-nuts': { nut: 2, spring: 2 },
+  'heater-blower-hardware': { screw: 2, nut: 2, washer: 2, nut2: 2, washer2: 2 },
+  'egr-hose-pair': { hose: 2 },
+  'egr-fasteners': { bolt: 2, spring: 3, nut: 1, bolt2: 2, spring2: 2, nut2: 2, screw: 1, washer: 1 },
+  'cat-plug': { ring: 1 },
+  'cat-cover-fasteners': { nut: 8, bolt: 8, washer: 8 },
   'heater-adapters': { clamp: 1, bolt: 1 },
   'heater-hose': { clamp: 2 },
   'muffler-bracket': { nut: 2, spring: 2, washer: 2, bolt: 2 },
@@ -88,7 +97,7 @@ export const POOLS: Record<string, { by: string; what: string }[]> = {
   'case-right-studs': [
     { by: 'case-perimeter-nuts', what: 'stud' }, { by: 'chain-housing-nuts-right', what: 'stud' }, { by: 'thermostat-nuts', what: 'stud' },
     { by: 'case-right-nut', what: 'stud' }, { by: 'case-through-stud-nut', what: 'stud' }, { by: 'crankcase-right', what: 'bellstud' },
-    { by: 'head-nuts-right', what: 'stud' },
+    { by: 'ishaft-cover-nuts', what: 'stud' },
   ],
   'exhaust-studs': [{ by: 'exhaust-nuts-*', what: 'stud' }, { by: 'exhaust-socket-nuts-*', what: 'stud' }],
   // 103-05 #21-#23: 40 x (washer, M8 nut, spring washer) = cam housing to heads 24 + chain housing 12 + chain-housing end studs 4
@@ -113,7 +122,8 @@ export const CLAIMS: Claim[] = [
   // ---- 101-05 crankcase, left half
   C('101-05#1', 'crankcase-left'),
   ...['2', '4', '5', '6', '7', '9', '10', '11', '12', '13', '14'].map((p) => C(`101-05#${p}`, 'pool:case-left-studs', 'stud')),
-  C('101-05#3', 'head-nuts-left', 'stud', 12, 'lower head studs, one per head-nut station of the left bank'),
+  C('101-05#3#930 101 170 00', 'head-nuts-left', 'stud', 12, 'lower Dilavar head studs, left bank'),
+  C('101-05#3#911 101 172 00', 'head-nuts-right', 'stud', 12, 'upper steel head studs, right bank'),
   C('101-05#15', 'case-dowels', 'item', 2), C('101-05#16', 'oil-return-tubes'), C('101-05#17', 'oil-return-tubes', 'seal'),
   C('101-05#18', 'case-connection-left'), C('101-05#19', 'case-connection-left', 'ring'),
   C('101-05#-#911 101 011 01', 'spray-jets', 'item', 3),
@@ -123,8 +133,9 @@ export const CLAIMS: Claim[] = [
   C('101-05#26', 'case-through-nuts', 'item', 12), C('101-05#26', 'case-through-stud-nut', 'item', 1),
   C('101-05#27', 'relief-pistons', 'item', 1), C('101-05#28', 'relief-pistons', 'spring', 1), C('101-05#29', 'relief-plugs', 'ring', 1), C('101-05#30', 'relief-plugs', 'item', 1),
   C('101-05#31', 'case-oil-fittings', 'item', 1), C('101-05#32', 'case-oil-fittings', 'cut', 1), C('101-05#33', 'case-oil-fittings', 'union', 1),
-  C('101-05#34', 'sump-nuts', 'spring'), C('101-05#35', 'sump-nuts'),
-  C('101-05#36', 'sump-plate', 'lidgasket'), C('101-05#37', 'sump-plate'), C('101-05#38', 'sump-plate', 'strainer'), C('101-05#39', 'sump-plate', 'gasket'),
+  C('101-05#34', 'sump-nuts', 'spring', 8), C('101-05#34', 'breather-nuts', 'spring', 4),
+  C('101-05#35', 'sump-nuts', 'item', 8), C('101-05#35', 'breather-nuts', 'item', 4),
+  C('101-05#36', 'breather-gasket'), C('101-05#37', 'breather-lid'), C('101-05#38', 'sump-plate', 'strainer'), C('101-05#39', 'sump-plate', 'gasket'),
   C('101-05#41', 'sump-plate', 'plug'), C('101-05#42', 'sump-drain-ring'),
   // ---- 101-10 crankcase, right half
   C('101-10#1', 'crankcase-right'),
@@ -137,8 +148,10 @@ export const CLAIMS: Claim[] = [
   C('101-10#-#911 101 011 01', 'spray-jets', 'item', 3), C('101-10#28', 'oil-temp-sensor'),
   C('101-10#29', 'relief-pistons', 'item', 1), C('101-10#30', 'relief-pistons', 'spring', 1), C('101-10#31', 'relief-plugs', 'ring', 1), C('101-10#32', 'relief-plugs', 'item', 1),
   C('101-10#33', 'case-oil-fittings', 'cut', 1), C('101-10#34', 'case-oil-fittings', 'union', 1),
-  C('101-10#35', 'breather-nuts', 'spring'), C('101-10#36', 'breather-nuts'),
-  C('101-10#37', 'oil-thermostat'), C('101-10#38', 'thermostat-oring'), C('101-10#41', 'thermostat-nuts'), C('101-10#42', 'thermostat-nuts', 'washer'),
+  C('101-10#35', 'thermostat-nuts', 'spring'), C('101-10#36', 'thermostat-nuts'),
+  C('101-10#37', 'oil-thermostat'), C('101-10#38', 'thermostat-oring'),
+  C('101-10#39', 'ishaft-cover'), C('101-10#40', 'ishaft-cover-gasket'),
+  C('101-10#41', 'ishaft-cover-nuts'), C('101-10#42', 'ishaft-cover-nuts', 'washer'),
   C('101-10#43', 'oil-pressure-sender', 'ring', 1), C('101-10#44', 'oil-pressure-sender', 'socket'), C('101-10#45', 'oil-pressure-sender'), C('101-10#46', 'oil-pressure-sender', 'ring', 1),
   C('101-10#47', 'oil-pressure-switch'), C('101-10#48', 'oil-pressure-fitting'), C('101-10#49', 'oil-pressure-fitting', 'ring'), C('101-10#50', 'oil-pressure-fitting', 'socket'),
   // ---- 102-00 crankshaft, rods, bearings
@@ -206,7 +219,7 @@ export const CLAIMS: Claim[] = [
   C('106-00#31', 'airbox-fittings', 'plug'), C('106-00#32', 'airbox-fittings', 'ring'), C('106-00#33', 'airbox-fittings', 'union'), C('106-00#34', 'airbox-fittings', 'hose'),
   C('106-00#36', 'airbox-fittings', 'clamp'),
   // ---- 107-00 / 107-10 CIS
-  C('107-00#1', 'mixture-control-unit', 'distributor'), C('107-00#2', 'mixture-control-unit', 'meter'),
+  // 107-00 #1 and #2 are tagged 930.03/09 in Kat 502, so they are excluded for 930/04. The CIS meshes stay.
   C('107-10#7', 'vacuum-limiter'), C('107-10#8', 'vacuum-limiter', 'sleeve'), C('107-10#9', 'vacuum-limiter', 'bolt'), C('107-10#10', 'vacuum-limiter', 'spring'),
   C('107-10#12', 'vacuum-fittings', 'clamp', 4), C('107-10#14', 'vacuum-fittings'), C('107-10#15', 'vacuum-fittings', 'clamp', 1), C('107-10#17', 'vacuum-fittings', 'socket'),
   C('107-10#1#900 067 089 02', 'afm-screws'), C('107-10#2', 'afm-screws', 'spring'), C('107-10#3', 'afm-screws', 'washer'),
@@ -230,9 +243,11 @@ export const CLAIMS: Claim[] = [
   C('107-10#73', 'throttle-linkage', 'spring2'),
   // ---- 202-00 exhaust / heating
   C('202-00#1', 'muffler'), C('202-00#2', 'muffler-hardware', 'gasket'), C('202-00#3', 'muffler-hardware', 'screw'), C('202-00#4', 'muffler-hardware', 'nut'), C('202-00#5', 'muffler-hardware', 'clamp'),
-  C('202-00#6', 'pre-muffler'), C('202-00#13', 'pre-muffler', 'gasket'), C('202-00#14', 'pre-muffler', 'gasket1'), C('202-00#15', 'pre-muffler', 'bolt'), C('202-00#16', 'pre-muffler', 'nut'),
-  C('202-00#17', 'pre-muffler', 'pipe'), C('202-00#18', 'pre-muffler', 'socket'), C('202-00#19', 'pre-muffler', 'clamp'), C('202-00#20', 'pre-muffler', 'clampbolt'), C('202-00#21', 'pre-muffler', 'clampnut'),
-  C('202-00#22', 'pre-muffler', 'washer'), C('202-00#23', 'muffler-hardware', 'gasket2'),
+  C('202-00#6', 'catalytic-converter'), C('202-00#7', 'cat-cover'), C('202-00#8', 'cat-cap'), C('202-00#8A', 'cat-plug', 'ring'), C('202-00#8B', 'cat-plug'),
+  C('202-00#9', 'cat-cover-fasteners', 'nut'), C('202-00#10', 'cat-cover-fasteners', 'bolt'), C('202-00#11', 'cat-cover-fasteners', 'washer'), C('202-00#12', 'cat-bracket'),
+  C('202-00#13', 'catalytic-converter', 'gasket'), C('202-00#14', 'catalytic-converter', 'gasket1'), C('202-00#15', 'catalytic-converter', 'bolt'), C('202-00#16', 'catalytic-converter', 'nut'),
+  C('202-00#17', 'catalytic-converter', 'pipe'), C('202-00#18', 'catalytic-converter', 'socket'), C('202-00#19', 'catalytic-converter', 'clamp'), C('202-00#20', 'catalytic-converter', 'clampbolt'), C('202-00#21', 'catalytic-converter', 'clampnut'),
+  C('202-00#22', 'catalytic-converter', 'washer'), C('202-00#23', 'muffler-hardware', 'gasket2'),
   C('202-00#26', 'heat-exchanger-*'), C('202-00#27', 'heater-adapters'), C('202-00#28', 'heater-adapters', 'clamp'), C('202-00#-#999 075 057 02', 'heater-adapters', 'bolt', 2, 'qty "as required": one clamp bolt per adapter'),
   C('202-00#29', 'heater-hose'), C('202-00#30', 'heater-hose', 'clamp'), C('202-00#31', 'exhaust-gaskets'), C('202-00#32', 'exhaust-nuts-*'), C('202-00#33', 'exhaust-socket-nuts-*'),
   C('202-00#34', 'muffler-bracket'), C('202-00#35', 'muffler-bracket', 'nut'), C('202-00#36', 'muffler-bracket', 'spring'), C('202-00#37', 'muffler-bracket', 'washer'), C('202-00#38', 'muffler-bracket', 'bolt'),
@@ -244,6 +259,34 @@ export const CLAIMS: Claim[] = [
   C('901-00#17A', 'ignition-leads', 'right'),
   C('901-00#18', 'ignition-leads', 'coil'), C('901-00#19', 'ignition-leads', 'plug'), C('901-00#21', 'spark-plug-*', 'connector'), C('901-00#22', 'ignition-lead-holders'),
   C('901-00#23', 'distributor', 'connector'), C('901-00#35', 'distributor', 'pin'),
+  // ---- 105-10 cylinder baffles
+  C('105-10#14', 'cyl-baffle-14'), C('105-10#15', 'cyl-baffle-15'), C('105-10#16', 'cyl-baffle-16'), C('105-10#17', 'cyl-baffle-spring'), C('105-10#18', 'cyl-cover-plate'),
+  // ---- 108-00 air injection (930/04)
+  C('108-00#1', 'air-pump-bracket'), C('108-00#2', 'air-rubber'), C('108-00#3', 'air-sleeve'),
+  C('108-00#4', 'air-bracket-nuts', 'washer', 1), C('108-00#4#911 113 162 00', 'air-bracket-nuts', 'washer', 1),
+  C('108-00#5', 'air-bracket-nuts', 'nut', 2), C('108-00#5', 'air-pump-fasteners', 'nut', 4),
+  C('108-00#6', 'air-bracket-nuts', 'spring', 2), C('108-00#6', 'air-pump-fasteners', 'spring', 4),
+  C('108-00#7', 'air-pump'), C('108-00#8', 'air-pump-pulley'), C('108-00#9', 'air-pulley-screws'), C('108-00#10', 'air-pulley-washers'),
+  C('108-00#11', 'air-pump-fasteners', 'pivot'), C('108-00#12', 'air-retainer'), C('108-00#13', 'air-buffer'), C('108-00#14', 'air-pump-strap'),
+  C('108-00#15', 'air-pump-fasteners', 'bolt'), C('108-00#16', 'air-pump-fasteners', 'washer'), C('108-00#17', 'air-pump-cleaner'),
+  C('108-00#21', 'air-sealing-ring'), C('108-00#22', 'air-diverter'), C('108-00#23', 'air-diverter-support'),
+  C('108-00#24', 'air-diverter-nuts', 'nut'), C('108-00#25', 'air-diverter-nuts', 'spring'),
+  C('108-00#26', 'air-check-valve'), C('108-00#27', 'air-check-gasket'),
+  C('108-00#28', 'air-hose-pump'), C('108-00#29', 'air-hose-valve'), C('108-00#30', 'air-hose-dump'), C('108-00#31', 'air-hose-vacuum'),
+  C('108-00#32', 'air-clamp-pump'), C('108-00#32A', 'air-clamp-valve'), C('108-00#33', 'air-clamp-dump'), C('108-00#34', 'air-pump-belt'),
+  // ---- 108-10 heater blower
+  C('108-10#1', 'heater-blower'), C('108-10#2', 'heater-blower-support'), C('108-10#3', 'heater-clamp-sp'), C('108-10#4', 'heater-dist-piece'),
+  C('108-10#5', 'heater-blower-hardware', 'screw'), C('108-10#6', 'heater-blower-hardware', 'nut'), C('108-10#7', 'heater-blower-hardware', 'washer'),
+  C('108-10#8', 'heater-hose-link'), C('108-10#9', 'heater-clamp-band'), C('108-10#10', 'heater-hose-left'), C('108-10#11', 'heater-hose-supports'),
+  C('108-10#12', 'heater-clamps'), C('108-10#13', 'heater-hose-right'), C('108-10#14', 'heater-socket'),
+  C('108-10#15', 'heater-blower-hardware', 'washer2'), C('108-10#16', 'heater-blower-hardware', 'nut2'),
+  // ---- 202-05 EGR
+  C('202-05#1', 'egr-pipe-feed'), C('202-05#2', 'egr-gasket'), C('202-05#3', 'egr-bracket'),
+  C('202-05#4', 'egr-fasteners', 'bolt'), C('202-05#5', 'egr-fasteners', 'spring'), C('202-05#6', 'egr-fasteners', 'nut'),
+  C('202-05#7', 'egr-valve'), C('202-05#8', 'egr-fasteners', 'bolt2'), C('202-05#9', 'egr-fasteners', 'spring2'), C('202-05#10', 'egr-fasteners', 'nut2'),
+  C('202-05#11', 'egr-pipe-return'), C('202-05#12', 'egr-seal'), C('202-05#13', 'egr-fasteners', 'screw'), C('202-05#14', 'egr-fasteners', 'washer'),
+  C('202-05#15', 'egr-hose-short'), C('202-05#16', 'egr-hose-long'), C('202-05#17', 'egr-hose-pair', 'hose'),
+  C('202-05#18', 'egr-tee'), C('202-05#19', 'egr-buffer'),
 ];
 
 const range = (ill: string, pos: (string | number)[], why: string): NotApplicable[] => pos.map((p) => ({ line: `${ill}#${p}`, why }));
@@ -257,6 +300,12 @@ export const NOT_APPLICABLE: NotApplicable[] = [
   { line: '103-15#-#930 105 912 00', why: 'alternative (pressure-fed) chain adjuster for the same station' },
   { line: '103-15#-#930 105 912 01', why: 'alternative (pressure-fed) chain adjuster for the same station' },
   { line: '104-00#7', why: 'oil filter: ' + BODY + ' (on the oil tank / filter console in the right rear wing)' },
+  { line: '104-00#37#930 107 347 04', why: 'oil hose whose extracted notes mix an up-to band and a later from-engine band; oil-line routing is outside this bottom-end pass' },
+  { line: '108-00#18', why: 'air-tube unions: Top End builds the air tube (108-00 #20) and its fittings' },
+  { line: '108-00#19', why: 'sealing rings on the air tube: Top End, with the tube' },
+  { line: '108-00#20', why: 'air tube: Top End. The check valve waits on AIR_CHECK_VALVE_OUTLET for an upward M24 spigot' },
+  { line: '108-00#35', why: 'same pulley as 105-00 #8 (fan-pulley 911 106 208 00); the outer groove is on that part' },
+  { line: '202-00#6A', why: 'oxygen sensor 911 606 123 00: 1978 930/04 has no lambda sensor' },
   ...range('104-00', [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 39, 40, 46, 47, 48, 49], 'oil tank, filler, dipstick, external oil lines and their hardware: ' + BODY),
   ...['999 512 198 02', 'PCG 512 198 02', '944 107 091 01', '930 107 601 02', '900 104 013 02', '944 107 091 01#2', '930 107 601 02#2', '900 104 013 02#2'].map((pn) => ({ line: `104-00#-#${pn}`, why: 'oil tank filler / hose hardware: ' + BODY })),
   ...range('104-05', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'front oil cooler, its thermostat and lines: ' + BODY + ' (front right wing)'),
@@ -281,5 +330,5 @@ export const NOT_APPLICABLE: NotApplicable[] = [
 /** Lines still not modelled (reported by the doc generator; the test requires this list to match reality). */
 export const STILL_MISSING: NotApplicable[] = [];
 
-/** Groups covered by this checklist (108-00 air injection is not on this US 49-state/ROW reference engine set; see docs). */
-export const CHECKLIST_GROUPS = ['101-05', '101-10', '102-00', '102-05', '103-00', '103-05', '103-10', '103-15', '104-00', '104-05', '105-00', '105-05', '106-00', '107-00', '107-10', '202-00', '301-00', '901-00', '902-05'];
+/** Groups covered by this checklist. 930/04 includes air injection, the heater blower and EGR. 109-00 and 202-20 have no rows for this engine. */
+export const CHECKLIST_GROUPS = ['101-05', '101-10', '102-00', '102-05', '103-00', '103-05', '103-10', '103-15', '104-00', '104-05', '105-00', '105-05', '105-10', '106-00', '107-00', '107-10', '108-00', '108-10', '109-00', '202-00', '202-05', '202-20', '301-00', '901-00', '902-05'];

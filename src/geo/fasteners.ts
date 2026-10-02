@@ -16,7 +16,7 @@ import { adjusterCover } from './smallParts';
 import { END_PAD, railBolts, tensionerLayout, coverMatrix, VC_EARS, VC_EDGE, chainCoverBolts, chainHousingStuds, HOUSING_Z1, HOUSING_Z0, CHAIN_LID, CHAIN_Z, CAM_NOSE } from './core';
 import { rockerStations, SHAFT } from './valvetrain';
 import { chainEndStations, chainLidStations, VC_SPECIAL, shroudScrews } from './stations';
-import { EXH_PORT, FAN, FLY_Z, SUMP, THERMO, BREATHER, OIL_PUMP, OIL_COOLER, DIST, DIST_AXIS, distW, AIRBOX_STRUTS, WUR } from './aux';
+import { EXH_PORT, FAN, FLY_Z, SUMP, THERMO, BREATHER, OIL_PUMP, OIL_COOLER, DIST, DIST_AXIS, distW, AIRBOX_STRUTS, WUR, ISHAFT_COVER } from './aux';
 
 export type Kind = 'nut' | 'lock' | 'barrel' | 'cap' | 'bolt' | 'pan' | 'socket' | 'combi';
 export interface FItem { p: THREE.Vector3; n: THREE.Vector3; seat: string; into: string; stud?: boolean }
@@ -111,12 +111,14 @@ export function fastenerSets(): FSet[] {
   set('flywheel-bolts', 'pan', 10, { len: 21, mat: 'darkSteel' }, ring(9, 36).map(([x, y]) => ({ p: V(x, y, FLY_Z - 14), n: V(0, 0, -1), seat: 'flywheel', into: 'crankshaft' })));
   set('clutch-bolts', 'pan', 8, { spring: true, len: 14, mat: 'darkSteel' }, ring(9, 129, 0.2).map(([x, y]) => ({ p: V(x, y, FLY_Z - 34.6), n: V(0, 0, -1), seat: 'pressure-plate', into: 'flywheel' })));
   set('pulley-bolt', 'bolt', 12, { washer: 12.5, len: 22, mat: 'zincPlate' }, [{ p: V(0, 0, 324), n: V(0, 0, 1), seat: 'crank-pulley', into: 'crankshaft' }]);
-  set('fan-pulley-nut', 'nut', 16, { washer: 20, grip: 24, embed: 6, mat: 'darkSteel' }, [{ p: V(0, FAN.y, FAN.zBelt + 10), n: V(0, 0, 1), seat: 'fan-pulley', into: 'alternator', stud: true }]);
+  set('fan-pulley-nut', 'nut', 16, { washer: 20, grip: 24, embed: 6, mat: 'darkSteel' }, [{ p: V(0, FAN.y, FAN.zNut), n: V(0, 0, 1), seat: 'fan-pulley', into: 'alternator', stud: true }]);
   set('oil-pump-nuts', 'nut', 8, { tab: true, grip: 20, embed: 4 }, OIL_PUMP.studs.slice(0, 3).map(([x, y]) => ({ p: V(x, y, OIL_PUMP.coverFace), n: V(0, 0, -1), seat: 'oil-pump', into: 'oil-pump', stud: true })));
-  set('sump-nuts', 'nut', 6, { spring: true, grip: SUMP.grip, embed: 12 }, ring(12, SUMP.boltR, Math.PI / 12).map(([x, z]) =>
+  set('sump-nuts', 'nut', 6, { spring: true, grip: SUMP.grip, embed: 12 }, ring(8, SUMP.boltR, Math.PI / 8).map(([x, z]) =>
     ({ p: V(x, SUMP.seatY, SUMP.zc + z), n: V(0, -1, 0), seat: 'sump-plate', into: x > 0 ? 'crankcase-right' : 'crankcase-left', stud: true })));
-  set('thermostat-nuts', 'lock', 6, { washer: DIM[6].wr, grip: THERMO.grip, embed: 10 }, THERMO.ears.map(([dx, dz]) =>
+  set('thermostat-nuts', 'nut', 6, { spring: true, grip: THERMO.grip, embed: 10 }, THERMO.ears.map(([dx, dz]) =>
     ({ p: V(THERMO.x + dx, THERMO.seatY, THERMO.z + dz), n: V(0, 1, 0), seat: 'oil-thermostat', into: 'crankcase-right', stud: true })));
+  set('ishaft-cover-nuts', 'lock', 6, { washer: DIM[6].wr, grip: ISHAFT_COVER.grip, embed: 10 }, ISHAFT_COVER.studs.map(([x, y]) =>
+    ({ p: V(x, y, ISHAFT_COVER.zFace + ISHAFT_COVER.grip), n: V(0, 0, 1), seat: 'ishaft-cover', into: 'crankcase-right', stud: true })));
   set('breather-nuts', 'nut', 6, { spring: true, grip: BREATHER.grip, embed: 10 }, BREATHER.studs.map(([x, z]) =>
     ({ p: V(x, BREATHER.seatY, z), n: V(0, 1, 0), seat: 'breather-lid', into: 'crankcase-left', stud: true })));
   for (const s of sides) {

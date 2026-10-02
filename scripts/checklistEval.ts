@@ -52,9 +52,15 @@ function sources(by: string, what: string): { id: string; what: string; cap: num
 export function evaluate() {
   const rows = loadRows();
   const primary = new Map<string, Row>(); // ill#pos -> first candidate row
-  for (const r of rows) if (!r.auto && r.pos !== '-' && !primary.has(`${r.ill}#${r.pos}`)) primary.set(`${r.ill}#${r.pos}`, r);
+  const anyPos = new Map<string, Row>(); // ill#pos -> first row, including excluded ones
+  for (const r of rows) {
+    if (r.pos === '-') continue;
+    const k = `${r.ill}#${r.pos}`;
+    if (!anyPos.has(k)) anyPos.set(k, r);
+    if (!r.auto && !primary.has(k)) primary.set(k, r);
+  }
   const byKey = new Map(rows.map((r) => [r.key, r]));
-  const resolve = (line: string) => { const r = byKey.get(line) ?? primary.get(line); if (!r) throw new Error(`checklist line ${line} not in the catalogue`); return r; };
+  const resolve = (line: string) => { const r = byKey.get(line) ?? primary.get(line) ?? anyPos.get(line); if (!r) throw new Error(`checklist line ${line} not in the catalogue`); return r; };
   const errors: string[] = [];
   const used = new Map<string, number>(); // id|what -> used
   const claimed = new Map<string, Claim[]>(), sums = new Map<string, number>();

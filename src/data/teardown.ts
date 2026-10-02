@@ -1,6 +1,7 @@
 import { PARTS } from './parts';
 import { FASTENER_SPECS } from './fastenerSpec';
 import { SMALL_SPECS } from './smallSpec';
+import { VARIANT } from './variant';
 
 /**
  * `carries`: parts that come off attached to one of this step's parts (carrier id -> carried ids) and are only
@@ -20,15 +21,15 @@ const hw = (...ids: string[]) => ids.flatMap((i) => (i.endsWith('-*') ? both(i.s
 export const TEARDOWN: TeardownStep[] = [
   { id: 'clutch', title: 'Clutch pressure plate & disc', note: 'Lock the flywheel, back the nine pressure-plate bolts off evenly.', parts: [...hw('clutch-bolts'), 'pressure-plate', 'clutch-disc'] },
   { id: 'flywheel', title: 'Flywheel', note: 'Nine flywheel bolts; mark position for balance.', parts: [...hw('flywheel-bolts'), 'flywheel'] },
-  { id: 'muffler', title: 'Exhaust silencer', note: 'Clamps at both heat-exchanger outlets.', parts: ['muffler'] },
+  { id: 'muffler', title: 'Exhaust silencer', note: 'Clamps at both heat-exchanger outlets. The catalytic converter and, on 930/04, the EGR valve come off with this end of the exhaust.', parts: ['muffler', ...(VARIANT.egr ? ['egr-valve', 'egr-pipe-feed', 'egr-pipe-return', 'egr-bracket'] : [])] },
   { id: 'heat-exchangers', title: 'Heat exchangers', note: 'Six port nuts per side — soak them first; they seize.', parts: [...hw('exhaust-nuts-*'), ...both('heat-exchanger')] },
   { id: 'air-cleaner', title: 'Air cleaner lid & filter', note: 'Release the spring straps.', parts: ['air-cleaner-lid', 'air-filter', 'airbox-struts'] },
   { id: 'cis', title: 'Mixture control unit, injection lines & injectors', note: 'Depressurise the fuel system; cap all lines.', parts: ['mixture-control-unit', 'fuel-lines', 'warm-up-regulator', ...cyl('injector')] },
   { id: 'intake', title: 'Air distributor & intake pipes', note: 'Plug the intake ports with rags.', parts: [...hw('intake-nuts-*'), 'plenum', ...cyl('intake-runner')] },
-  { id: 'belt', title: 'V-belt', note: 'Remove shims from the fan pulley to slacken the belt.', parts: [...hw('fan-pulley-nut'), 'fan-belt', 'fan-pulley'] },
+  { id: 'belt', title: 'V-belt', note: 'Remove shims from the fan pulley to slacken the belt. The air-injection belt is the outer groove.', parts: [...hw('fan-pulley-nut'), 'fan-belt', 'fan-pulley', ...(VARIANT.airInjection ? ['air-pump-belt', 'air-pump-pulley', 'air-pump', 'air-pump-bracket', 'air-pump-strap', 'air-retainer', 'air-check-valve', 'air-diverter', 'air-diverter-support', 'air-pump-cleaner'] : [])] },
   { id: 'fan', title: 'Fan housing with fan & alternator', note: 'Loosen the strap clamp; fan housing, fan and alternator lift out together.', parts: ['fan-impeller', 'fan-hub', 'alternator', 'fan-housing'] },
   { id: 'distributor', title: 'Distributor & spark plugs', note: 'Mark rotor position before removal. The hold-down is a cast lug on the housing; slacken its nut to turn the body.', parts: ['ignition-leads', 'distributor', ...cyl('spark-plug')] },
-  { id: 'shroud', title: 'Upper air guide', note: 'The shroud comes off once the fan housing is out. The oil-cooler cap (911 106 406 00) comes with it — with the shroud on, that cap is all of the cooler you see.', parts: ['upper-air-guide', 'oil-cooler-cap'] },
+  { id: 'shroud', title: 'Upper air guide', note: 'The shroud comes off once the fan housing is out. The oil-cooler cap (911 106 406 00) comes with it — with the shroud on, that cap is all of the cooler you see. The heater blower is on the right of the fan housing.', parts: ['upper-air-guide', 'oil-cooler-cap', 'heater-blower', 'heater-blower-support'] },
   { id: 'oil-cooler', title: 'Engine oil cooler', note: 'Factory manual: the cooler comes off after the right heat exchanger and the shrouds. Four M8 nuts and spring washers, then the flange lifts off the right-case deck studs. The three port seals stay on the case face.', parts: ['oil-cooler'] },
   { id: 'pulley', title: 'Crankshaft pulley', note: 'Central bolt, hold the crank from the flywheel flange.', parts: [...hw('pulley-bolt'), 'crank-pulley'] },
   { id: 'valve-covers', title: 'Valve covers', note: 'Upper and lower covers on both cam housings.', parts: [...hw('valve-cover-nuts-upper-*', 'valve-cover-nuts-lower-*'), 'valve-cover-upper-right', 'valve-cover-lower-right', 'valve-cover-upper-left', 'valve-cover-lower-left'] },
@@ -48,7 +49,7 @@ export const TEARDOWN: TeardownStep[] = [
   { id: 'heads', title: 'Cylinder heads (bench)', note: 'Undo the 24 cam-housing nuts and separate the heads from the cam housing on the bench.', parts: [...hw('cam-housing-nuts-*'), ...cyl('head')] },
   { id: 'cylinders', title: 'Cylinders', note: 'Rock each off the studs; keep matched to its piston.', parts: cyl('cylinder') },
   { id: 'pistons', title: 'Pistons', note: 'Circlips out, push pins; mark cylinder number and direction.', parts: cyl('piston') },
-  { id: 'externals', title: 'Breather, oil thermostat & sump plate', note: 'Last external items before splitting the case.', parts: [...hw('breather-nuts', 'thermostat-nuts', 'sump-nuts'), 'breather-lid', 'oil-thermostat', 'sump-plate'] },
+  { id: 'externals', title: 'Breather, oil thermostat, intermediate-shaft cover & sump plate', note: 'Last external items before splitting the case.', parts: [...hw('breather-nuts', 'thermostat-nuts', 'sump-nuts', 'ishaft-cover-nuts'), 'breather-lid', 'oil-thermostat', 'ishaft-cover', 'sump-plate'] },
   { id: 'split', title: 'Split the crankcase', note: 'Remove through-bolts and perimeter nuts; lift the left half off.', parts: [...hw('case-through-bolts', 'case-through-nuts', 'case-perimeter-nuts'), 'crankcase-left'] },
   { id: 'crank', title: 'Crankshaft with connecting rods', note: 'Lift the crank out; then unbolt the rods (keep caps matched).', parts: ['crankshaft', ...cyl('conrod')],
     carries: { crankshaft: ['crank-gears', 'crank-circlip', 'crank-gear-ring', 'crank-key'] } },

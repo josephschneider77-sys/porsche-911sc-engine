@@ -3,6 +3,8 @@ import * as C from './core';
 import * as A from './aux';
 import * as SP from './smallParts';
 import * as V from './valvetrain';
+import * as B from './bottomAnc';
+import { VARIANT } from '../data/variant';
 
 /** Raw part builders (no fastener hardware); see assets.ts for the exported set. */
 export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
@@ -60,6 +62,7 @@ export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
   'oil-cooler': A.oilCooler,
   'oil-cooler-cap': A.oilCoolerCap,
   'oil-thermostat': A.oilThermostat,
+  'ishaft-cover': A.ishaftCover,
   'breather-lid': A.breatherLid,
   'sump-plate': A.sumpPlate,
   'oil-pump': A.oilPump,
@@ -83,4 +86,24 @@ export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
   flywheel: A.flywheel,
   'clutch-disc': A.clutchDisc,
   'pressure-plate': A.pressurePlate,
+  'heater-blower': B.heaterBlower,
+  'heater-blower-support': B.heaterBlowerSupport,
+  ...(VARIANT.airInjection ? {
+    'air-pump': B.airPump,
+    'air-pump-pulley': B.airPumpPulley,
+    'air-pump-belt': B.airPumpBelt,
+    'air-pump-bracket': B.airPumpBracket,
+    'air-pump-strap': B.airPumpStrap,
+    'air-retainer': B.airRetainer,
+    'air-check-valve': B.airCheckValve,
+    'air-diverter': B.airDiverter,
+    'air-diverter-support': B.airDiverterSupport,
+    'air-pump-cleaner': B.airPumpCleaner,
+  } : {}),
+  ...(VARIANT.egr ? {
+    'egr-valve': B.egrValve,
+    'egr-pipe-feed': B.egrPipeFeed,
+    'egr-pipe-return': B.egrPipeReturn,
+    'egr-bracket': B.egrBracket,
+  } : {}),
 };

@@ -4,8 +4,13 @@
  * (keyway, bore, groove, gasket face); tests/collide.ts treats those contacts as joints. Quantities against the
  * catalogue are claimed in src/data/checklist.ts.
  */
-export interface SmallSpec { id: string; name: string; count: number; step: string; follows: string; hosts: string[]; size: string; description: string }
-const S = (id: string, name: string, count: number, step: string, follows: string, hosts: string[], size: string, description: string): SmallSpec => ({ id, name, count, step, follows, hosts, size, description });
+import { VARIANT } from './variant';
+
+export interface SmallCatalog { ill: string; pos: string; pn: string; qty?: number; note?: string }
+export interface SmallSpec { id: string; name: string; count: number; step: string; follows: string; hosts: string[]; size: string; description: string; catalog?: SmallCatalog[] }
+const S = (id: string, name: string, count: number, step: string, follows: string, hosts: string[], size: string, description: string, catalog?: SmallCatalog[]): SmallSpec => ({ id, name, count, step, follows, hosts, size, description, catalog });
+/** 202-00 #6. 930/04 is the catalytic converter; 930/03 is the RoW pre-silencer. */
+const FRONT = VARIANT.frontExhaust === 'catalytic-converter' ? 'catalytic-converter' : 'pre-muffler';
 const B = (fn: (b: 'right' | 'left', B: 'R' | 'L') => SmallSpec) => [fn('right', 'R'), fn('left', 'L')];
 
 export const SMALL_SPECS: SmallSpec[] = [
@@ -96,11 +101,19 @@ export const SMALL_SPECS: SmallSpec[] = [
   S('throttle-linkage', 'Throttle linkage', 1, 'intake', 'plenum', [], 'Bracket, levers, pull rod, spring', 'Bracket (#64), bearing sleeves (#65), levers, pull rod (#72) and return spring (#73) on the throttle-housing lever. Plate coincident with the lever top.'),
   S('airbox-straps', 'Air-cleaner restraining straps', 2, 'air-cleaner', 'air-cleaner-lid', [], 'Strap + support + screw', 'Restraining straps (106-00 #15), supports (#16), tapping screws (#17).'),
   S('airbox-fittings', 'Air-cleaner gasket, plug and hose fittings', 1, 'air-cleaner', 'air-cleaner-lid', [], 'Gasket, stopper, plug, union, hose connection', 'Gasket (106-00 #26), stopper (#28), screw plug and sealing ring (#31/#32), union (#33), hose connection (#34), hose clamps (#36), spring washer (#23).'),
-  S('muffler-hardware', 'Silencer gasket, screws and clamps', 1, 'muffler', 'muffler', ['muffler', 'pre-muffler'], 'Gasket, 3 screws + lock nuts, 2 clamps', 'Gasket (202-00 #2), screws and lock nuts (#3/#4), clamps (#5).'),
+  S('muffler-hardware', 'Silencer gasket, screws and clamps', 1, 'muffler', 'muffler', ['muffler', FRONT], 'Gasket, 3 screws + lock nuts, 2 clamps', 'Gasket (202-00 #2), screws and lock nuts (#3/#4), clamps (#5).'),
   S('heater-adapters', 'Heat-exchanger heater adapters', 2, 'heat-exchangers', 'heat-exchanger-right', ['heat-exchanger-right', 'heat-exchanger-left', 'heater-hose'], 'Adapter + clamp + bolt', 'Adapters (202-00 #27) with clamps (#28) and bolts.'),
-  S('heater-hose', 'Heater flexible pipe', 1, 'heat-exchangers', 'heat-exchanger-left', ['heater-adapters', 'heat-exchanger-left', 'pre-muffler'], 'Flexible pipe + 2 hose clamps', 'Flexible pipe (#29) with hose clamps (#30).'),
-  S('muffler-bracket', 'Silencer bracket', 1, 'muffler', 'muffler', ['muffler', 'pre-muffler'], 'Bracket, 2 bolts, nuts, washers', 'Bracket (202-00 #34) with bolts (#38), nuts (#35), spring washers (#36) and washers (#37).'),
-  S('pre-muffler', 'Front muffler (pre-silencer) with crossover', 1, 'muffler', 'muffler', ['muffler', 'muffler-hardware', 'muffler-bracket', 'heat-exchanger-right', 'heat-exchanger-left'], 'Front muffler, exhaust line, compensating socket, gaskets, clamps', 'Front muffler (202-00 #6) with exhaust line (#17), compensating socket (#18), gaskets (#13, #14, #23), screws/lock nuts (#15/#16), clamps (#19), bolts/lock nuts (#20/#21) and support washer (#22).'),
+  S('heater-hose', 'Heater flexible pipe', 1, 'heat-exchangers', 'heat-exchanger-left', ['heater-adapters', 'heat-exchanger-left', FRONT], 'Flexible pipe + 2 hose clamps', 'Flexible pipe (#29) with hose clamps (#30).'),
+  S('muffler-bracket', 'Silencer bracket', 1, 'muffler', 'muffler', ['muffler', FRONT], 'Bracket, 2 bolts, nuts, washers', 'Bracket (202-00 #34) with bolts (#38), nuts (#35), spring washers (#36) and washers (#37).'),
+  S(FRONT,
+    VARIANT.frontExhaust === 'catalytic-converter' ? 'Catalytic converter' : 'Front muffler (pre-silencer) with crossover',
+    1, 'muffler', 'muffler', ['muffler', 'muffler-hardware', 'muffler-bracket', 'heat-exchanger-right', 'heat-exchanger-left'],
+    VARIANT.frontExhaust === 'catalytic-converter' ? 'Cylindrical catalytic converter' : 'Front muffler, exhaust line, compensating socket, gaskets, clamps',
+    VARIANT.frontExhaust === 'catalytic-converter'
+      ? 'Catalytic converter 930 113 228 01 (202-00 #6 on 930/04). Cylindrical can with conical ends, in the front-muffler pocket. Exhaust line (#17), compensating socket (#18), gaskets (#13, #14, #23), screws and lock nuts (#15/#16), clamps (#19) and support washer (#22) are drawn on the can.'
+      : 'Front muffler (202-00 #6) with exhaust line (#17), compensating socket (#18), gaskets (#13, #14, #23), screws/lock nuts (#15/#16), clamps (#19), bolts/lock nuts (#20/#21) and support washer (#22).',
+    [{ ill: '202-00', pos: '6', pn: VARIANT.frontExhaust === 'catalytic-converter' ? '930 113 228 01' : '930 111 183 03', qty: 1 }]),
+  ...ancillarySmall(),
 ];
 export const SMALL_BY_ID = Object.fromEntries(SMALL_SPECS.map((s) => [s.id, s]));
 
@@ -126,9 +139,70 @@ export function smallRef(id: string): [string, string] {
     'afm-screws': ['107-10', '1'], 'throttle-housing': ['107-10', '4'], 'air-guide': ['107-10', '18'],
     'vacuum-fittings': ['107-10', '14'], 'airbox-clamps': ['107-10', '19'], 'injection-banjos': ['107-10', '25'], 'injection-line-rings': ['107-10', '24'],
     'injection-line-bracket': ['107-10', '26'], 'wur-lines': ['107-10', '59'], 'throttle-linkage': ['107-10', '64'], 'airbox-straps': ['106-00', '15'], 'airbox-fittings': ['106-00', '26'],
-    'muffler-hardware': ['202-00', '2'], 'heater-adapters': ['202-00', '27'], 'heater-hose': ['202-00', '29'], 'muffler-bracket': ['202-00', '34'], 'pre-muffler': ['202-00', '6'],
+    'muffler-hardware': ['202-00', '2'], 'heater-adapters': ['202-00', '27'], 'heater-hose': ['202-00', '29'], 'muffler-bracket': ['202-00', '34'], 'pre-muffler': ['202-00', '6'], 'catalytic-converter': ['202-00', '6'],
   };
   const r = T[k] ?? T[k.replace(/-left$|-right$/, '')];
   if (!r) throw new Error(`smallRef: ${id}`);
   return r;
+}
+
+/** Catalogue rows added for 930/04 bottom-end ancillaries. Counts match the meshes in geo/bottomAnc.ts. */
+function ancillarySmall(): SmallSpec[] {
+  const line = (ill: string, pos: string, pn: string, qty: number, note?: string): SmallCatalog[] => [{ ill, pos, pn, qty, note }];
+  const out: SmallSpec[] = [
+    S('breather-gasket', 'Breather cover gasket', 1, 'externals', 'breather-lid', ['breather-lid', 'crankcase-left'], 'Gasket', 'Gasket 930 107 791 00 (101-05 #36) seated between the breather lid and the left case top.', line('101-05', '36', '930 107 791 00', 1)),
+    S('ishaft-cover-gasket', 'Intermediate-shaft cover gasket', 1, 'externals', 'ishaft-cover', ['ishaft-cover', 'crankcase-right', 'ishaft-cover-nuts'], 'Gasket', 'Gasket 930 105 198 01 (101-10 #40) seated on the pulley-end face under the intermediate-shaft cover. Applies up to engine 63D 4069.', line('101-10', '40', '930 105 198 01', 1)),
+    S('cyl-baffle-14', 'Cylinder baffle plate', 4, 'cylinders', 'cylinder-1', [], 'Baffle plate', 'Baffle plates 930 106 023 00 (105-10 #14), one in each gap between barrels, under the fin square.', line('105-10', '14', '930 106 023 00', 4)),
+    S('cyl-baffle-15', 'Cylinder baffle plate, pulley end', 2, 'cylinders', 'cylinder-1', [], 'Baffle plate', 'Baffle plates 930 106 221 00 (105-10 #15) at the pulley end of cylinders 1 and 4.', line('105-10', '15', '930 106 221 00', 2)),
+    S('cyl-baffle-16', 'Cylinder baffle plate, flywheel end', 2, 'cylinders', 'cylinder-1', [], 'Baffle plate', 'Baffle plates 930 106 222 00 (105-10 #16) at the flywheel end of cylinders 3 and 6.', line('105-10', '16', '930 106 222 00', 2)),
+    S('cyl-baffle-spring', 'Cylinder baffle leaf spring', 6, 'cylinders', 'cylinder-1', [], 'Leaf spring', 'Leaf springs 930 106 228 00 (105-10 #17), one per cylinder, outboard of the lower fin.', line('105-10', '17', '930 106 228 00', 6)),
+    S('cyl-cover-plate', 'Cylinder cover plate', 2, 'cylinders', 'cylinder-1', [], 'Cover plate', 'Cover plates 930 106 301 00 (105-10 #18), one under each bank.', line('105-10', '18', '930 106 301 00', 2)),
+    S('heater-dist-piece', 'Heater distributing piece', 1, 'shroud', 'upper-air-guide', ['heater-blower'], 'Distributing piece', 'Distributing piece 911 211 135 02 (108-10 #4) seated on the heater blower outlet.', line('108-10', '4', '911 211 135 02', 1)),
+    S('heater-socket', 'Hot-air socket', 1, 'shroud', 'upper-air-guide', [], 'Socket', 'Hot-air socket 930 106 326 01 (108-10 #14) on the right of the fan housing.', line('108-10', '14', '930 106 326 01', 1)),
+    S('heater-hose-link', 'Heater blower hose', 1, 'shroud', 'upper-air-guide', ['heater-blower', 'heater-socket'], 'Hose', 'Hose 911 211 272 02 (108-10 #8) seated on the hot-air socket and the blower inlet.', line('108-10', '8', '911 211 272 02', 1)),
+    S('heater-hose-left', 'Heater hose to left exchanger', 1, 'shroud', 'upper-air-guide', ['heater-dist-piece'], 'Heater hose', 'Heater hose 901 211 195 00 (108-10 #10) seated on the distributing piece and run toward the left heat exchanger. Stops short of the adapter.', line('108-10', '10', '901 211 195 00', 1)),
+    S('heater-hose-right', 'Heater hose to right exchanger', 1, 'shroud', 'upper-air-guide', ['heater-dist-piece'], 'Heater hose', 'Heater hose 911 211 522 00 (108-10 #13) seated on the distributing piece and run toward the right heat exchanger. Stops short of the adapter.', line('108-10', '13', '911 211 522 00', 1)),
+    S('heater-hose-supports', 'Heater hose supports', 2, 'shroud', 'upper-air-guide', [], 'Support', 'Hose supports 911 211 277 00 (108-10 #11).', line('108-10', '11', '911 211 277 00', 2)),
+    S('heater-clamp-sp', 'Heater blower clamp', 1, 'shroud', 'upper-air-guide', [], 'Clamp', 'Clamp (108-10 #3) on the blower outlet.', line('108-10', '3', '999 512 244 02', 1)),
+    S('heater-clamp-band', 'Heater hose clamps', 2, 'shroud', 'upper-air-guide', [], 'Hose clamp', 'Hose clamps (108-10 #9) on the blower hose.', line('108-10', '9', '—', 2)),
+    S('heater-clamps', 'Heater hose clamps', 6, 'shroud', 'upper-air-guide', [], 'Hose clamp', 'Hose clamps (108-10 #12) on the two heater hoses.', line('108-10', '12', '—', 6)),
+    S('heater-blower-hardware', 'Heater blower fasteners', 1, 'shroud', 'upper-air-guide', ['heater-blower', 'heater-blower-support', 'heater-socket'], 'Screws, nuts, washers', 'Tapping screws (108-10 #5) threaded through the blower lug into the support, plus hex nuts (#16) seated on the socket tab.', line('108-10', '5', '—', 2, 'Also #6/#7/#15/#16')),
+  ];
+  if (VARIANT.airInjection) out.push(
+    S('air-rubber', 'Air-pump rubber mounting', 2, 'belt', 'fan-pulley', ['air-pump-bracket'], 'Rubber mounting', 'Rubber mountings 911 113 121 00 (108-00 #2) pressed in the pump bracket feet.', line('108-00', '2', '911 113 121 00', 2)),
+    S('air-sleeve', 'Air-pump spacer sleeve', 2, 'belt', 'fan-pulley', ['air-pump-bracket'], 'Spacer sleeve', 'Spacer sleeves 911 113 122 00 (108-00 #3) pressed through the bracket feet, inside the rubber mountings.', line('108-00', '3', '911 113 122 00', 2)),
+    S('air-buffer', 'Air-pump bonded rubber buffer', 2, 'belt', 'fan-pulley', ['air-retainer'], 'Bonded rubber buffer', 'Bonded rubber buffers 930 110 194 00 (108-00 #13) pressed on the fan-housing retaining bracket.', line('108-00', '13', '930 110 194 00', 2)),
+    S('air-hose-pump', 'Air-pump hose', 1, 'belt', 'fan-pulley', ['air-pump', 'air-diverter'], 'Hose', 'Hose 930 113 138 03 (108-00 #28) seated on the pump outlet and the diverter inlet.', line('108-00', '28', '930 113 138 03', 1)),
+    S('air-hose-valve', 'Air-pump hose to check valve', 1, 'belt', 'fan-pulley', ['air-diverter', 'air-check-valve'], 'Hose', 'Hose 930 113 137 01 (108-00 #29) seated on the diverter outlet and the check-valve inlet.', line('108-00', '29', '930 113 137 01', 1)),
+    S('air-hose-dump', 'Air-pump dump hose', 1, 'belt', 'fan-pulley', ['air-diverter'], 'Hose', 'Hose 930 113 139 02 (108-00 #30) seated on the diverter dump port.', line('108-00', '30', '930 113 139 02', 1)),
+    S('air-hose-vacuum', 'Air-pump vacuum hose', 1, 'belt', 'fan-pulley', [], 'Hose 3.2 × 7', 'Vacuum hose 999 239 003 40 (108-00 #31). Coiled in free space; the manifold end is the intake vacuum harness, not tied in here.', line('108-00', '31', '999 239 003 40', 1)),
+    S('air-clamp-pump', 'Air-pump hose clamp', 1, 'belt', 'fan-pulley', [], 'Hose clamp', 'Hose clamp 999 512 038 02 (108-00 #32).', line('108-00', '32', '999 512 038 02', 1)),
+    S('air-clamp-valve', 'Air-pump hose clamp', 1, 'belt', 'fan-pulley', [], 'Hose clamp', 'Hose clamp PCG 512 237 02 (108-00 #32A).', line('108-00', '32A', 'PCG 512 237 02', 1)),
+    S('air-clamp-dump', 'Air-pump hose clamps', 2, 'belt', 'fan-pulley', [], 'Hose clamp', 'Hose clamps 999 512 296 02 (108-00 #33).', line('108-00', '33', '999 512 296 02', 2)),
+    S('air-sealing-ring', 'Check-valve sealing ring', 1, 'belt', 'fan-pulley', [], 'A24 × 29', 'Sealing ring 900 123 060 30 (108-00 #21, A24×29) seated on the check-valve outlet face. Top End’s air tube screws up through it.', line('108-00', '21', '900 123 060 30', 1)),
+    S('air-check-gasket', 'Check-valve gasket', 1, 'belt', 'fan-pulley', [], 'Gasket', 'Gasket 911 113 146 00 (108-00 #27) seated on the check valve.', line('108-00', '27', '911 113 146 00', 1)),
+    S('air-pulley-screws', 'Air-pump pulley screws', 4, 'belt', 'fan-pulley', ['air-pump-pulley'], 'Pan-head screw', 'Pan-head screws 900 067 008 02 (108-00 #9) threaded into the pump pulley.', line('108-00', '9', '900 067 008 02', 4)),
+    S('air-pulley-washers', 'Air-pump pulley spring washers', 4, 'belt', 'fan-pulley', ['air-pump-pulley', 'air-pulley-screws'], 'Spring washer', 'Spring washers N 012 226 5 (108-00 #10) seated under the pulley screws.', line('108-00', '10', 'N 012 226 5', 4)),
+    S('air-bracket-nuts', 'Air-pump bracket nuts', 1, 'belt', 'fan-pulley', ['air-pump-bracket', 'air-sleeve'], '2 nuts, spring washers, washers', 'Two of the six hex nuts 900 076 025 02 (108-00 #5) and spring washers N 012 241 8 (#6), plus washers 900 151 008 02 and 911 113 162 00 (#4), threaded on the bracket feet.', line('108-00', '4', '900 151 008 02', 1, 'Pair with 911 113 162 00')),
+    S('air-pump-fasteners', 'Air-pump pivot and strap fasteners', 1, 'belt', 'fan-pulley', ['air-pump', 'air-pump-strap', 'air-retainer', 'air-buffer'], 'Nuts, M8×120 pivot, strap bolt', 'Hex nuts (108-00 #5) threaded on the rubber buffers, the countersunk pivot screw 900 249 006 02 (#11) threaded through the pump foot, the strap bolt 900 075 085 02 (#15) threaded through the strap and the retainer.', line('108-00', '11', '900 249 006 02', 1)),
+    S('air-diverter-nuts', 'Diverter-valve nuts', 1, 'belt', 'fan-pulley', ['air-diverter-support'], '2 nuts + spring washers', 'Hex nuts 999 072 005 09 (108-00 #24) and spring washers N 012 226 5 (#25) threaded on the diverter support.', line('108-00', '24', '999 072 005 09', 2)),
+  );
+  if (VARIANT.egr) out.push(
+    S('egr-gasket', 'EGR gasket', 1, 'muffler', 'muffler', [], 'Gasket', 'Gasket (202-05 #2) seated under the EGR valve. The catalogue row has no part number in the audit transcription.', line('202-05', '2', '—', 1)),
+    S('egr-seal', 'EGR sealing rubber', 1, 'muffler', 'muffler', ['egr-valve'], 'Sealing rubber', 'Sealing rubber (202-05 #12) seated on the EGR valve side port.', line('202-05', '12', '—', 1)),
+    S('egr-buffer', 'EGR buffer', 1, 'muffler', 'muffler', [], 'Buffer', 'Buffer (202-05 #19) under the EGR bracket.', line('202-05', '19', '—', 1)),
+    S('egr-tee', 'EGR vacuum T-piece', 1, 'muffler', 'muffler', ['egr-valve'], 'T-piece', 'T-piece (202-05 #18) seated on the EGR vacuum nipple. Hoses are not tied into the CIS harness.', line('202-05', '18', '—', 1)),
+    S('egr-hose-short', 'EGR vacuum hose', 1, 'muffler', 'muffler', ['egr-valve', 'egr-tee'], 'Hose 40 mm', 'Hose 999 239 003 40 (202-05 #15), the short piece seated between the valve nipple and the T-piece. Same 3.2×7 hose as 108-00 #31.', line('202-05', '15', '999 239 003 40', 1, '40 mm')),
+    S('egr-hose-long', 'EGR vacuum hose', 1, 'muffler', 'muffler', [], 'Hose 770 mm', 'Hose 999 239 003 40 (202-05 #16), the 770 mm run, coiled clear of the case.', line('202-05', '16', '999 239 003 40', 1, '770 mm')),
+    S('egr-hose-pair', 'EGR vacuum hoses', 1, 'muffler', 'muffler', ['egr-tee'], '2 × hose', 'Two hoses 999 239 003 40 (202-05 #17) seated on the T-piece. Not tied into the CIS harness.', line('202-05', '17', '999 239 003 40', 2)),
+    S('egr-fasteners', 'EGR fasteners', 1, 'muffler', 'muffler', ['egr-valve', 'egr-bracket'], 'Bolts, nuts, washers, pressure screw', 'Nuts (202-05 #10) threaded on the valve flange and bolts (#4) threaded through the bracket.', line('202-05', '4', '—', 2)),
+  );
+  if (VARIANT.frontExhaust === 'catalytic-converter') out.push(
+    S('cat-cover', 'Catalytic-converter heat shield', 1, 'muffler', 'muffler', [FRONT], 'Heat shield', 'Heat shield 930 113 233 01 (202-00 #7) seated under the catalytic converter.', line('202-00', '7', '930 113 233 01', 1)),
+    S('cat-cap', 'Catalytic-converter cap', 1, 'muffler', 'muffler', [FRONT], 'Cap', 'Cap 930 113 153 00 (202-00 #8) threaded on the test-port boss.', line('202-00', '8', '930 113 153 00', 1)),
+    S('cat-plug', 'Catalytic-converter test-port plug', 1, 'muffler', 'muffler', [FRONT, 'cat-cap'], 'Plug + sealing ring', 'Screw plug (202-00 #8B) and sealing ring (#8A). The audit does not give part numbers; both are drawn on the cap.', line('202-00', '8B', '—', 1)),
+    S('cat-bracket', 'Catalytic-converter bracket', 1, 'muffler', 'muffler', [FRONT], 'Retaining bracket', 'Retaining bracket 930 113 196 00 (202-00 #12) seated under the converter.', line('202-00', '12', '930 113 196 00', 1)),
+    S('cat-cover-fasteners', 'Catalytic-converter cover fasteners', 1, 'muffler', 'muffler', ['cat-cover', FRONT], '8 nuts, bolts, washers', 'Eight hex nuts (202-00 #9), hex bolts (#10) and washers (#11) threaded through the heat shield. Part numbers are not in the audit transcription.', line('202-00', '9', '—', 8)),
+  );
+  return out;
 }

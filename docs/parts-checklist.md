@@ -10,32 +10,32 @@ Every line from the PET catalogue illustrations in `docs/catalog/engine-lines.js
 - **excluded**: a row for another model year, engine number range, model or RHD. It does not apply to this engine.
 - **MISSING**: still to be modelled.
 
-Illustration 108-00 (air injection) is outside the checklist and is not modelled.
+The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heater blower (108-10) and EGR (202-05) are in the checklist.
 
 ## Totals
 
 | status | lines |
 |---|---|
-| modelled | 429 |
-| N/A (with reason) | 141 |
-| alternative rows | 230 |
-| excluded (not this engine) | 196 |
+| modelled | 500 |
+| N/A (with reason) | 154 |
+| alternative rows | 228 |
+| excluded (not this engine) | 201 |
 | **MISSING** | 1 |
-| countable lines (all but excluded) | 801 |
+| countable lines (all but excluded) | 883 |
 
 ## 101-05: Crankcase, left
 
 | pos | part no. | description | qty | status | source / reason |
 |---|---|---|---|---|---|
 | 1 | 930 101 915 00 | Crankcase | 1 | modelled | `crankcase-left` |
-| 1 | 930 101 917 00 | Crankcase | 1 | excluded | from engine no. 63D (after 1978) |
-| - | 911 101 183 00 | Stopper | X | excluded | from engine no. 63D (after 1978) |
+| 1 | 930 101 917 00 | Crankcase | 1 | excluded | from engine no. 67D (after 1978) |
+| - | 911 101 183 00 | Stopper | X | excluded | from engine no. 67D (after 1978) |
 | 1 | 930 101 916 00 | Crankcase | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 1 | 930 101 918 00 | Crankcase | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 999 062 090 02 | Stud | 1 | modelled | `pool:case-left-studs` stud |
 | 2 | 999 062 207 02 | Stud | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 3 | 911 101 172 00 | Stud | 12 | modelled | `head-nuts-left` stud × 12 (lower head studs, one per head-nut station of the left bank) |
-| 3 | 930 101 170 00 | Stud | 12 | alt | alternative to 101-05 #3 |
+| 3 | 911 101 172 00 | Stud | 12 | modelled | `head-nuts-right` stud × 12 (upper steel head studs, right bank) |
+| 3 | 930 101 170 00 | Stud | 12 | modelled | `head-nuts-left` stud × 12 (lower Dilavar head studs, left bank) |
 | 3 | 993 101 170 51 | Stud | 12 | alt | alternative to 101-05 #3 |
 | 3 | 930 101 170 00 | Stud | 24 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 3 | 993 101 170 51 | Stud | 24 | excluded | other model (Turbo / Carrera / Sportomatic) |
@@ -84,25 +84,25 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 32 | N 020 825 1 | Cutting ring | 1 | modelled | `case-oil-fittings` cut × 1 |
 | 33 | 900 104 003 02 | Union nut | 1 | modelled | `case-oil-fittings` union × 1 |
 | 33 | 900 104 003 03 | Union nut | 1 | alt | alternative to 101-05 #33 |
-| 34 | N 012 226 5 | Spring washer | 12 | modelled | `sump-nuts` spring |
-| 35 | 900 076 010 02 | Nut | 12 | modelled | `sump-nuts` |
-| 36 | 930 107 791 00 | Gasket | 1 | modelled | `sump-plate` lidgasket |
-| 37 | 901 107 073 02 | Lid | 1 | modelled | `sump-plate` |
+| 34 | N 012 226 5 | Spring washer | 12 | modelled | `sump-nuts` spring × 8 + `breather-nuts` spring × 4 |
+| 35 | 900 076 010 02 | Nut | 12 | modelled | `sump-nuts` × 8 + `breather-nuts` × 4 |
+| 36 | 930 107 791 00 | Gasket | 1 | modelled | `breather-gasket` |
+| 37 | 901 107 073 02 | Lid | 1 | modelled | `breather-lid` |
 | 37 | 930 107 073 00 | Lid | 1 | excluded | model years 83-: not a 1978 engine |
 | 38 | 930 107 314 00 | Oil strainer | 1 | modelled | `sump-plate` strainer |
 | 39 | 930 101 391 01 | Gasket | 2 | modelled | `sump-plate` gasket |
 | 41 | 911 107 176 03 | Screw plug | 1 | modelled | `sump-plate` plug |
-| 41 | 944 107 197 01 | Screw plug | 1 | excluded | from engine no. 63D (after 1978) |
+| 41 | 944 107 197 01 | Screw plug | 1 | excluded | from engine no. 67D (after 1978) |
 | 42 | 900 123 011 20 | Sealing ring | 1 | modelled | `sump-drain-ring` |
-| 42 | 900 123 118 30 | Sealing ring | 1 | excluded | from engine no. 63D (after 1978) |
+| 42 | 900 123 118 30 | Sealing ring | 1 | excluded | from engine no. 67D (after 1978) |
 
 ## 101-10: Crankcase, right
 
 | pos | part no. | description | qty | status | source / reason |
 |---|---|---|---|---|---|
 | 1 | 930 101 915 00 | Crankcase | 1 | modelled | `crankcase-right` |
-| 1 | 930 101 917 00 | Crankcase | 1 | excluded | from engine no. 63D (after 1978) |
-| - | 911 101 183 00 | Stopper | X | excluded | from engine no. 63D (after 1978) |
+| 1 | 930 101 917 00 | Crankcase | 1 | excluded | from engine no. 67D (after 1978) |
+| - | 911 101 183 00 | Stopper | X | excluded | from engine no. 67D (after 1978) |
 | 1 | 930 101 916 00 | Crankcase | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 1 | 930 101 918 00 | Crankcase | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 999 062 090 02 | Stud | 1 | modelled | `pool:case-right-studs` stud |
@@ -149,18 +149,18 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 33 | N 020 825 1 | Cutting ring | 1 | modelled | `case-oil-fittings` cut × 1 |
 | 34 | 900 104 003 02 | Union nut | 1 | modelled | `case-oil-fittings` union × 1 |
 | 34 | 900 104 003 03 | Union nut | 1 | alt | alternative to 101-10 #34 |
-| 35 | N 012 226 5 | Spring washer | 2 | modelled | `breather-nuts` spring |
-| 36 | 900 076 010 02 | Nut | 2 | modelled | `breather-nuts` |
+| 35 | N 012 226 5 | Spring washer | 2 | modelled | `thermostat-nuts` spring |
+| 36 | 900 076 010 02 | Nut | 2 | modelled | `thermostat-nuts` |
 | 37 | 930 107 765 00 | Oil thermostat | 1 | modelled | `oil-thermostat` |
 | 38 | 999 701 053 40 | O-ring | 1 | modelled | `thermostat-oring` |
-| 39 | 911 105 162 00 | Cover | 1 | excluded | from engine no. 63D (after 1978) |
-| 40 | 930 105 198 01 | Gasket | 1 | excluded | from engine no. 63D (after 1978) |
-| 41 | 900 910 012 02 | Lock nut | 3 | modelled | `thermostat-nuts` |
+| 39 | 911 105 162 00 | Cover | 1 | modelled | `ishaft-cover` |
+| 40 | 930 105 198 01 | Gasket | 1 | modelled | `ishaft-cover-gasket` |
+| 41 | 900 910 012 02 | Lock nut | 3 | modelled | `ishaft-cover-nuts` |
 | 41 | 900 910 047 09 | Lock nut | 3 | alt | alternative to 101-10 #41 |
-| 41 | 900 075 057 02 | Hexagon-head bolt | 2 | excluded | from engine no. 63D (after 1978) |
-| 41 | 900 075 057 03 | Hexagon-head bolt | 2 | excluded | from engine no. 63D (after 1978) |
-| 41 | 900 075 057 02 | Hexagon-head bolt | 2 | excluded | from engine no. 63D (after 1978) |
-| 42 | 900 031 011 30 | Washer | 3 | modelled | `thermostat-nuts` washer |
+| 41 | 900 075 057 02 | Hexagon-head bolt | 2 | excluded | from engine no. 67D (after 1978) |
+| 41 | 900 075 057 03 | Hexagon-head bolt | 2 | excluded | from engine no. 67D (after 1978) |
+| 41 | 900 075 057 02 | Hexagon-head bolt | 2 | excluded | from engine no. 67D (after 1978) |
+| 42 | 900 031 011 30 | Washer | 3 | modelled | `ishaft-cover-nuts` washer |
 | 43 | 900 123 140 30 | Sealing ring | 1 | modelled | `oil-pressure-sender` ring × 1 |
 | 44 | 901 101 175 01 | Reducing socket | 1 | modelled | `oil-pressure-sender` socket |
 | 45 | 911 606 111 01 | Pressure transmitter | 1 | modelled | `oil-pressure-sender` |
@@ -195,8 +195,8 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 7 | 901 102 147 00 | Woodruff key | 1 | modelled | `crank-key` |
 | 8 | 901 102 111 00 | Timing gear | 1 | modelled | `crank-gears` gear |
 | 9 | 901 102 145 00 | Intermediate ring | 1 | modelled | `crank-gear-ring` |
-| 10 | 930 102 115 01 | Drive wheel | 1 | modelled | `crank-gears` drive |
-| 10 | 930 102 115 02 | Drive wheel | 1 | alt | alternative to 102-00 #10 |
+| 10 | 930 102 115 01 | Drive wheel | 1 | excluded | paired with the 930/03 distributor pinion; 930/04 uses 930 102 115 02 |
+| 10 | 930 102 115 02 | Drive wheel | 1 | modelled | `crank-gears` drive |
 | 11 | 901 102 148 00 | Circlip | 1 | modelled | `crank-circlip` |
 | 11 | 901 102 148 01 | Circlip | 1 | alt | alternative to 102-00 #11 |
 | 11 | 901 102 148 02 | Circlip | 1 | alt | alternative to 102-00 #11 |
@@ -373,18 +373,18 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 5 | 930 105 193 00 | Gasket | 2 | modelled | `chain-housing-gasket-*` |
 | 5 | 930 105 193 05 | Gasket | 2 | alt | alternative to 103-05 #5 |
 | 6 | 930 105 063 01 | Lid | 1 | modelled | `chain-housing-lid-left` |
-| 6 | 930 105 063 08 | Lid | 1 | excluded | from engine no. 63D (after 1978) |
+| 6 | 930 105 063 08 | Lid | 1 | excluded | from engine no. 67D (after 1978) |
 | - | 999 062 010 02 | Stud | 1 | modelled | `chain-end-nuts-*` stud × 1 (one of the four chain-housing end studs) |
 | 7 | 930 105 064 01 | Lid | 1 | modelled | `chain-housing-lid-right` |
 | 7 | 930 105 064 10 | Lid | 1 | alt | alternative to 103-05 #7 |
 | - | 900 123 007 30 | Sealing ring | 1 | modelled | `chain-lid-plug-left` ring |
 | - | N 016 155 3 | Screw plug | 1 | modelled | `chain-lid-plug-left` |
 | - | N 016 155 4 | Screw plug | 1 | modelled | `chain-lid-plug2-left` |
-| 7 | 930 105 064 10 | Lid | 1 | excluded | from engine no. 63D (after 1978) |
+| 7 | 930 105 064 10 | Lid | 1 | alt | alternative to 103-05 #7 |
 | - | 900 123 007 30 | Sealing ring | 1 | modelled | `chain-lid-plug-right` ring |
 | - | N 016 155 3 | Screw plug | 1 | modelled | `chain-lid-plug-right` |
 | - | N 016 155 4 | Screw plug | 1 | modelled | `chain-lid-plug2-right` |
-| 7 | 930 105 064 10 | Lid | 1 | excluded | from engine no. 63D (after 1978) |
+| 7 | 930 105 064 10 | Lid | 1 | excluded | from engine no. 67D (after 1978) |
 | 8 | 930 105 191 03 | Gasket | 1 | modelled | `chain-lid-gasket-left` |
 | 9 | 930 105 192 01 | Gasket | 1 | modelled | `chain-lid-gasket-right` |
 | 9 | 930 105 192 04 | Gasket | 1 | alt | alternative to 103-05 #9 |
@@ -450,7 +450,7 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 9 | N 012 415 1 | Circlip | 1 | modelled | `idler-circlip-left` |
 | 10 | 930 105 049 00 | Chain adjuster | 1 | modelled | `chain-tensioner-left` adjuster |
 | 10 | 930 105 053 00 | Chain adjuster | 1 | alt | alternative to 103-10 #10 |
-| 10 | 930 105 053 04 | Chain adjuster | 1 | excluded | from engine no. 63D (after 1978) |
+| 10 | 930 105 053 04 | Chain adjuster | 1 | alt | alternative to 103-10 #10 |
 | - | 930 105 911 00 | Chain adjuster | 1 | N/A | alternative (pressure-fed) chain adjuster for the same station |
 | 11 | 930 105 559 00 | Piston | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
 | 17 | 916 105 534 00 | Compression spring | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
@@ -518,9 +518,9 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 9 | N 012 415 1 | Circlip | 1 | modelled | `idler-circlip-right` |
 | 10 | 930 105 049 00 | Chain adjuster | 1 | modelled | `chain-tensioner-right` adjuster |
 | 10 | 930 105 053 00 | Chain adjuster | 1 | alt | alternative to 103-15 #10 |
-| 10 | 930 105 053 04 | Chain adjuster | 1 | excluded | from engine no. 63D (after 1978) |
+| 10 | 930 105 053 04 | Chain adjuster | 1 | alt | alternative to 103-15 #10 |
 | - | 930 105 912 00 | Chain adjuster | 1 | N/A | alternative (pressure-fed) chain adjuster for the same station |
-| - | 930 105 912 01 | Chain adjuster | 1 | N/A | alternative (pressure-fed) chain adjuster for the same station |
+| - | 930 105 912 01 | Chain adjuster | 1 | excluded | engine type 07/08: not 930/04 |
 | 11 | 930 105 559 00 | Piston | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
 | 17 | 916 105 534 00 | Compression spring | 1 | N/A | internal part of the sealed chain adjuster (#10), which is modelled as one unit |
 | 17 | 916 105 534 01 | Compression spring | 1 | alt | alternative to 103-15 #17 |
@@ -574,7 +574,7 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | pos | part no. | description | qty | status | source / reason |
 |---|---|---|---|---|---|
 | 1 | 911 107 008 01 | Oil pump | 1 | modelled | `oil-pump` |
-| 1 | 911 107 008 05 | Oil pump | 1 | excluded | from engine no. 63D (after 1978) |
+| 1 | 911 107 008 05 | Oil pump | 1 | excluded | from engine no. 67D (after 1978) |
 | 1 | 930 107 008 02 | Oil pump | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 1 | 996 107 008 70 | Oil pump | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 999 704 173 50 | Sealing ring | 2 | modelled | `oil-pump-seals` × 1 + `oil-cooler-seal-riser` |
@@ -651,17 +651,17 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 36 | 999 512 356 02 | Hose clamp | 7 | N/A | oil tank, filler, dipstick, external oil lines and their hardware: body-mounted, not part of the engine assembly |
 | 36 | N 024 511 2 | Hose clamp | 2 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 36 | 999 512 252 02 | Hose clamp | 2 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 37 | 930 107 347 03 | Oil hose | 1 | excluded | from engine no. 63D (after 1978) |
-| 37 | 930 107 347 04 | Oil hose | 1 | excluded | from engine no. 63D (after 1978) |
-| 38 | 930 107 348 11 | Oil hose | 1 | excluded | from engine no. 63D (after 1978) |
-| 38 | 930 107 348 12 | Oil hose | 1 | excluded | from engine no. 63D (after 1978) |
+| 37 | 930 107 347 03 | Oil hose | 1 | excluded | from engine no. 67D (after 1978) |
+| 37 | 930 107 347 04 | Oil hose | 1 | N/A | oil hose whose extracted notes mix an up-to band and a later from-engine band; oil-line routing is outside this bottom-end pass |
+| 38 | 930 107 348 11 | Oil hose | 1 | excluded | from engine no. 67D (after 1978) |
+| 38 | 930 107 348 12 | Oil hose | 1 | excluded | from engine no. 67D (after 1978) |
 | 39 | N 020 825 1 | Cutting ring | 2 | N/A | oil tank, filler, dipstick, external oil lines and their hardware: body-mounted, not part of the engine assembly |
 | 40 | 900 104 003 02 | Union nut | 2 | N/A | oil tank, filler, dipstick, external oil lines and their hardware: body-mounted, not part of the engine assembly |
 | 40 | 900 104 003 03 | Union nut | 2 | alt | alternative to 104-00 #40 |
 | 41 | 930 207 356 00 | Retaining bracket | 1 | excluded | model years 80-: not a 1978 engine |
 | 43 | N 011 524 7 | Washer | 1 | excluded | model years 80-: not a 1978 engine |
-| 44 | 900 123 115 30 | Sealing ring | 4 | excluded | from engine no. 63D (after 1978) |
-| 45 | N 021 073 1 | Banjo bolt | 2 | excluded | from engine no. 63D (after 1978) |
+| 44 | 900 123 115 30 | Sealing ring | 4 | excluded | from engine no. 67D (after 1978) |
+| 45 | N 021 073 1 | Banjo bolt | 2 | excluded | from engine no. 67D (after 1978) |
 | 46 | 930 107 341 00 | Support | 1 | N/A | oil tank, filler, dipstick, external oil lines and their hardware: body-mounted, not part of the engine assembly |
 | 47 | 930 107 342 01 | Support | 1 | N/A | oil tank, filler, dipstick, external oil lines and their hardware: body-mounted, not part of the engine assembly |
 | 48 | 900 119 059 02 | Pan-head screw | 2 | N/A | oil tank, filler, dipstick, external oil lines and their hardware: body-mounted, not part of the engine assembly |
@@ -780,6 +780,16 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 16 | N 011 524 7 | Washer | 2 | modelled | `fan-housing` washer |
 | 17 | 900 076 010 02 | Nut | 2 | modelled | `fan-housing` nut |
 
+## 105-10: Engine covers / cylinder baffles
+
+| pos | part no. | description | qty | status | source / reason |
+|---|---|---|---|---|---|
+| 14 | 930 106 023 00 | Baffle plate | 4 | modelled | `cyl-baffle-14` |
+| 15 | 930 106 221 00 | Baffle plate | 2 | modelled | `cyl-baffle-15` |
+| 16 | 930 106 222 00 | Baffle plate | 2 | modelled | `cyl-baffle-16` |
+| 17 | 930 106 228 00 | Leaf spring | 6 | modelled | `cyl-baffle-spring` |
+| 18 | 930 106 301 00 | Cover plate | 2 | modelled | `cyl-cover-plate` |
+
 ## 106-00: Air cleaner 911 SC
 
 | pos | part no. | description | qty | status | source / reason |
@@ -842,10 +852,10 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 
 | pos | part no. | description | qty | status | source / reason |
 |---|---|---|---|---|---|
-| 1 | 911 110 967 00 | Fuel distributor | 1 | modelled | `mixture-control-unit` distributor |
-| 1 | 911 110 977 00 | Fuel distributor | 1 | alt | alternative to 107-00 #1 |
-| 2 | 911 110 965 00 | Mass air flow meter | 1 | modelled | `mixture-control-unit` meter |
-| 2 | 911 110 975 00 | Mass air flow meter | 1 | alt | alternative to 107-00 #2 |
+| 1 | 911 110 967 00 | Fuel distributor | 1 | excluded | engine type 03/09/13/19: not 930/04 |
+| 1 | 911 110 977 00 | Fuel distributor | 1 | excluded | engine type 10: not 930/04 |
+| 2 | 911 110 965 00 | Mass air flow meter | 1 | excluded | engine type 03/09/13/19: not 930/04 |
+| 2 | 911 110 975 00 | Mass air flow meter | 1 | excluded | engine type 10: not 930/04 |
 | 3 | 911 110 932 00 | Sealing ring | 1 | N/A | internal part of the mixture control unit (fuel distributor + air-flow meter), modelled as one unit |
 | 4 | 911 110 933 00 | Pan-head screw | 3 | N/A | internal part of the mixture control unit (fuel distributor + air-flow meter), modelled as one unit |
 | 5 | 911 110 947 02 | Stop bar | 1 | N/A | internal part of the mixture control unit (fuel distributor + air-flow meter), modelled as one unit |
@@ -959,6 +969,76 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 72 | 911 110 077 01 | Pull rod | 1 | alt | alternative to 107-10 #72 |
 | 73 | 911 110 165 02 | Tension spring | 1 | modelled | `throttle-linkage` spring2 |
 
+## 108-00: Air injection
+
+| pos | part no. | description | qty | status | source / reason |
+|---|---|---|---|---|---|
+| 1 | 911 113 113 02 | Bracket | 1 | modelled | `air-pump-bracket` |
+| 2 | 911 113 121 00 | Rubber mounting | 2 | modelled | `air-rubber` |
+| 3 | 911 113 122 00 | Spacer sleeve | 2 | modelled | `air-sleeve` |
+| 4 | 900 151 008 02 | Washer | 1 | modelled | `air-bracket-nuts` washer × 1 |
+| 4 | 911 113 162 00 | Washer | 1 | modelled | `air-bracket-nuts` washer × 1 |
+| 5 | 900 076 025 02 | Hexagon nut | 6 | modelled | `air-bracket-nuts` nut × 2 + `air-pump-fasteners` nut × 4 |
+| 6 | N 012 241 8 | Spring washer | 6 | modelled | `air-bracket-nuts` spring × 2 + `air-pump-fasteners` spring × 4 |
+| 7 | 911 113 111 03 | Air pump | 1 | modelled | `air-pump` |
+| 8 | 911 113 158 01 | Pulley | 1 | modelled | `air-pump-pulley` |
+| 9 | 900 067 008 02 | Pan-head screw | 4 | modelled | `air-pulley-screws` |
+| 10 | N 012 226 5 | Spring washer | 4 | modelled | `air-pulley-washers` |
+| 11 | 900 249 006 02 | Countersunk screw | 1 | modelled | `air-pump-fasteners` pivot |
+| 12 | 911 113 126 02 | Retaining bracket | 1 | modelled | `air-retainer` |
+| 13 | 930 110 194 00 | Bonded rubber buffer | 2 | modelled | `air-buffer` |
+| 14 | 911 113 125 02 | Support | 1 | modelled | `air-pump-strap` |
+| 15 | 900 075 085 02 | Hexagon-head bolt | 1 | modelled | `air-pump-fasteners` bolt |
+| 16 | 900 025 007 02 | Washer | 1 | modelled | `air-pump-fasteners` washer |
+| 17 | 911 113 117 02 | Air cleaner | 1 | modelled | `air-pump-cleaner` |
+| 18 | 911 113 145 02 | Union | 6 | N/A | air-tube unions: Top End builds the air tube (108-00 #20) and its fittings |
+| 19 | 900 123 033 20 | Sealing ring | 6 | N/A | sealing rings on the air tube: Top End, with the tube |
+| 20 | 911 113 043 01 | Air tube | 1 | N/A | air tube: Top End. The check valve waits on AIR_CHECK_VALVE_OUTLET for an upward M24 spigot |
+| 21 | 900 123 060 30 | Sealing ring | 1 | modelled | `air-sealing-ring` |
+| 22 | 930 113 147 01 | Diverter valve | 1 | modelled | `air-diverter` |
+| 23 | 930 113 146 01 | Support | 1 | modelled | `air-diverter-support` |
+| 24 | 999 072 005 09 | Hexagon nut | 2 | modelled | `air-diverter-nuts` nut |
+| 25 | N 012 226 5 | Spring washer | 2 | modelled | `air-diverter-nuts` spring |
+| 26 | 911 113 115 01 | Check valve | 1 | modelled | `air-check-valve` |
+| 27 | 911 113 146 00 | Gasket | 1 | modelled | `air-check-gasket` |
+| 28 | 930 113 138 03 | Hose | 1 | modelled | `air-hose-pump` |
+| 29 | 930 113 137 01 | Hose | 1 | modelled | `air-hose-valve` |
+| 30 | 930 113 139 02 | Hose | 1 | modelled | `air-hose-dump` |
+| 31 | 999 239 003 40 | Hose | 1 | modelled | `air-hose-vacuum` |
+| 32 | 999 512 038 02 | Hose clamp | 1 | modelled | `air-clamp-pump` |
+| 32A | PCG 512 237 02 | Hose clamp | 1 | modelled | `air-clamp-valve` |
+| 33 | 999 512 296 02 | Hose clamp | 2 | modelled | `air-clamp-dump` |
+| 34 | 900 192 021 50 | V-belt | 1 | modelled | `air-pump-belt` |
+| 35 | 911 106 208 00 | Pulley | 1 | N/A | same pulley as 105-00 #8 (fan-pulley 911 106 208 00); the outer groove is on that part |
+
+## 108-10: Heater blower
+
+| pos | part no. | description | qty | status | source / reason |
+|---|---|---|---|---|---|
+| 1 | 911 624 151 02 | Heater blower | 1 | modelled | `heater-blower` |
+| 2 | 911 211 139 02 | Support | 1 | modelled | `heater-blower-support` |
+| 3 | 999 512 244 02 | Clamp | 1 | modelled | `heater-clamp-sp` |
+| 4 | 911 211 135 02 | Distributing piece | 1 | modelled | `heater-dist-piece` |
+| 5 | — | Tapping screw | 2 | modelled | `heater-blower-hardware` screw |
+| 6 | — | Hexagon nut | 2 | modelled | `heater-blower-hardware` nut |
+| 7 | — | Washer | 2 | modelled | `heater-blower-hardware` washer |
+| 8 | 911 211 272 02 | Hose | 1 | modelled | `heater-hose-link` |
+| 9 | — | Hose clamp | 2 | modelled | `heater-clamp-band` |
+| 10 | 901 211 195 00 | Heater hose | 1 | modelled | `heater-hose-left` |
+| 11 | 911 211 277 00 | Support | 2 | modelled | `heater-hose-supports` |
+| 12 | — | Hose clamp | 6 | modelled | `heater-clamps` |
+| 13 | 911 211 522 00 | Heater hose | 1 | modelled | `heater-hose-right` |
+| 14 | 930 106 326 01 | Hot-air socket | 1 | modelled | `heater-socket` |
+| 15 | — | Washer | 2 | modelled | `heater-blower-hardware` washer2 |
+| 16 | — | Hexagon nut | 2 | modelled | `heater-blower-hardware` nut2 |
+| 17 | 911 211 139 03 | Support | 1 | excluded | air-conditioning option M399/M559 |
+| 1A | 911 624 151 04 | Heater blower | 1 | excluded | model years 80-: not a 1978 engine |
+
+## 109-00: Engine carrier
+
+| pos | part no. | description | qty | status | source / reason |
+|---|---|---|---|---|---|
+
 ## 202-00: Exhaust system 911 SC
 
 | pos | part no. | description | qty | status | source / reason |
@@ -970,23 +1050,23 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 3 | 900 074 282 02 | Screw | 3 | modelled | `muffler-hardware` screw |
 | 4 | 900 910 097 02 | Lock nut | 3 | modelled | `muffler-hardware` nut |
 | 5 | 901 111 157 04 | Clamp | 2 | modelled | `muffler-hardware` clamp |
-| 6 | 930 111 183 03 | Front muffler | 1 | modelled | `pre-muffler` |
-| 13 | 930 111 192 01 | Gasket | 2 | modelled | `pre-muffler` gasket |
+| 6 | 930 111 183 03 | Front muffler | 1 | excluded | RoW pre-silencer; 930/04 front element is catalytic converter 930 113 228 01 |
+| 13 | 930 111 192 01 | Gasket | 2 | modelled | `catalytic-converter` gasket |
 | 13 | 930 111 192 03 | Gasket | 2 | alt | alternative to 202-00 #13 |
 | 13 | 930 111 192 04 | Gasket | 2 | alt | alternative to 202-00 #13 |
 | 13 | 930 111 192 06 | Gasket | 2 | alt | alternative to 202-00 #13 |
-| 14 | 930 111 193 01 | Gasket | 1 | modelled | `pre-muffler` gasket1 |
+| 14 | 930 111 193 01 | Gasket | 1 | modelled | `catalytic-converter` gasket1 |
 | 14 | 930 111 193 04 | Gasket | 1 | alt | alternative to 202-00 #14 |
 | 14 | 930 111 193 05 | Gasket | 1 | alt | alternative to 202-00 #14 |
 | 14 | 930 111 193 07 | Gasket | 1 | alt | alternative to 202-00 #14 |
-| 15 | 900 074 282 02 | Screw | 6 | modelled | `pre-muffler` bolt |
-| 16 | 900 910 097 02 | Lock nut | 6 | modelled | `pre-muffler` nut |
-| 17 | 930 111 169 05 | Exhaust line | 1 | modelled | `pre-muffler` pipe |
-| 18 | 930 111 157 01 | Compensating socket | 1 | modelled | `pre-muffler` socket |
-| 19 | 911 111 187 00 | Clamp | 2 | modelled | `pre-muffler` clamp |
-| 20 | 900 074 267 02 | Hexagon-head bolt | 2 | modelled | `pre-muffler` clampbolt |
-| 21 | 900 910 096 02 | Lock nut | 2 | modelled | `pre-muffler` clampnut |
-| 22 | 911 111 188 02 | Support washer | 1 | modelled | `pre-muffler` washer |
+| 15 | 900 074 282 02 | Screw | 6 | modelled | `catalytic-converter` bolt |
+| 16 | 900 910 097 02 | Lock nut | 6 | modelled | `catalytic-converter` nut |
+| 17 | 930 111 169 05 | Exhaust line | 1 | modelled | `catalytic-converter` pipe |
+| 18 | 930 111 157 01 | Compensating socket | 1 | modelled | `catalytic-converter` socket |
+| 19 | 911 111 187 00 | Clamp | 2 | modelled | `catalytic-converter` clamp |
+| 20 | 900 074 267 02 | Hexagon-head bolt | 2 | modelled | `catalytic-converter` clampbolt |
+| 21 | 900 910 096 02 | Lock nut | 2 | modelled | `catalytic-converter` clampnut |
+| 22 | 911 111 188 02 | Support washer | 1 | modelled | `catalytic-converter` washer |
 | 23 | 911 111 189 03 | Gasket | 1 | modelled | `muffler-hardware` gasket2 |
 | 26 | 930 211 025 01 | Heat exchanger | 2 | modelled | `heat-exchanger-*` |
 | 27 | 911 211 131 00 | Adapter | 2 | modelled | `heater-adapters` |
@@ -1007,6 +1087,46 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 37 | 900 025 007 03 | Washer | 2 | alt | alternative to 202-00 #37 |
 | 38 | 900 075 087 02 | Hexagon-head bolt | 2 | modelled | `muffler-bracket` bolt |
 | 38 | 900 075 087 03 | Hexagon-head bolt | 2 | alt | alternative to 202-00 #38 |
+| 6 | 930 113 228 01 | Catalytic converter | 1 | modelled | `catalytic-converter` |
+| 6A | 911 606 123 00 | Oxygen sensor | 1 | N/A | oxygen sensor 911 606 123 00: 1978 930/04 has no lambda sensor |
+| 7 | 930 113 233 01 | Heat shield | 1 | modelled | `cat-cover` |
+| 8 | 930 113 153 00 | Cap | 1 | modelled | `cat-cap` |
+| 8A | — | Sealing ring | 1 | modelled | `cat-plug` ring |
+| 8B | — | Screw plug | 1 | modelled | `cat-plug` |
+| 9 | — | Hexagon nut | 8 | modelled | `cat-cover-fasteners` nut |
+| 10 | — | Hexagon-head bolt | 8 | modelled | `cat-cover-fasteners` bolt |
+| 11 | — | Washer | 8 | modelled | `cat-cover-fasteners` washer |
+| 12 | 930 113 196 00 | Retaining bracket | 1 | modelled | `cat-bracket` |
+
+## 202-05: Exhaust gas recirculation
+
+| pos | part no. | description | qty | status | source / reason |
+|---|---|---|---|---|---|
+| 1 | 930 113 190 01 | Pipeline | 1 | modelled | `egr-pipe-feed` |
+| 2 | — | Gasket | 1 | modelled | `egr-gasket` |
+| 2A | — | Throttle plate | 1 | excluded | California (CAL) market |
+| 3 | — | Retaining bracket | 1 | modelled | `egr-bracket` |
+| 4 | — | Hexagon-head bolt | 2 | modelled | `egr-fasteners` bolt |
+| 5 | — | Spring washer | 3 | modelled | `egr-fasteners` spring |
+| 6 | — | Hexagon nut | 1 | modelled | `egr-fasteners` nut |
+| 7 | 911 113 183 01 | EGR valve | 1 | modelled | `egr-valve` |
+| 8 | — | Hexagon-head bolt | 2 | modelled | `egr-fasteners` bolt2 |
+| 9 | — | Spring washer | 2 | modelled | `egr-fasteners` spring2 |
+| 10 | — | Hexagon nut | 2 | modelled | `egr-fasteners` nut2 |
+| 11 | 911 113 177 03 | Pipeline | 1 | modelled | `egr-pipe-return` |
+| 12 | — | Sealing rubber | 1 | modelled | `egr-seal` |
+| 13 | — | Pressure screw | 1 | modelled | `egr-fasteners` screw |
+| 14 | — | Washer | 1 | modelled | `egr-fasteners` washer |
+| 15 | 999 239 003 40 | Hose | 1 | modelled | `egr-hose-short` |
+| 16 | 999 239 003 40 | Hose | 1 | modelled | `egr-hose-long` |
+| 17 | 999 239 003 40 | Hose | 2 | modelled | `egr-hose-pair` hose |
+| 18 | — | T-piece | 1 | modelled | `egr-tee` |
+| 19 | — | Buffer | 1 | modelled | `egr-buffer` |
+
+## 202-20: Exhaust system, catalytic converter lines
+
+| pos | part no. | description | qty | status | source / reason |
+|---|---|---|---|---|---|
 
 ## 301-00: Clutch
 
@@ -1055,7 +1175,7 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 8 | 930 602 904 01 | Distributor cap | 1 | alt | alternative to 901-00 #8 |
 | 9 | 930 602 907 01 | Electric line | 1 | modelled | `ignition-leads` line |
 | 10 | 930 602 909 00 | Dust cover | 1 | N/A | dust cover under the distributor cap (internal, hidden by the cap) |
-| 11 | 901 602 502 00 | Ignition transformer | 1 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
+| 11 | 901 602 502 00 | Ignition transformer | 1 | excluded | air-conditioning option M399/M559 |
 | 12 | 911 602 801 00 | Protection cap | 1 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 13 | 900 025 007 02 | Washer | 2 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 13 | 900 025 007 03 | Washer | 2 | alt | alternative to 901-00 #13 |
