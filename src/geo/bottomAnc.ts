@@ -9,7 +9,7 @@ import { CYL_Z } from '../data/layout';
 import { FAN, AIR_CHECK_VALVE_OUTLET, CHECK_HEX_H, heaterStub, EGR_FEED_PORT } from './aux';
 import { THROTTLE } from './induction';
 import { frame } from './instancing';
-import { Part, cyl, cylBetween, lathe, box, boxMM, hexNut, tube, torus, yToZ, yToX, type V3 } from './util';
+import { Part, cyl, cylBetween, lathe, box, boxMM, hexNut, tube, torus, yToZ, yToX, extrude, polyShape, circlePath, csgSub, type V3 } from './util';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const Y = V(0, 1, 0);
@@ -21,31 +21,125 @@ const slab = (min: V3, max: V3) => {
   return g;
 };
 const plate = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d, 2, 2, 2);
+const vsub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const vadd = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const vmul = (a: V3, s: number): V3 => [a[0] * s, a[1] * s, a[2] * s];
+const vlen = (a: V3) => Math.hypot(a[0], a[1], a[2]);
+const vnorm = (a: V3): V3 => { const L = vlen(a) || 1; return vmul(a, 1 / L); };
+const vdot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const vcross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
-/** Pump axis. Pitch radius 65 against the fan's 36 makes the 9.5×950 belt at about 315 mm centres. Body stops before the pulley. */
-export const AIR_PUMP = { x: -270, y: 50, z: 336, r: 34, half: 14 };
+/**
+ * Centreline with circular fillets. Radius is the minimum bend (about 2× the hose OD);
+ * a short leg shrinks the fillet so the ends stay put.
+ */
+function filletPath(pts: V3[], radius: number): V3[] {
+  const pushLine = (out: V3[], a: V3, b: V3) => {
+    const d = vsub(b, a), L = vlen(d);
+    const n = Math.max(1, Math.ceil(L / 8));
+    for (let i = 1; i <= n; i++) out.push(vadd(a, vmul(d, i / n)));
+  };
+  if (pts.length < 3) {
+    const out: V3[] = [pts[0]];
+    for (let i = 1; i < pts.length; i++) pushLine(out, pts[i - 1], pts[i]);
+    return out;
+  }
+  const out: V3[] = [pts[0]];
+  let cursor = pts[0];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], b = pts[i], c = pts[i + 1];
+    const d0 = vnorm(vsub(b, a)), d1 = vnorm(vsub(c, b));
+    const cos = Math.min(1, Math.max(-1, vdot(d0, d1)));
+    const phi = Math.acos(cos);
+    if (phi < 0.12 || phi > 2.8) { pushLine(out, cursor, b); cursor = b; continue; }
+    let t = radius * Math.tan(phi / 2);
+    const maxT = 0.46 * Math.min(vlen(vsub(b, a)), vlen(vsub(c, b)));
+    if (t > maxT) t = maxT;
+    const r = t / Math.tan(phi / 2);
+    const t0 = vadd(b, vmul(d0, -t));
+    const t1 = vadd(b, vmul(d1, t));
+    const axis = vnorm(vcross(d0, d1));
+    const inward = vnorm(vcross(axis, d0));
+    const center = vadd(t0, vmul(inward, r));
+    pushLine(out, cursor, t0);
+    const u0 = vnorm(vsub(t0, center)), u1 = vnorm(vsub(t1, center));
+    const om = Math.acos(Math.min(1, Math.max(-1, vdot(u0, u1))));
+    const steps = Math.max(4, Math.ceil(om / 0.22));
+    for (let s = 1; s <= steps; s++) {
+      const k = s / steps;
+      let dir: V3;
+      if (om < 1e-3) dir = u0;
+      else {
+        const s0 = Math.sin((1 - k) * om) / Math.sin(om);
+        const s1 = Math.sin(k * om) / Math.sin(om);
+        dir = vnorm(vadd(vmul(u0, s0), vmul(u1, s1)));
+      }
+      out.push(vadd(center, vmul(dir, r)));
+    }
+    cursor = t1;
+  }
+  pushLine(out, cursor, pts[pts.length - 1]);
+  return out;
+}
+
+/** Pump axis. Pitch radius 65 against the fan's 36 makes the 9.5×950 belt at about 315 mm centres. */
+export const AIR_PUMP = { x: -270, y: 50, z: 336, r: 58, half: 29 };
 const P = AIR_PUMP;
+/** Cast housing, aft of the pulley. The pulley valley stays at z 314 so the belt is unchanged. */
+const BODY_Z0 = 328, BODY_Z1 = 386, BODY_ZC = (BODY_Z0 + BODY_Z1) / 2;
+/** Four-hole bolt circle on the pressed pulley (108-00 #9/#10). */
+const PULLEY_BOLT_R = 36, PULLEY_BOLT_A0 = 0.4;
+/** Outlet boss on top of the housing. The hose runs from `neck` (on the casting) through `tip`. */
+const PUMP_OUT = {
+  neck: [P.x - 6, P.y + P.r - 10, BODY_ZC] as V3,
+  tip: [P.x - 34, P.y + P.r + 18, BODY_ZC + 8] as V3,
+};
+/** Inboard ears the bracket and the strap land on. */
+const PUMP_EAR_LO: V3 = [-198, -4, BODY_ZC];
+const PUMP_EAR_HI: V3 = [-262, 124, BODY_ZC];
+/** Bracket eyes: pump, pivot (#11), case. Rubbers sit in the pivot and the case eye. */
+const BR_PUMP: V3 = [-186, -8, BODY_ZC];
+const BR_PIVOT: V3 = [-148, -38, BODY_ZC];
+const BR_CASE: V3 = [-140, 82, BODY_ZC];
 
 export function airPump() {
   const p = new Part();
-  // Cast body, pulley end toward −Z. The shaft enters the pulley bore (pressed). Pulley valley is z 314.
-  p.add(yToZ(cyl(P.r, P.half * 2, 40)), 'castAlu', [P.x, P.y, P.z]);
-  p.add(yToZ(cyl(12, 22, 20)), 'machinedAlu', [P.x, P.y, P.z - P.half - 8]);
-  p.add(yToZ(cyl(20, 8, 24)), 'castAlu', [P.x, P.y, P.z + P.half - 2]);
-  // Outboard inlet (upper) and outlet (lower). Both stop short of the pivot foot and the pulley disc.
-  p.add(yToX(cyl(8, 18, 16)), 'castAlu', [P.x - P.r - 6, P.y + 8, P.z + 4]);
-  p.add(yToX(cyl(7, 18, 14)), 'castAlu', [P.x - P.r - 5, P.y - 26, P.z + 4]);
-  // Pivot foot is aft of the pulley (disc ends z 322) so the belt groove does not sweep the ear.
-  p.add(boxMM([P.x - 14, -8, 330], [P.x + 14, P.y - P.r, 346]), 'castAlu');
+  // Round vane housing. Raised front face and hub nut face the pulley (−Z). Cover screws on the face.
+  const face: [number, number][] = [
+    [16, BODY_Z0 - 10], [28, BODY_Z0 - 10], [40, BODY_Z0 - 4], [P.r - 4, BODY_Z0],
+    [P.r, BODY_Z0 + 6], [P.r - 2, BODY_Z1 - 8], [P.r - 10, BODY_Z1], [18, BODY_Z1], [16, BODY_Z0 - 10],
+  ];
+  p.add(yToZ(lathe(face, 40)), 'castAlu', [P.x, P.y, 0]);
+  p.add(yToZ(hexNut(19, 8)), 'yellowZinc', [P.x, P.y, BODY_Z0 - 12]);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.3;
+    p.add(yToZ(cyl(2.2, 6, 8)), 'darkSteel', [P.x + 32 * Math.cos(a), P.y + 32 * Math.sin(a), BODY_Z0 - 2]);
+  }
+  // Top and bottom cast ears. The lower one meets the bracket; the upper one takes the strap.
+  p.add(cylBetween([P.x + 20, P.y - 36, BODY_ZC], PUMP_EAR_LO, 11, 14), 'castAlu');
+  p.add(cyl(13, 10, 14).rotateX(Math.PI / 2), 'castAlu', PUMP_EAR_LO);
+  p.add(cylBetween([P.x + 8, P.y + P.r - 8, BODY_ZC], PUMP_EAR_HI, 9, 12), 'castAlu');
+  p.add(cyl(11, 8, 12).rotateX(Math.PI / 2), 'castAlu', PUMP_EAR_HI);
+  // Angled outlet boss and hose spigot on top.
+  p.add(cylBetween(PUMP_OUT.neck, PUMP_OUT.tip, 11, 14), 'castAlu');
+  p.add(cylBetween(vadd(PUMP_OUT.tip, vmul(vnorm(vsub(PUMP_OUT.neck, PUMP_OUT.tip)), 16)), PUMP_OUT.tip, 6.2, 12), 'castAlu');
+  // Inlet neck, outboard, for the mushroom cleaner.
+  p.add(yToX(cyl(8, 22, 12)), 'castAlu', [P.x - P.r - 8, P.y + 14, BODY_ZC - 6]);
   return p.g;
 }
 export function airPumpPulley() {
   const p = new Part();
   const z = FAN.zPumpBelt;
+  // Pressed-steel sheave, about the housing diameter. Valley radius 65 is the belt pitch.
   const prof: [number, number][] = [
-    [14, z - 8], [58, z - 8], [72, z - 4], [65, z], [72, z + 4], [58, z + 8], [14, z + 8], [14, z - 8],
+    [12, z - 8], [50, z - 8], [72, z - 4], [65, z], [72, z + 4], [50, z + 8], [12, z + 8], [12, z - 8],
   ];
-  p.add(yToZ(lathe(prof, 40)), 'yellowZinc', [P.x, P.y, 0]);
+  const disc = yToZ(lathe(prof, 48)).translate(P.x, P.y, 0);
+  const cutters = [0, 1, 2, 3].map((i) => {
+    const a = PULLEY_BOLT_A0 + (i / 4) * Math.PI * 2;
+    return yToZ(cyl(3.3, 28, 10)).translate(P.x + PULLEY_BOLT_R * Math.cos(a), P.y + PULLEY_BOLT_R * Math.sin(a), z);
+  });
+  p.add(csgSub(disc, ...cutters), 'yellowZinc');
   return p.g;
 }
 export function airPumpBelt() {
@@ -69,27 +163,44 @@ export function airPumpBelt() {
   p.add(new THREE.ExtrudeGeometry(sh, { steps: 160, extrudePath: curve, bevelEnabled: false }), 'rubber');
   return p.g;
 }
-/** Rubber-mount centres (108-00 #2). Shared by the bracket feet, sleeves and nuts. */
-export const AIR_MOUNTS: V3[] = [[P.x + 70, 30, P.z + 10], [P.x + 70, 78, P.z + 10]];
+/** Rubber-mount centres (108-00 #2). Pivot eye and case eye, bolt axis +Z. */
+export const AIR_MOUNTS: V3[] = [BR_PIVOT, BR_CASE];
 
 export function airPumpBracket() {
   const p = new Part();
-  // Feet hold the rubber mountings. The arm stays aft of the chain box (ends z 282) and clear of the pump body.
-  for (const [x, y, z] of AIR_MOUNTS) p.add(slab([x - 10, y - 18, z - 16], [x + 10, y + 18, z + 16]), 'castAlu');
-  p.add(slab([P.x + 38, 44, P.z + 4], [AIR_MOUNTS[0][0] + 10, 62, P.z + 16]), 'castAlu');
+  // Triangular cast arm. Eyes: pump (on the lower ear), pivot (#11), case.
+  const shape = polyShape([
+    [BR_PUMP[0], BR_PUMP[1]], [BR_PIVOT[0], BR_PIVOT[1]], [BR_CASE[0], BR_CASE[1]],
+  ]);
+  const holeAt = (x: number, y: number, r: number) => { shape.holes.push(circlePath(r, x, y) as THREE.Path); };
+  holeAt(-168, -6, 6);
+  holeAt(-156, 28, 7);
+  p.add(extrude(shape, 7).translate(0, 0, BODY_ZC - 3.5), 'castAlu');
+  const eye = (at: V3, r = 12) => p.add(yToZ(lathe([[5.5, -7], [r, -7], [r, 7], [5.5, 7]], 18)), 'castAlu', at);
+  eye(BR_PUMP, 13);
+  eye(BR_PIVOT, 12);
+  eye(BR_CASE, 13);
   return p.g;
 }
 export function airPumpStrap() {
   const p = new Part();
-  // Slotted strap up from the pump, then inboard. Shares the retainer's outboard face. Aft of the belt plane.
-  p.add(slab([P.x - 6, P.y + 46, P.z + 6], [P.x + 6, 150, P.z + 18]), 'zincPlate');
-  p.add(slab([P.x - 6, 146, P.z + 6], [-188, 158, P.z + 18]), 'zincPlate');
+  // Flat bar with a long slot, from the upper ear inboard, and a bent end tab.
+  const x0 = -268, x1 = -196, y = 128, w = 14;
+  const shape = polyShape([[x0, y - w / 2], [x1, y - w / 2], [x1, y + w / 2], [x0, y + w / 2]]);
+  const slot = new THREE.Path();
+  slot.moveTo(x0 + 14, y - 1.8); slot.lineTo(x1 - 16, y - 1.8); slot.lineTo(x1 - 16, y + 1.8); slot.lineTo(x0 + 14, y + 1.8); slot.closePath();
+  shape.holes.push(slot);
+  p.add(extrude(shape, 3).translate(0, 0, BODY_ZC + 6), 'zincPlate');
+  // Bent tab at the inboard end, down toward the clip.
+  p.add(box(14, 3, 22), 'zincPlate', [-190, 118, BODY_ZC - 2], [0.9, 0, 0]);
   return p.g;
 }
 export function airRetainer() {
   const p = new Part();
-  // On the left of the fan housing, aft of the drum (z 296), clear of the shell. Outboard face meets the strap.
-  p.add(slab([-188, 148, 344], [-176, 240, 360]), 'zincPlate');
+  // Small bent clip (108-00 #12), not a tall plate. Aft of the fan drum.
+  p.add(slab([-196, 108, 346], [-182, 122, 349]), 'zincPlate');
+  p.add(slab([-185, 108, 346], [-182, 111, 364]), 'zincPlate');
+  p.add(slab([-196, 108, 361], [-182, 122, 364]), 'zincPlate');
   return p.g;
 }
 export function airCheckValve() {
@@ -110,7 +221,13 @@ export function checkValveInlet(): V3 {
 }
 export function airDiverter() {
   const p = new Part();
-  p.add(boxMM([-160, 8, 430], [-124, 44, 466]), 'castAlu');
+  // Round diaphragm cover facing aft, cast body under it. Nipple tips stay where the hoses already seat.
+  p.add(yToZ(lathe([
+    [6, 440], [16, 442], [18, 446], [18, 458], [14, 462], [8, 462], [6, 456], [6, 440],
+  ], 32)), 'castAlu', [-142, 36, 0]);
+  p.add(lathe([
+    [10, 8], [16, 10], [16, 28], [12, 34], [10, 34],
+  ], 24), 'castAlu', [-142, 8, 448]);
   // Inlet on the outboard face, outlet on top, dump aft. Each nipple stands proud of the body.
   p.add(yToX(cyl(7, 16, 12)), 'castAlu', [-164, 26, 448]);
   p.add(cyl(7, 16, 12), 'castAlu', [-142, 48, 448]);
@@ -150,16 +267,26 @@ export const EGR_VAC_PORT = {
 };
 export function airDiverterSupport() {
   const p = new Part();
-  // Plate shares the valve's bottom face. The ear shares the inboard face, clear of the inlet nipple.
-  p.add(slab([-148, 4, 436], [-128, 8, 460]), 'zincPlate');
-  p.add(slab([-124, 8, 440], [-116, 30, 452]), 'zincPlate');
+  // Flat mounting plate under the diaphragm, with an ear clear of the inlet nipple.
+  const shape = polyShape([[-156, 434], [-128, 434], [-128, 462], [-156, 462]]);
+  shape.holes.push(circlePath(3.2, -146, 444) as THREE.Path);
+  shape.holes.push(circlePath(3.2, -136, 454) as THREE.Path);
+  const g = extrude(shape, 3);
+  g.rotateX(Math.PI / 2);
+  g.translate(0, 8, 0);
+  p.add(g, 'zincPlate');
+  p.add(slab([-124, 8, 440], [-116, 28, 452]), 'zincPlate');
   return p.g;
 }
 export function airPumpCleaner() {
   const p = new Part();
-  // Canister on the outboard inlet, clear of the pulley disc (disc ends z 322, outer x −342).
-  p.add(yToX(cyl(15, 32, 18)), 'blackPlastic', [-380, P.y + 8, P.z + 4]);
-  p.add(yToX(cyl(9, 36, 12)), 'blackPlastic', [-346, P.y + 8, P.z + 4]);
+  // Mushroom filter: dome, clamp neck, and a short snout onto the pump inlet.
+  // Outboard of the pulley lip (x −342) and aft of the belt plane.
+  p.add(lathe([
+    [6, 0], [14, 0], [18, 4], [20, 14], [16, 26], [8, 32], [2, 34],
+  ], 28), 'blackPlastic', [-378, P.y + 8, BODY_ZC - 6]);
+  p.add(yToX(cyl(7, 28, 12)), 'blackPlastic', [-348, P.y + 14, BODY_ZC - 6]);
+  p.add(torus(8, 1.4, 6, 16).rotateY(Math.PI / 2), 'zincPlate', [-360, P.y + 14, BODY_ZC - 6]);
   return p.g;
 }
 
@@ -168,18 +295,29 @@ export const HEATER_BLOWER = { x: 340, y: 140, z: 410 };
 export function heaterBlower() {
   const p = new Part();
   const b = HEATER_BLOWER;
-  p.add(yToZ(cyl(40, 60, 28)), 'blackPlastic', [b.x, b.y, b.z]);
-  // Inlet on the fan side, outlet underneath, mounting lug sharing the support's inboard face.
-  p.add(yToZ(cyl(12, 16, 14)), 'blackPlastic', [b.x, b.y, b.z - 38]);
-  p.add(cyl(14, 20, 14), 'blackPlastic', [b.x, b.y - 44, b.z]);
-  p.add(boxMM([b.x - 40, b.y - 12, b.z - 10], [b.x - 28, b.y + 8, b.z + 8]), 'blackPlastic');
+  // Scroll housing. The round inlet faces the fan (−Z); the motor can sticks out the back.
+  p.add(yToZ(lathe([
+    [16, -26], [34, -26], [46, -18], [48, 16], [40, 24], [24, 28], [18, 22], [16, -26],
+  ], 36)), 'blackPlastic', [b.x, b.y, b.z]);
+  p.add(yToZ(cyl(22, 46, 24)), 'blackPlastic', [b.x, b.y, b.z + 48]);
+  p.add(yToZ(cyl(16, 8, 16)), 'blackPlastic', [b.x, b.y, b.z + 74]);
+  p.add(yToZ(cyl(6, 8, 10)), 'darkSteel', [b.x, b.y, b.z + 80]);
+  // Outlet nipple down, same place as before so the distributing piece still seats.
+  p.add(cyl(14, 20, 16), 'blackPlastic', [b.x, b.y - 44, b.z]);
+  // Mounting foot. Inboard face meets the support.
+  p.add(boxMM([b.x - 40, b.y - 18, b.z - 16], [b.x - 28, b.y + 12, b.z + 14]), 'blackPlastic');
+  p.add(boxMM([b.x - 36, b.y - 22, b.z - 8], [b.x - 30, b.y - 16, b.z + 8]), 'blackPlastic');
   return p.g;
 }
 export function heaterBlowerSupport() {
   const p = new Part();
   const b = HEATER_BLOWER;
-  // Ends on the blower lug's inboard face. Aft of the fan drum (z 296).
-  p.add(slab([b.x - 90, b.y - 12, b.z - 10], [b.x - 40, b.y + 8, b.z + 8]), 'zincPlate');
+  // Cast arm with a lightening hole, ending on the blower foot. Aft of the fan drum.
+  const x0 = b.x - 96, x1 = b.x - 40.6, y0 = b.y - 20, y1 = b.y + 18;
+  const shape = polyShape([[x0, y0 + 6], [x1, y0], [x1, y1], [x0 + 18, y1], [x0, (y0 + y1) / 2 + 8]]);
+  shape.holes.push(circlePath(7, (x0 + x1) / 2 - 4, b.y) as THREE.Path);
+  p.add(extrude(shape, 6).translate(0, 0, b.z - 3), 'zincPlate');
+  p.add(boxMM([x0 - 2, y0 - 2, b.z - 10], [x0 + 18, y0 + 3, b.z + 10]), 'zincPlate');
   return p.g;
 }
 
@@ -187,8 +325,13 @@ export const EGR = { x: -70, y: -300, z: 20 };
 export function egrValve() {
   const p = new Part();
   const e = EGR;
-  p.add(cyl(22, 36, 24), 'castAlu', [e.x, e.y + 10, e.z]);
-  p.add(cyl(28, 12, 24), 'castAlu', [e.x, e.y + 32, e.z]);
+  // Diaphragm chamber with a crimped lip, cast body under it. Port tips are unchanged.
+  p.add(lathe([
+    [8, 0], [20, 0], [26, 3], [28, 8], [28, 14], [22, 18], [14, 20], [10, 18], [8, 12],
+  ], 32), 'castAlu', [e.x, e.y + 22, e.z]);
+  p.add(lathe([
+    [12, 0], [18, 2], [20, 8], [16, 18], [14, 24], [12, 26],
+  ], 28), 'castAlu', [e.x, e.y - 6, e.z]);
   p.add(cyl(6, 14, 10), 'castAlu', [e.x + 18, e.y + 36, e.z]);
   // Second vacuum barb, offset in Z, for one of the 202-05 #17 hoses.
   p.add(yToZ(cyl(3.2, 14, 8)), 'castAlu', [e.x + 18, e.y + 40, e.z - 16]);
@@ -219,7 +362,14 @@ export function egrPipeReturn() {
 export function egrBracket() {
   const p = new Part();
   const e = EGR;
-  p.add(slab([e.x - 30, e.y - 28, e.z - 8], [e.x + 30, e.y - 22, e.z + 8]), 'zincPlate');
+  // Formed strap under the valve, with a turned-down foot and a lightening hole.
+  const shape = polyShape([[e.x - 28, e.z - 10], [e.x + 28, e.z - 10], [e.x + 22, e.z + 12], [e.x - 22, e.z + 12]]);
+  shape.holes.push(circlePath(4, e.x, e.z) as THREE.Path);
+  const g = extrude(shape, 3);
+  g.rotateX(Math.PI / 2);
+  g.translate(0, e.y - 25, 0);
+  p.add(g, 'zincPlate');
+  p.add(boxMM([e.x - 28, e.y - 36, e.z - 10], [e.x - 22, e.y - 26, e.z - 4]), 'zincPlate');
   return p.g;
 }
 
@@ -266,14 +416,19 @@ export function catalyticConverterPart() {
   p.add(yToX(cyl(R, L, 36)), 'aluminized', [0, 0, 0]);
   p.add(yToX(cyl(R, 18, 28, 16)), 'aluminized', [L / 2 + 6, 0, 0]);
   p.add(yToX(cyl(16, 18, 28, R)), 'aluminized', [-(L / 2 + 6), 0, 0]);
-  // Triangular 3-bolt flanges.
+  // Triangular 3-bolt flanges, a plate plus the bolt bosses.
   for (const s of [-1, 1]) {
+    const plate = polyShape([[0, -24], [22, 14], [-22, 14]]);
+    const g = extrude(plate, 5).rotateY(Math.PI / 2).translate(s * (L / 2 + 14), 0, 0);
+    p.add(g, 'aluminized');
     for (let i = 0; i < 3; i++) {
       const a = -Math.PI / 2 + (i * 2 * Math.PI) / 3;
       p.add(cyl(7, 6, 12), 'aluminized', [s * (L / 2 + 16), 16 * Math.cos(a), 16 * Math.sin(a)]);
     }
     p.add(torus(16, 1.2, 6, 18).rotateY(Math.PI / 2), 'gasket', [s * (L / 2 + 20), 0, 0]);
   }
+  // Centre seam band so the can reads as a welded shell, not a plain cylinder.
+  p.add(yToX(lathe([[R - 0.4, -3], [R + 1.6, -3], [R + 1.6, 3], [R - 0.4, 3]], 28)), 'aluminized');
   // Test-port boss on the inlet cone (cap is its own part).
   p.add(cyl(6, 8, 12), 'aluminized', [L / 2 + 8, 14, 0]);
   // EGR return boss (202-05 #11) on the engine side of the can. Axis +Z; the pipe slides on from +Z.
@@ -289,26 +444,21 @@ export function catalyticConverterPart() {
 const nutAt = (p: Part, x: number, y: number, z: number, af = 13, h = 6) => {
   p.add(hexNut(af, h), 'zincPlate', [x, y + h / 2, z]);
 };
-/** Tube that stays on the polyline. A loose Catmull-Rom chord bows into neighbouring parts. */
+/** Smooth hose. Fillets are at least 2× the OD, and the ends are not moved. */
 const hose = (pts: V3[], r: number) => {
-  const dense: V3[] = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const steps = 24;
-    for (let s = 0; s < steps; s++) {
-      const t = s / steps;
-      dense.push([
-        pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t,
-        pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t,
-        pts[i][2] + (pts[i + 1][2] - pts[i][2]) * t,
-      ]);
-    }
-  }
-  dense.push(pts[pts.length - 1]);
-  return tube(dense, r, 8, Math.max(16, dense.length));
+  const dense = filletPath(pts, 4 * r);
+  return tube(dense, r, 8, Math.max(24, dense.length));
+};
+/** Worm-drive band. Hole along +Y so frame() can aim it down the hose. Sized to the hose radius. */
+const wormBand = (hoseR: number) => {
+  const p = new Part();
+  const R = hoseR + 1.2;
+  p.add(torus(R, 1.15, 8, 22).rotateX(Math.PI / 2), 'zincPlate');
+  p.add(box(8, 5.5, 7), 'zincPlate', [R + 1.5, 0, 0]);
+  p.add(yToZ(cyl(1.2, 9, 8)), 'darkSteel', [R + 1.5, 1.2, 0]);
+  return p;
 };
 const along = (a: V3, b: V3) => V(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
-/** Clamp band. TorusGeometry's hole is +Z; roll it onto +Y so frame() can aim the hole along the hose. */
-const band = (R: number) => new Part().add(torus(R, 1.3, 6, 18).rotateX(Math.PI / 2), 'zincPlate');
 const mid = (a: V3, b: V3): V3 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
 const at = (a: V3, b: V3, t: number): V3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
@@ -319,17 +469,31 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
   def('ishaft-cover-gasket', () => new Part().add(yToZ(cyl(20, 0.6, 28)), 'gasket', [72, -48, 282.3]), () => [new THREE.Matrix4()]);
   if (VARIANT.airInjection) {
     const Zp = V(0, 0, 1);
-    // Hole along X, same axis as the sleeve. rotateY puts TorusGeometry's +Z hole onto +X.
-    def('air-rubber', () => new Part().add(torus(8, 3.2, 8, 16).rotateY(Math.PI / 2), 'rubber'), () =>
+    def('air-rubber', () => new Part().add(torus(8, 3.2, 8, 16), 'rubber'), () =>
       AIR_MOUNTS.map((q) => M(q)));
-    def('air-sleeve', () => new Part().add(yToX(cyl(3, 36, 10)), 'steel'), () =>
+    def('air-sleeve', () => new Part().add(yToZ(cyl(3, 28, 10)), 'steel'), () =>
       AIR_MOUNTS.map((q) => M(q)));
-    // Buffers pressed into the retainer's outboard face, clear of the strap joint.
-    def('air-buffer', () => new Part().add(yToX(cyl(6, 16, 12)), 'rubber'), () =>
-      [[-192, 183, 352], [-192, 220, 352]].map((q) => M(q as V3)));
+    // Buffers pressed into the retaining clip.
+    def('air-buffer', () => new Part().add(yToX(cyl(5, 10, 12)), 'rubber'), () =>
+      [[-189, 114, 352], [-189, 114, 358]].map((q) => M(q as V3)));
     const inlet = checkValveInlet();
-    const pumpHose: V3[] = [[-314, 24, 340], [-350, -10, 400], [-250, -40, 460], [-180, 16, 470], [-168, 26, 448]];
-    const valveHose: V3[] = [[-142, 56, 448], [-180, 80, 430], [inlet[0], inlet[1] + 24, inlet[2] + 20], [inlet[0], inlet[1] + 12, inlet[2]], inlet];
+    const outDir = vnorm(vsub(PUMP_OUT.tip, PUMP_OUT.neck));
+    const pumpHose: V3[] = [
+      vadd(PUMP_OUT.tip, vmul(outDir, -14)),
+      PUMP_OUT.tip,
+      vadd(PUMP_OUT.tip, vmul(outDir, 26)),
+      [-360, 180, 400],
+      [-380, 30, 480],
+      [-230, 26, 490],
+      [-200, 26, 448],
+      [-168, 26, 448],
+    ];
+    const valveHose: V3[] = [
+      [-142, 56, 448], [-110, 120, 430], [-160, 160, 360],
+      [inlet[0] + 40, inlet[1] + 50, inlet[2] + 10],
+      [inlet[0], inlet[1] + 16, inlet[2]],
+      inlet,
+    ];
     const dumpHose: V3[] = [[-142, 26, 480], [-100, 8, 510], [-60, -16, 545]];
     const vac = AIR_INJ_VAC_PORT.point;
     // Outboard of the pump, up behind the fan, then in above the plenum lid. Last point is the handoff.
@@ -342,33 +506,37 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     def('air-hose-valve', () => new Part().add(hose(valveHose, 6), 'rubber'), () => [new THREE.Matrix4()]);
     def('air-hose-dump', () => new Part().add(hose(dumpHose, 6), 'rubber'), () => [new THREE.Matrix4()]);
     def('air-hose-vacuum', () => new Part().add(hose(vacHose, 2.2), 'rubber'), () => [new THREE.Matrix4()]);
-    def('air-clamp-pump', () => band(8.2), () => [M(mid(pumpHose[1], pumpHose[2]), along(pumpHose[1], pumpHose[2]))]);
-    def('air-clamp-valve', () => band(8.2), () => [M(mid(valveHose[1], valveHose[2]), along(valveHose[1], valveHose[2]))]);
-    def('air-clamp-dump', () => band(8.2), () =>
-      [M(mid(dumpHose[0], dumpHose[1]), along(dumpHose[0], dumpHose[1])), M(mid(dumpHose[1], dumpHose[2]), along(dumpHose[1], dumpHose[2]))]);
+    def('air-clamp-pump', () => wormBand(6), () => [M(at(pumpHose[0], pumpHose[1], 0.45), along(pumpHose[0], pumpHose[1]))]);
+    def('air-clamp-valve', () => wormBand(6), () => [M(at(valveHose[3], valveHose[4], 0.55), along(valveHose[3], valveHose[4]))]);
+    def('air-clamp-dump', () => wormBand(6), () =>
+      [M(at(dumpHose[0], dumpHose[1], 0.25), along(dumpHose[0], dumpHose[1])), M(at(dumpHose[1], dumpHose[2], 0.7), along(dumpHose[1], dumpHose[2]))]);
     const [vx, vy, vz] = AIR_CHECK_VALVE_OUTLET.point;
     def('air-sealing-ring', () => new Part().add(torus(13.2, 1.2, 8, 24).rotateX(Math.PI / 2), 'copper'), () => [M([vx, vy - 0.4, vz] as V3)]);
     def('air-check-gasket', () => new Part().add(torus(12, 1.2, 8, 20).rotateX(Math.PI / 2), 'rubber'), () => [M([vx, vy + CHECK_HEX_H + 0.4, vz] as V3)]);
     const pulleyBolt = (i: number): V3 => {
-      const a = (i / 4) * Math.PI * 2 + 0.5;
-      return [P.x + 22 * Math.cos(a), P.y + 22 * Math.sin(a), FAN.zPumpBelt - 2];
+      const a = PULLEY_BOLT_A0 + (i / 4) * Math.PI * 2;
+      return [P.x + PULLEY_BOLT_R * Math.cos(a), P.y + PULLEY_BOLT_R * Math.sin(a), FAN.zPumpBelt - 6];
     };
-    def('air-pulley-screws', () => new Part().add(yToZ(cyl(2.2, 8, 8)), 'zincPlate'), () =>
+    def('air-pulley-screws', () => new Part().add(cyl(2.2, 10, 8), 'zincPlate'), () =>
       [0, 1, 2, 3].map((i) => M(pulleyBolt(i), Zp)));
-    def('air-pulley-washers', () => new Part().add(torus(4.2, 0.7, 6, 12), 'darkSteel'), () =>
-      [0, 1, 2, 3].map((i) => M([pulleyBolt(i)[0], pulleyBolt(i)[1], FAN.zPumpBelt - 6], Zp)));
+    def('air-pulley-washers', () => new Part().add(torus(4.6, 0.8, 6, 14).rotateX(Math.PI / 2), 'darkSteel'), () =>
+      [0, 1, 2, 3].map((i) => {
+        const q = pulleyBolt(i);
+        return M([q[0], q[1], q[2] - 4] as V3, Zp);
+      }));
     def('air-bracket-nuts', () => {
       const p = new Part();
-      // On the sleeve ends, seated against each foot. Axis X, so the nut is turned onto its side.
-      for (const [x, y, z] of AIR_MOUNTS) p.add(yToX(hexNut(13, 8)), 'zincPlate', [x - 12, y, z]);
+      // On the sleeve ends, seated against each eye. Bolt axis is +Z.
+      for (const [x, y, z] of AIR_MOUNTS) p.add(yToZ(hexNut(13, 7)), 'zincPlate', [x, y, z - 16]);
       return p;
     }, () => [new THREE.Matrix4()]);
     def('air-pump-fasteners', () => {
       const p = new Part();
-      // Nuts on the buffer studs, strap bolt through the retainer joint, pivot screw through the pump foot.
-      for (const y of [183, 220]) p.add(yToX(hexNut(13, 8)), 'zincPlate', [-200, y, 352]);
-      p.add(yToX(cyl(3.5, 16, 10)), 'zincPlate', [-188, 152, 350]);
-      p.add(yToZ(cyl(4, 18, 10)), 'zincPlate', [P.x, 2, 338]);
+      // Nuts on the buffer studs, strap bolt through the clip, pivot screw through the lower eye.
+      for (const z of [352, 358]) p.add(yToX(hexNut(10, 6)), 'zincPlate', [-196, 114, z]);
+      p.add(yToZ(cyl(3.2, 14, 8)), 'zincPlate', [-188, 116, BODY_ZC]);
+      p.add(yToZ(cyl(3.6, 16, 10)), 'zincPlate', [BR_PIVOT[0], BR_PIVOT[1], BR_PIVOT[2] + 4]);
+      p.add(yToZ(hexNut(13, 6)), 'zincPlate', [BR_PUMP[0], BR_PUMP[1], BR_PUMP[2] + 10]);
       return p;
     }, () => [new THREE.Matrix4()]);
     def('air-diverter-nuts', () => {
@@ -474,25 +642,26 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
   ];
   def('heater-dist-piece', () => {
     const p = new Part();
-    // Cross-piece below the blower outlet, with a neck seated in that outlet.
-    p.add(yToX(cyl(14, 56, 16)), 'blackPlastic');
-    p.add(cyl(12, 30, 12), 'blackPlastic', [0, 16, 0]);
+    // Moulded tee: neck up into the blower outlet, elbows out to the two hoses.
+    p.add(cyl(12, 26, 16), 'blackPlastic', [0, 14, 0]);
+    p.add(tube([[-26, 0, 0], [-8, 0, 0], [0, 8, 0], [0, 22, 0]], 12, 10, 28), 'blackPlastic');
+    p.add(tube([[26, 0, 0], [8, 0, 0], [0, 8, 0], [0, 18, 0]], 12, 10, 28), 'blackPlastic');
     return p;
   }, () => [M([hb.x, 64, hb.z] as V3)]);
   def('heater-socket', () => new Part().add(yToX(cyl(11, 18, 14)), 'castAlu').add(boxMM([-6, 18, -6], [6, 28, 6]), 'castAlu'), () => [M([236, hb.y, 340] as V3)]);
   def('heater-hose-link', () => new Part().add(hose(link, 9), 'rubber'), () => [new THREE.Matrix4()]);
   def('heater-hose-right', () => new Part().add(hose(rightH, hoseR), 'rubber'), () => [new THREE.Matrix4()]);
   def('heater-hose-left', () => new Part().add(hose(leftH, hoseR), 'rubber'), () => [new THREE.Matrix4()]);
-  def('heater-hose-supports', () => band(18), () => [
+  def('heater-hose-supports', () => wormBand(15), () => [
     M(mid(rightH[2], rightH[3]), along(rightH[2], rightH[3])),
     M(mid(leftH[3], leftH[4]), along(leftH[3], leftH[4])),
   ]);
-  def('heater-clamp-sp', () => band(12.5), () => [M(at(link[0], link[1], 0.72), along(link[0], link[1]))]);
-  def('heater-clamp-band', () => band(11.5), () => [
+  def('heater-clamp-sp', () => wormBand(9), () => [M(at(link[0], link[1], 0.72), along(link[0], link[1]))]);
+  def('heater-clamp-band', () => wormBand(9), () => [
     M(at(link[0], link[1], 0.35), along(link[0], link[1])),
     M(at(link[1], link[2], 0.28), along(link[1], link[2])),
   ]);
-  def('heater-clamps', () => band(17), () => {
+  def('heater-clamps', () => wormBand(15), () => {
     const last = (h: V3[]): [V3, V3] => [h[h.length - 2], h[h.length - 1]];
     const segs: [V3, V3][] = [last(rightH), last(leftH), [rightH[0], rightH[1]], [leftH[0], leftH[1]], [rightH[3], rightH[4]], [leftH[4], leftH[5]]];
     return segs.map(([a, b]) => M(mid(a, b), along(a, b)));
@@ -508,10 +677,23 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
   }, () => [new THREE.Matrix4()]);
   if (VARIANT.frontExhaust === 'catalytic-converter') {
     const c = (x: number, y: number, z: number): V3 => [x, y - 250, z - 330];
-    def('cat-cover', () => new Part().add(plate(90, 2, 16), 'aluminized'), () => [M(c(0, 56, 24))]);
+    def('cat-cover', () => {
+      const p = new Part();
+      // Pressed heat shield: a shallow arch, not a flat plate.
+      const s = new THREE.Shape();
+      s.moveTo(-46, 0); s.quadraticCurveTo(0, 12, 46, 0); s.lineTo(46, -2);
+      s.quadraticCurveTo(0, 10, -46, -2); s.closePath();
+      p.add(extrude(s, 36).translate(0, 0, -18), 'aluminized');
+      return p;
+    }, () => [M(c(0, 58, 24))]);
     def('cat-cap', () => new Part().add(cyl(8, 6, 12), 'zincPlate'), () => [M(c(96, 20, 0))]);
     def('cat-plug', () => new Part().add(hexNut(10, 5), 'zincPlate').add(torus(5, 0.8, 6, 12).rotateX(Math.PI / 2), 'copper'), () => [M(c(96, 26, 0))]);
-    def('cat-bracket', () => new Part().add(plate(70, 3, 14), 'zincPlate'), () => [M(c(40, -36, 20))]);
+    def('cat-bracket', () => {
+      const p = new Part();
+      p.add(new THREE.BoxGeometry(48, 3, 12, 2, 2, 2), 'zincPlate');
+      p.add(new THREE.BoxGeometry(14, 3, 12, 2, 2, 2), 'zincPlate', [-28, -6, 0], [0, 0, 0.7]);
+      return p;
+    }, () => [M(c(40, -36, 20))]);
     def('cat-cover-fasteners', () => {
       const p = new Part();
       let n = 0;
