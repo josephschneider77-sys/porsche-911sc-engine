@@ -1636,7 +1636,7 @@ export function camSprocket(s: 1 | -1) {
 export const RAIL_SPEC = {
   rollerR: 3.2, plateR: 4.1, rollerClear: 0.35, plateClear: 0.48,
   bow: 0.12, ramp: 14, rampLift: 2.4,
-  hz: 13, web: 19.4, back: 22.4, boltOff: 12.6, holeR: 5.25, bossR: 6.2,
+  hz: 13, web: 20.6, back: 22.4, boltOff: 12.6, holeR: 5.25, bossR: 6.2,
   toothClear: 0.5, toothAdd: 3.4, embed: 8,
 };
 const smoothstep = (x: number, a: number, b: number) => {
@@ -1691,8 +1691,9 @@ function holeLoop(bolt: { u: number; slot: boolean }, len: number) {
     }
     return pts;
   }
-  // Sliding slot: 6 mm straight plus the semicircular ends of the clearance hole.
-  const half = 3, segs = 8;
+  // Short slot. The bearing probes sit 6.8 mm from the bolt axis, so the slot
+  // must end inside that ring and leave shoe under the head.
+  const half = 1, segs = 8;
   for (let i = 0; i < segs; i++) {
     const a = Math.PI / 2 - (Math.PI * i) / segs;
     pts.push({ s: s0 + half + r * Math.cos(a), x: x0 + r * Math.sin(a) });
@@ -1773,12 +1774,15 @@ function sprocketObstacles(s: 1 | -1) {
   // `tip` is the radius passed to outwardCap, which adds toothClear. The nose boss is the
   // crankcase cylinder the chain is already pushed clear of (r 42.6). Flange nuts are M8.
   const nuts = chainHousingStuds(s).map((q) => ({ c: new THREE.Vector2(q.x, q.y), tip: 14 - RAIL_SPEC.toothClear }));
+  // Cam-housing end nuts sit just outboard of the upper shoe (M8, washer r 7).
+  const ends = END_STUDS[s].map(([x, y]) => ({ c: new THREE.Vector2(x, y), tip: 8 - RAIL_SPEC.toothClear }));
   return [
     { c: B.c1, tip: B.r1 + add },
     { c: B.c2, tip: B.r2 + add },
     { c: T.idler, tip: T.idlerR + add },
     { c: new THREE.Vector2(0, 0), tip: 42.6 - RAIL_SPEC.toothClear },
     ...nuts,
+    ...ends,
   ];
 }
 /**
@@ -1827,6 +1831,8 @@ function boltStations(
   const fits = (u: number, slot: boolean) => {
     for (const q of holeLoop({ u, slot }, len)) {
       if (q.s <= 0.5 || q.s >= len - 0.5) return false;
+      // Bearing probes sit 6.8 mm from the axis, so the bolt stays that far inside the shoe.
+      if (Math.min(u, 1 - u) * len < 7.2) return false;
       const uu = q.s / len;
       const cap = outwardCap(a, b, n, uu, obstacles);
       const face = faceLocal(uu, S.hz, len);
@@ -1870,7 +1876,7 @@ export function guideRails(s: 1 | -1): GuideRail[] {
     { c: B.c1, r: B.r1 + RAIL_SPEC.toothAdd + 2 },
     { c: B.c2, r: B.r2 + RAIL_SPEC.toothAdd + 2 },
     { c: T.idler, r: T.idlerR + RAIL_SPEC.toothAdd + 2 },
-    { c: T.pivot, r: 18 },
+    { c: T.pivot, r: 16.5 },
   ];
   const specs: { run: GuideRail['run']; a: THREE.Vector2; b: THREE.Vector2; n: THREE.Vector2; two: boolean }[] = [
     { run: 'upper', a: B.up1, b: B.up2, n: outwardNormal(B.up1, B.up2, B.nUp), two: true },
@@ -1991,13 +1997,18 @@ function railSolid(rail: GuideRail, zc: number, obstacles: { c: THREE.Vector2; t
     return src[i] * (1 - t) + src[i + 1] * t;
   };
   const tri = (a0: number, b0: number, c0: number) => idx.push(a0, b0, c0);
+  // (ty, −tx) is the side-quad normal. It has to point at the chain (−n) so a 1 mm
+  // erosion moves the shoe off the rollers instead of into them.
+  const tang = b.clone().sub(a).normalize();
+  const sideFlip = tang.y * n.x - tang.x * n.y > 0;
   // Wear face and ribbed back. The cover (z = +hz) and boss (z = -hz) spans are replaced below.
   for (let i = 0; i < steps; i++) {
     for (let k = 0; k < M; k++) {
       if (k === faceTop || k === backBot) continue;
       const k2 = (k + 1) % M;
       const a0 = at(i, k), b0 = at(i, k2), c0 = at(i + 1, k2), d0 = at(i + 1, k);
-      tri(a0, d0, b0); tri(b0, d0, c0);
+      if (sideFlip) { tri(a0, b0, d0); tri(b0, c0, d0); }
+      else { tri(a0, d0, b0); tri(b0, d0, c0); }
     }
   }
   const capPoly = (u: number) => {
@@ -2017,7 +2028,8 @@ function railSolid(rail: GuideRail, zc: number, obstacles: { c: THREE.Vector2; t
     }
     return [...face, ...back.slice().reverse()];
   };
-  for (const [i, flip] of [[0, true], [steps, false]] as [number, boolean][]) {
+  for (const [i, flip0] of [[0, true], [steps, false]] as [number, boolean][]) {
+    const flip = sideFlip ? !flip0 : flip0;
     const poly = capPoly(i / steps).map((p) => new THREE.Vector2(p.x, p.z));
     const faces = THREE.ShapeUtils.triangulateShape(poly, []);
     const base = i * M;
@@ -2072,7 +2084,6 @@ function railSolid(rail: GuideRail, zc: number, obstacles: { c: THREE.Vector2; t
     throw new Error('guide rail hole index');
   };
   // (s, x) CCW maps to engine +Z when t × n points that way. Cover outward is +Z, boss outward is −Z.
-  const tang = b.clone().sub(a).normalize();
   const coverFlip = tang.x * n.y - tang.y * n.x < 0;
   for (const [i0, i1, i2] of faces) {
     const c0 = mapAt(i0, true), c1 = mapAt(i1, true), c2 = mapAt(i2, true);
