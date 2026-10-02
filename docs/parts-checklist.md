@@ -16,12 +16,12 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 
 | status | lines |
 |---|---|
-| modelled | 501 |
-| N/A (with reason) | 154 |
-| alternative rows | 228 |
+| modelled | 512 |
+| N/A (with reason) | 145 |
+| alternative rows | 229 |
 | excluded (not this engine) | 201 |
 | **MISSING** | 0 |
-| countable lines (all but excluded) | 883 |
+| countable lines (all but excluded) | 886 |
 
 ## 101-05: Crankcase, left
 
@@ -205,7 +205,7 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 12 | 930 102 028 09 | Pulley | 1 | alt | alternative to 102-00 #12 |
 | 12 | 930 102 028 04 | Pulley | 1 | excluded | model years 79-80: not a 1978 engine |
 | 12 | 930 102 028 08 | Pulley | 1 | excluded | model years 81-: not a 1978 engine |
-| 12 | 930 102 126 02 | Pulley | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
+| 12 | 930 102 126 02 | Pulley | 1 | excluded | engine type 03/13/09/19/10: not 930/04 |
 | 14 | 900 028 014 01 | Lock ring | 1 | modelled | `pulley-bolt` washer |
 | 14 | 900 028 014 02 | Washer | 1 | alt | alternative to 102-00 #14 |
 | 14 | 900 028 014 03 | Washer | 1 | alt | alternative to 102-00 #14 |
@@ -317,7 +317,7 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 4 | N 012 278 1 | Circlip | 12 | modelled | `piston-*` clip |
 | 4 | 900 908 019 00 | Ring | 12 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 5 | 930 104 194 02 | Cylinder base gasket | 6 | modelled | `cyl-base-gaskets` |
-| 5 | 930 104 194 01 | Cylinder base gasket | 6 | excluded | repair oversize |
+| 5 | 930 104 194 01 | Cylinder base gasket | 6 | excluded | engine type 10: not 930/04 |
 | 6 | 930 104 317 00 | Ce-seal ring | 6 | modelled | `head-seals` |
 
 ## 103-00: Cylinder head
@@ -921,8 +921,8 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 35 | N 012 222 4 | Spring washer | 2 | alt | alternative to 107-10 #35 |
 | 36 | 911 606 102 04 | Auxiliary air regulator | 1 | modelled | `aux-air-valve` |
 | 36 | 911 606 102 01 | Auxiliary air regulator | 1 | alt | alternative to 107-10 #36 |
-| 36 | 911 606 102 10 | Auxiliary air regulator | 1 | excluded | model years 83-: not a 1978 engine |
-| 36 | 911 606 102 10 | Auxiliary air regulator | 1 | excluded | model years 83-: not a 1978 engine |
+| 36 | 911 606 102 10 | Auxiliary air regulator | 1 | excluded | engine type 10: not 930/04 |
+| 36 | 911 606 102 10 | Auxiliary air regulator | 1 | excluded | engine type 10: not 930/04 |
 | 37 | N 012 226 5 | Spring washer | 2 | modelled | `aux-air-valve` spring |
 | 38 | N 014 740 2 | Pan-head screw | 2 | modelled | `aux-air-valve` screw |
 | 36 | N 014 740 2 | Pan-head screw | 2 | alt | alternative to 107-10 #36 |
@@ -1160,11 +1160,11 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 
 | pos | part no. | description | qty | status | source / reason |
 |---|---|---|---|---|---|
-| 1 | 930 602 021 04 | Distributor | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 2 | 930 602 910 00 | Vacuum unit | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 3 | 930 602 901 02 | Rotor | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 3 | 930 602 901 03 | Rotor | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 3 | 930 602 901 04 | Rotor | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
+| 1 | 930 602 021 04 | Distributor | 1 | excluded | engine type 03/09/13/19/10/60/66: not 930/04 |
+| 2 | 930 602 910 00 | Vacuum unit | 1 | excluded | engine type 03/09/13/19/60/10/66: not 930/04 |
+| 3 | 930 602 901 02 | Rotor | 1 | excluded | for distributor 930 602 021 04/09: not the 930/04 distributor 021 02 |
+| 3 | 930 602 901 03 | Rotor | 1 | excluded | for distributor 930 602 021 04/09: not the 930/04 distributor 021 02 |
+| 3 | 930 602 901 04 | Rotor | 1 | excluded | for distributor 930 602 021 04/09: not the 930/04 distributor 021 02 |
 | 4 | 911 602 102 01 | Sealing ring | 1 | modelled | `distributor-oring` |
 | 5 | 900 025 007 02 | Washer | 1 | modelled | `distributor-nut` washer |
 | 5 | 900 025 007 03 | Washer | 1 | alt | alternative to 901-00 #5 |
@@ -1207,7 +1207,7 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 34 | 911 613 160 00 | Rosette | 1 | N/A | steering lock / ignition switch: body-mounted, not part of the engine assembly (steering column) |
 | - | 999 190 123 02 | Blind rivet | 2 | N/A | blind rivets for the steering-lock rosette: body-mounted, not part of the engine assembly |
 | 35 | 930 602 922 00 | Pin | 1 | modelled | `distributor` pin |
-| 36 | 930 602 422 02 | Pinion | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
+| 36 | 930 602 422 02 | Pinion | 1 | excluded | engine type 03/13/60/61/62: not 930/04 |
 
 ## 902-05: Generator / starter
 

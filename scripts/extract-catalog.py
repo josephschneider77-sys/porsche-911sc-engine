@@ -30,7 +30,8 @@ def engine_codes(text):
 def applicability(tags, notes, pn, pos, ill):
     T = ' '.join(list(tags) + list(notes)).upper()
     auto = ''
-    if re.search(r'TURBO|930\.6|CARRERA|SPM|SPORTOMATIC', T):
+    # 930.60 / 930.66 are engine types. 930.602… is a part number and is not Turbo.
+    if re.search(r'TURBO|930\.6\d(?!\d)|CARRERA|SPM|SPORTOMATIC', T):
         auto = 'other model (Turbo / Carrera / Sportomatic)'
     for t in tags:
         m = re.fullmatch(r'(\d\d)?-(\d\d)?', t)
@@ -57,7 +58,15 @@ def applicability(tags, notes, pn, pos, ill):
     codes = engine_codes(T)
     if codes and '04' not in codes:
         shown = '/'.join(dict.fromkeys(codes))
-        auto = auto or f'engine type {shown}: not 930/04'
+        auto = f'engine type {shown}: not 930/04'
+    # "930.602.021.04/09" names the distributor this part fits. 930/04 uses 021.02.
+    cited: list[str] = []
+    for m in re.finditer(r'930\.602\.021\.(\d{2})((?:\s*/\s*\d{2})*)', T):
+        cited.append(m.group(1))
+        cited.extend(re.findall(r'\d{2}', m.group(2) or ''))
+    if cited and '02' not in cited:
+        shown = '/'.join(dict.fromkeys(cited))
+        auto = f'for distributor 930 602 021 {shown}: not the 930/04 distributor 021 02'
     # (J) = Japan. "Not for (J)" means the row IS the 49-state part.
     if re.search(r'\(J\)', T) and not re.search(r'NOT FOR\s*\(J\)', T):
         auto = auto or 'Japan (J) market'

@@ -2390,7 +2390,7 @@
 "5M 6 X 12",
 "5M 6 X 12"
 ],
-"auto": "other model (Turbo / Carrera / Sportomatic)"
+"auto": "engine type 03/13/09/19/10: not 930/04"
 },
 {
 "key": "102-00#14#900 028 014 01",
@@ -4018,7 +4018,7 @@
 "notes": [
 "Oversize 0.50 mm"
 ],
-"auto": "repair oversize"
+"auto": "engine type 10: not 930/04"
 },
 {
 "key": "102-05#6#930 104 317 00",
@@ -11188,7 +11188,7 @@
 "930.10"
 ],
 "notes": [],
-"auto": "model years 83-: not a 1978 engine"
+"auto": "engine type 10: not 930/04"
 },
 {
 "key": "107-10#36#911 606 102 10#2",
@@ -11202,7 +11202,7 @@
 "930.10"
 ],
 "notes": [],
-"auto": "model years 83-: not a 1978 engine"
+"auto": "engine type 10: not 930/04"
 },
 {
 "key": "107-10#37#N 012 226 5",
@@ -12629,7 +12629,7 @@
 "930.60",
 "930.66"
 ],
-"auto": "other model (Turbo / Carrera / Sportomatic)"
+"auto": "engine type 03/09/13/19/10/60/66: not 930/04"
 },
 {
 "key": "901-00#2#930 602 910 00",
@@ -12648,7 +12648,7 @@
 "930.10",
 "930.66"
 ],
-"auto": "other model (Turbo / Carrera / Sportomatic)"
+"auto": "engine type 03/09/13/19/60/10/66: not 930/04"
 },
 {
 "key": "901-00#3#930 602 901 02",
@@ -12664,7 +12664,7 @@
 "F.ignition distributor",
 "930.602.021.04/09"
 ],
-"auto": "other model (Turbo / Carrera / Sportomatic)"
+"auto": "for distributor 930 602 021 04/09: not the 930/04 distributor 021 02"
 },
 {
 "key": "901-00#3#930 602 901 03",
@@ -12680,7 +12680,7 @@
 "F.ignition distributor",
 "930.602.021.04/09"
 ],
-"auto": "other model (Turbo / Carrera / Sportomatic)"
+"auto": "for distributor 930 602 021 04/09: not the 930/04 distributor 021 02"
 },
 {
 "key": "901-00#3#930 602 901 04",
@@ -12708,7 +12708,7 @@
 "F.ignition distributor",
 "930.602.101.06"
 ],
-"auto": "other model (Turbo / Carrera / Sportomatic)"
+"auto": "for distributor 930 602 021 04/09: not the 930/04 distributor 021 02"
 },
 {
 "key": "901-00#4#911 602 102 01",
@@ -13262,7 +13262,7 @@
 "GR. 2 NR. 19",
 "12.12.1977"
 ],
-"auto": "other model (Turbo / Carrera / Sportomatic)"
+"auto": "engine type 03/13/60/61/62: not 930/04"
 },
 {
 "key": "902-05#1#911 603 120 02",
