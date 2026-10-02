@@ -1521,7 +1521,7 @@ function addCoverLands(p: Part, s: 1 | -1) {
     // Top face at local z −0.55, under the gasket.
     const sh = roundRect(50, L, 6);
     sh.holes.push(new THREE.Path(roundRect(42, L - 14, 4).getPoints(6).reverse()));
-    let g = extrudeC(sh, 2.3);
+    let g: THREE.BufferGeometry = extrudeC(sh, 2.3);
     g.translate(0, 0, -1.7);
     const frame = coverMatrix(s, upper);
     g.applyMatrix4(frame);
