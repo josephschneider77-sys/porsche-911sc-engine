@@ -61,6 +61,8 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'vacuum-limiter': { sleeve: 1, bolt: 1, spring: 1 },
   'vacuum-fittings': { clamp: 5, socket: 1 },
   'injection-line-bracket': { clamp: 1, nut: 1, spring: 1 },
+  'afm-screws': { spring: 1, washer: 1 },
+  'throttle-housing': { spring: 1, oring: 1 },
   'cold-start-valve': { oring: 1, piece: 1, gasket: 1, screw: 2, spring: 2 },
   'aux-air-valve': { spring: 2, screw: 2, support: 1, spring2: 2 },
   'aux-air-plumbing': { clamp: 7, pipe: 1, conn: 1 },
@@ -206,6 +208,9 @@ export const CLAIMS: Claim[] = [
   C('107-00#1', 'mixture-control-unit', 'distributor'), C('107-00#2', 'mixture-control-unit', 'meter'),
   C('107-10#7', 'vacuum-limiter'), C('107-10#8', 'vacuum-limiter', 'sleeve'), C('107-10#9', 'vacuum-limiter', 'bolt'), C('107-10#10', 'vacuum-limiter', 'spring'),
   C('107-10#12', 'vacuum-fittings', 'clamp', 4), C('107-10#14', 'vacuum-fittings'), C('107-10#15', 'vacuum-fittings', 'clamp', 1), C('107-10#17', 'vacuum-fittings', 'socket'),
+  C('107-10#1#900 067 089 02', 'afm-screws'), C('107-10#2', 'afm-screws', 'spring'), C('107-10#3', 'afm-screws', 'washer'),
+  C('107-10#4#930 110 248 02', 'throttle-housing'), C('107-10#5', 'throttle-housing', 'spring'), C('107-10#6', 'throttle-housing', 'oring'),
+  C('107-10#18', 'air-guide'),
   C('107-10#19', 'airbox-clamps', 'item', 1), C('107-10#20', 'airbox-clamps', 'item', 1),
   C('107-10#21', '^injector-\\d$'), C('107-10#22', 'injector-orings-c'), C('107-10#23', 'fuel-lines', 'line', 3), C('107-10#23#911 110 093 12', 'fuel-lines', 'line', 3),
   C('107-10#24', 'injection-line-rings'), C('107-10#25', 'injection-banjos'), C('107-10#26', 'injection-line-bracket'), C('107-10#27', 'injection-line-bracket', 'clamp'),
@@ -254,12 +259,9 @@ export const NOT_APPLICABLE: NotApplicable[] = [
   ...range('106-00', ['-#999 239 018 40', '-#999 181 022 51'], 'bulk hose sold by the metre (qty *), cut to length on assembly'),
   ...range('107-00', [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], 'internal part of the mixture control unit (fuel distributor + air-flow meter), modelled as one unit'),
   { line: '107-00#15', why: 'parts kit (no separate item)' },
-  ...range('107-10', [1, 2, 3, 4, 5, 6], 'internal part of the air-flow meter flap / nozzle assembly inside the mixture control unit'),
-  { line: '107-10#-#930 110 292 00', why: 'internal stopper of the air-flow meter flap assembly' },
-  { line: '107-10#-#930 110 292 00#2', why: 'internal stopper of the air-flow meter flap assembly' },
+  { line: '107-10#-#930 110 292 00', why: 'stopper with no illustration in Kat 502 fig 107-10; not placed on the 930/04 flap housing' },
+  { line: '107-10#-#930 110 292 00#2', why: 'stopper with no illustration in Kat 502 fig 107-10; not placed on the 930/04 flap housing' },
   ...['N 020 359 1', 'N 020 353 5', '999 181 709 50'].map((pn) => ({ line: `107-10#-#${pn}`, why: 'bulk hose sold by the metre (qty *), cut to length on assembly' })),
-  { line: '107-10#18', why: 'air guide inside the air-flow meter funnel (internal to the mixture control unit)' },
-  { line: '107-10#39', why: 'additional air valve: alternative to the auxiliary air regulator #36 (modelled) on this engine' },
   { line: '301-00#-#915 116 911 00', why: 'repair kit (no separate item)' },
   { line: '901-00#10', why: 'dust cover under the distributor cap (internal, hidden by the cap)' },
   ...range('901-00', [11, 12, 13, 14, 15, 20], 'ignition coil and its mounting / tower cap: ' + BODY + ' (left rear wing)'),
@@ -275,6 +277,7 @@ export const NOT_APPLICABLE: NotApplicable[] = [
 /** Lines still not modelled (reported by the doc generator; the test requires this list to match reality). */
 export const STILL_MISSING: NotApplicable[] = [
   { line: '105-05#3', why: 'air guide 911 106 406 00: location not identified in the photo references, not modelled' },
+  { line: '107-10#39', why: 'additional air valve 911 110 273 00: not an alternative to the auxiliary air regulator; added with the air-distributor rebuild' },
 ];
 
 /** Groups covered by this checklist (108-00 air injection is not on this US 49-state/ROW reference engine set; see docs). */

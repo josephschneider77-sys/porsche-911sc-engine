@@ -9,7 +9,7 @@ import {
   polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
 } from './util';
 import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ } from '../data/layout';
-import { buildPlenumBox, AIR_NECK, BOX, LID_Y, WUR_FACES, runnerTunnelCutters, DIST_VAC } from './induction';
+import { buildPlenumBox, AIR_NECK, BOX, LID_Y, WUR_CONN, runnerTunnelCutters } from './induction';
 export { INTAKE_PORT, INJ };
 export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './induction';
 
@@ -263,7 +263,7 @@ export function fanPulley() {
   return p.g;
 }
 export function crankPulley() {
-  // 930/03 RoW, no A/C: one V-groove pressed-steel dish, OD 134 (lip r 67). The belt
+  // 930/04 US, no A/C: one V-groove pressed-steel dish, OD 134 (lip r 67). The belt
   // pitch is FAN.rCrankPulley − 5 = 60, in the valley at z FAN.zBelt. Hub recess still
   // presents a washer face at z 324 for the pulley bolt.
   const p = new Part();
@@ -400,7 +400,9 @@ export function upperAirGuide() {
   const distCut = boxMM([-175, 130, 90], [-48, 180, 190]), brCut = boxMM([-70, 142, 168], [-40, 176, 200]);
   // Fan-end of the flat plate meets the alternator. The horn replaces that patch; the cut stays
   // inside the alternator so the roof still runs out to the bell.
-  p.add(csgSub(rg, distCut, brCut, boxMM([-94, 140, -157], [94, 165, -143]), boxMM([-60, 148, 162], [60, 172, 198])), 'shroudRed');
+  // Slot over the warm-up regulator so the two top fuel ports (107-10 #52/#59) and their nuts clear the roof.
+  // Stop at z −128: the cover plate (x 50, z −120) and the stopper (x −50, z −125) still sit on the plate.
+  p.add(csgSub(rg, distCut, brCut, boxMM([-94, 140, -210], [94, 172, -128]), boxMM([-60, 148, 162], [60, 172, 198])), 'shroudRed');
   const slopeLen = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax);
   for (const s of [1, -1] as const) {
     const zs = s > 0 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]];
@@ -929,8 +931,13 @@ export function warmUpRegulator() {
   p.add(boxMM([-70, WUR.flangeTop - 5, -195], [-50, WUR.flangeTop, -145]), 'zincPlate');
   p.add(boxMM([-74, WUR.flangeTop, -186], [-46, 142, -146]), 'zincPlate');
   p.add(cyl(11, 8, 20), 'zincPlate', [-60, 143, -170]);
-  // brass port bosses ending on WUR_FACES. The banjos (wur-lines) seat on those faces.
-  for (const face of WUR_FACES) p.add(cylBetween([-74, face[1], face[2]], [face[0] + 0.2, face[1], face[2]], 5, 14), 'brass');
+  // Two pads on the top, either side of the dome, for the fuel ports (Kat 502 107-10 #52 and #59).
+  // Outboard of the shroud end-plate screw at x −60 (shank tip z −193) and short of the dome (z −181).
+  p.add(boxMM([-96, 130, -191], [-76, 134, -182]), 'zincPlate');
+  p.add(boxMM([-74, 136, -156], [-48, 142, -126]), 'zincPlate');
+  const [cx, cy, cz] = WUR_CONN.face;
+  p.add(cylBetween([cx, 136, cz], [cx, cy, cz], 5.2, 12), 'brass');
+  p.add(lathe([[4.4, 0], [7.4, 0], [7.4, 1.2], [4.4, 1.2]], 14).translate(cx, cy, cz), 'copper');
   return p.g;
 }
 /** Air-cleaner strut nut seats. y is the foot top the M8 nut bears on; the stud reaches the plenum. Under the drum. */
@@ -963,6 +970,14 @@ export function airboxStruts() {
 // ---------------------------------------------------------------- 901-00 ignition
 /** Distributor hold-down clamp (stud in the left case top at z 116; cast spacer up to the clamp tab). */
 export const DIST = { x: -98, z: 146, clampY: 122, clampT: 5, clampTop: 127, stud: [-72, 107] as [number, number], caseY: 107 };
+/**
+ * Hose seat on the advance nipple. Intake & Fuel ends the distributor vacuum hose here.
+ * PR #32 (930/04 shallow can, 930 602 910 00) replaces `point` and `dir`; do not hard-code them.
+ */
+export const DIST_VAC_NIPPLE = {
+  point: [-168, 150, 146] as V3,
+  dir: [-1, 0, 0] as V3,
+};
 export function distributorClamp() {
   const p = new Part();
   const sh = polyShape(hull([...circlePts(DIST.x, DIST.z, 29.5, 32), ...circlePts(DIST.stud[0], DIST.stud[1], 9, 12)]));
@@ -1011,7 +1026,7 @@ export function distributor() {
   p.add(cyl(6, 16, 12), 'blackPlastic', [x, 204, z]);
   // vacuum unit, with the advance nipple the vacuum hose seats on
   p.add(yToX(cyl(20, 26, 24)), 'zincPlate', [x - 44, 150, z]);
-  p.add(cylBetween([x - 44 - 12, 150, z], DIST_VAC.tip, 3.4, 10), 'brass');
+  p.add(cylBetween([x - 44 - 12, 150, z], DIST_VAC_NIPPLE.point, 3.4, 10), 'brass');
   return p.g;
 }
 /** Circular fillets so a Catmull-Rom tube stays on the polyline instead of bowing off it. */

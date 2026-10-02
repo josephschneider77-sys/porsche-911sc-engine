@@ -1,4 +1,4 @@
-# Porsche 911 SC 3.0 engine (Type 930/03, 1978): spec and parts reference
+# Porsche 911 SC 3.0 engine (Type 930/04, 1978 US): spec and parts reference
 
 This is the brief the procedural model in `src/geo/` is built from. All geometry is modelled from scratch in Three.js. No catalogue scans or copyrighted images are embedded in the app. The catalogue illustrations were used only as a visual reference for part shapes, how parts are grouped, and the exploded layout. Every part's info panel shows its Porsche part number and catalogue illustration/position.
 
@@ -6,7 +6,7 @@ This is the brief the procedural model in `src/geo/` is built from. All geometry
 
 | Item | Value | Source |
 |---|---|---|
-| Engine type | 930/03 (RoW 911 SC coupé/targa 1978-79); 930/04 & /06 US/Cal | Porsche Kat 002 "Summary types" [P1]; production table [S4] |
+| Engine type | 930/04 (1978 US 911 SC, not California). 930/03 is the RoW engine and is not this model. 930/16 is the California engine. | Porsche Kat 502 USA 911 '83, engine-type pages (PDF pp. 4 and 7); illustration 106-00 (p. 97), 107-00 (p. 106), 107-10 (p. 110) |
 | Layout | Air-cooled horizontally opposed 6, dry sump | [S1] [S2] |
 | Displacement | 2994 cc | [S1] [S2] |
 | Bore × stroke | 95.0 × 70.4 mm | [S1] [S2] [S3] |
@@ -435,7 +435,7 @@ The crankcase chain well follows that chain-box outline. Bottom End accepts the 
 
 ### Tensioner: sealed, not pressure-fed
 
-The 1978 930/03 chain tensioner is the sealed hydraulic unit **930 105 049 00** (checklist 103-10/15 #10). **930 105 053 00** is the alternate of the same family; **930 105 053 04** is the later supersession of that sealed unit (Stoddard: “Latest Supersession of Hydraulic Tensioner”, supersedes 049) and is excluded from engine 63D onward. The pressure-fed Carrera tensioner is a 1984-on part. The bolt-on update is **930 105 911 00** (left) and **930 105 912 00 / 01** (right), listed N/A in the checklist as an alternative. Wayne Dempsey’s Pelican Project 16 says pressure-fed tensioners were introduced in 1984 and sold as a kit for 1969–1983 engines; an SC through 1983 did not come with them. This model keeps the sealed body: a cast body with a thick mounting lug, a tapered nose and a dark gland, a bleeder screw (the PET bleeder 930 105 573 00 is an internal feature, not a separate fed line) and a steel plunger. There is no oil-feed banjo. The body shape follows the 930 105 053 04 supersession photo (FVD), which is the same sealed family.
+The chain tensioner on this 930/04 is the sealed hydraulic unit **930 105 049 00** (the same sealed unit the 930/03 used) (checklist 103-10/15 #10). **930 105 053 00** is the alternate of the same family; **930 105 053 04** is the later supersession of that sealed unit (Stoddard: “Latest Supersession of Hydraulic Tensioner”, supersedes 049) and is excluded from engine 63D onward. The pressure-fed Carrera tensioner is a 1984-on part. The bolt-on update is **930 105 911 00** (left) and **930 105 912 00 / 01** (right), listed N/A in the checklist as an alternative. Wayne Dempsey’s Pelican Project 16 says pressure-fed tensioners were introduced in 1984 and sold as a kit for 1969–1983 engines; an SC through 1983 did not come with them. This model keeps the sealed body: a cast body with a thick mounting lug, a tapered nose and a dark gland, a bleeder screw (the PET bleeder 930 105 573 00 is an internal feature, not a separate fed line) and a steel plunger. There is no oil-feed banjo. The body shape follows the 930 105 053 04 supersession photo (FVD), which is the same sealed family.
 
 - Dempsey, “Chain Tensioners — Carrera Style”: https://www.pelicanparts.com/techarticles/101_Projects_Porsche_911/16-Carrera_Chain_Tensioner_Install/16-Carrera_Chain_Tensioner_Install.htm
 - Stoddard, 930 105 053 04: https://www.stoddard.com/en/diagrams-porsche-911-1983-eu-3-0sc-coupe-manual-gearbox-5-speed/engine-and-fuel-feed-36/timing-chain-timing-sprocket-rocker-gear-chain-tensioner-4241/93010505304-chain-tensioner-911-from-1965-1983-7013
@@ -497,7 +497,7 @@ K = published figure. E = estimated from the JE / FVD photographs in `photo-ref/
 | Box length along the crank | 190 mm | E | Three pitches plus wall and the cold-start boss |
 | Box height | 78 mm (y 174–252) | E | JE teardown-16 / 18 / 37 / 38; top stays ~30 mm under the air-cleaner drum |
 | Stub length past the face | 28 mm | E | reassembly-19, short straight tubes, axis horizontal |
-| Throttle bore | 26 mm | E | Housing at the pulley end (+Z) |
+| Throttle opening | Ø67.5 mm | K | O-ring 999 701 124 40, 67.5×4 (107-10 #6). The flap housing is a separate part, 930 110 248 02 |
 
 The 1978 car has no cold-start spider. The cold-start valve sprays into the lower chamber through a boss on the flywheel end. The lower air-cleaner shell stays in the housing part (911 110 106 13). The neck and the shell seam from the first pass are closed in §18.
 
@@ -505,15 +505,15 @@ Each runner is its own mesh (`intake-runner-1`…`6`) because the head pitch is 
 
 The paper flange gasket is 0.5 mm thick and sits on the head face (local y 0..0.5). The runner flange (top still at local y 8, the nut face) sits on the gasket. Outline 42 × 72, 2 mm inside the 46 × 76 flange, port hole Ø36, stud holes Ø10.4. The collision test caps erosion on sheets thinner than 0.55 mm so this paper does not turn inside out. The head flange and the stud pattern did not change.
 
-Fuel-line ends, and what they seat on:
+Fuel-line ends (Kat 502, fig 107-10, PDF p. 110; item text pp. 111–113):
 
-- feed: banjo + two washers on the distributor inlet → filter-side hex in `fuel-lines` (the filter is off the engine)
-- six injector lines: distributor outlet banjo → injector nipple face
-- warm-up regulator: two lines (`wur-lines`), banjo + two washers at both ends (1978 distributor with the push valve)
-- cold-start feed: distributor side banjo → cold-start-valve banjo
-- return: M14×1.5 union on the distributor (the copper sealing ring) → tank-side hex in `fuel-lines`
+- six injector lines: banjo on a distributor tower → union nut on the injector's male thread. No sealing ring at the injector. `911 110 093 11` (cylinders 1–3) and `911 110 093 12` (4–6) are one part number per bank, so the hook and the union nut are the same shape. The straight span is the only segment that changes: a single rigid tube cannot both sit on the outlet ring and span the 118 mm head pitch.
+- `#51` `930 110 502 00` (`wur-lines`): union nuts, from the distributor screw socket #49 to the warm-up connection piece #52 on top of the regulator.
+- `#61` `930 110 513 00`: warm-up banjo #59 → return-side M12 connection piece #57.
+- `#62` `930 110 514 00`: the other M12, running away from the engine centre and ending on a union nut that is part of the line.
+- `#63` `930 110 570 00`: distributor banjo → cold-start banjo. Both banjos, and the warm-up banjo, are the three #59 bolts, with six A 8×11.5 rings #60.
 
-The filter and the tank are off the engine, so those two hexes are fittings in the line assembly. Each line arrives along the hex axis and stops on the face. Catalogue feature counts in `checklist.ts` are unchanged.
+There is no M14 return union and no feed banjo. Those fittings are not in the 1978 illustration. The tank and filter are off the engine. Catalogue quantity #24 is 8 rings; the drawing shows a ring each side of all six injector eyes (12). The eight listed rings are on cylinders 2, 3, 5 and 6. Cylinders 1 and 4 carry the same A 8×11.5 rings on the distributor so the drawing is complete.
 
 ## 18. Air cleaner and fuel-line routing
 
@@ -534,7 +534,11 @@ The Ø160 × 440 mm open drum is replaced by a flat oval canister, the black hou
 
 The two oval halves meet on the equator: wall, end-cap diameter and lip faces are in contact. Equator vertices keep a horizontal normal so the 1 mm erosion does not walk the edge into the other half, and the triangle test treats an intersection that lies on a shared boundary edge as contact. The outlet neck ends on the outer bottom with its flange on that surface; the skin leaves a Ø44 opening so the tube is not a dead end. The element is centred on the equator.
 
-The six distributor outlets are one row on 17 mm centres (eyes Ø14.6, so neighbours have about 2.4 mm of air). The stubs all leave outboard and fan by about ±15° so the lines gather into the ribbon without crossing. The body is long enough that the end eyes sit on the lid, the warm-up ports stay on the flywheel face, and the return union's hex sits on the pulley face. The six injector lines leave as a ribbon at x −134, 8 mm apart, held by the clip there. They follow the runner about 4 mm off the cast tube. Over the Ø44 spigot the line rises clear of the worm-clamp screws, then a 6 mm centreline bend turns into an 8 mm tube nut. The nut bore is 0.05 mm larger than the line. The steel stops at that nut and stays inside about x ±286. Right-bank lines cross at y 260, just above the plenum lid; cylinder 3 crosses at z −136 so it misses the banjo nuts. The two warm-up-regulator lines drop through the cylinder-6 shroud window (x ≤ −208, z −162/−174, clear of the z −185 wing rib and the hot-air socket screws) and come back inboard under the wing. The cold-start feed, the inlet and the return are short runs off their fittings. A fuel line, a banjo and a clamp are each one solid; distinct solids inside the same part are not allowed to interpenetrate.
+The fuel distributor (107-00 #1, `911 110 967 00`, Kat 502 p. 106) is a square block about 80 × 40 × 88 mm (E), not a 40 × 40 × 108 bar. Six injector towers stand on a circle of Ø76 mm (E). That diameter is scaled from the A 8×11.5 ring drawn beside the distributor on the same page: the tower face is about the ring's outside diameter and the ring of towers spans about six of those diameters, which lands in the Ø75–85 mm band. Stubs leave radially. A short central cover sits in the middle of the ring. The warm-up regulator's fuel ports are on top of the body (connection piece and one banjo), not on the side.
+
+The injector lines follow the runner about 4 mm off the cast tube, then a 6 mm bend into the union nut. The steel stops at the injector face and stays inside about x ±286. Right-bank lines cross at y 260, just above the plenum lid. The vertical six-line ribbon clip is gone. In its place is the angle bracket #26 with one U-clamp #27, an M6 nut and a spring washer, foot on the plenum lid. The 108-10 blower clamps (2×8/15, 2×11/15, 12/15) are drawn beside that bracket. Group 108-10 is not in the checklist extract, and the blower and the heater hoses are not modelled. A fuel line, a banjo and a clamp are each one solid; distinct solids inside the same part are not allowed to interpenetrate.
+
+The throttle is no longer cast into the plenum. The pulley face has a round opening sized from the 67.5×4 O-ring, and the flap housing `930 110 248 02` (107-10 #4, with spring #5 and four M6 screws) bolts there. The air guide `930 110 358 05` (#18) runs from a meter mouth of Ø131 mm (E, clamp S 131/9) to a throttle inlet of Ø85 mm (E, clamp S 85/9). Six spring-loaded M6×25 screws (#1–#3) stand on the air-flow-meter flange.
 
 The head flange and the bottom end are unchanged. The distributor recess and the ignition-lead paths over the shroud edge are not moved. The canister stays above the alternator (measured clearance about 24 mm); the plenum throttle face (z 128) does not reach the alternator (z ≈ 164).
 

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PART_BY_ID } from '../src/data/parts';
-import { BOX, SLEEVE, FUEL_LINES, FUEL_BANJOS, BANJO, serviceHoses, bootFrames, SLEEVE_IN_X, STUB_TIP_X, RUNNER_TIP_X, injectorFace, injectorAxis } from '../src/geo/induction';
+import { BOX, SLEEVE, FUEL_LINES, FUEL_BANJOS, BANJO, serviceHoses, bootFrames, SLEEVE_IN_X, STUB_TIP_X, RUNNER_TIP_X, injectorFace, injectorAxis, FD_CX, FD_CZ, FD_RING_R } from '../src/geo/induction';
 import { AIRBOX } from '../src/geo/aux';
 import { HEATER_HOSE_ENDS } from '../src/geo/smallParts';
 
@@ -130,11 +130,12 @@ describe('1978 CIS fuel lines', () => {
       const ref = Math.abs(axis.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
       const u = new THREE.Vector3().crossVectors(axis, ref).normalize();
       const v = new THREE.Vector3().crossVectors(axis, u).normalize();
+      const host = b.washerPart ?? b.part;
       b.washers.forEach((w, i) => {
         const origin = new THREE.Vector3(...w);
         // The washer profile has no inner wall, so a radial ray hits the outer rim (ro). Try four directions: a neighbour banjo can sit closer than that rim.
         const hit = [u, v, u.clone().negate(), v.clone().negate()].some((d) => {
-          const h = fitting(b.part).raycastFirst(new THREE.Ray(origin, d), THREE.DoubleSide) as any;
+          const h = fitting(host).raycastFirst(new THREE.Ray(origin, d), THREE.DoubleSide) as any;
           return h && Math.abs(h.distance - BANJO.washerRo) < 0.45;
         });
         if (!hit) bad.push(`${b.id} washer ${i}: no copper ring of Ø${BANJO.washerRo * 2} around the bolt`);
@@ -160,14 +161,17 @@ describe('1978 CIS fuel lines', () => {
     expect(bad).toEqual([]);
   });
 
-  it('distributor outlet eyes are 17 mm apart and the stubs fan outboard', () => {
+  it('distributor outlet eyes sit on a ring and the stubs leave radially', () => {
     const faces = FUEL_BANJOS.filter((b) => b.id.startsWith('inj-')).map((b) => b.face);
-    const zs = faces.map((f) => f[2]).sort((a, b) => a - b);
-    for (let i = 1; i < zs.length; i++) expect(zs[i] - zs[i - 1]).toBeCloseTo(17, 5);
-    const stubs = FUEL_LINES.filter((l) => l.id.startsWith('inj-')).map((l) => l.a.axis);
-    for (const s of stubs) expect(s[0]).toBeLessThan(-0.9);
-    const yaw = stubs.map((s) => s[2]);
-    expect(Math.max(...yaw) - Math.min(...yaw)).toBeGreaterThan(0.45);
+    const radii = faces.map((f) => Math.hypot(f[0] - FD_CX, f[2] - FD_CZ));
+    for (const r of radii) expect(r).toBeCloseTo(FD_RING_R, 5);
+    const stubs = FUEL_LINES.filter((l) => l.id.startsWith('inj-')).map((l) => l.a);
+    for (const s of stubs) {
+      const radial = [s.point[0] - FD_CX, s.point[2] - FD_CZ];
+      const L = Math.hypot(radial[0], radial[1]) || 1;
+      const dot = (s.axis[0] * radial[0] + s.axis[2] * radial[1]) / L;
+      expect(dot).toBeGreaterThan(0.9);
+    }
   });
 
   it('intake sleeves sit on the stub and the runner, not in free air', () => {
