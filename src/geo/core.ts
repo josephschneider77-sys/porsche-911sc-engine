@@ -499,20 +499,10 @@ export function crankcaseHalf(s: 1 | -1) {
       p.add(cylBetween([s1.x, s1.y, s1.z], [s2.x, s2.y, s2.z], 11, 16), 'machinedAlu');
     }
   }
-  // round sump boss (strainer cover seats here). The left half still runs the old
-  // non-overlapping cutter so its mesh stays the one already exported. The cutter
-  // is the right-side cooler clearance from the previous mount; it does not meet
-  // the left disk. The right half is the full disk again.
+  // round sump boss (strainer cover seats here).
   const sumpBoss = yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2);
   sumpBoss.translate(0, -126, -10);
-  if (s < 0) {
-    const holder = new THREE.Group();
-    holder.add(new THREE.Mesh(sumpBoss));
-    subtractSolids(holder, [boxMM([81.2, -140, -120], [120, -100, 40])]);
-    p.add((holder.children[0] as THREE.Mesh).geometry, CAST);
-  } else {
-    p.add(sumpBoss, CAST);
-  }
+  p.add(sumpBoss, CAST);
   hollowCaseInterior(p, s);
   // 60 T running tunnel. The hollow above opens the bay; these cutters finish the bearing
   // seats and the gear pocket (tips stop at z 204.7). Plane clip, so it still cuts meshes
@@ -650,18 +640,41 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
     const y0 = -72, y1 = 88, z0 = -210, z1 = -150;
     const zMid = (z0 + z1) / 2, yMid = (y0 + y1) / 2;
     const ports = [[20, -191, 0], [20, -169, 0], [-30, -180, 1]] as const;
+    // Same [y, z] as OIL_COOLER.studs. Each is a cast boss with a 12 mm M8 tap
+    // (modelled Ø8 so the Ø7.7 stud sits in the hole, embed 12, tip at the bore bottom).
+    const studs = [[72, -198], [72, -162], [-56, -198], [-56, -162]] as const;
     const sh = roundRect(z1 - z0, y1 - y0, 8, -zMid, yMid);
     for (const [y, z, big] of ports) sh.holes.push(circlePath(big ? 11 : 10, -z, y) as THREE.Path);
-    const cheek = extrude(sh, face - xRoot, 0, 8);
-    cheek.rotateY(Math.PI / 2);
-    cheek.translate(xRoot, 0, 0);
-    p.add(cheek, CASE_CAST);
+    const cheekMesh = extrude(sh, face - xRoot, 0, 8);
+    cheekMesh.rotateY(Math.PI / 2);
+    cheekMesh.translate(xRoot, 0, 0);
+    let cheek: THREE.BufferGeometry = cheekMesh;
     const capSh = roundRect(z1 - z0, y1 - y0, 8, -zMid, yMid);
     for (const [y, z, big] of ports) capSh.holes.push(circlePath(big ? 11 : 10, -z, y) as THREE.Path);
-    const skin = extrude(capSh, 1.2, 0, 8);
-    skin.rotateY(Math.PI / 2);
-    skin.translate(face - 1.2, 0, 0);
+    const skinMesh = extrude(capSh, 1.2, 0, 8);
+    skinMesh.rotateY(Math.PI / 2);
+    skinMesh.translate(face - 1.2, 0, 0);
+    let skin: THREE.BufferGeometry = skinMesh;
+    const tap = (y: number, z: number) => {
+      const g = cyl(4, 12.5, 20);
+      g.rotateZ(Math.PI / 2);
+      // +Y rotates to −X. Mouth opens past the face (x 104); bottom at x 91.5,
+      // just inboard of the stud tip (x 91) so the reach probe still finds the bore.
+      g.translate(face - 5.25, y, z);
+      return g;
+    };
+    const taps = studs.map(([y, z]) => tap(y, z));
+    cheek = csgSub(cheek, ...taps);
+    skin = csgSub(skin, ...taps);
+    p.add(cheek, CASE_CAST);
     p.add(skin, 'machinedAlu');
+    for (const [y, z] of studs) {
+      const boss = cyl(8, 12, 20);
+      boss.rotateZ(Math.PI / 2);
+      // Under the machined skin (skin starts at x 101.8), inside the pad.
+      boss.translate(face - 7.6, y, z);
+      p.add(csgSub(boss, tap(y, z)), CASE_CAST);
+    }
   }
 }
 

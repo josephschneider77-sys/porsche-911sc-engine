@@ -575,14 +575,17 @@ export function oilCooler() {
   }
   // Outboard end plate.
   p.add(boxMM([C.x1 - 2.2, C.y0 + 3, C.z0 + 2], [C.x1, C.y1 - 3, C.z1 - 2]), 'castAlu');
-  // BEHR stamp on the flywheel side panel, near the outboard end, readable from −Z.
+  // BEHR stamp on the outboard end plate. From +X with up = +Y, screen-right is −Z,
+  // so the letters run toward −Z and read BEHR. Centred on the end-plate centroid
+  // so the extra verts don't tilt the core axis.
   const sc = 1.35, adv = 6.2 * sc;
-  const xWord = C.x1 - 46, yWord = 14, zStamp = C.z0 - 0.7;
+  const wordW = 3 * adv + 4 * sc, wordH = 6 * sc;
+  const zLeft = -180 + wordW / 2, yBot = 8 - wordH / 2, xStamp = C.x1 + 0.6;
   for (const [i, ch] of [...'BEHR'].entries()) {
     for (const [ax, ay, bx, by] of BEHR[ch]) {
-      const xA = xWord + i * adv + ax * sc, yA = yWord + ay * sc;
-      const xB = xWord + i * adv + bx * sc, yB = yWord + by * sc;
-      p.add(cylBetween([xA, yA, zStamp], [xB, yB, zStamp], 0.45, 5), 'machinedAlu');
+      const zA = zLeft - (i * adv + ax * sc), yA = yBot + ay * sc;
+      const zB = zLeft - (i * adv + bx * sc), yB = yBot + by * sc;
+      p.add(cylBetween([xStamp, yA, zA], [xStamp, yB, zB], 0.45, 5), 'machinedAlu');
     }
   }
   // Ø14 return along the bottom face. Centre y −73 puts the crown at y −66,
@@ -608,9 +611,37 @@ export function oilCoolerCap() {
   // Outer cheek, in the opened skirt, clear of the lip-screw washer (reaches x ≈ 251.5).
   p.add(boxMM([258, 108, -206], [260, 134, -154]), 'shroudRed');
   // Lip for the right skirt screw at z −185 and its speed nut. Top is y 105.5, underside y 102.
-  p.add(boxMM([240, 102, -196], [252, 105.5, -174]), 'shroudRed');
+  // Clearance hole (shank r 3) so the screw seats on the lip instead of burying in the 3.5 mm sheet.
+  const lip = boxMM([240, 102, -196], [252, 105.5, -174]);
+  const lipHole = cyl(3.8, 8, 16);
+  lipHole.translate(246, 103.75, -185);
+  p.add(csgSub(lip, lipHole), 'shroudRed');
+  // Speed nut just under the existing clip (that clip occupies y 101–102). The screw
+  // stops inside the hole, so this nut is the thread the reach probe finds.
+  const lipNut = cyl(7, 1.4, 16);
+  lipNut.translate(246, 99.7, -185);
+  const lipTap = cyl(2.3, 3, 12);
+  lipTap.translate(246, 99.7, -185);
+  p.add(csgSub(lipNut, lipTap), 'darkSteel');
   // Flywheel face for the end-plate screws that sat on the shroud plate (x 118, 170, 210, 244).
-  p.add(boxMM([108, 104, -203.5], [252, 128, -200]), 'shroudRed');
+  const face = boxMM([108, 104, -203.5], [252, 128, -200]);
+  const endXs = [118, 170, 210, 244];
+  const endHoles = endXs.map((x) => {
+    const g = cyl(3.8, 8, 16);
+    g.rotateX(Math.PI / 2);
+    g.translate(x, 116, -201.75);
+    return g;
+  });
+  p.add(csgSub(face, ...endHoles), 'shroudRed');
+  for (const x of endXs) {
+    const nut = cyl(7, 1.6, 16);
+    nut.rotateX(Math.PI / 2);
+    nut.translate(x, 116, -198.3);
+    const tap = cyl(2.3, 4, 12);
+    tap.rotateX(Math.PI / 2);
+    tap.translate(x, 116, -198.3);
+    p.add(csgSub(nut, tap), 'darkSteel');
+  }
   return p.g;
 }
 /**

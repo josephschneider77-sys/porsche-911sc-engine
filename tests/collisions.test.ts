@@ -97,10 +97,16 @@ describe('assembled-pose interference', () => {
     for (const [y, z] of OIL_COOLER.studs) {
       const blocked = rayHit('oil-cooler', new THREE.Vector3(102, y, z), alongX, 10);
       expect(blocked, `stud hole (${y}, ${z})`).toBeNull();
-      const seat = rayHit('crankcase-right', new THREE.Vector3(120, y, z), new THREE.Vector3(-1, 0, 0), 40);
+      // Beside the tap the pad face is still x = 103. On the stud axis the ray enters the hole.
+      const seat = rayHit('crankcase-right', new THREE.Vector3(120, y + 6, z), new THREE.Vector3(-1, 0, 0), 40);
       expect(seat, `stud pad (${y}, ${z})`).toBeTruthy();
       expect(Math.abs(120 - seat!.distance - 103)).toBeLessThan(0.2);
       expect(seat!.normal.x).toBeGreaterThan(0.99);
+      const bore = rayHit('crankcase-right', new THREE.Vector3(120, y, z), new THREE.Vector3(-1, 0, 0), 40);
+      expect(bore, `stud tap (${y}, ${z})`).toBeTruthy();
+      const boreX = 120 - bore!.distance;
+      expect(boreX, `tap bottom (${y}, ${z})`).toBeGreaterThan(88);
+      expect(boreX, `tap is open at the face (${y}, ${z})`).toBeLessThan(96);
     }
     for (const [y, z, isBig] of OIL_COOLER.ports) {
       const id = isBig ? 'oil-cooler-seal-riser' : 'oil-cooler-seals';

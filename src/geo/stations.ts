@@ -97,8 +97,10 @@ export function shroudScrews(): { id: string; kind: Kind; M: number; washer: num
   const sock: FItem[] = [0, 1, 2, 3].map((i) => { const a = Math.PI / 4 + (i * Math.PI) / 2; return { p: V(-170 + 39 * Math.cos(a), 118 + 39 * Math.sin(a), zA - t - 2), n: V(0, 0, -1), seat: 'upper-air-guide', into: 'upper-air-guide' }; });
   const collar = (a: number): FItem => ({ p: V(132 * Math.cos(a), FAN.y + 132 * Math.sin(a), SHROUD_TAB.z0), n: V(0, 0, -1), seat: 'upper-air-guide', into: 'fan-housing' });
   return [
-    { id: 'shroud-screws', kind: 'combi', M: 6, washer: 5.5, len: 10, items: lip },
-    { id: 'shroud-end-screws', kind: 'combi', M: 6, washer: 6.25, len: 10, items: end },
+    // 3.3 mm: the sheet is 3.5 mm. A 10 mm shank buried 6 mm past it. The cooler-cap
+    // screws pass through clearance holes and stop inside the hole, short of the speed nut.
+    { id: 'shroud-screws', kind: 'combi', M: 6, washer: 5.5, len: 3.3, items: lip },
+    { id: 'shroud-end-screws', kind: 'combi', M: 6, washer: 6.25, len: 3.3, items: end },
     { id: 'shroud-socket-screws', kind: 'pan', M: 6, washer: 7, len: 12, items: sock },
     { id: 'shroud-collar-bolts-a', kind: 'bolt', M: 6, washer: 6.25, len: 16, items: SHROUD_TAB.a.slice(0, 2).map(collar) },
     { id: 'shroud-collar-bolts-b', kind: 'bolt', M: 6, washer: 6.25, len: 16, items: SHROUD_TAB.a.slice(2).map(collar) },
