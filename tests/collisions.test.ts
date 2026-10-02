@@ -94,9 +94,11 @@ describe('assembled-pose interference', () => {
   });
 
   it('distributor lug seats on the left-case pad and the body does not enter the case', () => {
-    const buried = hits.some((h) =>
+    const pair = (list: { a: string; b: string }[]) => list.filter((h) =>
       (h.a === 'distributor' && h.b === 'crankcase-left') || (h.b === 'distributor' && h.a === 'crankcase-left'));
-    expect(buried).toBe(false);
+    expect(pair(hits)).toEqual([]);
+    expect(pair(findCollisions(0.5))).toEqual([]);
+    expect(pair(findCollisions(0))).toEqual([]);
     const seat = distW(DIST.stud[0], 97.5, DIST.stud[1]);
     const axis = new THREE.Vector3(...DIST_AXIS);
     const origin = new THREE.Vector3(...seat).addScaledVector(axis, 6);

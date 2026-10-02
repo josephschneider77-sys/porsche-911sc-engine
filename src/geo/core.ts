@@ -454,7 +454,18 @@ export function crankcaseHalf(s: 1 | -1) {
     // cheek spiked into the cooler.
   } else {
     p.add(boxMM([-76, 108, 108], [-30, 122, 190]), CAST);
-    p.add(boxMM([-80, 56, 118], [-36, 108, 188]), CAST);
+    // Shoulder cone (r 13.2 → 16.4 around local t 92–95) used to enter this block,
+    // which reached r 14.5 inside the bore. punchDistributor only drops outer-shell
+    // triangles, so the bore is cut out of the block itself. Ends stay outside the
+    // solid so the subtraction is an open tunnel, not a wall across the shank.
+    {
+      const o = new THREE.Vector3(-36.2, 26.5, 216);
+      const A = new THREE.Vector3(-150, 168, 150).sub(o).normalize();
+      const at = (t: number) => o.clone().addScaledVector(A, t);
+      const a = at(25), b = at(115);
+      const cheek = boxMM([-80, 56, 118], [-36, 108, 188]);
+      p.add(csgSub(cheek, cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 17.5, 24)), CAST);
+    }
     // spot-faced pad under the left half for the 101-05 #22/#23 M10 stud nut (E position)
     p.add(cyl(10, 8, 20), CAST, [-40, -127, -186]);
     p.add(cyl(10, 28, 16, 16), CAST, [-40, -109, -186]);

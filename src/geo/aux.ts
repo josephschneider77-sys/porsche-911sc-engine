@@ -1460,24 +1460,24 @@ function densify(pts: V3[], step = 24): V3[] {
   }
   return out;
 }
-/** Metallic braid: two opposite 3-strand helices standing proud of the jacket. */
+/** Metallic braid: two opposite 4-strand helices, dense enough to read at a normal camera distance. */
 function braidedLead(pts: V3[], r = 3.6) {
   const curve = new THREE.CatmullRomCurve3(pts.map((q) => new THREE.Vector3(...q)), false, 'centripetal');
   const len = curve.getLength();
-  const radial = 12;
-  const tubular = Math.max(120, Math.ceil(len / 2.4));
+  const radial = 28;
+  const tubular = Math.max(180, Math.ceil(len / 1.6));
   const g = new THREE.TubeGeometry(curve, tubular, r, radial, false);
   const pos = g.attributes.position;
   const stride = radial + 1;
-  const turns = len / 8;
+  const turns = len / 4.5;
   for (let i = 0; i <= tubular; i++) {
     const u = i / tubular;
     for (let j = 0; j <= radial; j++) {
       const idx = i * stride + j;
       const v = j / radial;
-      const h1 = Math.max(0, Math.cos((v * 3 - u * turns) * Math.PI * 2)) ** 8;
-      const h2 = Math.max(0, Math.cos((v * 3 + u * turns) * Math.PI * 2)) ** 8;
-      const lift = 0.48 * Math.max(h1, h2);
+      const h1 = Math.max(0, Math.cos((v * 4 - u * turns) * Math.PI * 2)) ** 4;
+      const h2 = Math.max(0, Math.cos((v * 4 + u * turns) * Math.PI * 2)) ** 4;
+      const lift = 0.75 * Math.max(h1, h2);
       if (lift < 1e-4) continue;
       // Radial direction is the vertex offset from the centreline sample.
       const c = curve.getPointAt(u);
