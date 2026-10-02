@@ -45,8 +45,10 @@ function punchDistributor(g: THREE.BufferGeometry) {
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), w = new THREE.Vector3();
   const near = (p: THREE.Vector3) => {
     const t = w.copy(p).sub(o).dot(A);
-    if (t < 12 || t > 102) return false;
-    return w.copy(o).addScaledVector(A, t).distanceTo(p) < 18;
+    const r = w.copy(o).addScaledVector(A, t).distanceTo(p);
+    // Bore through the shank, plus the skin under the hold-down lug (r 45, t 93–104).
+    if (t >= 12 && t <= 102 && r < 18) return true;
+    return t >= 93 && t <= 104 && r < 45;
   };
   const pos: number[] = [];
   for (let i = 0; i < P.count; i += 3) {
@@ -469,10 +471,11 @@ export function crankcaseHalf(s: 1 | -1) {
       const X = hint.clone().addScaledVector(Y, -hint.dot(Y)).normalize();
       const Z = new THREE.Vector3().crossVectors(X, Y);
       const m = new THREE.Matrix4().makeBasis(X, Y, Z).setPosition(o);
+      // Flange grows to r 50 so it covers the r 45 skin opening under the lug.
       const boss = lathe([
-        [16.4, 40], [22, 40], [26, 60], [30, 74], [32, 84], [32, 93],
+        [16.4, 40], [22, 40], [28, 62], [42, 76], [50, 84], [50, 93],
         [17.2, 93], [16.4, 88], [16.4, 40],
-      ], 28);
+      ], 32);
       boss.applyMatrix4(m);
       // Notch only where the flange would cover a through-bolt or enter the fan mouth.
       // The rest of the collar still spans r 18–30.
@@ -481,9 +484,12 @@ export function crankcaseHalf(s: 1 | -1) {
       subtractSolids(bossHold, [
         boxMM([-140, 48, 163], [-103, 78, 191]),
         boxMM([-115, 58, 200], [-40, 125, 228]),
+        // The r 50 flange would enter the fan mouth and the shroud horn.
+        boxMM([-130, 80, 218], [-50, 155, 255]),
       ]);
       p.add((bossHold.children[0] as THREE.Mesh).geometry, CAST);
-      const atStud = (y: number) => new THREE.Vector3(-28, y, 2).applyMatrix4(m);
+      // Same local stud as DIST.stud in aux.ts: +X, the vacuum-can side.
+      const atStud = (y: number) => new THREE.Vector3(28, y, 2).applyMatrix4(m);
       const s0 = atStud(70), s1 = atStud(90), s2 = atStud(97.5);
       p.add(cylBetween([s0.x, s0.y, s0.z], [s1.x, s1.y, s1.z], 12, 16), CAST);
       p.add(cylBetween([s1.x, s1.y, s1.z], [s2.x, s2.y, s2.z], 11, 16), 'machinedAlu');

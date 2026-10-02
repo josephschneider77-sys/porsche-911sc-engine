@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { findCollisions, findIntraPartHits, erodedSolidsClash, isMating, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
 import { rayHit } from './hw';
-import { OIL_COOLER } from '../src/geo/aux';
+import { OIL_COOLER, DIST, DIST_AXIS, distW } from '../src/geo/aux';
 
 const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|timing-chain|cam-sprocket)-(left|right)$/;
 const EXHAUST = /^(heat-exchanger-(left|right)|muffler)$/;
@@ -91,5 +91,18 @@ describe('assembled-pose interference', () => {
       expect(hit!.normal.x, `seat normal (${y}, ${z})`).toBeGreaterThan(0.99);
     }
     expect(clearance('oil-cooler', 'crankcase-right')).toBeLessThan(0.6);
+  });
+
+  it('distributor lug seats on the left-case pad and the body does not enter the case', () => {
+    const buried = hits.some((h) =>
+      (h.a === 'distributor' && h.b === 'crankcase-left') || (h.b === 'distributor' && h.a === 'crankcase-left'));
+    expect(buried).toBe(false);
+    const seat = distW(DIST.stud[0], 97.5, DIST.stud[1]);
+    const axis = new THREE.Vector3(...DIST_AXIS);
+    const origin = new THREE.Vector3(...seat).addScaledVector(axis, 6);
+    const hit = rayHit('crankcase-left', origin, axis.clone().negate(), 14);
+    expect(hit, 'stud pad at local t 97.5').toBeTruthy();
+    expect(hit!.distance).toBeCloseTo(6, 0);
+    expect(hit!.normal.dot(axis)).toBeGreaterThan(0.9);
   });
 });

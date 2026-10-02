@@ -1101,8 +1101,8 @@ export const DIST = {
   mouthY: 92,
   clampY: 102,
   clampT: 4.5,
-  /** Stud in the local XZ plane. Negative X is inboard. Lands on the cast pad, not a box corner. */
-  stud: [-28, 2] as [number, number],
+  /** Stud in the local XZ plane. +X is the vacuum-can side, matching 901-00. */
+  stud: [28, 2] as [number, number],
   /** Cap top. Towers stand on this face. */
   towerY: 208,
   towerR: 16,
@@ -1460,13 +1460,42 @@ function densify(pts: V3[], step = 24): V3[] {
   }
   return out;
 }
+/** Metallic braid: two opposite 3-strand helices standing proud of the jacket. */
+function braidedLead(pts: V3[], r = 3.6) {
+  const curve = new THREE.CatmullRomCurve3(pts.map((q) => new THREE.Vector3(...q)), false, 'centripetal');
+  const len = curve.getLength();
+  const radial = 12;
+  const tubular = Math.max(120, Math.ceil(len / 2.4));
+  const g = new THREE.TubeGeometry(curve, tubular, r, radial, false);
+  const pos = g.attributes.position;
+  const stride = radial + 1;
+  const turns = len / 8;
+  for (let i = 0; i <= tubular; i++) {
+    const u = i / tubular;
+    for (let j = 0; j <= radial; j++) {
+      const idx = i * stride + j;
+      const v = j / radial;
+      const h1 = Math.max(0, Math.cos((v * 3 - u * turns) * Math.PI * 2)) ** 8;
+      const h2 = Math.max(0, Math.cos((v * 3 + u * turns) * Math.PI * 2)) ** 8;
+      const lift = 0.48 * Math.max(h1, h2);
+      if (lift < 1e-4) continue;
+      // Radial direction is the vertex offset from the centreline sample.
+      const c = curve.getPointAt(u);
+      const vx = pos.getX(idx) - c.x, vy = pos.getY(idx) - c.y, vz = pos.getZ(idx) - c.z;
+      const mag = Math.hypot(vx, vy, vz) || 1;
+      pos.setXYZ(idx, pos.getX(idx) + vx / mag * lift, pos.getY(idx) + vy / mag * lift, pos.getZ(idx) + vz / mag * lift);
+    }
+  }
+  g.computeVertexNormals();
+  return g;
+}
 /** Ignition leads: left set 911 609 011 07 and right set 911 609 010 07, both braided. Plug ends stay on today's plug pose. */
 export function ignitionLeads() {
   const p = new Part();
   const order = [1, 6, 2, 4, 3, 5];
   order.forEach((c, i) => {
     const pts = plugLeadPoints(c, i);
-    p.add(tube(pts, 3.6, 8, Math.max(64, pts.length * 2)), 'darkSteel');
+    p.add(braidedLead(pts), 'darkSteel');
   });
   // Band clip on each three-lead set, flat so it clears the runners overhead.
   // Left trio sits together at z 40 (x −144…−112). Right trio sits together at z −90 (x 124…140).
@@ -1494,7 +1523,7 @@ export function ignitionLeads() {
     [-286, 168, 162],
     clipCoil,
   ], 25);
-  p.add(tube(cl, 3.6, 8, Math.max(48, cl.length * 2)), 'darkSteel');
+  p.add(braidedLead(cl), 'darkSteel');
   // Primary (#9), under the coil lead, into the same clip.
   const clipPri: V3 = [-286, 164, 188];
   const body = distW(16, 140, 4);

@@ -312,7 +312,6 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('alternator', 'fan-pulley|fan-impeller', 'pressed: impeller and pulley on the alternator shaft'),
   pair('fan-housing', 'fan-impeller', 'seated: impeller running inside the fan housing'),
   pair('fan-belt', 'fan-pulley|crank-pulley', 'seated: belt in the pulley grooves'),
-  pair('distributor', 'crankcase-left', 'pressed: shank in the left-case bore, and seated: cast hold-down lug on the stud pad'),
   pair('fan-hub', 'fan-impeller|alternator', 'pressed: fan hub on the alternator shaft and the impeller on the hub'),
   pair('warm-up-regulator', 'crankcase-left', 'JOINT regulator flange on the case pad'),
   pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),

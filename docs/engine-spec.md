@@ -565,7 +565,7 @@ Photos of normally aspirated 911 engines (the SC bay is the same layout) show th
 - Wikimedia, 911 2.0 engine: https://commons.wikimedia.org/wiki/File:Porsche_911_2.0_003.JPG
 - Wikimedia, 911L at Nottuln: https://commons.wikimedia.org/wiki/File:Nottuln,_Oldtimermuseum,_Porsche_911L_--_2021_--_4496.jpg
 - Stoddard, pinion 930 602 422 03, counterclockwise, 78–83 SC: https://www.stoddard.com/en/distributor-pinion-counterclockwise-rotation-P990031475
-- The crank wheel stays 930 102 115 01, the number already on `crank-gears`. 930 602 422 02 is the clockwise pinion and is not used.
+- The crank wheel stays 930 102 115 01, the number already on `crank-gears`. 930 602 422 02 is the 930/03 pinion and is not used.
 
 A shaft that leaned toward the fan would put the cap inside the fan housing (z ≥ 208) or the chain box. The open bay is flywheel of the fan, so the rotor axis points up, outboard, and slightly toward the flywheel. The towers follow that axis. The vacuum can sits on local +X, outboard and toward the fan, and its nipple points along the rotor axis toward the cap.
 
@@ -581,7 +581,7 @@ A shaft that leaned toward the fan would put the cap inside the fan housing (z �
 | Case bore | Cast boss, mouth at local t 93. Collar covers r 18–30. Bore r 16.4 |
 | Shank | r 13.2 in the bore, O-ring in the groove, shoulder just outside the mouth |
 | Pinion | tip r 12, 0.5 mm off the crank wheel (tip r 32.4) |
-| Hold-down | Cast lug on the housing base, slotted over the case stud at local (−28, 2). Washer, spring washer and M8 nut |
+| Hold-down | Cast lug on the housing base, on the same side as the vacuum can, slotted over the case stud at local (28, 2). Washer, spring washer and M8 nut |
 | Housing | Short neck at the case mouth, then a cast body about 0.75 × the cap. Pinion pin 930 602 922 00 across the gear |
 | Cap | Black Bosch cylinder, Ø70, shoulder ring, two 1.5 mm spring-steel bails |
 | Towers | Ø14 × 34 mm on a 16 mm radius, each with a straight suppression connector 122 035 281 (seven, including the centre tower). Phase unchanged |
