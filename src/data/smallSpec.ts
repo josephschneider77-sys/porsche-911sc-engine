@@ -118,7 +118,7 @@ export function smallRef(id: string): [string, string] {
     'spray-jets': ['101-05', '-'], 'relief-plugs': ['101-05', '30'], 'relief-pistons': ['101-05', '27'], 'case-oil-fittings': ['101-05', '31'], 'case-connection': ['101-05', '18'],
     'oil-temp-sensor': ['101-10', '28'], 'oil-pressure-sender': ['101-10', '45'], 'oil-pressure-switch': ['101-10', '47'], 'oil-pressure-fitting': ['101-10', '48'],
     'thermostat-oring': ['101-10', '38'], 'sump-drain-ring': ['101-05', '42'], 'case-through-orings': ['101-05', '24'], 'oil-return-tubes': ['101-05', '16'],
-    'oil-pump-seals': ['104-00', '2'], 'oil-cooler-seals': ['104-00', '2'], 'oil-cooler-seal-riser': ['104-00', '2'], 'cyl-base-gaskets': ['102-05', '5'], 'head-seals': ['102-05', '6'], 'head-dowels': ['103-00', '8'],
+    'oil-pump-seals': ['104-00', '2'], 'oil-cooler-seals': ['104-00', '3'], 'oil-cooler-seal-riser': ['104-00', '2'], 'cyl-base-gaskets': ['102-05', '5'], 'head-seals': ['102-05', '6'], 'head-dowels': ['103-00', '8'],
     'exhaust-gaskets': ['202-00', '31'], 'intake-gaskets': ['106-00', '7'], 'intake-boots': ['106-00', '10'], 'intake-boot-clamps': ['106-00', '11'],
     'injector-orings-a': ['106-00', '29'], 'injector-orings-b': ['106-00', '30'], 'injector-orings-c': ['107-10', '22'], 'distributor-oring': ['901-00', '4'],
     'ignition-lead-holders': ['901-00', '22'], 'shroud-speed-nuts': ['105-05', '2'], 'shroud-cover-plate': ['105-05', '6'], 'shroud-stopper': ['105-05', '9'],

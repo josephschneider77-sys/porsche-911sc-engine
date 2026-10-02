@@ -501,17 +501,17 @@ export const OIL_COOLER = {
   faceX: 82,
   /** Flange thickness along +X. Nut face is faceX + foot. */
   foot: 8,
-  /** Flange plate, taller than the core. The four studs sit in its corners. */
+  /** Flange plate, just taller than the core. The four studs sit in its corners. */
   fy0: -236, fy1: -88,
   fz0: -202, fz1: 1,
-  /** Core, inset so the flange reads past it on every side. */
-  y0: -208, y1: -116,
-  z0: -168, z1: -34,
   /**
-   * Outboard end plate. About 80 mm from the flange's outboard face (x 90).
-   * The heat exchanger closes in at about x 174.
+   * Core, 140 tall × 195 long × 80 deep (published 195 × 140 × 80). Nearly as
+   * tall as the flange, and longer than it is deep. Corner pockets clear the nuts.
    */
-  x1: 168,
+  y0: -232, y1: -92,
+  z0: -198, z1: -3,
+  /** Outboard end plate. 80 mm from the flange's outboard face (x 90). */
+  x1: 170,
   /** Four corner studs. [y, z]. Same as the case pad. */
   studs: [[-216, -182], [-216, -19], [-108, -182], [-108, -19]] as [number, number][],
   /**
@@ -534,37 +534,49 @@ export function oilCooler() {
   for (const [y, z] of C.studs) plate.holes.push(circlePath(5.0, zMidF - z, y - yMidF) as THREE.Path);
   for (const [y, z, big] of C.ports) plate.holes.push(circlePath(big ? 9.7 : 8.7, zMidF - z, y - yMidF) as THREE.Path);
   p.add(extrudeC(plate, C.foot).rotateY(Math.PI / 2), 'castAlu', [C.faceX + C.foot / 2, yMidF, zMidF]);
-  // Plate-and-fin core, outboard of the flange. Studs sit in the flange corners, outside this box,
-  // so the pack does not meet the M8 nuts. Edges show on the top, the bottom and the sides.
-  const xDeep = C.faceX + C.foot + 2, xSkin = C.x1 - 2.2;
+  // Plate-and-fin core, outboard of the flange. The M8 nuts stand on the flange face, so the
+  // inboard 10 mm is a header with a pocket at each stud. Fins fill the rest of the 80 mm depth.
+  const xFace = C.faceX + C.foot, xNut = xFace + 13, xSkin = C.x1 - 2.2;
+  const header = boxMM([xFace, C.y0, C.z0], [xNut, C.y1, C.z1]);
+  const bigPort = C.ports.find((q) => q[2] === 1)!;
+  const pockets = C.studs.map(([y, z]) => {
+    const g = cyl(9.5, 20, 16);
+    g.rotateZ(Math.PI / 2);
+    g.translate((xFace + xNut) / 2, y, z);
+    return g;
+  });
+  // Groove for the lower-port tube so the header does not swallow it.
+  const chase = cyl(8, 56, 12);
+  chase.translate((xFace + xNut) / 2, bigPort[0] - 28, bigPort[1]);
+  p.add(csgSub(header, ...pockets, chase), 'castAlu');
   const zTank = 14;
   const zFin0 = C.z0 + zTank, zFin1 = C.z1 - zTank;
   for (const [z0, z1] of [[C.z0, C.z0 + zTank], [C.z1 - zTank, C.z1]] as [number, number][]) {
-    p.add(boxMM([xDeep, C.y0 + 4, z0], [xSkin - 10, C.y1 - 4, z1]), 'castAlu');
+    p.add(boxMM([xNut, C.y0 + 4, z0], [xSkin - 10, C.y1 - 4, z1]), 'castAlu');
   }
   const plateT = 1.8, gapT = C.finPitch - 1.8;
   for (let y = C.y0 + 1.2; y + plateT < C.y1 - 1.0; y += C.finPitch) {
-    p.add(boxMM([xDeep, y, zFin0], [xSkin - 0.4, y + plateT, zFin1]), 'machinedAlu');
+    p.add(boxMM([xNut, y, zFin0], [xSkin - 0.4, y + plateT, zFin1]), 'machinedAlu');
     const gy = y + plateT;
-    if (gy + gapT < C.y1 - 1.0) p.add(boxMM([xDeep + 1.2, gy, zFin0 + 0.5], [xSkin - 1.6, gy + gapT, zFin1 - 0.5]), 'darkSteel');
+    if (gy + gapT < C.y1 - 1.0) p.add(boxMM([xNut + 1.2, gy, zFin0 + 0.5], [xSkin - 1.6, gy + gapT, zFin1 - 0.5]), 'darkSteel');
   }
   // Far end plate. Inset so the plate edges still show, and clear of the bottom tube.
   p.add(boxMM([C.x1 - 2.0, C.y0 + 6, C.z0 + 4], [C.x1, C.y1 - 6, C.z1 - 4]), 'castAlu');
-  // Side label. From the flywheel end (−Z looking +Z) the word runs toward +X.
+  // Side label on the −Z face. Glyphs run toward −X so BEHR reads from outside that face.
   const sc = 1.6, adv = 6.4 * sc;
-  const xWord = (xDeep + xSkin) / 2 - 1.5 * adv;
+  const xWordEnd = (xNut + xSkin) / 2 + 1.5 * adv;
   const zStamp = C.z0 - 1.35;
-  p.add(boxMM([xWord - 4, yMid - 12, C.z0 - 1.1], [xWord + 4 * adv + 2, yMid + 12, C.z0 + 0.3]), 'castAlu');
+  p.add(boxMM([xWordEnd - 4 * adv - 2, yMid - 12, C.z0 - 1.1], [xWordEnd + 4, yMid + 12, C.z0 + 0.3]), 'castAlu');
   for (const [i, ch] of [...'BEHR'].entries()) {
     for (const [ax, ay, bx, by] of BEHR[ch]) {
-      const xA = xWord + i * adv + ax * sc, yA = yMid + (ay - 3) * sc;
-      const xB = xWord + i * adv + bx * sc, yB = yMid + (by - 3) * sc;
+      const xA = xWordEnd - (i * adv + ax * sc), yA = yMid + (ay - 3) * sc;
+      const xB = xWordEnd - (i * adv + bx * sc), yB = yMid + (by - 3) * sc;
       p.add(cylBetween([xA, yA, zStamp], [xB, yB, zStamp], 0.5, 5), 'machinedAlu');
     }
   }
   // Ø14 tube along the lower edge, from the flange to a spigot pointing away from the case (+X).
   const big = C.ports.find((q) => q[2] === 1)!;
-  const ty = C.y0 - 8, tz = big[1];
+  const ty = C.y0 - 7, tz = big[1];
   const x0 = C.faceX + C.foot - 1, xTip = C.x1 + 12;
   p.add(cylBetween([x0, ty, tz], [xTip, ty, tz], 7, 16), 'castAlu');
   p.add(cylBetween([C.x1 + 2, ty, tz], [C.x1 + 6, ty, tz], 8.2, 12), 'castAlu');
