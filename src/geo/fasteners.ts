@@ -143,7 +143,7 @@ export function fastenerSets(): FSet[] {
   // warm-up regulator nuts on the case (107-10 #55/#56: pan screws + spring washers)
   set('wur-screws', 'pan', 6, { spring: true, len: 12 }, WUR.screws.map(([x, z]) => ({ p: V(x, WUR.flangeTop, z), n: V(0, 1, 0), seat: 'warm-up-regulator', into: 'crankcase-left' })));
   // guide-rail bolts (103-10/15 #3; sealing rings #4 are the washers) through the rail C-slots into the box back wall
-  for (const s of sides) { const b = bname(s); set(`rail-bolts-${b}`, 'bolt', 6, { washer: 7, len: CHAIN_Z[s] + RAIL.halfZ - (HOUSING_Z0 + 4) + 8, mat: 'darkSteel' }, railBolts(s).map((q) => ({ p: q.clone(), n: V(0, 0, 1), seat: `chain-tensioner-${b}`, into: `chain-housing-${b}` }))); }
+  for (const s of sides) { const b = bname(s); set(`rail-bolts-${b}`, 'bolt', 6, { washer: 7, len: CHAIN_Z[s] + RAIL.halfZ + RAIL.padT - (HOUSING_Z0 + 4) + 8, mat: 'darkSteel' }, railBolts(s).map((q) => ({ p: q.clone(), n: V(0, 0, 1), seat: `chain-tensioner-${b}`, into: `chain-housing-${b}` }))); }
   // cam-flange cover screws (103-10/15 #32/#33): 3 M6×25 combination screws + spring washers into the cam-housing seat
   for (const s of sides) { const b = bname(s);
     set(`cam-flange-cover-screws-${b}`, 'combi', 6, { spring: true, len: 25, mat: 'zincPlate' }, CAM_COVER.angles.map((d) => {

@@ -1126,7 +1126,7 @@ export const SPROCKET_HOLES = 17;
 export const FLANGE_NOTCHES = 16;
 export const VERNIER = { holeR: 3.35, notchR: 2.0 };
 export const CAM_NOSE = {
-  r: 11, key: { D: 9.6, h: 4.8, b: 4, proud: 1.8, dz: -11 }, flange: [-15.4, -5.4] as [number, number], flangeR: 24,
+  r: 11, key: { D: 9.6, h: 4.8, b: 4, proud: 1.8, dz: -10.0 }, flange: [-15.4, -5.4] as [number, number], flangeR: 24,
   shim: 0.6, thrust: 2.5, hubFace: 10, end: 23,
   // rad 24 is the pin circle (flange rim). It clears the hub (r ≤ 19.5) and the M22 nut (vertex r ≈ 18.5).
   pin: { r: 3, rad: 24, a: 0.3 + Math.PI / 6, len: 14, proud: 2 },
@@ -1139,7 +1139,7 @@ export const CAM_NOSE = {
  */
 export const CAM_COVER = {
   t: 5.5, gasketT: 0.4, boreR: 18, bodyR: 36.2, grooveRoot: 33.9, grooveW: 4,
-  boltR: 42, lugRo: 46, lugRi: 34.5, lugHalf: 0.22,
+  boltR: 42, lugRo: 48, lugRi: 34.5, lugHalf: 0.22,
   seatBore: 37.4, seatLipOd: 38.8, seatFaceR: 47,
   angles: [0, 120, 240],
 };
@@ -1548,11 +1548,12 @@ export function guideRails(s: 1 | -1) {
   return [
     { a: up1, b: up2, n: nUp, f0: 0.53, f1: 0.82, mat: black, bolted: true },
     { a: sa, b: sb, n: nn, f0: s > 0 ? 0.55 : 0.2, f1: s > 0 ? 0.8 : 0.45, mat: black, bolted: true },
-    { a: up1, b: up2, n: nUp, f0: 0.28, f1: 0.5, mat: (s > 0 ? 'railBrown' : black) as MatKey, bolted: false },
+    // Stops short of the case-flange nuts (x ≈ ±124). A longer block meets those M8 nuts.
+    { a: up1, b: up2, n: nUp, f0: 0.28, f1: 0.44, mat: (s > 0 ? 'railBrown' : black) as MatKey, bolted: false },
   ];
 }
 /** Ribbed guide-rail block. `halfZ` covers the duplex chain; the bolt head seats on the +Z face. */
-export const RAIL = { halfZ: 7.2, thick: 10, rib: 1.8, slotD: 5.4, slotW: 9 };
+export const RAIL = { halfZ: 7.2, thick: 10, rib: 1.8, slotD: 5.4, slotW: 9, padR: 8.2, padT: 1.6 };
 /** Curved U-channel shoe. `inner` is the gap from the pitch line to the shoe face; `bow` pulls the middle in. */
 export const RAIL_SHOE = { inner: 4.9, thick: 6.5, bow: 0.55 };
 /** Distance from the pitch line to the shoe's inner face at fraction u along the rail (0 at the start). */
@@ -1590,12 +1591,37 @@ function railBoltAt(r: ReturnType<typeof guideRails>[number], f: number, zChain:
   const q = r.a.clone().lerp(r.b, f);
   const off = railInner(u) + RAIL.rib + RAIL.thick - RAIL.slotD / 2;
   const bolt = q.add(r.n.clone().multiplyScalar(off));
-  return new THREE.Vector3(bolt.x, bolt.y, zChain + RAIL.halfZ);
+  return new THREE.Vector3(bolt.x, bolt.y, zChain + RAIL.halfZ + RAIL.padT);
 }
 /** Rail bolts (#3, 4 per bank): through the C-slots of the two bolted rails, head on the +Z face. */
 export function railBolts(s: 1 | -1) {
   const z = CHAIN_Z[s];
   return guideRails(s).filter((r) => r.bolted).flatMap((r) => [r.f0 + 0.06, r.f1 - 0.06].map((f) => railBoltAt(r, f, z)));
+}
+/** Drop CSG chips (a slot cut can leave one loose triangle). Keeps every solid piece. */
+function dropChips(g: THREE.BufferGeometry, minVerts = 24) {
+  const src = g.index ? g.toNonIndexed() : g;
+  const P = src.getAttribute('position');
+  const n = P.count;
+  const parent = new Int32Array(n);
+  for (let i = 0; i < n; i++) parent[i] = i;
+  const find = (a: number): number => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+  const uni = (a: number, b: number) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+  const q = 0.05, map = new Map<string, number>();
+  for (let i = 0; i < n; i++) {
+    const k = `${Math.round(P.getX(i) / q)},${Math.round(P.getY(i) / q)},${Math.round(P.getZ(i) / q)}`;
+    const prev = map.get(k);
+    if (prev !== undefined) uni(prev, i); else map.set(k, i);
+  }
+  for (let i = 0; i + 2 < n; i += 3) { uni(i, i + 1); uni(i + 1, i + 2); }
+  const counts = new Map<number, number>();
+  for (let i = 0; i < n; i++) { const r = find(i); counts.set(r, (counts.get(r) ?? 0) + 1); }
+  const pos: number[] = [];
+  for (let i = 0; i < n; i++) if ((counts.get(find(i)) ?? 0) >= minVerts) pos.push(P.getX(i), P.getY(i), P.getZ(i));
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.computeVertexNormals();
+  return out;
 }
 export function chainTensioner(s: 1 | -1) {
   const p = new Part();
@@ -1717,7 +1743,18 @@ export function chainTensioner(s: 1 | -1) {
       g.translate(c.x + n.x * (outer - RAIL.slotD / 2), c.y + n.y * (outer - RAIL.slotD / 2), z);
       return g;
     });
-    p.add(csgSub(block, ...slots), r.mat);
+    p.add(dropChips(csgSub(block, ...slots)), r.mat);
+    if (r.bolted) {
+      for (const f of [r.f0 + 0.06, r.f1 - 0.06]) {
+        const u = (f - r.f0) / (r.f1 - r.f0);
+        const c = r.a.clone().lerp(r.b, f);
+        const outer = railInner(u) + RAIL.rib + RAIL.thick;
+        const bx = c.x + n.x * (outer - RAIL.slotD / 2);
+        const by = c.y + n.y * (outer - RAIL.slotD / 2);
+        // Round land for the sealing ring. Sits on the +Z face, outboard of the chain plates.
+        p.add(yToZ(cyl(RAIL.padR, RAIL.padT + 0.4, 20)), r.mat, [bx, by, z + RAIL.halfZ + (RAIL.padT - 0.4) / 2]);
+      }
+    }
     for (const zc of [-4.6, 0, 4.6]) {
       p.add(prism(
         (s) => s.crest,
