@@ -322,6 +322,7 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),
   pair('ignition-leads', 'spark-plug', 'seated: lead boot on the plug terminal'),
   pair('ignition-leads', 'ignition-lead-holders', 'seated: lead clipped in the shroud holder'),
+  pair('oil-cooler-cap', 'shroud-speed-nuts', 'seated: speed nut on the cooler-cap lip (the 1 mm nut inverts under the 1 mm erosion; clean at 0 and 0.5 mm)'),
   // ---- top end (heads, cylinders, cams, valvetrain, covers, chain drive) — not rewritten here
 
   pair('piston', 'cylinder', 'JOINT piston in bore'),
@@ -331,7 +332,9 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('camshaft', 'rockers', 'JOINT lobes on rocker pads'), pair('rockers', 'valves', 'JOINT rocker tips on stems'),
   ...sameSide('cam-housing', 'chain-housing', 'JOINT cam-housing end face gasketed into the chain box'),
   ...sameSide('camshaft', 'cam-sprocket', 'JOINT sprocket on cam nose'),
-  ...sameSide('timing-chain', 'cam-sprocket|chain-tensioner', 'JOINT chain on cam sprocket / idler / guide ramps'),
+  // Chain × tensioner is not a blanket pair. allowedClash permits only the idler wrap;
+  // a roller in a guide rail still fails. scripts/collisions.ts uses allowedClash for the same rule.
+  ...sameSide('timing-chain', 'cam-sprocket', 'JOINT chain seated on the cam sprocket'),
   // chain-tensioner × chain-housing is not a blanket pair. allowedClash permits only the
   // idler-shaft and adjuster-stud seats; a rail boss or the strap through a wall still fails.
   ...sameSide('chain-housing', 'chain-housing-lid', 'JOINT cover on housing studs'),
@@ -358,7 +361,7 @@ export const TOP_END_WHY = new Set<string>([
   'JOINT rocker tips on stems',
   'JOINT cam-housing end face gasketed into the chain box',
   'JOINT sprocket on cam nose',
-  'JOINT chain on cam sprocket / idler / guide ramps',
+  'JOINT chain seated on the cam sprocket',
   'JOINT cover on housing studs',
   'JOINT primaries in the exhaust ports',
   'JOINT keyed flange on the cam nose, dowel into the sprocket',
