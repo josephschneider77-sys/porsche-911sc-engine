@@ -8,7 +8,7 @@ import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
   polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup,
 } from './util';
-import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ, SPARK_TIP, SPARK_Z, sparkDirHead } from '../data/layout';
+import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ, SPARK_TIP, SPARK_Z, SPARK_BOOT_Y, sparkDirHead } from '../data/layout';
 import { buildPlenumBox, AIR_NECK, BOX, WUR_FACES, runnerTunnelCutters } from './induction';
 export { INTAKE_PORT, INJ };
 export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './induction';
@@ -914,7 +914,9 @@ function plugLead(c: number, i: number): V3[] {
   const a = (i / 6) * Math.PI * 2;
   const xLoom = s * (151 + lane * 9);
   const yLoom = wingTop(xLoom) + 9;
-  const boot = new THREE.Vector3(0, -92, 0).applyMatrix4(partPose(`spark-plug-${c}`));
+  // On the plug axis, at SPARK_BOOT_Y. The nipple (SPARK_NIPPLE_Y) is the terminal;
+  // Bottom End re-routes the run from the cap. The tail below stays collinear with the axis.
+  const boot = new THREE.Vector3(0, SPARK_BOOT_Y, 0).applyMatrix4(partPose(`spark-plug-${c}`));
   const axis = new THREE.Vector3(0, -1, 0).transformDirection(partPose(`spark-plug-${c}`));
   // Short straight into the boot mouth. A longer run on this axis enters the heat exchanger.
   const mouth = boot.clone().addScaledVector(axis, 4);

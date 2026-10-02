@@ -1693,6 +1693,75 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   return root;
 }
 
+/**
+ * The real 930/03 covers are solid pans: the plug and boot sit in the gap, so this
+ * does not cut a plug hole. Where the current lead passes inside 2 mm of an
+ * exhaust-side ear rim, pull that rim inward in the cover plane until the surface
+ * is at least 2 mm clear. The nut face (local z ≈ 7) and the gasket land stay.
+ */
+export function relieveCoverLead(root: THREE.Object3D, s: 1 | -1, upper: boolean, lead: THREE.Object3D) {
+  if (upper) return root;
+  const frame = coverMatrix(s, upper);
+  const inv = frame.clone().invert();
+  const u = new THREE.Vector3().setFromMatrixColumn(frame, 0).normalize();
+  lead.updateMatrixWorld(true);
+  const leadPos: number[] = [];
+  const lv = new THREE.Vector3();
+  lead.traverse((o: any) => {
+    if (!o.isMesh) return;
+    const g: THREE.BufferGeometry = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
+    const P = g.attributes.position;
+    for (let i = 0; i < P.count; i++) {
+      lv.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld);
+      leadPos.push(lv.x, lv.y, lv.z);
+    }
+  });
+  const leadGeom = new THREE.BufferGeometry();
+  leadGeom.setAttribute('position', new THREE.Float32BufferAttribute(leadPos, 3));
+  const bvh = new MeshBVH(leadGeom);
+  const target: { distance?: number; point?: THREE.Vector3 } = {};
+  // Vertex clearance this far from the lead surface keeps the triangle interior past 2 mm.
+  const TARGET = 4.0;
+  const local = new THREE.Vector3();
+  const world = new THREE.Vector3();
+  const away = new THREE.Vector3();
+  root.updateMatrixWorld(true);
+  root.traverse((o: any) => {
+    if (!o.isMesh) return;
+    const g: THREE.BufferGeometry = o.geometry;
+    const P = g.attributes.position;
+    const M = o.matrixWorld;
+    const Minv = M.clone().invert();
+    let moved = 0;
+    for (let i = 0; i < P.count; i++) {
+      world.fromBufferAttribute(P, i).applyMatrix4(M);
+      local.copy(world).applyMatrix4(inv);
+      // Outer flare of a bolt ear, at the seat. Not the nut disc and not the pan.
+      if (local.z > 2.2 || Math.abs(local.x) < 42) continue;
+      bvh.closestPointToPoint(world, target as any);
+      const d = target.distance ?? Infinity;
+      if (d >= TARGET || !target.point) continue;
+      away.copy(world).sub(target.point);
+      if (away.lengthSq() < 1e-8) continue;
+      away.normalize();
+      const inward = local.x < 0 ? u : u.clone().negate();
+      const comp = inward.dot(away);
+      if (comp < 0.35) continue;
+      const move = (TARGET - d) / comp;
+      if (move > 6) continue;
+      world.addScaledVector(inward, move);
+      const back = world.clone().applyMatrix4(Minv);
+      P.setXYZ(i, back.x, back.y, back.z);
+      moved++;
+    }
+    if (moved) {
+      P.needsUpdate = true;
+      g.computeVertexNormals();
+    }
+  });
+  return root;
+}
+
 /** Drop triangles whose altitude is under 0.001 mm. Wider slivers are real faces. */
 function dropNeedles(root: THREE.Object3D) {
   root.traverse((o: any) => {

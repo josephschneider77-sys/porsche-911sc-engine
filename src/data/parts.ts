@@ -1,6 +1,6 @@
 import { SystemKey } from './catalog';
 import * as THREE from 'three';
-import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ, SPARK_Z, SPARK_TIP, SPARK_ROLL, sparkDirHead } from './layout';
+import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ, SPARK_Z, SPARK_TIP, SPARK_ROLL, SPARK_NIPPLE_Y, sparkDirHead } from './layout';
 import { FASTENER_SPECS } from './fastenerSpec';
 import { SMALL_SPECS, smallRef } from './smallSpec';
 
@@ -78,6 +78,8 @@ function perCylinder(): PartDef[] {
       specs: { 'Valve clearance': '0.10 mm cold', Springs: 'Dual, outer damper coils at the head', 'Stem Ø': '9 mm', 'Installed height': '34.5 mm (Bentley SC, not Dempsey)', 'Keeper grooves': '3' },
     });
     // Tip in the chamber. Left bank mirrors the head, so the outward axis flips X and Z.
+    // position = electrode tip. rotation maps local (0,−1,0) onto `axis` (tip → boot).
+    // Nipple the lead grips: local (0, SPARK_NIPPLE_Y, 0) = tip + (−SPARK_NIPPLE_Y)·axis.
     const [dx, dy, dz] = sparkDirHead();
     const axis = new THREE.Vector3(s * dx, dy, s * dz);
     const qPlug = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), axis);
@@ -89,8 +91,8 @@ function perCylinder(): PartDef[] {
       id: `spark-plug-${c}`, name: `Spark plug, cyl. ${c}`, system: 'ignition', asset: 'spark-plug',
       position: [(CYL_TOP_X + SPARK_TIP.x) * s, SPARK_TIP.y, z + SPARK_Z * s], rotation: zRot, explode: [s * 380, -220, 0],
       catalog: [{ ill: '901-00', pos: '16', pn: '999 170 162 90', qty: 6 }, { ill: '901-00', pos: '21', pn: '911 602 315 00', note: 'Plug connector' }],
-      description: 'Spark plug with shielded connector, fitted from below on the exhaust side of each head.',
-      specs: { Thread: 'M14 x 1.25', Gap: '0.7 mm (typ.)' },
+      description: 'One M14 plug per cylinder, threaded into the exhaust side of the chamber from the outboard face, in the gap between the valve covers. The part origin is the electrode tip. Local −Y is the plug axis (17° outboard of straight down, no along-row tilt) and the ceramic nipple, where the lead boot grips, is at local y −58.',
+      specs: { Thread: 'M14 x 1.25', Gap: '0.7 mm (typ.)', 'Terminal (plug-local)': `(0, ${SPARK_NIPPLE_Y}, 0)` },
     });
     out.push({
       id: `intake-runner-${c}`, name: `Intake pipe, cyl. ${c}`, system: 'induction', asset: `intake-runner-${c}`,

@@ -56,11 +56,17 @@ export function pinX(cyl: number, crankDeg = 0): { pinX: number; throwXY: [numbe
 }
 
 /**
- * Spark plug, head-local. One M14 plug per cylinder, exhaust side, beside the gap
- * between the valves. Tip about (5, −8, ±25): 26 mm off the bore axis. The axis
- * leans 17° outboard from straight down and has no along-row tilt.
+ * Spark plug, head-local. One M14 plug per cylinder, threaded into the exhaust side
+ * of the chamber and coming in from the outboard face, in the gap between the upper
+ * and lower valve covers. Tip about (5, −8, ±25): 26 mm off the bore axis. The axis
+ * leans 17° outboard from straight down and has no along-row tilt. Photos of the
+ * 911 SC (plug fitted, and the socket from under the car) do not show a fore-aft lean.
  * x is 9 rather than 5 so the electrode clears the crown by ≥ 1.5 mm. Higher
  * than that, the axis runs through the exhaust-stud nut. y and z stay.
+ *
+ * partPose: position is the electrode tip. The quaternion maps plug-local (0, −1, 0)
+ * onto the engine axis (s·dx, dy, s·dz), with SPARK_ROLL about local +Y applied first.
+ * A plug-local point (0, y, 0) is tip + (−y) · axis in the engine frame.
  */
 export const SPARK_TIP = { x: 9, y: -8 };
 export const SPARK_Z = 25;
@@ -70,6 +76,16 @@ export const SPARK_TILT = 17 * Math.PI / 180;
 export const SPARK_PITCH = 0;
 /** Radians. Spin about the plug axis so a hex flat faces the barrel fins. */
 export const SPARK_ROLL = 0;
+/**
+ * Plug-local Y of the ceramic nipple. The connector grips here.
+ * Engine point = tip + (−SPARK_NIPPLE_Y) · axis.
+ */
+export const SPARK_NIPPLE_Y = -58;
+/**
+ * Plug-local Y on the boot that the current lead samples. Further out than the nipple.
+ * Bottom End owns the run from the distributor cap and re-routes to this pose.
+ */
+export const SPARK_BOOT_Y = -92;
 /** Unit axis in the head frame, from the electrode tip toward the boot. */
 export function sparkDirHead(): [number, number, number] {
   const c = Math.cos(SPARK_TILT);
