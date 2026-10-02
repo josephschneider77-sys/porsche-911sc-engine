@@ -134,7 +134,7 @@ export function fastenerSets(): FSet[] {
   // oil cooler (104-00 #5/#9): 4 M8 nuts + spring washers. Studs point +X out of the right-case cheek.
   set('oil-cooler-nuts', 'nut', 8, { spring: true, grip: OIL_COOLER.foot, embed: 12 }, OIL_COOLER.studs.map(([y, z]) => ({ p: V(OIL_COOLER.faceX + OIL_COOLER.foot, y, z), n: V(1, 0, 0), seat: 'oil-cooler', into: 'crankcase-right', stud: true })));
   // distributor clamp nut (901-00 #5-#7): washer + spring washer, stud in the left case half
-  set('distributor-nut', 'nut', 8, { washer: DIM[8].wr, spring: true, grip: DIST.clampY - DIST.mouthY, embed: 14 }, [{ p: V(...distW(DIST.stud[0], DIST.clampY, DIST.stud[1])), n: V(...DIST_AXIS), seat: 'distributor-clamp', into: 'crankcase-left', stud: true }]);
+  set('distributor-nut', 'nut', 8, { washer: DIM[8].wr, spring: true, grip: DIST.clampY - DIST.mouthY, embed: 14 }, [{ p: V(...distW(DIST.stud[0], DIST.clampY, DIST.stud[1])), n: V(...DIST_AXIS), seat: 'distributor', into: 'crankcase-left', stud: true }]);
   // fan impeller to hub-extension nuts (105-00 #4/#5)
   set('fan-nuts', 'nut', 6, { spring: true, grip: 4, embed: 8 }, ring(6, 52, Math.PI / 6).map(([x, y]) => ({ p: V(x, FAN.y + y, 270), n: V(0, 0, 1), seat: 'fan-hub', into: 'fan-impeller', stud: true })));
   // air-guide (shroud) screws (105-05 #10-#12, #17)
