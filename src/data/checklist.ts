@@ -183,7 +183,7 @@ export const CLAIMS: Claim[] = [
   C('103-15#43', 'intermediate-shaft'), C('103-15#44', 'ishaft-circlips', 'item', 2), C('103-15#45', 'ishaft-circlips', 'item', 1), C('103-15#46', 'ishaft-thrust'),
   C('103-15#47', 'ishaft-bearings'), C('103-15#48', 'ishaft-stopper'), C('103-15#49', 'ishaft-circlips', 'item', 1),
   // ---- 104-00 oil pump / cooler
-  C('104-00#1', 'oil-pump'), C('104-00#2', 'oil-pump-seals', 'item', 2), C('104-00#3', 'oil-pump-seals', 'item', 4), C('104-00#4', 'oil-pump-nuts', 'tab'),
+  C('104-00#1', 'oil-pump'), C('104-00#2', 'oil-pump-seals', 'item', 1), C('104-00#2', 'oil-cooler-seal-riser'), C('104-00#3', 'oil-pump-seals', 'item', 2), C('104-00#3', 'oil-cooler-seals'), C('104-00#4', 'oil-pump-nuts', 'tab'),
   C('104-00#5', 'oil-pump-nuts', 'item', 3), C('104-00#5', 'oil-cooler-nuts', 'item', 4), C('104-00#6', 'oil-pump', 'shaft'), C('104-00#8', 'oil-cooler'), C('104-00#9', 'oil-cooler-nuts', 'spring'),
   // ---- 105-00 fan / 902-05 alternator
   C('105-00#1', 'fan-housing'), C('105-00#2', 'fan-housing', 'strap'), C('105-00#4', 'fan-nuts', 'spring'), C('105-00#5', 'fan-nuts'), C('105-00#6', 'fan-impeller'),

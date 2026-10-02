@@ -475,28 +475,114 @@ function swapSkirt(sk: THREE.Shape, t: number, s: 1 | -1, bx: number) {
   return g;
 }
 
-// ---------------------------------------------------------------- 104-00 / 101 lubrication bits
+// ---------------------------------------------------------------- 104-00 lubrication: crankcase oil cooler
+/**
+ * 911 107 041 00 on the right crankcase at the flywheel end, beside the ring
+ * gear (joe-engineer longblock sealing photos: the pad and the three seals sit
+ * on the right case next to the flywheel, under the cylinder barrels). 104-00
+ * draws the cooler on the crankcase, not in the fan shroud. Published core
+ * 195 × 140 × 80 mm (911 107 041 00 / 02). Kat 502 104-00: a separate flange
+ * plate, taller than the core, on four M8 studs. Two upper ports and one
+ * lower port are in the flange face. A Ø14 tube runs along the lower edge
+ * and ends in a spigot pointing away from the case. No vertical riser.
+ * Behr plate-and-fin: plates stacked in Y so the edges read on top. The
+ * stamp sits on the side panel. Studs and ports are [y, z]; the case pad
+ * in core.ts uses the same numbers. The third port number is 1 for the
+ * 26×19 ring (104-00 #2) and 0 for a 22×17 (104-00 #3).
+ */
+const BEHR: Record<string, [number, number, number, number][]> = {
+  B: [[0, 0, 0, 6], [0, 6, 3, 6], [3, 6, 4, 5], [4, 5, 4, 3.4], [4, 3.4, 3, 3], [3, 3, 0, 3], [0, 0, 3, 0], [3, 0, 4, 1], [4, 1, 4, 2.6], [4, 2.6, 3, 3]],
+  E: [[4, 0, 0, 0], [0, 0, 0, 6], [0, 6, 4, 6], [0, 3, 3, 3]],
+  H: [[0, 0, 0, 6], [4, 0, 4, 6], [0, 3, 4, 3]],
+  R: [[0, 0, 0, 6], [0, 6, 3, 6], [3, 6, 4, 5], [4, 5, 4, 3.4], [4, 3.4, 3, 3], [3, 3, 0, 3], [2, 3, 4, 0]],
+};
+export const OIL_COOLER = {
+  /** Case spot face, and the flange's inboard face. The cheek ends on this plane. */
+  faceX: 82,
+  /** Flange thickness along +X. Nut face is faceX + foot. */
+  foot: 8,
+  /** Flange plate, just taller than the core. The four studs sit in its corners. */
+  fy0: -236, fy1: -88,
+  fz0: -202, fz1: 1,
+  /**
+   * Core, 140 tall × 195 long × 80 deep (published 195 × 140 × 80). Nearly as
+   * tall as the flange, and longer than it is deep. Corner pockets clear the nuts.
+   */
+  y0: -232, y1: -92,
+  z0: -198, z1: -3,
+  /** Outboard end plate. 80 mm from the flange's outboard face (x 90). */
+  x1: 170,
+  /** Four corner studs. [y, z]. Same as the case pad. */
+  studs: [[-216, -182], [-216, -19], [-108, -182], [-108, -19]] as [number, number][],
+  /**
+   * Ports in the flange face. [y, z, big]. Two upper (#3, 22×17) and one
+   * lower (#2, 26×19). Same numbers as the case pad.
+   */
+  ports: [[-140, -150, 0], [-140, -50, 0], [-200, -100, 1]] as [number, number, number][],
+  /** Plate 1.8 mm, dark gap 0.7 mm. Pitch about 2.5 mm. */
+  finPitch: 2.5,
+};
 export function oilCooler() {
   const p = new Part();
-  const x0 = -199, x1 = -95, y0 = 74, y1 = 124, z0 = 30, z1 = 148;
-  p.add(boxMM([x0, y0, z0], [x0 + 6, y1, z1]), 'castAlu');
-  p.add(boxMM([x1 - 6, y0, z0], [x1, y1, z1]), 'castAlu');
-  for (let z = z0 + 3; z < z1 - 2; z += 3.2) p.add(boxMM([x0 + 6, y0 + 3, z], [x1 - 6, y1 - 3, z + 0.9]), 'machinedAlu');
-  for (const y of [y0 + 10, (y0 + y1) / 2, y1 - 10]) p.add(cylBetween([x0 + 6, y, (z0 + z1) / 2], [x1 - 6, y, (z0 + z1) / 2], 4, 10), 'castAlu');
-  // oil ports: short spigots from the end tank to the case-top passages (O-rings: smallParts oil-cooler-seals)
-  for (const z of [49, 75]) { p.add(cylBetween([x1, 97, z], [-84, 97, z], 4, 12), 'castAlu'); p.add(cylBetween([-84, 97, z], [-84, 92, z], 4, 12), 'castAlu'); }
-  // four mounting feet on the case top (nuts: fasteners.ts oil-cooler-nuts)
-  // v5: the end tank corner is relieved round the distributor base instead of overlapping it (feet added after the cut)
-  cutGroup(p.g, distRelief(70, 100));
-  for (const [x, z] of OIL_COOLER.studs) {
-    const sh = polyShape(hull([...circlePts(x, z, 8, 12), ...circlePts(x1 + 2, z, 8, 12)]));
-    sh.holes.push(circlePath(4.5, x, z) as THREE.Path); // stud (r 3.84) passes through; the foot stays clear of the case stud
-    p.add(extrudeC(sh, OIL_COOLER.foot).rotateX(Math.PI / 2), 'castAlu', [0, OIL_COOLER.footTop - OIL_COOLER.foot / 2, 0]);
+  const C = OIL_COOLER;
+  const yMidF = (C.fy0 + C.fy1) / 2, zMidF = (C.fz0 + C.fz1) / 2;
+  const yMid = (C.y0 + C.y1) / 2;
+  // Separate end flange, taller than the core, with the four stud holes and the oil ports.
+  // rotateY(+90) sends shape +X to world −Z, so a hole's shape-x is zMidF − worldZ.
+  // Bearing probe sits at r 5.2, so each stud hole stays under that and still clears the stud (r 3.84).
+  const plate = roundRect(C.fz1 - C.fz0, C.fy1 - C.fy0, 8);
+  for (const [y, z] of C.studs) plate.holes.push(circlePath(5.0, zMidF - z, y - yMidF) as THREE.Path);
+  for (const [y, z, big] of C.ports) plate.holes.push(circlePath(big ? 9.7 : 8.7, zMidF - z, y - yMidF) as THREE.Path);
+  p.add(extrudeC(plate, C.foot).rotateY(Math.PI / 2), 'castAlu', [C.faceX + C.foot / 2, yMidF, zMidF]);
+  // Plate-and-fin core, outboard of the flange. The M8 nuts stand on the flange face, so the
+  // inboard 10 mm is a header with a pocket at each stud. Fins fill the rest of the 80 mm depth.
+  const xFace = C.faceX + C.foot, xNut = xFace + 13, xSkin = C.x1 - 2.2;
+  const header = boxMM([xFace, C.y0, C.z0], [xNut, C.y1, C.z1]);
+  const bigPort = C.ports.find((q) => q[2] === 1)!;
+  const pockets = C.studs.map(([y, z]) => {
+    const g = cyl(9.5, 20, 16);
+    g.rotateZ(Math.PI / 2);
+    g.translate((xFace + xNut) / 2, y, z);
+    return g;
+  });
+  // Groove for the lower-port tube so the header does not swallow it.
+  const chase = cyl(8, 56, 12);
+  chase.translate((xFace + xNut) / 2, bigPort[0] - 28, bigPort[1]);
+  p.add(csgSub(header, ...pockets, chase), 'castAlu');
+  const zTank = 14;
+  const zFin0 = C.z0 + zTank, zFin1 = C.z1 - zTank;
+  for (const [z0, z1] of [[C.z0, C.z0 + zTank], [C.z1 - zTank, C.z1]] as [number, number][]) {
+    p.add(boxMM([xNut, C.y0 + 4, z0], [xSkin - 10, C.y1 - 4, z1]), 'castAlu');
   }
+  const plateT = 1.8, gapT = C.finPitch - 1.8;
+  for (let y = C.y0 + 1.2; y + plateT < C.y1 - 1.0; y += C.finPitch) {
+    p.add(boxMM([xNut, y, zFin0], [xSkin - 0.4, y + plateT, zFin1]), 'machinedAlu');
+    const gy = y + plateT;
+    if (gy + gapT < C.y1 - 1.0) p.add(boxMM([xNut + 1.2, gy, zFin0 + 0.5], [xSkin - 1.6, gy + gapT, zFin1 - 0.5]), 'darkSteel');
+  }
+  // Far end plate. Inset so the plate edges still show, and clear of the bottom tube.
+  p.add(boxMM([C.x1 - 2.0, C.y0 + 6, C.z0 + 4], [C.x1, C.y1 - 6, C.z1 - 4]), 'castAlu');
+  // Side label on the −Z face. Glyphs run toward −X so BEHR reads from outside that face.
+  const sc = 1.6, adv = 6.4 * sc;
+  const xWordEnd = (xNut + xSkin) / 2 + 1.5 * adv;
+  const zStamp = C.z0 - 1.35;
+  p.add(boxMM([xWordEnd - 4 * adv - 2, yMid - 12, C.z0 - 1.1], [xWordEnd + 4, yMid + 12, C.z0 + 0.3]), 'castAlu');
+  for (const [i, ch] of [...'BEHR'].entries()) {
+    for (const [ax, ay, bx, by] of BEHR[ch]) {
+      const xA = xWordEnd - (i * adv + ax * sc), yA = yMid + (ay - 3) * sc;
+      const xB = xWordEnd - (i * adv + bx * sc), yB = yMid + (by - 3) * sc;
+      p.add(cylBetween([xA, yA, zStamp], [xB, yB, zStamp], 0.5, 5), 'machinedAlu');
+    }
+  }
+  // Ø14 tube along the lower edge, from the flange to a spigot pointing away from the case (+X).
+  const big = C.ports.find((q) => q[2] === 1)!;
+  const ty = C.y0 - 7, tz = big[1];
+  const x0 = C.faceX + C.foot - 1, xTip = C.x1 + 12;
+  p.add(cylBetween([x0, ty, tz], [xTip, ty, tz], 7, 16), 'castAlu');
+  p.add(cylBetween([C.x1 + 2, ty, tz], [C.x1 + 6, ty, tz], 8.2, 12), 'castAlu');
+  p.add(cylBetween([C.faceX + C.foot + 2, big[0], big[1]], [C.faceX + C.foot + 6, ty + 2, tz], 6, 10), 'castAlu');
   return p.g;
 }
-/** Oil-cooler feet: 4 studs in the left case top (case surface y 95 at x -90). */
-export const OIL_COOLER = { foot: 6, footTop: 101, studs: [[-89, 36], [-89, 62], [-89, 88], [-89, 112]] as [number, number][] };
 /**
  * Oil thermostat on TOP of the right case half at the pulley end.
  * seatY is the nut face (top of the flange). The case pad is at seatY − grip.
@@ -660,7 +746,8 @@ export function sumpPlate() {
  * Oil pump in the flywheel-end bay. The long axis is across the case (X): the bay between
  * the z −177 and z −118 webs is only ~37 mm deep, so a 2.2× body along Z will not fit.
  * coverFace is the flywheel face of the three mounting ears (oil-pump-nuts, n = −Z).
- * seals: seven O-ring seats, [x, y, z, axis] with axis 'Y' (top ports) or 'Z' (end face).
+ * seals: four O-ring seats, [x, y, z]. The first is the large ring (104-00 #2);
+ * the next two are 104-00 #3. The fourth is the extra 101-10 #24 ring.
  */
 export const OIL_PUMP = {
   // Flywheel face of the cover. M8 nuts stand ~8 mm proud toward −Z and must stay
@@ -670,8 +757,9 @@ export const OIL_PUMP = {
   // the left relief piston and outside the cyl-6 cheek disc.
   studs: [[38, -56], [-10, -116], [30, -116]] as [number, number][],
   seals: [
-    [-14, -64.8, -147], [24, -64.8, -147],
-    [-16, -90, -157.2], [-4, -80, -157.2], [10, -100, -157.2], [16, -88, -157.2], [2, -96, -157.2],
+    [-14, -64.8, -147],
+    [24, -64.8, -147], [-16, -90, -157.2],
+    [16, -88, -157.2],
   ] as [number, number, number][],
 };
 export function oilPump() {
@@ -1113,7 +1201,9 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
   // x -216, where the sheet has ended and the chain housing (z 212) has not started.
   const zDrop = s > 0 ? -190 : 192 + lane * 4;
   const xOut = s * (214 + lane * 4); // left drop, inboard of the cam housing
-  const xUnder = s * (170 + lane * 10);
+  // Right bank sits outboard of the oil-cooler cover (x 170), above the heat-exchanger
+  // shell. The old run at x 170 was what kept the core from reaching its depth.
+  const xUnder = s > 0 ? 200 + lane * 6 : s * (170 + lane * 10);
   // The rail is the inboard shroud line. Out past |x| ≈ 160 the runners drop through the wing.
   // Below the oil-return tubes (centre y -78, radius 7) and above the heat-exchanger shell.
   const yUnder = Math.max(-98 - lane * 6, boot.y + 18);

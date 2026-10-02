@@ -258,10 +258,19 @@ export function crankcaseHalf(s: 1 | -1) {
   // Sump is a wall, not a plug. Inner edge stays ~14 mm inside the outer skin so the crank bay,
   // intermediate shaft and oil pump are open; the outer skin still carries the sump studs and plugs.
   // The wall top (y −108 at the split) sits below the shaft, so the Ø32 land is not buried in it.
-  addProfile([
+  // Outer peak is x 90 at y −102. The cooler pad (below) takes that bulge from the
+  // flywheel end through the sump: the flange face is x 82, so the skin stops at 81.2.
+  const sumpWall: [number, number][] = [
     [0, -108], [0, -120], [16, -128], [42, -126], [74, -116], [90, -102], [82, -88], [66, -78],
     [54, -84], [68, -98], [70, -110], [44, -116], [22, -112], [12, -106],
-  ], z0 + 4, z1 - 4, CAST);
+  ];
+  const sumpWallPad = sumpWall.map(([x, y]) => [Math.min(x, 81.2), y] as [number, number]);
+  if (s > 0) {
+    addProfile(sumpWallPad, z0 + 4, 8, CAST);
+    addProfile(sumpWall, 8, z1 - 4, CAST);
+  } else {
+    addProfile(sumpWall, z0 + 4, z1 - 4, CAST);
+  }
   // Lower edge stays inboard of the oil-pump cover nuts (y ≈ -88, |x| ≈ 28) at the flywheel main.
   const WEB: [number, number][] = [
     [0, 96], [24, 92], [50, 70], [50, 46], [40, 36], [40, -28], [26, -50], [22, -68], [22, -108], [0, -112],
@@ -409,6 +418,8 @@ export function crankcaseHalf(s: 1 | -1) {
     // Low enough that the cap stays inside the fan-shroud collar. Matches THERMO in aux.ts.
     p.add(cyl(24, 22, 28), CAST, [96, 99, 176]);
     p.add(cyl(20, 2.2, 32), 'machinedAlu', [96, 108.9, 176]);
+    // Oil-cooler pad is added after the interior cut (see below). A boolean on this
+    // cheek spiked into the cooler.
   } else {
     p.add(boxMM([-76, 108, 108], [-30, 122, 190]), CAST);
     p.add(boxMM([-80, 56, 118], [-36, 108, 188]), CAST);
@@ -418,13 +429,20 @@ export function crankcaseHalf(s: 1 | -1) {
     // warm-up regulator flange underside is y = 116.2 (WUR.flangeTop - 5). Screws thread down into this pad.
     p.add(boxMM([-72, 114.8, -198], [-48, 116.2, -142]), 'machinedAlu');
     p.add(boxMM([-76, 46, -202], [-44, 114.8, -138]), CAST);
-    // distributor clamp spacer bottoms at y = 107 (DIST.caseY). Stay inboard of the cooler feet (x >= -81).
+    // distributor clamp spacer bottoms at y = 107 (DIST.caseY).
     p.add(boxMM([-80.2, 105.4, 99], [-64, 107, 115]), 'machinedAlu');
     p.add(boxMM([-80.2, 52, 99], [-64, 105.4, 115]), CAST);
-    // Cooler pads are added after the interior cut. The distributor bore (r 36 at z 146) reaches the z 112 stud.
   }
-  // round sump boss (strainer cover seats here)
-  p.add(yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2), CAST, [0, -126, -10]);
+  // round sump boss (strainer cover seats here). The right half is faced back to x 81.2
+  // where the cooler flange crosses it (flange face x 82); the plate itself is inside r 80.
+  const sumpBoss = yToZ(lathe([[0.1, -2], [84, -2], [84, 2], [0.1, 2]], 48, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI)).rotateX(Math.PI / 2);
+  sumpBoss.translate(0, -126, -10);
+  // Both halves carry a half of this disk, and each half still reaches x ≈ 84.
+  // The cooler flange owns x ≥ 82, so the disk stops at 81.2.
+  const holder = new THREE.Group();
+  holder.add(new THREE.Mesh(sumpBoss));
+  subtractSolids(holder, [boxMM([81.2, -140, -120], [120, -100, 40])]);
+  p.add((holder.children[0] as THREE.Mesh).geometry, CAST);
   hollowCaseInterior(p, s);
   // 60 T running tunnel. The hollow above opens the bay; these cutters finish the bearing
   // seats and the gear pocket (tips stop at z 204.7). Plane clip, so it still cuts meshes
@@ -545,13 +563,32 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
     p.add(yToX(cyl(CASE_LUG.r, CASE_LUG.x, 16)), CASE_CAST, [s * CASE_LUG.x / 2, y, z]);
     p.add(yToX(cyl(CASE_LUG.r - 0.8, 1.2, 14)), 'machinedAlu', [s * (CASE_LUG.x - 0.6), y, z]);
   }
-  if (s < 0) {
-    // Foot underside is y 95. The supporting pad stops 0.2 mm under it (a coplanar rim counts as a hit).
-    // The bright spot the stud ray sees is r 3.8, inside the foot's r 4.5 hole, and its top is exactly y 95.
-    for (const sz of [36, 62, 88, 112]) {
-      p.add(cyl(5.5, 1.2, 24), 'machinedAlu', [-89, 94.2, sz]);
-      p.add(cyl(3.8, 0.4, 16), 'machinedAlu', [-89, 94.8, sz]);
-      p.add(boxMM([-94.2, 50, sz - 6], [-83, 93.8, sz + 6]), CASE_CAST);
+  if (s > 0) {
+    // Flywheel-end cooler pad. Face is exactly OIL_COOLER.faceX (82). Keep these
+    // studs and ports in step with OIL_COOLER in aux.ts. Holes live in the profile
+    // so the pad never enters the interior boolean (that spike reached the cooler).
+    // Shape X = −world Z after rotateY(+90).
+    const face = 82, xRoot = 66;
+    const y0 = -240, y1 = -84, z0 = -206, z1 = 6;
+    const zMid = (z0 + z1) / 2, yMid = (y0 + y1) / 2;
+    const studs = [[-216, -182], [-216, -19], [-108, -182], [-108, -19]] as const;
+    const ports = [[-140, -150, 0], [-140, -50, 0], [-200, -100, 1]] as const;
+    const sh = roundRect(z1 - z0, y1 - y0, 16, -zMid, yMid);
+    for (const [y, z] of studs) sh.holes.push(circlePath(5.2, -z, y) as THREE.Path);
+    for (const [y, z, big] of ports) sh.holes.push(circlePath(big ? 10 : 9, -z, y) as THREE.Path);
+    const cheek = extrude(sh, face - xRoot, 0, 8);
+    cheek.rotateY(Math.PI / 2);
+    cheek.translate(xRoot, 0, 0);
+    p.add(cheek, CASE_CAST);
+    for (const [y, z] of studs) {
+      // Boss blends into the cheek and stops 1 mm behind the spot face.
+      p.add(yToX(lathe([[4.2, 0], [11, 0], [11, 6], [6.2, 11], [4.2, face - xRoot - 1]], 16)), CASE_CAST, [xRoot, y, z]);
+      // Spot disk, exactly x = face, inside the flange hole (r 4.5). Extruded, not a
+      // cylinder: a 0.8 mm cylinder inverts under the 1 mm clash erosion.
+      const disk = extrude(circleShape(3.2), 3.2, 0, 10);
+      disk.rotateY(Math.PI / 2);
+      disk.translate(face - 3.2, y, z);
+      p.add(disk, 'machinedAlu');
     }
   }
 }

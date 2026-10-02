@@ -123,7 +123,7 @@ export const FASTENER_SPECS: FastenerSpec[] = [
     catalog: [{ ill: b === 'left' ? '103-10' : '103-15', pos: '32/33', pn: '—', qty: 3 }],
     description: 'Three screws holding the adjuster cover on the lid.' })),
   { id: 'oil-cooler-nuts', name: 'Oil-cooler nuts', count: 4, step: 'shroud', follows: 'oil-cooler', size: 'M8 nut + spring washer',
-    catalog: [{ ill: '104-00', pos: '5/9', pn: '900 076 025 02', qty: 7, note: '4 of the 7 #5 nuts; spring washers #9 x4' }], description: 'Four nuts holding the oil-cooler feet on studs in the left case half.' },
+    catalog: [{ ill: '104-00', pos: '5/9', pn: '900 076 025 02', qty: 7, note: '4 of the 7 #5 nuts; spring washers #9 N 012 241 8 x4' }], description: 'Four M8 nuts and spring washers on the cooler flange studs. The studs stand in the right-case pad.' },
   { id: 'distributor-nut', name: 'Distributor clamp nut', count: 1, step: 'distributor', follows: 'distributor-clamp', size: 'M8 nut + washer + spring washer',
     catalog: [{ ill: '901-00', pos: '5-7', pn: '—', qty: 1 }], description: 'Single nut on the clamp stud; mark the rotor before slackening it.' },
   { id: 'fan-nuts', name: 'Fan to hub nuts', count: 6, step: 'fan', follows: 'fan-impeller', size: 'M6 nut + spring washer',
