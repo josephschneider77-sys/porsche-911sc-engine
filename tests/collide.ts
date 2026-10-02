@@ -235,7 +235,8 @@ export function findIntraPartHits(ids: string[], tol = 1): IntraHit[] {
       inst.forEach((im, i) => {
         const world = pose.clone().multiply(o.matrixWorld).multiply(im);
         const baked = worldMesh(o.geometry, world);
-        const key = o.isInstancedMesh ? `inst:${o.uuid}:${i}` : (subSolidKey(o) ?? `mesh:${loose++}`);
+        const named = typeof o.name === 'string' && o.name.startsWith('seat:') ? o.name : null;
+        const key = o.isInstancedMesh ? `inst:${o.uuid}:${i}` : (subSolidKey(o) ?? named ?? `mesh:${loose++}`);
         add(key, erodePositions(baked, tol));
       });
     });
@@ -407,12 +408,27 @@ function tensionerHousingPair(h: Hit): 1 | -1 | 0 {
   if (!ten || !box || ten.endsWith('left') !== box.endsWith('left')) return 0;
   return ten.endsWith('left') ? -1 : 1;
 }
+/** Chain wrapped on the idler. A roller in the long rail is not this. */
+function chainOnIdlerSample(s: 1 | -1, p: THREE.Vector3) {
+  const T = tensionerLayout(s);
+  return Math.hypot(p.x - T.idler.x, p.y - T.idler.y) < T.idlerR + 4.8 && Math.abs(p.z - T.z) < 14;
+}
+function chainTensionerSide(h: Hit): 1 | -1 | 0 {
+  const ids = [h.a, h.b];
+  const chain = ids.find((id) => /^timing-chain-(left|right)$/.test(id));
+  const ten = ids.find((id) => /^chain-tensioner-(left|right)$/.test(id));
+  if (!chain || !ten || chain.endsWith('left') !== ten.endsWith('left')) return 0;
+  return chain.endsWith('left') ? -1 : 1;
+}
 /**
  * A listed mating pair, or the idler-shaft / adjuster-stud seats only.
  * Rail bosses, the strap, the sleeve and the nut are not covered.
+ * Chain × tensioner is only the idler wrap. Chain metal inside a guide rail still fails.
  */
 export function allowedClash(h: Hit): boolean {
   const s = tensionerHousingPair(h);
   if (s) return h.samples.length > 0 && h.samples.every((p) => tensionerSeatSample(s, p));
+  const cs = chainTensionerSide(h);
+  if (cs) return h.samples.length > 0 && h.samples.every((p) => chainOnIdlerSample(cs, p));
   return isMating(h.a, h.b);
 }

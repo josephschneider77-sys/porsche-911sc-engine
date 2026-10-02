@@ -54,7 +54,10 @@ describe('intra-part fuel and induction solids', () => {
       'chain-tensioner-left', 'chain-tensioner-right',
       'cam-flange-cover-left', 'cam-flange-cover-right',
     ], 1);
-    expect(hits.map((h) => `${h.part}: ${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
+    // The plunger dome is seated on the tail pad. Anything else inside the part still fails.
+    const seated = (h: { a: string; b: string }) =>
+      (h.a === 'seat:plunger-dome' && h.b === 'seat:tail-pad') || (h.b === 'seat:plunger-dome' && h.a === 'seat:tail-pad');
+    expect(hits.filter((h) => !seated(h)).map((h) => `${h.part}: ${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
   });
 });
 

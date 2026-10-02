@@ -564,28 +564,52 @@ export function gusset(a: [number, number], b: [number, number], c: [number, num
 
 // ---------------------------------------------------------------- CSG (asset-build time only)
 import { Brush, Evaluator, ADDITION, SUBTRACTION } from 'three-bvh-csg';
-const csgEval = new Evaluator(); csgEval.attributes = ['position', 'normal'];
 const cleanCsg = (g: THREE.BufferGeometry) => {
   const q = g.index ? g.toNonIndexed() : g.clone();
   for (const k of Object.keys(q.attributes)) if (k !== 'position' && k !== 'normal') q.deleteAttribute(k);
   if (!q.attributes.normal) q.computeVertexNormals();
   return q;
 };
+/**
+ * three-bvh-csg jitters coplanar rays with Math.random, so two exports of the
+ * crankcase were not the same file. A fixed sequence makes every boolean repeat.
+ */
+function withSeededRandom<T>(fn: () => T): T {
+  const prev = Math.random;
+  let s = 0x6d2b79f5;
+  Math.random = () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  try { return fn(); }
+  finally { Math.random = prev; }
+}
+function csgEvaluator() {
+  const ev = new Evaluator();
+  ev.attributes = ['position', 'normal'];
+  return ev;
+}
 /** Union of closed solids in the same frame. One subtraction of the result beats a stack of coaxial cuts. */
 export function csgUnion(geoms: THREE.BufferGeometry[]): THREE.BufferGeometry {
   if (!geoms.length) throw new Error('csgUnion: empty');
-  let b = new Brush(cleanCsg(geoms[0])); b.updateMatrixWorld();
-  for (let i = 1; i < geoms.length; i++) {
-    const cb = new Brush(cleanCsg(geoms[i])); cb.updateMatrixWorld();
-    b = csgEval.evaluate(b, cb, ADDITION) as Brush;
-  }
-  return b.geometry;
+  return withSeededRandom(() => {
+    const ev = csgEvaluator();
+    let b = new Brush(cleanCsg(geoms[0])); b.updateMatrixWorld();
+    for (let i = 1; i < geoms.length; i++) {
+      const cb = new Brush(cleanCsg(geoms[i])); cb.updateMatrixWorld();
+      b = ev.evaluate(b, cb, ADDITION) as Brush;
+    }
+    return b.geometry;
+  });
 }
 /** base minus cutters (geometries already in the same frame). Returns position/normal geometry. */
 export function csgSub(base: THREE.BufferGeometry, ...cutters: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  let b = new Brush(cleanCsg(base)); b.updateMatrixWorld();
-  for (const c of cutters) { const cb = new Brush(cleanCsg(c)); cb.updateMatrixWorld(); b = csgEval.evaluate(b, cb, SUBTRACTION) as Brush; }
-  return b.geometry;
+  return withSeededRandom(() => {
+    const ev = csgEvaluator();
+    let b = new Brush(cleanCsg(base)); b.updateMatrixWorld();
+    for (const c of cutters) { const cb = new Brush(cleanCsg(c)); cb.updateMatrixWorld(); b = ev.evaluate(b, cb, SUBTRACTION) as Brush; }
+    return b.geometry;
+  });
 }
 /** Woodruff key outline (half-moon): chord of length 2*sqrt(h(D-h)) on y = 0, arc down to y = -h; extruded `b` thick (centred on z). */
 export function woodruffGeom(D: number, h: number, b: number) {

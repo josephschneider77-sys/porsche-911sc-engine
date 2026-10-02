@@ -139,7 +139,7 @@ function coverGasketGeom(s: 1 | -1) {
     });
   return holedPlate(
     outline,
-    [ring(16, cx, 0), ...centers.map((c) => ring(holeR, c.x, c.y, 16))],
+    [ring(17, cx, 0), ...centers.map((c) => ring(holeR, c.x, c.y, 16))],
     () => [stack.gasket0, stack.gasket0 + C.gasketT],
   );
 }
