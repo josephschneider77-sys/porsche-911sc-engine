@@ -85,13 +85,13 @@ Every rocker-gear line above (positions 44–50, PDF p.73) has a blank remark an
 
 The sheet does not print a thread reach. The modelled plug is the Bosch W-series already specified for this work: M14×1.25, 19 mm reach, sealing washer, 20.8 mm hex, ribbed ceramic, terminal nut, ground strap and centre electrode. The mesh gap is 0.8 mm, the same figure the type line prints as 0,8. The connector is its own part (`spark-plug-connector-*`), on the same datum and axis as the plug. The elbow outlet is the point the ignition lead enters.
 
-## Air injection — illustration 108-00 (not modelled)
+## Air injection — illustration 108-00 (head tube not modelled)
 
-The 1978 US heads take air-injection fittings in the catalogue. Illustration 108-00 (PDF p.142–143) is titled “Air injection”, model column `911 SC`, model life 1978>>1983. Sheet 103-00 does not list the port as its own part. The fittings are position 18, unions **911 113 145 02** and **911 113 145 04**, qty 6, and position 19, sealing ring **900 123 033 20**, qty 6, A 10×13.5 CU. Those three rows have a blank remark and a blank model column, so they apply to the 911 SC illustration, which includes 1978 USA 930/04. They are not modelled here. Illustration 108-05 is the Turbo air injection and is not this engine.
+The 1978 US heads take air-injection fittings in the catalogue. Illustration 108-00 (PDF p.142–143) is titled “Air injection”, model column `911 SC`, model life 1978>>1983. Sheet 103-00 does not list the port as its own part. The fittings are position 18, unions **911 113 145 02** and **911 113 145 04**, qty 6, and position 19, sealing ring **900 123 033 20**, qty 6, A 10×13.5 CU. Those three rows have a blank remark and a blank model column, so they apply to the 911 SC illustration, which includes 1978 USA 930/04. The head air tube (108-00 #18–#20) is not modelled here. The pump, hoses, heater blower and EGR are in the model from the bottom-end work on main. Illustration 108-05 is the Turbo air injection and is not this engine.
 
 ## Review sheets
 
-`docs/review/spark-plugs.png`, `docs/review/valve-covers.png`, `docs/review/connector.png` and `docs/review/rockers.png` are drawing | old | new. The left column is a crop of the Kat 502 sheet named above. The middle column is main `700a1b3`. The right column is this branch. Photos are not in those sheets. The plug line on the spark-plug sheet is 999 170 170 90.
+`docs/review/valve-cover-upper.png`, `docs/review/valve-cover-lower.png`, `docs/review/valve-cover-gasket-upper.png`, `docs/review/valve-cover-gasket-lower.png`, `docs/review/spark-plugs.png` and `docs/review/connector.png` are drawing | old | new. The left column is a crop of the Kat 502 sheet named above. The middle column is main `700a1b3`. The right column is this branch. Photos are not in those sheets. The plug line on the spark-plug sheet is 999 170 170 90. `docs/review/rockers.png` and `docs/review/valve-covers.png` are the earlier combined sheets, same three columns.
 
 ## Chain-end cam cover (was the lid washer)
 
