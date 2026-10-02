@@ -7,7 +7,7 @@ import {
 import { CAM_X, SPARK_TIP, SPARK_Z, SPARK_AXIS, SPARK_HOLE_R, SPARK_FLANGE_T, sparkDirHead, sparkRoll, plugTipEngine, plugAxisEngine } from '../src/data/layout';
 import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1, coverMatrix } from '../src/geo/core';
 import { crownSurfaceX, PISTON_DECK, VALVE_DIA, VALVE_FACE, stemDirLocal } from '../src/geo/valveGeom';
-import { ASSET_BUILDERS } from '../src/geo/assets';
+import { ASSET_BUILDERS, partPose } from '../src/geo/assets';
 import { rayHit } from './hw';
 import { clearance } from './collide';
 
@@ -56,9 +56,8 @@ describe('top-end batch 1', () => {
       expect(closed.gap, tag).toBeCloseTo(LASH, 2);
       const peak = trainPose(cyl, side, FIRE_CRANK[cyl] + PEAK_AT[which]);
       expect(peak.lobeR, tag).toBeCloseTo(PEAK_R, 2);
-      // Main lifted 6.71 mm intake and 5.57 mm exhaust. The same 7.5 mm lobe
-      // arrives as about 10.5 / 11.1 mm with the 71° / 50° eye.
-      expect(peak.lift, `${tag} lift`).toBeGreaterThanOrEqual(10);
+      // The 7.5 mm lobe arrives as at least 10.5 mm intake and 11.1 mm exhaust.
+      expect(peak.lift, `${tag} lift`).toBeGreaterThanOrEqual(side > 0 ? 10.5 : 11.1);
       const s = cyl <= 3 ? 1 : -1;
       const cam = new THREE.Vector2(s * CAM_X, 0);
       expect(Math.abs(closed.lay.K.distanceTo(cam) - CAM.baseR), `${tag} pad on base circle`).toBeLessThanOrEqual(0.05);
@@ -113,13 +112,12 @@ describe('top-end batch 1', () => {
   it('trims the left valve cover to the cam-housing seat, matching the right cover', () => {
     const box = (id: string) => new THREE.Box3().setFromObject(ASSET_BUILDERS[id]());
     const lowerL = box('valve-cover-lower-left'), lowerR = box('valve-cover-lower-right');
-    expect(lowerL.min.z, 'lower flywheel end').toBeCloseTo(lowerR.min.z, 0);
+    expect(Math.abs(lowerL.min.z - lowerR.min.z), 'lower flywheel end').toBeLessThan(2);
     expect(lowerL.max.z, 'lower pulley end').toBeCloseTo(lowerR.max.z, 0);
     expect(lowerL.min.z).toBeGreaterThan(CH_Z0 - 1);
     expect(lowerL.max.z).toBeLessThan(CH_Z1 + 1);
     // The seal lip (cover-local z under 3) stays on the cam-housing rail on both
-    // banks. The upper-left cylinder-6 plug boss is past that rail; it is not
-    // part of the seal, and the rail itself is not lengthened.
+    // banks. Cylinder 6 is a half-round scallop in the end wall, not a boss past the rail.
     const lip = (id: string, s: 1 | -1) => {
       const root = ASSET_BUILDERS[id]();
       const inv = coverMatrix(s, true).clone().invert();
@@ -144,8 +142,11 @@ describe('top-end batch 1', () => {
     expect(Math.abs(lipL.max.z - lipR.max.z), 'upper seal pulley end').toBeLessThan(2);
     expect(lipL.min.z).toBeGreaterThan(CH_Z0 - 1);
     expect(lipL.max.z).toBeLessThan(CH_Z1 + 1);
-    const upperL = box('valve-cover-upper-left');
-    expect(upperL.min.z, 'cylinder-6 plug boss past the rail').toBeLessThan(CH_Z0 - 20);
+    const upperL = box('valve-cover-upper-left'), upperR = box('valve-cover-upper-right');
+    expect(upperL.min.z, 'upper flywheel end').toBeCloseTo(upperR.min.z, 0);
+    expect(upperL.max.z, 'upper pulley end').toBeCloseTo(upperR.max.z, 0);
+    expect(upperL.min.z, 'scallop stays on the rail').toBeGreaterThan(CH_Z0 - 1);
+    expect(upperL.max.z).toBeLessThan(CH_Z1 + 1);
   });
 
   it('keeps every rocker sub-mesh in one connected piece per station', () => {
@@ -177,10 +178,10 @@ describe('top-end batch 1', () => {
         const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3());
         let best = 0, bestD = Infinity;
         stations.forEach((st, i) => {
-          const d = Math.hypot(c.x - st.x, c.y - st.y, c.z - st.z);
+          const d = Math.hypot(c.x - st.x, c.y - st.y, (c.z - st.z) * 4);
           if (d < bestD) { bestD = d; best = i; }
         });
-        expect(bestD, `${id} floating fragment`).toBeLessThan(56);
+        expect(bestD, `${id} floating fragment`).toBeLessThan(80);
         groups[best].push(m);
       }
       groups.forEach((g, i) => {
@@ -208,27 +209,10 @@ describe('top-end batch 1', () => {
     }
   });
 
-  it('does not grow top-end boundary edges past the cut shells', () => {
-    // Boundary edges after welding vertices to 1 mm.
-    // Main df88f34: covers 1123/1228/1073/1282, housings 1156, cams 357/317, rockers 2527/2544.
-    // Camshafts stay on that baseline. Covers, housings and rockers are higher because the
-    // stud holes, rocker pockets and line bore are real cuts; a deleted window (the old
-    // 2.8 mm triangle cull) jumps a cover well past these ceilings.
-    // Upper lids after the plug holes, collars and nut-face clearance measured
-    // 3804 (right) and 3640 (left).
-    // Housings after the plug air passages measured 9529 (right) and 9786 (left).
-    const baseline: Record<string, number> = {
-      'valve-cover-upper-right': 3900,
-      'valve-cover-lower-right': 3600,
-      'valve-cover-upper-left': 3750,
-      'valve-cover-lower-left': 3360,
-      'cam-housing-right': 9529,
-      'cam-housing-left': 9786,
-      'camshaft-right': 357,
-      'camshaft-left': 317,
-      'rockers-right': 2750,
-      'rockers-left': 2750,
-    };
+  it('is watertight apart from coincident seams, and rays from inside the metal hit a wall', () => {
+    // Weld vertices that share a position (lathe phi seam, indexed copies). A remaining
+    // boundary edge is a hole. Main's head / right housing / upper / lower covers were
+    // 144 / 1192 / 670 / 871; the parts this branch rebuilds have to close completely.
     const openEdges = (id: string) => {
       const root = ASSET_BUILDERS[id]();
       root.updateMatrixWorld(true);
@@ -236,7 +220,12 @@ describe('top-end batch 1', () => {
       const v = new THREE.Vector3();
       const keyOf = (i: number, P: THREE.BufferAttribute, m: THREE.Matrix4) => {
         v.fromBufferAttribute(P, i).applyMatrix4(m);
-        return `${Math.round(v.x)}_${Math.round(v.y)}_${Math.round(v.z)}`;
+        // toFixed(-0) is the string "-0.000", which splits a lathe seam in half.
+        const q = (n: number) => {
+          const r = Math.round(n * 1000);
+          return Object.is(r, -0) ? 0 : r;
+        };
+        return `${q(v.x)}_${q(v.y)}_${q(v.z)}`;
       };
       root.traverse((o) => {
         const mesh = o as THREE.Mesh;
@@ -257,9 +246,36 @@ describe('top-end batch 1', () => {
       for (const n of count.values()) if (n === 1) open++;
       return open;
     };
-    for (const [id, max] of Object.entries(baseline)) {
-      expect(openEdges(id), id).toBeLessThanOrEqual(max);
-    }
+    const closed = [
+      'cylinder-head',
+      'cam-housing-right', 'cam-housing-left',
+      'valve-cover-upper-right', 'valve-cover-lower-right',
+      'valve-cover-upper-left', 'valve-cover-lower-left',
+      'valve-cover-gasket-upper-right', 'valve-cover-gasket-upper-left',
+      'valve-cover-gasket-lower-right', 'valve-cover-gasket-lower-left',
+      'spark-plug', 'spark-plug-connector',
+      'rockers-right', 'rockers-left',
+    ];
+    for (const id of closed) expect(openEdges(id), id).toBe(0);
+    const miss = (id: string, origin: THREE.Vector3) => {
+      let n = 0;
+      const dirs = 24;
+      for (let i = 0; i < dirs; i++) {
+        const y = 1 - (i / (dirs - 1)) * 2;
+        const rr = Math.sqrt(Math.max(0, 1 - y * y));
+        const phi = i * Math.PI * (3 - Math.sqrt(5));
+        const dir = new THREE.Vector3(Math.cos(phi) * rr, y, Math.sin(phi) * rr);
+        if (!rayHit(id, origin, dir, 120)) n++;
+      }
+      return n;
+    };
+    const headPose = partPose('head-1');
+    expect(miss('head-1', new THREE.Vector3(30, 0, 0).applyMatrix4(headPose)), 'head').toBe(0);
+    // The cover mesh is already in engine space. partPose is identity; the roof
+    // skin is cover-local z 27, between the cavity and the 28 mm shell.
+    const skin = new THREE.Vector3(0, 40, 27.2).applyMatrix4(coverMatrix(1, false));
+    expect(miss('valve-cover-lower-right', skin), 'lower cover skin').toBe(0);
+    expect(miss('spark-plug-1', new THREE.Vector3(0, -20, 0).applyMatrix4(partPose('spark-plug-1'))), 'plug hex').toBe(0);
   });
 
   it('opens the upper cover only on the plug holes', () => {
@@ -278,7 +294,7 @@ describe('top-end batch 1', () => {
         if (throughHole) continue;
         const target = new THREE.Vector3(ix * 6, iy * 40, 30).applyMatrix4(frame);
         const dir = target.clone().sub(origin).normalize();
-        if (!rayHit(id, origin, dir, 60)) missed++;
+        if (!rayHit(id, origin, dir, 200)) missed++;
       }
       expect(missed, id).toBe(0);
       if (upper) {

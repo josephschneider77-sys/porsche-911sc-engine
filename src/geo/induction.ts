@@ -1215,7 +1215,8 @@ export function throttleHousingPart() {
   const p = new Part();
   const y = THROTTLE.y;
   // Profile ends at z 95; the 1.2 mm extrude bevel puts the metal face at 96.2.
-  const zF = 96.25;
+  // 1.6 mm past the distributor bevel (face ≈ 96.2). The flange and the O-ring were coplanar with that edge.
+  const zF = 97.8;
   const flange = cyl(42, 7, 40).rotateX(Math.PI / 2).translate(0, y, zF + 3.5);
   const groove = torus(35.75, 2.5, 8, 32);
   groove.translate(0, y, zF + 2.1);

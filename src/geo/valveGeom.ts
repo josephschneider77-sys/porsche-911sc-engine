@@ -179,7 +179,9 @@ export function headValvePockets(): THREE.BufferGeometry[] {
 export function headValveBores(): THREE.BufferGeometry[] {
   const cuts: THREE.BufferGeometry[] = [];
   for (const side of [1, -1] as const) {
-    cuts.push(alongCyl(side, 8, 100, 8.4, 24));
+    // Guide OD 6.55, stem seal 7.4. An open valve's neck (r ≈ 17 at 10 mm lift) sits past the head pocket.
+    cuts.push(alongCyl(side, 10, 40, 18, 24));
+    cuts.push(alongCyl(side, 8, 100, 10.2, 24));
     cuts.push(alongCyl(side, 46, 130, 14.6, 24));
   }
   return cuts;
@@ -187,138 +189,6 @@ export function headValveBores(): THREE.BufferGeometry[] {
 
 export function headReliefCutters(): THREE.BufferGeometry[] {
   return [headChamberCutter(), ...headValvePockets(), ...headValveBores()];
-}
-
-/**
- * Drop triangles CSG left crossing a valve bore. A fin can span the hole with every
- * vertex outside it, so this is a real triangle-vs-cylinder test, not point samples.
- * The inset sits inside the cutter (guide wall 8.4, pocket wall headR+1.6, spring wall
- * 14.6), so the hole skin stays and the guide, seat and spring are clear of the casting.
- */
-export function pruneHeadSlivers(root: THREE.Object3D) {
-  const regions = ([1, -1] as const).flatMap((side) => {
-    const headR = (side > 0 ? VALVE_DIA.in : VALVE_DIA.ex) / 2;
-    return [
-      { side, y0: -3, y1: 22, r: headR + 1.35 },
-      { side, y0: 10, y1: 98, r: 8.15 },
-      { side, y0: 48, y1: 128, r: 14.15 },
-    ];
-  });
-  const frames = regions.map((reg) => ({ ...reg, f: stemPointLocal(reg.side, 0), dir: stemDirLocal(reg.side) }));
-  const inSphere = (x: number, y: number, z: number) => {
-    const dx = x + 62, dy = y, dz = z;
-    return dx * dx + dy * dy + dz * dz < 74 * 74 && x > 0 && x < 15 && dy * dy + dz * dz < 42 * 42;
-  };
-  root.updateMatrixWorld(true);
-  const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
-  const P = new THREE.Vector3(), Q = new THREE.Vector3(), E = new THREE.Vector3();
-  const R0 = new THREE.Vector3(), F = new THREE.Vector3();
-  const S = new THREE.Vector3(), E1 = new THREE.Vector3(), E2 = new THREE.Vector3();
-  const H = new THREE.Vector3(), Qc = new THREE.Vector3();
-  const axialOf = (p: THREE.Vector3, f: THREE.Vector3, dir: THREE.Vector3) =>
-    (p.x - f.x) * dir.x + (p.y - f.y) * dir.y + (p.z - f.z) * dir.z;
-  /** Edge PQ meets the finite cylinder. */
-  const edgeHits = (y0: number, y1: number, r: number, f: THREE.Vector3, dir: THREE.Vector3) => {
-    const t0 = axialOf(P, f, dir);
-    const t1 = axialOf(Q, f, dir);
-    const dt = t1 - t0;
-    E.subVectors(Q, P);
-    F.copy(E).addScaledVector(dir, -dt);
-    R0.copy(P).sub(f).addScaledVector(dir, -t0);
-    const a = F.dot(F);
-    const b = 2 * R0.dot(F);
-    const c = R0.dot(R0) - r * r;
-    let s0 = 0, s1 = 1;
-    if (Math.abs(dt) < 1e-9) {
-      if (t0 < y0 || t0 > y1) return false;
-    } else {
-      const u0 = (y0 - t0) / dt, u1 = (y1 - t0) / dt;
-      s0 = Math.max(0, Math.min(u0, u1));
-      s1 = Math.min(1, Math.max(u0, u1));
-      if (s0 > s1) return false;
-    }
-    const at = (s: number) => a * s * s + b * s + c;
-    if (at(s0) <= 1e-8 || at(s1) <= 1e-8) return true;
-    if (a > 1e-12) {
-      const sMin = THREE.MathUtils.clamp(-b / (2 * a), s0, s1);
-      if (at(sMin) <= 1e-8) return true;
-    }
-    return false;
-  };
-  /** Axis segment from y0 to y1 pierces the triangle (the fin caps the bore). */
-  const axisHits = (y0: number, y1: number, f: THREE.Vector3, dir: THREE.Vector3) => {
-    P.copy(f).addScaledVector(dir, y0);
-    Q.copy(f).addScaledVector(dir, y1);
-    E1.subVectors(B, A);
-    E2.subVectors(C, A);
-    E.subVectors(Q, P);
-    H.crossVectors(E, E2);
-    const det = E1.dot(H);
-    if (Math.abs(det) < 1e-8) return false;
-    const inv = 1 / det;
-    S.subVectors(P, A);
-    const u = inv * S.dot(H);
-    if (u < -1e-6 || u > 1 + 1e-6) return false;
-    Qc.crossVectors(S, E1);
-    const v = inv * E.dot(Qc);
-    if (v < -1e-6 || u + v > 1 + 1e-6) return false;
-    const t = inv * E2.dot(Qc);
-    return t >= -1e-6 && t <= 1 + 1e-6;
-  };
-  const pointIn = (p: THREE.Vector3, y0: number, y1: number, r2: number, f: THREE.Vector3, dir: THREE.Vector3) => {
-    const t = axialOf(p, f, dir);
-    if (t < y0 || t > y1) return false;
-    const ox = p.x - f.x - t * dir.x, oy = p.y - f.y - t * dir.y, oz = p.z - f.z - t * dir.z;
-    return ox * ox + oy * oy + oz * oz <= r2;
-  };
-  const kills = (y0: number, y1: number, r: number, f: THREE.Vector3, dir: THREE.Vector3) => {
-    const r2 = r * r;
-    if (pointIn(A, y0, y1, r2, f, dir) || pointIn(B, y0, y1, r2, f, dir) || pointIn(C, y0, y1, r2, f, dir)) return true;
-    P.copy(A); Q.copy(B);
-    if (edgeHits(y0, y1, r, f, dir)) return true;
-    P.copy(B); Q.copy(C);
-    if (edgeHits(y0, y1, r, f, dir)) return true;
-    P.copy(C); Q.copy(A);
-    if (edgeHits(y0, y1, r, f, dir)) return true;
-    return axisHits(y0, y1, f, dir);
-  };
-  root.traverse((o: any) => {
-    if (!o.isMesh || o.isInstancedMesh) return;
-    let g: THREE.BufferGeometry = o.geometry;
-    g = g.index ? g.toNonIndexed() : g.clone();
-    g.applyMatrix4(o.matrix);
-    const pos = g.attributes.position;
-    const keep: number[] = [];
-    let dropped = 0;
-    for (let i = 0; i < pos.count; i += 3) {
-      A.fromBufferAttribute(pos, i);
-      B.fromBufferAttribute(pos, i + 1);
-      C.fromBufferAttribute(pos, i + 2);
-      const abx = B.x - A.x, aby = B.y - A.y, abz = B.z - A.z;
-      const acx = C.x - A.x, acy = C.y - A.y, acz = C.z - A.z;
-      const cx = aby * acz - abz * acy, cy = abz * acx - abx * acz, cz = abx * acy - aby * acx;
-      // Zero-area slivers left by the boolean report false intersections.
-      if (cx * cx + cy * cy + cz * cz < 1e-8) { dropped++; continue; }
-      const midX = (A.x + B.x + C.x) / 3, midY = (A.y + B.y + C.y) / 3, midZ = (A.z + B.z + C.z) / 3;
-      let kill = inSphere(A.x, A.y, A.z) || inSphere(B.x, B.y, B.z) || inSphere(C.x, C.y, C.z) || inSphere(midX, midY, midZ);
-      if (!kill) {
-        for (const reg of frames) {
-          if (kills(reg.y0, reg.y1, reg.r, reg.f, reg.dir)) { kill = true; break; }
-        }
-      }
-      if (kill) { dropped++; continue; }
-      keep.push(A.x, A.y, A.z, B.x, B.y, B.z, C.x, C.y, C.z);
-    }
-    if (!dropped) return;
-    const ng = new THREE.BufferGeometry();
-    ng.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
-    ng.computeVertexNormals();
-    o.geometry = ng;
-    o.position.set(0, 0, 0);
-    o.rotation.set(0, 0, 0);
-    o.scale.set(1, 1, 1);
-    o.updateMatrix();
-  });
 }
 
 /** Spring pockets in engine space for one cam housing (springs pass into the casting). */

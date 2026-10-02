@@ -188,7 +188,7 @@ export function headHeight(f: FSet) {
   if (f.id.startsWith('rocker-shaft-nuts')) return 5.5;
   const d = DIM[f.M]; const wt = (f.washer || f.tab ? d.wt : 0) + (f.spring ? springT(f) : 0);
   switch (f.kind) {
-    case 'barrel': return wt + 13;
+    case 'barrel': return wt + 2;
     case 'lock': return wt + d.h * 1.3;
     case 'cap': return wt + 0.7 * d.h + 0.22 * d.af;
     case 'bolt': return wt + (f.M === 10 ? 10 : 0.7 * f.M);
@@ -257,7 +257,9 @@ function prototype(f: FSet): Part {
       } else p.add(hexAt(d.h, y), f.mat);
       break;
     case 'lock': p.add(hexAt(d.h, y), f.mat); p.add(lathe([[d.af * 0.45, 0], [d.af * 0.45, d.h * 0.3], [M * 0.55, d.h * 0.3], [M * 0.55, 0]], 16), 'blackPlastic', [0, y + d.h, 0]); break;
-    case 'barrel': p.add(lathe([[0.1, 0], [d.af * 0.5, 0], [d.af * 0.5, 9], [d.af * 0.42, 13], [0.1, 13]], 12), f.mat, [0, y, 0]); break;
+    // Short collar. A 13 mm barrel on the Ø114 stud circle runs through the
+    // connector cup (r 12.4). The seat washer stays; the body ends 2 mm up.
+    case 'barrel': p.add(lathe([[0.1, 0], [d.af * 0.5, 0], [d.af * 0.5, 1.2], [d.af * 0.4, 2], [0.1, 2]], 12), f.mat, [0, y, 0]); break;
     case 'cap': p.add(hexAt(0.7 * d.h, y), f.mat); p.add(lathe([[0.1, d.af * 0.22], [d.af * 0.2, d.af * 0.19], [d.af * 0.38, d.af * 0.08], [d.af * 0.45, 0]], 14), f.mat, [0, y + 0.7 * d.h, 0]); break;
     case 'bolt': {
       // M10 case through-bolts: full hex head (AF 17) so the head reads as a bolt, not a plain rod

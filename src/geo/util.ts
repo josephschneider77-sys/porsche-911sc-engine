@@ -546,9 +546,8 @@ export function dropDegenerate(g: THREE.BufferGeometry): THREE.BufferGeometry {
     const bcx = cx - bx, bcy = cy - by, bcz = cz - bz;
     const nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx;
     const area2 = nx * nx + ny * ny + nz * nz;
-    const edge2 = Math.max(abx * abx + aby * aby + abz * abz, acx * acx + acy * acy + acz * acz, bcx * bcx + bcy * bcy + bcz * bcz);
-    // Altitude under 0.05 mm: a sliver the collision BVH reports as a solid hit.
-    if (area2 < 1e-6 || area2 < edge2 * 0.05 * 0.05) { dropped++; continue; }
+    // Exact zero-area triangles only. A sliver cull opens holes in an otherwise closed shell.
+    if (area2 < 1e-6) { dropped++; continue; }
     keep.push(ax, ay, az, bx, by, bz, cx, cy, cz);
   }
   if (!dropped) return g;

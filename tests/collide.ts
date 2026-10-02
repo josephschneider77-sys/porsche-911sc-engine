@@ -11,7 +11,8 @@ import { fastenerSets } from '../src/geo/fasteners';
 import { SMALL_SPECS } from '../src/data/smallSpec';
 import { SHAFT, rockerStations } from '../src/geo/valvetrain';
 import { coverMatrix } from '../src/geo/core';
-import { SPARK_MINOR_D, SPARK_PROJ, SPARK_REACH, SPARK_SEAT_Y, SPARK_HOLE_R, SPARK_FLANGE_T } from '../src/data/layout';
+import { SPARK_MINOR_D, SPARK_PROJ, SPARK_REACH, SPARK_SEAT_Y, SPARK_HOLE_R, SPARK_FLANGE_T, CYL_TOP_X, HEAD_OUT_X } from '../src/data/layout';
+import { HEAD_HW } from '../src/geo/hwLayout';
 
 export interface Hit { a: string; b: string; tris: number; box: THREE.Box3 }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
@@ -211,7 +212,37 @@ function narrowSeat(a: string, b: string, p: THREE.Vector3): boolean {
     // cylindrical wall only: 0.35 mm along the bore and 0.35 mm radially.
     if (Math.abs(t - SPARK_FLANGE_T) <= 0.35 && Math.abs(radial - SPARK_HOLE_R) <= 0.35) return true;
   }
+  const camHouse = /^cam-housing-(left|right)$/.test(a) ? a : /^cam-housing-(left|right)$/.test(b) ? b : '';
+  const camHead = /^head-(\d)$/.exec(a)?.[1] ? a : /^head-(\d)$/.exec(b)?.[1] ? b : '';
+  if (camHouse && camHead) {
+    const cyl = Number(camHead.slice(-1));
+    const bank = cyl <= 3 ? 'right' : 'left';
+    if (!camHouse.endsWith(bank)) return false;
+    const inv = headLocal(camHead);
+    if (!inv) return false;
+    _seat.copy(p).applyMatrix4(inv);
+    const face = HEAD_OUT_X - CYL_TOP_X;
+    if (Math.abs(_seat.x - face) <= 0.6) return true;
+    const { y: sy, z: sz } = HEAD_HW.camStud;
+    for (const yy of [sy, -sy]) for (const zz of [sz, -sz]) {
+      if (Math.hypot(_seat.y - yy, _seat.z - zz) <= 6.5 && _seat.x > -1 && _seat.x < face + 1.2) return true;
+    }
+  }
   return false;
+}
+const HEAD_LOCAL = new Map<string, THREE.Matrix4>();
+function headLocal(id: string) {
+  let m = HEAD_LOCAL.get(id);
+  if (m) return m;
+  const def = PARTS.find((p) => p.id === id);
+  if (!def?.position || !def.rotation) return null;
+  m = new THREE.Matrix4().compose(
+    new THREE.Vector3(...(def.position as [number, number, number])),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...(def.rotation as [number, number, number]))),
+    new THREE.Vector3(1, 1, 1),
+  ).invert();
+  HEAD_LOCAL.set(id, m);
+  return m;
 }
 
 export function findCollisions(tol = 1, only?: (id: string) => boolean): Hit[] {
@@ -382,9 +413,6 @@ const id = (base: string) => new RegExp(`^(${base})(-[1-6]|-left|-right)?$`);
 const pair = (a: string, b: string, why: string): [RegExp, RegExp, string] => [id(a), id(b), why];
 const sameSide = (a: string, b: string, why: string): [RegExp, RegExp, string][] =>
   ['right', 'left'].map((sd) => [new RegExp(`^(${a})-${sd}$`), new RegExp(`^(${b})-${sd}$`), why] as [RegExp, RegExp, string]);
-const sameCyl = (a: string, b: string, why: string): [RegExp, RegExp, string][] =>
-  [1, 2, 3, 4, 5, 6].map((n) => [new RegExp(`^${a}-${n}$`), new RegExp(`^${b}-${n}$`), why] as [RegExp, RegExp, string]);
-
 /**
  * Allowlist of pairs whose interpenetration (beyond the erosion tolerance) is expected.
  * Bottom end and ancillaries stay only when the overlap is a real joint, and the comment names it
@@ -414,7 +442,6 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('warm-up-regulator', 'crankcase-left', 'seated: regulator flange on the case pad'),
   pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),
   pair('ignition-leads', 'spark-plug-connector', 'seated: lead boot in the connector elbow'),
-  ...sameCyl('spark-plug', 'spark-plug-connector', 'seated: connector tube on the plug terminal'),
   pair('ignition-leads', 'ignition-lead-holders', 'seated: lead clipped in the shroud holder'),
   // ---- top end (heads, cylinders, cams, valvetrain, covers, chain drive) — not rewritten here
 
@@ -422,7 +449,7 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('cylinder', 'head', 'JOINT cylinder/head sealing joint'),
   pair('head', 'intake-runner', 'seated: intake-port flange on the head'),
   pair('head', 'valves', 'seated: valve guide and seat in the head'),
-  pair('cam-housing', 'head', 'seated: cam housing on the head face'),
+  // cam-housing × head is not a blanket pair. narrowSeat allows the face plane and the stud bores only.
   // Pad-on-lobe and ball-on-stem are a 0–0.10 mm seat. They are not a blanket pair:
   // an arm through a lobe, or a tip buried in a stem, still fails. A true 0–0.05 mm
   // pad seat is inside the 1 mm erosion and does not need a line.
@@ -445,7 +472,6 @@ export const TOP_END_WHY = new Set<string>([
   'JOINT cylinder/head sealing joint',
   'seated: intake-port flange on the head',
   'seated: valve guide and seat in the head',
-  'seated: cam housing on the head face',
   'JOINT cam-housing end face gasketed into the chain box',
   'JOINT sprocket on cam nose',
   'JOINT chain on cam sprocket / idler / guide ramps',

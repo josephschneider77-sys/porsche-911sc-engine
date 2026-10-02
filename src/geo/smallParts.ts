@@ -5,16 +5,124 @@
  */
 import * as THREE from 'three';
 import { Part, lathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, circleShape, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, type V3 } from './util';
+import { manifoldSub } from './manifoldCut';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
 import { VC_EXT, vcStuds, chainCoverBolts, CAM_NOSE, CAM_WEB, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, railBolts, CH_Z0, CH_Z1 } from './core';
-import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf, SPARK_HOLE_R } from '../data/layout';
+import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf, SPARK_HOLE_R, SPARK_TUBE_R } from '../data/layout';
 import { LIP_Z, chainLidStations } from './stations';
-import { railJogs, joggedSheet, plugCoverLocal } from './valvetrain';
+import { plugCoverLocal } from './valvetrain';
 import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
 import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, TEE_AIR_INJ, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
+function hull2(pts: [number, number][]): [number, number][] {
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower: [number, number][] = [];
+  for (const pt of p) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], pt) <= 0) lower.pop();
+    lower.push(pt);
+  }
+  const upper: [number, number][] = [];
+  for (let i = p.length - 1; i >= 0; i--) {
+    const pt = p[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], pt) <= 0) upper.pop();
+    upper.push(pt);
+  }
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+}
+function ringArea(pts: [number, number][]) {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length];
+    a += p[0] * q[1] - q[0] * p[1];
+  }
+  return a;
+}
+function rectPts(w: number, h: number, r: number, n = 6): [number, number][] {
+  const hw = w / 2, hh = h / 2, pts: [number, number][] = [];
+  const corners: [number, number, number][] = [[hw - r, hh - r, 0], [-hw + r, hh - r, Math.PI / 2], [-hw + r, -hh + r, Math.PI], [hw - r, -hh + r, Math.PI * 1.5]];
+  for (const [cx, cy, a0] of corners) for (let i = 0; i < n; i++) {
+    const a = a0 + (Math.PI / 2) * (i / n);
+    pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+  }
+  return pts;
+}
+function earPts(cx: number, cy: number, r: number, n = 14): [number, number][] {
+  const o: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    o.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+  }
+  return o;
+}
+function rectHole(cx: number, cy: number, w: number, h: number, r: number) {
+  const pts = roundRect(w, h, r, cx, cy).getPoints(6);
+  pts.reverse();
+  return new THREE.Path(pts);
+}
+/**
+ * One closed sheet. Stud ears are part of the outline, so the ring is not a
+ * stack of floating discs. The upper gasket's plug bridges are the material
+ * between separate windows, joined to both rails.
+ */
+function coverGasket(s: 1 | -1, up: boolean) {
+  const L = CH_Z1 - CH_Z0 - 8;
+  const halfL = L / 2;
+  const studs = vcStuds(up, s);
+  let outline = hull2([
+    ...rectPts(58, L, 7),
+    ...studs.flatMap((st) => earPts(st.x, st.y, 8)),
+  ]);
+  if (ringArea(outline) < 0) outline.reverse();
+  const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)));
+  for (const st of studs) shape.holes.push(circlePath(3.4, st.x, st.y) as THREE.Path);
+  const bites: THREE.BufferGeometry[] = [];
+  if (up) {
+    const plugs = (s > 0 ? [1, 2, 3] : [4, 5, 6])
+      .map((c) => plugCoverLocal(c, 0))
+      .filter((p) => Math.abs(p.y) < halfL - SPARK_HOLE_R - 4);
+    const ys = plugs.map((p) => p.y).sort((a, b) => a - b);
+    // Left flywheel rail: cylinder 6's stem and the intake rocker cross near y −163.
+    // The window stops 10 mm short of the outline so the hole does not split the ring.
+    const yLo = s < 0 ? -176 : -halfL + 16;
+    let yHi = halfL - 16;
+    const endLoc = plugCoverLocal(s > 0 ? 1 : 6, 0);
+    const inboard = halfL - Math.abs(endLoc.y);
+    const tubeClear = SPARK_TUBE_R + 4.2;
+    if (inboard > -tubeClear && inboard < halfL) {
+      const depth = Math.max(tubeClear, inboard + tubeClear);
+      const endSign: 1 | -1 = endLoc.y > 0 ? 1 : -1;
+      if (endSign > 0) yHi = halfL - depth - 8;
+      const y0 = endSign * (halfL - depth);
+      const y1 = endSign * (halfL + 8);
+      bites.push(boxMM(
+        [endLoc.x - tubeClear, Math.min(y0, y1), -4],
+        [endLoc.x + tubeClear, Math.max(y0, y1), 4],
+      ));
+    }
+    const bands = [yLo, ...ys.flatMap((y) => [y - 18, y + 18]), yHi];
+    for (let i = 0; i < bands.length; i += 2) {
+      const a = bands[i], b = bands[i + 1];
+      if (b - a > 8) shape.holes.push(rectHole(0, (a + b) / 2, 52, b - a, 3));
+    }
+    // Larger than the cover hole: the seal flange (r = SPARK_HOLE_R + 0.12) crosses
+    // this sheet, and the elbow swings off the axis beside the hole.
+    for (const p of plugs) shape.holes.push(circlePath(SPARK_HOLE_R + 2.4, p.x, p.y) as THREE.Path);
+  } else {
+    shape.holes.push(rectHole(0, 0, 52, L - 12, 4));
+    // Cylinder 6's exhaust rocker and stem leave through the flywheel lip.
+    if (s < 0) bites.push(boxMM([-28, -210, -4], [28, -170, 4]));
+  }
+  let g: THREE.BufferGeometry = extrudeC(shape, 0.4);
+  g.translate(0, 0, -0.25);
+  if (bites.length) g = manifoldSub(g, ...bites);
+  return new Part().add(g, 'gasket');
+}
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const X = V(1, 0, 0), Y = V(0, 1, 0), Z = V(0, 0, 1);
 const BANKS = [1, -1] as const;
@@ -140,45 +248,7 @@ for (const s of BANKS) {
   def(`chain-case-plug-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [7.5, 0], [7.5, 0.6], [6, 1.6], [0.1, 1.6]], 24), 'steel'); return p; }, () => [onSurf(`chain-housing-${b}`, V(s * 230, 120, HOUSING_Z0 + 30), V(0, -1, 0))]);
   // cam housing: valve-cover gaskets (#18 upper, #20 lower), end lid (#16), splash tube, stoppers, banjo feed, temp switch
   for (const up of [true, false]) {
-    const L = CH_Z1 - CH_Z0 - 8, w = 58;
-    def(`valve-cover-gasket-${up ? 'upper' : 'lower'}-${b}`, () => {
-      const e = VC_EXT(s);
-      // The rocker crosses the outboard rail. The hole and the outer edge jog
-      // out together, so the rail stays one closed ring and the arm is in the opening.
-      let g = joggedSheet(w, L + e, 52, L - 14 + e, railJogs(s, up), 0.4);
-      g.translate(0, -e / 2, -0.25);
-      // The end scallop (cylinder 1) crosses the pulley-end rail. Open it.
-      if (up) {
-        const notches = (s > 0 ? [1, 2, 3] : [4, 5, 6]).flatMap((c) => {
-          const loc = plugCoverLocal(c, -0.25);
-          if (Math.abs(loc.y) > 200 || Math.abs(loc.x) > 24) return [];
-          return [yToZ(cyl(SPARK_HOLE_R + 1, 6, 16)).translate(loc.x, loc.y, -0.25)];
-        });
-        if (notches.length) g = csgSub(g, ...notches);
-      }
-      const part = new Part().add(g, 'gasket');
-      // Stud holes sit on the ears, just outside the lip. Each is its own disc so the seal ring stays closed.
-      // Upper gasket: 6 holes. Lower gasket: 11.
-      for (const st of vcStuds(up, s)) {
-        const disc = circleShape(8, st.x, st.y);
-        disc.holes.push(circlePath(3.4, st.x, st.y) as THREE.Path);
-        part.add(extrudeC(disc, 0.4).translate(0, 0, -0.25), 'gasket');
-      }
-      // Upper gasket (930 105 194): bridges across the window where the plug
-      // collars sit. The bridge is holed for the connector tube, smaller than
-      // the collar, so the collar bears on gasket rather than on open oil space.
-      // Cylinder 6's opening is past the rail, so it has no bridge.
-      if (up) {
-        for (const c of (s > 0 ? [1, 2, 3] : [4, 5])) {
-          const loc = plugCoverLocal(c, -0.25);
-          if (Math.abs(loc.y) > 160 || Math.abs(loc.x) > 18) continue;
-          const sh = roundRect(40, 18, 2, loc.x, loc.y);
-          sh.holes.push(circlePath(SPARK_HOLE_R - 1, loc.x, loc.y) as THREE.Path);
-          part.add(extrudeC(sh, 0.4).translate(0, 0, -0.25), 'gasket');
-        }
-      }
-      return part;
-    }, () => [coverMatrix(s, up).clone()]);
+    def(`valve-cover-gasket-${up ? 'upper' : 'lower'}-${b}`, () => coverGasket(s, up), () => [coverMatrix(s, up).clone()]);
   }
   def(`cam-end-cover-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [27, 0], [27, 1], [25, 3], [0.1, 3]], 36), 'castAlu'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc, 0, CH_Z0 - 60), Z)]);
   // Clear of the Ø46.7 journals (centre distance 30 mm). The old offset of 24 mm ran through the journals.
@@ -198,7 +268,8 @@ for (const s of BANKS) {
     if (z1 > cursor + 6) p.add(cyl(3.5, z1 - cursor, 12).translate(0, (cursor - z0) + (z1 - cursor) / 2, 0), 'steel');
     return p;
   }, () => [M(V((CAM_X - 22) * s, 26, CH_Z0 + 20), Z)]);
-  def(`cam-housing-stoppers-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, -4], [5, -4], [5, 0], [5.5, 0], [5.5, 1.2], [0.1, 1.2]], 18), 'steel'); return p; }, () => [-1, 1].map((k) => onSurf(`cam-housing-${b}`, V(Xc - 24 * s, 24 * k, CH_Z0 - 60), Z)));
+  // y ±56 stays on the end cap and off the cylinder-6 connector cup (the old ±24 crossed it).
+  def(`cam-housing-stoppers-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, -4], [5, -4], [5, 0], [5.5, 0], [5.5, 1.2], [0.1, 1.2]], 18), 'steel'); return p; }, () => [-1, 1].map((k) => onSurf(`cam-housing-${b}`, V(Xc - 24 * s, 56 * k, CH_Z0 - 60), Z)));
   def(`cam-oil-banjo-${b}`, () => { const p = banjo(); p.add(lathe([[5, 21], [8, 21], [8, 22.5], [5, 22.5]], 20), 'brass'); p.add(lathe([[5, 22.5], [8, 22.5], [8, 24], [5, 24]], 20), 'brass'); p.add(lathe([[0.1, 24], [6, 24], [6, 32], [0.1, 32]], 16), 'zincPlate'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc - 14 * s, -36, CH_Z0 - 80), Z, V(s, 0, 0))]);
 }
 /** Adjuster cover centre: first point along the adjuster axis where an r 30 disc lies on the lid, clear of the cover nuts, the lid-centre studs and the lid bosses (build time). */

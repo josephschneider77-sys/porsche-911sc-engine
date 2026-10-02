@@ -1359,12 +1359,13 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
   const xUnder = s > 0 ? 200 + lane * 6 : s * (170 + lane * 10);
   // The rail is the inboard shroud line. Out past |x| ≈ 160 the runners drop through the wing.
   // Below the oil-return tubes (centre y -78, radius 7) and above the heat-exchanger shell.
-  const yUnder = Math.max(-98 - lane * 6, boot.y + 18);
+  // Stay in the gap under the oil returns. Lifting this lane up to a top-entry
+  // boot runs it through the crankcase, the heads and the cam housings.
+  const yUnder = -98 - lane * 6;
   const yHigh = Math.max(yLoom, wingTop(xLoom) + 8, wingTop(s * 180) + 8);
   const ribs = s > 0 ? [-150, -30, 90] : [-185, -90, 30];
-  const approach = boot.clone().addScaledVector(axis, -14);
-  if (approach.y < boot.y + 12) approach.y = boot.y + 12;
-  const yMeet = Math.max(approach.y, boot.y + 16, yUnder);
+  // On the plug axis, past the cover, so the last run is the bore rather than a chord across the lid.
+  const clear = boot.clone().addScaledVector(axis, 110);
   // Inboard shroud line, under the horizontal run of the intake runners (their centreline is y 206 until |x| 160).
   const xRail = xLoom;
   const zRailEnd = s > 0 ? zDrop : 162;
@@ -1381,15 +1382,16 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
         [xOut, 64, zDrop],
         [s * 196, yUnder, 176],
       ];
+  const xFar = s * 380;
   return [
     [xRail, yHigh, zRail],
     ...alongEdge(xRail, yHigh, zRail, zRailEnd, ribs),
     ...outStep,
     ...(s > 0 ? [] : [[xUnder, yUnder, 172] as V3]),
-    [xUnder, yUnder, boot.z],
-    [xUnder, yMeet, boot.z],
-    [approach.x, approach.y, approach.z],
-    [boot.x, boot.y, boot.z],
+    [xUnder, yUnder, zDrop],
+    [xFar, yUnder, zDrop],
+    // Rise outboard of the housings. The plugLeadPoints caller continues on the axis to the boot.
+    [xFar, clear.y, clear.z],
   ];
 }
 /**
@@ -1441,8 +1443,19 @@ export function plugLeadPoints(c: number, i: number, pose = partPose(`spark-plug
   const drop = bootDrop(s, c, xLoom, yLoom, zRail, boot, axis);
   // Cap end is filleted at 25 mm. The plug drop stays tighter so it misses the horn.
   const pts = densify([...filleted(corners, 25), ...filleted(drop, s > 0 ? 16 : 8).slice(1)], 12);
-  const floor = boot.y;
-  for (const p of pts) if (p[1] < floor) p[1] = floor;
+  // Do not lift the under-lane up to the boot. That chord crosses the pulley end of the covers.
+  // From the outboard rise, come in to a point on the axis and follow the axis through the hole.
+  const clear = boot.clone().addScaledVector(axis, 110);
+  const last = new THREE.Vector3(...pts[pts.length - 1]);
+  const pushLine = (a: THREE.Vector3, b: THREE.Vector3, step: number) => {
+    const n = Math.max(1, Math.ceil(a.distanceTo(b) / step));
+    for (let k = 1; k <= n; k++) {
+      const p = a.clone().lerp(b, k / n);
+      pts.push([p.x, p.y, p.z]);
+    }
+  };
+  pushLine(last, clear, 12);
+  pushLine(clear, boot, 8);
   return pts;
 }
 /** Catmull-Rom bows off a long chord. Points every few centimetres keep the tube on the shroud line. */
@@ -1580,7 +1593,7 @@ export function sparkPlug() {
   // Centre electrode. The tip is 0.75 mm behind the datum; the strap's inner face
   // is 0.05 mm in front of the datum, so the gap is 0.80 mm (catalogue 0,8).
   const tipY = -0.75;
-  p.add(lathe([[0.15, tipY], [1.25, tipY], [1.25, shellEnd - 1.2], [0.15, shellEnd - 1.2]], 16), 'polishedSteel');
+  p.add(lathe([[0.15, tipY], [1.25, tipY], [1.25, shellEnd - 1.2], [0.15, shellEnd - 1.2], [0.15, tipY]], 16), 'polishedSteel');
   // Shell and thread. Grooves are the 1.25 mm pitch; the crest stays inside the bore.
   const thread: [number, number][] = [[1.6, shellEnd], [threadR, shellEnd]];
   const pitch = 1.25;
@@ -1594,8 +1607,10 @@ export function sparkPlug() {
     [threadR - 0.15, seat - 1.3], [threadR + 0.3, seat - 1.3], [threadR + 0.3, seat - 1.6], [1.6, seat - 1.6],
   );
   // Reversed so the shell normals point out of the metal. The other winding
-  // erodes the crest outward into the bore.
-  p.add(lathe(thread.slice().reverse(), 32), 'steel');
+  // erodes the crest outward into the bore. The repeated first point is the inner wall.
+  const shell = thread.slice().reverse();
+  shell.push(shell[0]);
+  p.add(lathe(shell, 32), 'steel');
   // Ground electrode. The foot crosses the centre electrode; its outer face is the
   // metal closest to the piston (0.75 mm past the datum). The leg stays at the
   // shell rim, inside the bore, and does not reach that face.
@@ -1623,7 +1638,7 @@ export function sparkPlug() {
     ribs.push([5.1, y], [7.8, y - 0.9], [7.8, y - 2.4], [5.1, y - 3.3]);
     y -= step;
   }
-  ribs.push([4.2, insEnd + 2.4], [2.5, insEnd], [0.4, insEnd]);
+  ribs.push([4.2, insEnd + 2.4], [2.5, insEnd], [0.4, insEnd], [0.4, hexOut], [3.2, hexOut]);
   p.add(lathe(ribs, 24), 'ceramic');
   // Terminal stud and nut. The connector bore is smaller than the nut's corners, so it grips.
   p.add(cyl(2.0, 7, 12).translate(0, SPARK_NIPPLE_Y + 3.2, 0), 'steel');
@@ -1637,26 +1652,90 @@ export function sparkPlug() {
  * Straight tube from just over the terminal nut, seal flange in the cover hole,
  * then a 90° elbow. The outlet centre is SPARK_MOUTH.
  */
+/** Closed pipe: outer wall, inner wall, and annular caps. A lathe seam welds shut. */
+function pipeSolid(pts: V3[], rOut: number, rIn: number, n = 16): THREE.BufferGeometry {
+  const C = pts.map((p) => new THREE.Vector3(...p));
+  const T = C.map((_, i) => {
+    const a = C[Math.max(0, i - 1)], b = C[Math.min(C.length - 1, i + 1)];
+    return b.clone().sub(a).normalize();
+  });
+  let N = new THREE.Vector3(0, 0, 1);
+  if (Math.abs(N.dot(T[0])) > 0.85) N.set(0, 1, 0);
+  const frames: { n: THREE.Vector3; b: THREE.Vector3 }[] = [];
+  for (let i = 0; i < C.length; i++) {
+    const t = T[i];
+    N = N.clone().sub(t.clone().multiplyScalar(N.dot(t)));
+    if (N.lengthSq() < 1e-8) {
+      N = Math.abs(t.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+      N.sub(t.clone().multiplyScalar(N.dot(t)));
+    }
+    N.normalize();
+    frames.push({ n: N.clone(), b: new THREE.Vector3().crossVectors(t, N).normalize() });
+  }
+  const verts: THREE.Vector3[] = [];
+  const add = (v: THREE.Vector3) => { verts.push(v); return verts.length - 1; };
+  const rings = C.map((c, s) => {
+    const o: number[] = [], inn: number[] = [];
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2;
+      const d = frames[s].n.clone().multiplyScalar(Math.cos(a)).add(frames[s].b.clone().multiplyScalar(Math.sin(a)));
+      o.push(add(c.clone().add(d.clone().multiplyScalar(rOut))));
+      inn.push(add(c.clone().add(d.multiplyScalar(rIn))));
+    }
+    return { o, i: inn };
+  });
+  const idx: number[] = [];
+  const quad = (a: number, b: number, c: number, d: number) => idx.push(a, b, c, a, c, d);
+  for (let s = 0; s < rings.length - 1; s++) {
+    for (let k = 0; k < n; k++) {
+      const k2 = (k + 1) % n;
+      quad(rings[s].o[k], rings[s].o[k2], rings[s + 1].o[k2], rings[s + 1].o[k]);
+      quad(rings[s].i[k], rings[s + 1].i[k], rings[s + 1].i[k2], rings[s].i[k2]);
+    }
+  }
+  const cap = (ring: { o: number[]; i: number[] }, out: boolean) => {
+    for (let k = 0; k < n; k++) {
+      const k2 = (k + 1) % n;
+      if (out) quad(ring.o[k], ring.o[k2], ring.i[k2], ring.i[k]);
+      else quad(ring.o[k], ring.i[k], ring.i[k2], ring.o[k2]);
+    }
+  };
+  cap(rings[0], false);
+  cap(rings[rings.length - 1], true);
+  const g = new THREE.BufferGeometry();
+  const arr = new Float32Array(verts.length * 3);
+  verts.forEach((v, i) => { arr[i * 3] = v.x; arr[i * 3 + 1] = v.y; arr[i * 3 + 2] = v.z; });
+  g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
 export function sparkPlugConnector() {
   const p = new Part();
   const yTube0 = SPARK_NIPPLE_Y + 2;
   const yJoin = -(SPARK_FLANGE_T + 12);
-  // Inner radius clears the ceramic and grips the nut. Outer radius clears the cover hole.
+  // Wider cup over the plug, then the tube. Closed by the inner wall.
+  const cupR = 12.4;
+  const yNeck = yTube0 - 14;
+  // Reversed so the outer wall's normals point out of the plastic. The other
+  // order points them into the cup, and the 1 mm collision erosion then grows it.
   const tubeProf: [number, number][] = [
-    [4.3, yTube0], [SPARK_TUBE_R, yTube0], [SPARK_TUBE_R, yJoin], [4.3, yJoin],
+    [5.6, yTube0], [5.6, yTube0 - 7], [4.2, yNeck], [4.2, yJoin],
+    [SPARK_TUBE_R, yJoin], [SPARK_TUBE_R, yNeck], [cupR, yTube0 - 7], [cupR, yTube0], [5.6, yTube0],
   ];
-  p.add(lathe(tubeProf.slice().reverse(), 24), 'blackPlastic');
+  p.add(lathe(tubeProf, 24), 'blackPlastic');
   // Seal flange in the cover hole. 0.12 mm larger than the hole, so the only
   // contact with the lid is this narrow cylindrical seat.
   const fy = -SPARK_FLANGE_T;
   const fr = SPARK_HOLE_R + 0.12;
   const flangeProf: [number, number][] = [
-    [SPARK_TUBE_R - 0.4, fy - 1.15], [fr, fy - 1.15], [fr, fy + 1.15], [SPARK_TUBE_R - 0.4, fy + 1.15],
+    [SPARK_TUBE_R - 0.4, fy - 1.15], [SPARK_TUBE_R - 0.4, fy + 1.15], [fr, fy + 1.15], [fr, fy - 1.15],
+    [SPARK_TUBE_R - 0.4, fy - 1.15],
   ];
-  p.add(lathe(flangeProf.slice().reverse(), 32), 'rubber');
+  p.add(lathe(flangeProf, 32), 'rubber');
   // 90° elbow. Starts on the axis at yJoin, travelling toward −Y, and leaves
   // along local +X. Centre of the bend is (SPARK_BEND_R, yJoin). The straight
-  // run is several samples so the mouth ring stays normal to +X.
+  // run ends at SPARK_MOUTH so the outlet ring stays normal to +X.
   const R = SPARK_BEND_R;
   const bend: V3[] = [];
   for (let i = 0; i <= 8; i++) {
@@ -1672,7 +1751,7 @@ export function sparkPlugConnector() {
       joint[2] + (SPARK_MOUTH[2] - joint[2]) * t,
     ]);
   }
-  p.add(tube(bend, SPARK_TUBE_R, 12, 24), 'blackPlastic');
+  p.add(pipeSolid(bend, SPARK_TUBE_R, 4.2, 16), 'blackPlastic');
   return p.g;
 }
 
@@ -1717,19 +1796,8 @@ export function heatExchanger(s: 1 | -1) {
   // primary pipes from each exhaust port with 2-stud port flanges (#31 gaskets)
   for (const zc of zs) {
     const port: V3 = [X(EXH_PORT.x), EXH_PORT.y, zc];
-    // The plug boot hangs on the +s*Z side of the port, about 27 mm from the port
-    // centre. A Ø36 pipe there meets the boot, so the primary leaves at Ø26 and
-    // bows away from the plug before it opens back up into the shell.
-    const away = -s;
-    const neck: V3[] = [port, [X(EXH_PORT.x), EXH_PORT.y - 22, zc + away * 14]];
-    const pts: V3[] = [
-      neck[1],
-      [X(EXH_PORT.x), -112, zc + away * 22],
-      [X(EXH_PORT.x - 4), -136, zc + away * 4],
-      [X(shellX), shellY + 20, zc + 12],
-    ];
-    p.add(tube(neck, 13, 12, 10), 'aluminized');
-    p.add(tube(pts, 16, 14, 20), 'aluminized');
+    const pts: V3[] = [port, [X(EXH_PORT.x), -100, zc], [X(EXH_PORT.x - 4), -130, zc + 6], [X(shellX), shellY + 20, zc + 12]];
+    p.add(tube(pts, 18, 16, 24), 'aluminized');
     // waisted 2-stud flange (ring + stud ears + narrow bridges) so the spark plug beside it stays clear
     const fl = circleShape(18.5); fl.holes.push(circlePath(16) as THREE.Path);
     const parts = [fl, circleShape(8.6, -30, 0), circleShape(8.6, 30, 0), roundRect(14, 9, 2, -22, 0), roundRect(14, 9, 2, 22, 0)];
