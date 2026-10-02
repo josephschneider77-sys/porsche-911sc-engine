@@ -5,7 +5,7 @@ import { rayHit } from './hw';
 import { OIL_COOLER, oilCooler, DIST, DIST_AXIS, distW } from '../src/geo/aux';
 import { SMALL_GEOM } from '../src/geo/smallParts';
 
-const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|timing-chain|cam-sprocket)-(left|right)$/;
+const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|guide-rails|timing-chain|cam-sprocket)-(left|right)$/;
 const EXHAUST = /^(heat-exchanger-(left|right)|muffler)$/;
 
 describe('seated face contact', () => {
@@ -71,7 +71,7 @@ describe('assembled-pose interference', () => {
     expect(bad.map((h) => `${h.a} x ${h.b}`)).toEqual([]);
   });
   for (const sd of ['right', 'left'])
-    for (const part of ['chain-housing', 'chain-housing-lid', 'chain-tensioner'])
+    for (const part of ['chain-housing', 'chain-housing-lid', 'chain-tensioner', 'guide-rails'])
       it(`${part}-${sd} keeps >= 10 mm air gap to heat-exchanger-${sd}`, () => {
         expect(clearance(`${part}-${sd}`, `heat-exchanger-${sd}`)).toBeGreaterThanOrEqual(10);
       });

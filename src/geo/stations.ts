@@ -69,7 +69,7 @@ export function chainLidStations(s: 1 | -1): { x: number; y: number }[] {
     const down = V(0, 0, -1), o = V(X, y, HOUSING_Z1 - 0.5);
     const wall = probe(`chain-housing-${b}`, o, down, 80); if (!wall) continue;
     let blocked = false;
-    for (const id of [`chain-tensioner-${b}`, `timing-chain-${b}`, `cam-sprocket-${b}`]) {
+    for (const id of [`chain-tensioner-${b}`, `timing-chain-${b}`, `cam-sprocket-${b}`, `guide-rails-${b}`]) {
       for (const [dx, dy] of [[0, 0], [7, 0], [-7, 0], [0, 7], [0, -7]]) { const h = probe(id, V(X + dx, y + dy, HOUSING_Z1 - 0.5), down, 80); if (h && h.distance < wall.distance) blocked = true; }
     }
     if (!blocked) c.push(V(X, y, 0));

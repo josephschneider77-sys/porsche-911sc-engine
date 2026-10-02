@@ -161,9 +161,17 @@ function perBank(): PartDef[] {
       specs: { Screws: '3 (#33) + spring washers (#32)' },
     });
     out.push({
-      id: `chain-tensioner-${b}`, name: `Chain tensioner & guides, ${b}`, system: 'camdrive', asset: `chain-tensioner-${b}`, explode: [s * 360, -120, 320],
-      catalog: [{ ill, pos: '10', pn: '930 105 049 00', note: 'Chain adjuster (hydraulic, oil-fed on later cars)' }, { ill, pos: '5/6', pn: s === 1 ? '901 105 506 02 / 901 105 055 00' : '901 105 505 02 / 901 105 055 00', note: 'Idler arm / idler sprocket' }, { ill, pos: '2', pn: '911 105 222 06', note: 'Guide rail' }],
-      description: 'Heavy forged idler arm with a wide bushed boss. The 19 T idler presses 38 mm into the slack (return) run from outside the loop, so the chain wraps it and rollers seat in its teeth. The sealed hydraulic adjuster lies inclined in the lower inner corner of the box (stud, washer and nut on the cast mounting lug); its plunger dome bears on the round pad on the arm tail. Moulded guide rails sit on the tight run and outside the slack run.',
+      id: `guide-rails-${b}`, name: `Timing-chain guide rails, ${b}`, system: 'camdrive', asset: `guide-rails-${b}`, explode: [s * 420, 70, 360],
+      catalog: s === 1
+        ? [{ ill, pos: '2', pn: '911 105 222 06', qty: 2, note: 'Black rails, upper run and intermediate-to-idler' }, { ill, pos: '2', pn: '911 105 222 05', qty: 1, note: 'Brown rail, idler-to-cam' }]
+        : [{ ill, pos: '2', pn: '911 105 222 06', qty: 3 }],
+      description: 'Three moulded chain shoes per bank. Each follows its straight run until a sprocket tooth circle stops it, with three ribs, a lead-in ramp at each end, and a wear face 0.2–0.5 mm off the rollers and plates. The shoes bolt to bosses on the chain-housing back wall (901 105 226 03, sealing ring A 10×16).',
+      specs: { 'Per bank': s === 1 ? '2 × 911 105 222 06 + 1 × 911 105 222 05' : '3 × 911 105 222 06', Width: '26 mm', Bolts: '4 × 901 105 226 03' },
+    });
+    out.push({
+      id: `chain-tensioner-${b}`, name: `Chain tensioner, ${b}`, system: 'camdrive', asset: `chain-tensioner-${b}`, explode: [s * 360, -120, 320],
+      catalog: [{ ill, pos: '10', pn: '930 105 049 00', note: 'Chain adjuster (hydraulic, oil-fed on later cars)' }, { ill, pos: '5/6', pn: s === 1 ? '901 105 506 02 / 901 105 055 00' : '901 105 505 02 / 901 105 055 00', note: 'Idler arm / idler sprocket' }],
+      description: 'Heavy forged idler arm with a wide bushed boss. The 19 T idler presses 38 mm into the slack (return) run from outside the loop, so the chain wraps it and rollers seat in its teeth. The sealed hydraulic adjuster lies inclined in the lower inner corner of the box (stud, washer and nut on the cast mounting lug); its plunger dome bears on the round pad on the arm tail.',
       specs: { Type: 'Hydraulic adjuster (930/04: sealed unit 930 105 049 00)', Idler: '19 T, outside wrap', 'Slack-run deflection': '38 mm (model)', Plunger: 'in contact with the arm pad' },
     });
     out.push({

@@ -13,7 +13,7 @@ import { HEAD_HW, CASE_TB, CASE_LUG, caseLugY } from './hwLayout';
 export { HEAD_HW, CASE_TB, CASE_LUG };
 import { seat, probe } from './probe';
 import { adjusterCover } from './smallParts';
-import { END_PAD, railBolts, tensionerLayout, coverMatrix, VC_EARS, VC_EDGE, chainCoverBolts, chainHousingStuds, HOUSING_Z1, HOUSING_Z0, CHAIN_LID, CHAIN_Z, CAM_NOSE } from './core';
+import { END_PAD, railBolts, RAIL_SPEC, tensionerLayout, coverMatrix, VC_EARS, VC_EDGE, chainCoverBolts, chainHousingStuds, HOUSING_Z1, HOUSING_Z0, CHAIN_LID, CHAIN_Z, CAM_NOSE } from './core';
 import { rockerStations, SHAFT } from './valvetrain';
 import { chainEndStations, chainLidStations, VC_SPECIAL, shroudScrews } from './stations';
 import { EXH_PORT, FAN, FLY_Z, SUMP, THERMO, BREATHER, OIL_PUMP, OIL_COOLER, DIST, DIST_AXIS, distW, AIRBOX_STRUTS, WUR } from './aux';
@@ -143,8 +143,8 @@ export function fastenerSets(): FSet[] {
   set('airbox-strut-nuts', 'nut', 8, { spring: true, grip: 6, embed: 10 }, AIRBOX_STRUTS.map((q) => ({ p: V(q[0], q[1], q[2]), n: V(0, 1, 0), seat: 'airbox-struts', into: 'plenum', stud: true })));
   // warm-up regulator nuts on the case (107-10 #55/#56: pan screws + spring washers)
   set('wur-screws', 'pan', 6, { spring: true, len: 12 }, WUR.screws.map(([x, z]) => ({ p: V(x, WUR.flangeTop, z), n: V(0, 1, 0), seat: 'warm-up-regulator', into: 'crankcase-left' })));
-  // guide-rail bolts (103-10/15 #3; sealing rings #4 are a small-part set) through rail + carrier into the box back wall
-  for (const s of sides) { const b = bname(s); set(`rail-bolts-${b}`, 'bolt', 6, { washer: 7, len: CHAIN_Z[s] + 11.1 - (HOUSING_Z0 + 4) + 8, mat: 'darkSteel' }, railBolts(s).map((q) => ({ p: q.clone(), n: V(0, 0, 1), seat: `chain-tensioner-${b}`, into: `chain-housing-${b}` }))); }
+  // guide-rail bolts (103-10/15 #3) with A 10×16 sealing rings (#4). Shank clears the shoe and threads into the boss.
+  for (const s of sides) { const b = bname(s); set(`rail-bolts-${b}`, 'bolt', 10, { washer: 8, len: RAIL_SPEC.hz * 2 + RAIL_SPEC.embed, mat: 'darkSteel' }, railBolts(s).map((q) => ({ p: q.clone(), n: V(0, 0, 1), seat: `guide-rails-${b}`, into: `chain-housing-${b}` }))); }
   // chain-adjuster cover screws (103-10/15 #32/#33): 3 combination screws + spring washers into the lid
   for (const s of sides) { const b = bname(s); const T = tensionerLayout(s); const c = adjusterCover(s);
     set(`adjuster-cover-screws-${b}`, 'combi', 5, { spring: true, len: 8, mat: 'zincPlate' }, ring(3, 24.5, 0.5).map(([dx, dy]) => ({ p: V(c.x + dx, c.y + dy, CHAIN_LID.top + 3.5), n: V(0, 0, 1), seat: `adjuster-cover-${b}`, into: `chain-housing-lid-${b}` }))); }
@@ -243,6 +243,14 @@ function prototype(f: FSet): Part {
       [2.2, -5.6], [5.4, -0.3], [fr, 0], [fr, 1.5],
       [5.0, 1.7], [5.0, hh], [2.4, hh], [2.4, 2.2], [0.9, 2.2],
     ], 20), f.mat, [0, y, 0]);
+    return p;
+  }
+  if (f.id.startsWith('rail-bolts')) {
+    // 901 105 226 03 is a short guide-rail bolt. A full M10 hex (10 mm) reaches the chain-housing lid.
+    // The A 10×16 ring is the washer added above. The head is one hex so the bolt stays a single solid per mesh.
+    const hh = 6.5;
+    p.add(hexAt(hh, y, 17), f.mat);
+    if (f.len > 0) { const g = cyl(M / 2, f.len, 10); g.translate(0, -f.len / 2, 0); p.add(g, 'steel'); }
     return p;
   }
   switch (f.kind) {

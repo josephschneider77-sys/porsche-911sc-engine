@@ -3,12 +3,49 @@ import * as THREE from 'three';
 import { CAM_X, INT_SHAFT_Y } from '../src/data/layout';
 import {
   basePath, chainPath, chainPins, tensionerLayout, ADJ, CAM_NOSE, CAM_SPROCKET_R, INT_SPROCKET_R,
-  SPROCKET_HOLES, FLANGE_NOTCHES, VERNIER, CHAIN_Z, guideRails, railInner, chainTensioner,
+  SPROCKET_HOLES, FLANGE_NOTCHES, VERNIER, CHAIN_Z, guideRails, railFace, chainGuides, chainTensioner,
+  RAIL_SPEC,
   CRANK_GEAR_T, INT_GEAR, INT_T, CAM_T, IDLER_T, crankGears, intermediateShaft, MESH_DZ,
 } from '../src/geo/core';
 import { caseLugY } from '../src/geo/hwLayout';
+import { fastenerGroup, fastenerSets } from '../src/geo/fasteners';
 import { clearance } from './collide';
 import { rayHit } from './hw';
+
+/** Welded connectivity and open-edge count of one mesh. */
+function solidStats(g: THREE.BufferGeometry, q = 1e-4) {
+  const pos = g.getAttribute('position');
+  const idx = g.getIndex();
+  const nTri = idx ? idx.count / 3 : pos.count / 3;
+  const map = new Map<string, number>();
+  let idn = 0;
+  const idOf = (i: number) => {
+    const vi = idx ? idx.getX(i) : i;
+    const k = `${Math.round(pos.getX(vi) / q)},${Math.round(pos.getY(vi) / q)},${Math.round(pos.getZ(vi) / q)}`;
+    let id = map.get(k);
+    if (id === undefined) { id = idn++; map.set(k, id); }
+    return id;
+  };
+  const parent = new Int32Array(Math.max(nTri * 3, 1));
+  for (let i = 0; i < parent.length; i++) parent[i] = i;
+  const find = (a: number): number => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+  const uni = (a: number, b: number) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+  const edges = new Map<string, number>();
+  for (let t = 0; t < nTri; t++) {
+    const ids = [0, 1, 2].map((k) => idOf(t * 3 + k));
+    uni(ids[0], ids[1]); uni(ids[1], ids[2]);
+    for (let k = 0; k < 3; k++) {
+      const a = ids[k], b = ids[(k + 1) % 3];
+      const e = a < b ? `${a}|${b}` : `${b}|${a}`;
+      edges.set(e, (edges.get(e) ?? 0) + 1);
+    }
+  }
+  let boundary = 0;
+  for (const c of edges.values()) if (c !== 2) boundary++;
+  const roots = new Set<number>();
+  for (let i = 0; i < idn; i++) roots.add(find(i));
+  return { components: roots.size, boundary };
+}
 
 describe('cam drive ratio', () => {
   it('is exactly 2:1 from crank to cam, on the existing 84 mm gear centres', () => {
@@ -304,13 +341,85 @@ describe.each([[1, 'right'], [-1, 'left']] as Array<[1 | -1, string]>)('chain te
       expect(roots.size, `components ${roots.size}`).toBe(1);
     });
   });
-  it('guide-rail shoes sit against the chain run', () => {
+  it('guide rails follow the chain runs at drawing length', () => {
+    const rails = guideRails(s);
+    expect(rails).toHaveLength(3);
+    const by = Object.fromEntries(rails.map((r) => [r.run, r]));
+    // Tangent lengths are the straight runs between the sprocket pitch circles (both banks).
+    expect(by.upper.runLength).toBeCloseTo(303.8, 0);
+    expect(by.slackA.runLength).toBeCloseTo(198.9, 0);
+    expect(by.slackB.runLength).toBeCloseTo(72.5, 0);
+    // The shoe keeps that run except where a tooth circle, the crankcase nose, or the other bank stops it.
+    expect(by.upper.length).toBeGreaterThan(240);
+    expect(by.slackA.length).toBeGreaterThan(160);
+    expect(by.slackB.length).toBeGreaterThan(38);
+    expect(by.upper.length / by.upper.runLength).toBeGreaterThan(0.75);
+    expect(by.slackA.length / by.slackA.runLength).toBeGreaterThan(0.75);
+    expect(by.upper.pn).toBe('911 105 222 06');
+    expect(by.slackA.pn).toBe('911 105 222 06');
+    expect(by.slackB.pn).toBe(s > 0 ? '911 105 222 05' : '911 105 222 06');
+    expect(by.slackB.brown).toBe(s > 0);
+    expect(by.upper.bolts).toHaveLength(2);
+    expect(by.slackA.bolts).toHaveLength(1);
+    expect(by.slackB.bolts).toHaveLength(1);
+    const bolts = rails.reduce((n, r) => n + r.bolts.length, 0);
+    expect(bolts).toBe(4);
+  });
+  it('guide-rail wear face stays 0.2–0.5 mm off the rollers and plates', () => {
     for (const r of guideRails(s)) {
-      const f = (r.f0 + r.f1) / 2;
-      const q = r.a.clone().lerp(r.b, f);
-      const hit = rayHit(`chain-tensioner-${b}`, new THREE.Vector3(q.x, q.y, CHAIN_Z[s]), new THREE.Vector3(r.n.x, r.n.y, 0), 20);
-      expect(hit, `rail at x ${q.x.toFixed(0)}`).toBeTruthy();
-      expect(Math.abs(hit!.distance - railInner(0.5))).toBeLessThan(0.6);
+      // Past the 14 mm lead-in. The upper rail's inboard bolt is at mid-run, so sample off that hole.
+      const u = r.run === 'upper' ? 0.32 : 0.5;
+      const q = r.a.clone().lerp(r.b, u);
+      const hit = rayHit(`guide-rails-${b}`, new THREE.Vector3(q.x, q.y, CHAIN_Z[s]), new THREE.Vector3(r.n.x, r.n.y, 0), 30);
+      expect(hit, `${r.run}`).toBeTruthy();
+      expect(Math.abs(hit!.distance - railFace(r, u, 0)), `${r.run} face`).toBeLessThan(0.2);
+      const plate = railFace(r, u, 0) - RAIL_SPEC.plateR;
+      const roller = railFace(r, u, 5) - RAIL_SPEC.rollerR;
+      expect(plate, `${r.run} plate`).toBeGreaterThanOrEqual(0.2);
+      expect(plate, `${r.run} plate`).toBeLessThanOrEqual(0.5);
+      expect(roller, `${r.run} roller`).toBeGreaterThanOrEqual(0.2);
+      expect(roller, `${r.run} roller`).toBeLessThanOrEqual(0.5);
     }
+  });
+  it('each guide rail is one watertight shoe and stays 0.5 mm off the sprocket teeth', () => {
+    const root = chainGuides(s);
+    root.updateMatrixWorld(true);
+    const tips = [
+      { name: 'intermediate', c: B.c1, r: B.r1 + RAIL_SPEC.toothAdd },
+      { name: 'cam', c: B.c2, r: B.r2 + RAIL_SPEC.toothAdd },
+      { name: 'idler', c: T.idler, r: T.idlerR + RAIL_SPEC.toothAdd },
+    ];
+    let meshes = 0;
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      meshes++;
+      const st = solidStats(mesh.geometry);
+      expect(st.components, 'components').toBe(1);
+      expect(st.boundary, 'boundary edges').toBe(0);
+      const P = mesh.geometry.getAttribute('position');
+      const v = new THREE.Vector3();
+      for (let i = 0; i < P.count; i++) {
+        v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
+        for (const tip of tips) {
+          const d = Math.hypot(v.x - tip.c.x, v.y - tip.c.y);
+          expect(d, `${tip.name} (${v.x.toFixed(1)}, ${v.y.toFixed(1)})`).toBeGreaterThanOrEqual(tip.r + RAIL_SPEC.toothClear - 0.02);
+        }
+      }
+    });
+    expect(meshes).toBe(3);
+  });
+  it('each rail-bolt mesh is one piece', () => {
+    const set = fastenerSets().find((f) => f.id === `rail-bolts-${b}`);
+    expect(set?.items).toHaveLength(4);
+    const root = fastenerGroup(set!);
+    let meshes = 0;
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      meshes++;
+      expect(solidStats(mesh.geometry).components, mesh.name || 'bolt mesh').toBe(1);
+    });
+    expect(meshes).toBeGreaterThanOrEqual(3);
   });
 });

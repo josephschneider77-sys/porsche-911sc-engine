@@ -1624,23 +1624,488 @@ export function camSprocket(s: 1 | -1) {
  * Chain tensioner (103-10/-15): idler sprocket (#6, 19 T) on its arm (#5) pressed up into the slack run so the chain
  * wraps it (~36 deg), arm pivoting on its shaft (#3) in the housing boss, tail pad loaded by the hydraulic chain
  * adjuster (#10) whose plunger dome bears on the pad; adjuster held by its mounting ear on a housing stud + M8 nut
- * (103-10 #27/#28); plastic guide rails (#2) on the tight run and under the slack run.
+ * (103-10 #27/#28). Guide rails are their own part (`chainGuides`).
  */
-/** Plastic guide rails (103-10/15 #2): left 3, right 2 (E); each is a ramp `off` mm outside the chain run between fractions f0..f1. */
-export function guideRails(s: 1 | -1) {
-  const { up1, up2, nUp } = basePath(s); const P = chainPath(s);
-  const sa = P.slackA.pa, sb = P.slackA.pb; const dd = sb.clone().sub(sa).normalize();
-  let nn = new THREE.Vector2(dd.y, -dd.x); if (nn.y > 0) nn = nn.negate(); // outside of the loop = below the slack run
-  const out = [{ a: up1, b: up2, n: nUp, f0: 0.53, f1: 0.82 }, { a: sa, b: sb, n: nn, f0: s > 0 ? 0.55 : 0.2, f1: s > 0 ? 0.8 : 0.45 }];
-  if (s < 0) out.push({ a: up1, b: up2, n: nUp, f0: 0.28, f1: 0.5 });
+/**
+ * Guide-rail shoe (Kat 502, 103-10 / 103-15 #2).
+ * Duplex 06B-2: roller r 3.2, plate radial half-height 4.1. The wear face sits 0.35 mm off the rollers
+ * in the open roller lanes and 0.48 mm off the plates everywhere else, so the running clearance stays
+ * inside 0.2–0.5 mm after the 0.12 mm mid-run bow. Each end ramps the face 2.4 mm
+ * out over 14 mm (lead-in). The shoe is 26 mm wide (FVD envelope) with three longitudinal ribs.
+ */
+export const RAIL_SPEC = {
+  rollerR: 3.2, plateR: 4.1, rollerClear: 0.35, plateClear: 0.48,
+  bow: 0.12, ramp: 14, rampLift: 2.4,
+  hz: 13, web: 19.4, back: 22.4, boltOff: 12.6, holeR: 5.25, bossR: 6.2,
+  toothClear: 0.5, toothAdd: 3.4, embed: 8,
+};
+const smoothstep = (x: number, a: number, b: number) => {
+  if (x <= a) return 0; if (x >= b) return 1;
+  const t = (x - a) / (b - a); return t * t * (3 - 2 * t);
+};
+/**
+ * 1 in the open roller lane, 0 wherever a link plate exists.
+ * Inner plates end at |z| = 2.30 and resume at 7.90 (centers ±1.7 and ±8.5, 1.2 thick).
+ * The blend stays inside that gap so a mesh chord cannot cut the plate edge.
+ */
+function rollerWeight(z: number) {
+  const az = Math.abs(z);
+  return Math.min(smoothstep(az, 2.32, 2.55), 1 - smoothstep(az, 7.62, 7.86));
+}
+/** Local wear-face distance from the bowed centreline. Ramp pulls the face off the chain at each end. */
+function faceLocal(u: number, z: number, len: number) {
+  const S = RAIL_SPEC;
+  const base = (S.plateR + S.plateClear) * (1 - rollerWeight(z)) + (S.rollerR + S.rollerClear) * rollerWeight(z);
+  const end = Math.min(u, 1 - u) * len;
+  const ramp = end < S.ramp ? S.rampLift * smoothstep(1 - end / S.ramp, 0, 1) : 0;
+  return base + ramp;
+}
+/** Ribs fade out through the lead-in so the nose is a plain ramp. */
+function ribTaper(u: number, len: number) {
+  const end = Math.min(u, 1 - u) * len;
+  return end >= RAIL_SPEC.ramp ? 1 : smoothstep(end / RAIL_SPEC.ramp, 0, 1);
+}
+/** Outer (back) distance from the centreline. Three ribs stand proud of the recessed web and fade through the lead-in.
+ *  The web itself stays full height; only a sprocket tip circle (`cap`) thins the shoe. Brown is the lower rib. */
+function backLocal(z: number, taper: number, brown: boolean, cap = 40) {
+  const S = RAIL_SPEC;
+  const peak = brown ? S.web + (S.back - S.web) * 0.55 : S.back;
+  let rib = 0;
+  for (const c of [-8, 0, 8]) {
+    const d = Math.abs(z - c);
+    if (d < 1.55) rib = Math.max(rib, smoothstep(1 - d / 1.55, 0, 1));
+  }
+  const full = S.web + (peak - S.web) * rib * taper;
+  return Math.min(full, cap);
+}
+/** Clearance hole in the (arc-length, outward-x) plane, clockwise so earcut treats it as a hole. */
+function holeLoop(bolt: { u: number; slot: boolean }, len: number) {
+  const S = RAIL_SPEC;
+  const s0 = bolt.u * len, x0 = S.boltOff, r = S.holeR;
+  const pts: { s: number; x: number }[] = [];
+  if (!bolt.slot) {
+    const n = 16;
+    for (let i = 0; i < n; i++) {
+      const a = -(i / n) * Math.PI * 2;
+      pts.push({ s: s0 + r * Math.cos(a), x: x0 + r * Math.sin(a) });
+    }
+    return pts;
+  }
+  // Sliding slot: 6 mm straight plus the semicircular ends of the clearance hole.
+  const half = 3, segs = 8;
+  for (let i = 0; i < segs; i++) {
+    const a = Math.PI / 2 - (Math.PI * i) / segs;
+    pts.push({ s: s0 + half + r * Math.cos(a), x: x0 + r * Math.sin(a) });
+  }
+  for (let i = 0; i < segs; i++) {
+    const a = -Math.PI / 2 - (Math.PI * i) / segs;
+    pts.push({ s: s0 - half + r * Math.cos(a), x: x0 + r * Math.sin(a) });
+  }
+  return pts;
+}
+/** Furthest outward local-x that stays `toothClear` outside every sprocket tip circle. */
+function outwardCap(a: THREE.Vector2, b: THREE.Vector2, n: THREE.Vector2, u: number, obstacles: { c: THREE.Vector2; tip: number }[]) {
+  const origin = bowCenter(a, b, n, u);
+  let cap = 40;
+  const face = 3.5;
+  for (const o of obstacles) {
+    const d = origin.clone().sub(o.c);
+    const B = n.dot(d);
+    const C = d.lengthSq() - (o.tip + RAIL_SPEC.toothClear) ** 2;
+    const disc = B * B - C;
+    if (disc <= 0) continue;
+    const lo = -B - Math.sqrt(disc);
+    const hi = -B + Math.sqrt(disc);
+    // The tip circle blocks local x in (lo, hi). Stay in the free side that contains the wear face.
+    if (face >= hi) continue;
+    cap = Math.min(cap, face <= lo ? lo : face - 1);
+  }
+  return cap;
+}
+function sectionZs() {
+  const hz = RAIL_SPEC.hz;
+  const zs: number[] = [];
+  for (let z = -hz; z <= hz + 1e-6; z += 1.2) zs.push(Math.min(hz, Math.round(z * 1000) / 1000));
+  for (const c of [-8, 0, 8]) for (const e of [-1.55, 0, 1.55]) {
+    const z = c + e; if (Math.abs(z) < hz - 0.2) zs.push(z);
+  }
+  // Plate edges and the roller-lane blend, both sides, so the wear face does not chord into a plate.
+  for (const z of [0.6, 1.1, 2.3, 2.32, 2.55, 7.62, 7.86, 7.9, 9.1, 10, 11.2]) {
+    if (z < hz - 0.2) { zs.push(z); zs.push(-z); }
+  }
+  zs.sort((a, b) => a - b);
+  const out = [zs[0]];
+  for (const z of zs) if (z - out[out.length - 1] > 0.08) out.push(z);
+  if (out[out.length - 1] !== hz) out.push(hz);
   return out;
 }
-/** Rail mounting tabs: bosses outboard of the rail (clear of the chain plates) that take the rail bolts. */
-export const RAIL_TAB = { off: 16.5, r: 8, z0: -16, z1: 11.1 };
-/** Curved U-channel shoe. `inner` is the gap from the pitch line to the shoe face; `bow` pulls the middle in. */
-export const RAIL_SHOE = { inner: 4.9, thick: 6.5, bow: 0.55 };
-/** Distance from the pitch line to the shoe's inner face at fraction u along the rail (0 at the start). */
-export function railInner(u: number) { return RAIL_SHOE.inner - RAIL_SHOE.bow * Math.sin(Math.PI * u); }
+const SECTION_Z = sectionZs();
+export interface GuideRail {
+  run: 'upper' | 'slackA' | 'slackB';
+  pn: string;
+  brown: boolean;
+  a: THREE.Vector2;
+  b: THREE.Vector2;
+  n: THREE.Vector2;
+  /** Shoe length after the tooth trim, mm. */
+  length: number;
+  /** Straight pitch-line run between the tangent points, mm. */
+  runLength: number;
+  bolts: { u: number; slot: boolean }[];
+}
+/** Outside-of-loop normal for a straight run (lower runs point downward). */
+function outwardNormal(a: THREE.Vector2, b: THREE.Vector2, upper: THREE.Vector2 | null) {
+  if (upper) return upper.clone();
+  const d = b.clone().sub(a).normalize();
+  let n = new THREE.Vector2(d.y, -d.x);
+  if (n.y > 0) n = n.negate();
+  return n;
+}
+function bowCenter(a: THREE.Vector2, b: THREE.Vector2, n: THREE.Vector2, u: number) {
+  return a.clone().lerp(b, u).addScaledVector(n, -RAIL_SPEC.bow * Math.sin(Math.PI * u));
+}
+/** World point of the shoe: local +x is the outward normal, local z is engine Z relative to the chain plane. */
+function railPoint(a: THREE.Vector2, b: THREE.Vector2, n: THREE.Vector2, u: number, x: number) {
+  return bowCenter(a, b, n, u).addScaledVector(n, x);
+}
+function sprocketObstacles(s: 1 | -1) {
+  const B = basePath(s), T = tensionerLayout(s), add = RAIL_SPEC.toothAdd;
+  // `tip` is the radius passed to outwardCap, which adds toothClear. The nose boss is the
+  // crankcase cylinder the chain is already pushed clear of (r 42.6). Flange nuts are M8.
+  const nuts = chainHousingStuds(s).map((q) => ({ c: new THREE.Vector2(q.x, q.y), tip: 14 - RAIL_SPEC.toothClear }));
+  return [
+    { c: B.c1, tip: B.r1 + add },
+    { c: B.c2, tip: B.r2 + add },
+    { c: T.idler, tip: T.idlerR + add },
+    { c: new THREE.Vector2(0, 0), tip: 42.6 - RAIL_SPEC.toothClear },
+    ...nuts,
+  ];
+}
+/**
+ * Shorten a tangent run until the wear face itself is outside every sprocket tip circle.
+ * Where only the back of the shoe would enter a tooth circle, the shoe thins instead of stopping.
+ */
+/** Wear-face distance at a shoe end, plate band plus the full lead-in ramp. */
+function endFace() {
+  const S = RAIL_SPEC;
+  return S.plateR + S.plateClear + S.rampLift;
+}
+function trimRun(
+  a0: THREE.Vector2, b0: THREE.Vector2, n: THREE.Vector2, bank: 1 | -1,
+  obstacles: { c: THREE.Vector2; tip: number }[],
+) {
+  const len = a0.distanceTo(b0);
+  // A shoe end carries the full ramp, which moves the face outward. On the idler that is toward
+  // the sprocket, so the end is kept only where the ramped face still has room for a back outside
+  // the tip circle. The inboard end also stays on its own bank so the two shoes cannot meet.
+  const blocked = (s: number) => {
+    const u = s / len;
+    const cap = outwardCap(a0, b0, n, u, obstacles);
+    if (endFace() + 1.5 > cap) return true;
+    for (const x of [endFace(), 20]) {
+      const p = railPoint(a0, b0, n, u, x);
+      if (p.x * bank < 0.5) return true;
+    }
+    return false;
+  };
+  let s0 = 0;
+  while (s0 < len * 0.48 && blocked(s0)) s0 += 0.25;
+  let s1 = len;
+  while (s1 > len * 0.52 && blocked(s1)) s1 -= 0.25;
+  const dir = b0.clone().sub(a0).normalize();
+  return { a: a0.clone().addScaledVector(dir, s0), b: a0.clone().addScaledVector(dir, s1), runLength: len };
+}
+function boltStations(
+  a: THREE.Vector2, b: THREE.Vector2, n: THREE.Vector2, two: boolean, brown: boolean,
+  obstacles: { c: THREE.Vector2; tip: number }[], avoid: { c: THREE.Vector2; r: number }[],
+) {
+  const len = a.distanceTo(b);
+  const S = RAIL_SPEC;
+  // The whole clearance hole (and the slot, when there is one) has to sit inside the shoe.
+  // The bolt stays outboard of the case-flange nuts, off the sprockets and the idler pivot, and
+  // inboard of the cam sprocket so the boss still stands in the chain box.
+  const fits = (u: number, slot: boolean) => {
+    for (const q of holeLoop({ u, slot }, len)) {
+      if (q.s <= 0.5 || q.s >= len - 0.5) return false;
+      const uu = q.s / len;
+      const cap = outwardCap(a, b, n, uu, obstacles);
+      const face = faceLocal(uu, S.hz, len);
+      const back = Math.max(face + 1.3, backLocal(S.hz, ribTaper(uu, len), brown, cap - 0.15));
+      if (q.x < face + 0.4 || q.x > back - 0.4) return false;
+    }
+    const p = railPoint(a, b, n, u, S.boltOff);
+    const ax = Math.abs(p.x);
+    if (ax < CHAIN_BOX_INNER_X + 30 || ax > CAM_X - 16) return false;
+    return avoid.every((o) => Math.hypot(p.x - o.c.x, p.y - o.c.y) > o.r);
+  };
+  const round: number[] = [], slotted: number[] = [];
+  for (let i = 0; i <= 64; i++) {
+    const u = 0.04 + (0.92 * i) / 64;
+    if (fits(u, false)) round.push(u);
+    if (fits(u, true)) slotted.push(u);
+  }
+  const where = `len ${len.toFixed(1)} from ${a.x.toFixed(1)},${a.y.toFixed(1)} to ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+  if (!two) {
+    if (!round.length) throw new Error(`guide rail: no bolt on the back wall (${where})`);
+    return [{ u: round[Math.floor(round.length / 2)], slot: false }];
+  }
+  // Inboard bolt is round; the outboard bolt (larger |x|, toward the cam) is the sliding slot.
+  let best: { u0: number; u1: number; x1: number } | null = null;
+  for (const u1 of slotted) {
+    const x1 = Math.abs(railPoint(a, b, n, u1, S.boltOff).x);
+    for (const u0 of round) {
+      if (Math.abs(u0 - u1) * len < 50) continue;
+      const x0 = Math.abs(railPoint(a, b, n, u0, S.boltOff).x);
+      if (x1 <= x0) continue;
+      if (!best || x1 > best.x1) best = { u0, u1, x1 };
+    }
+  }
+  if (!best) throw new Error(`guide rail: upper run has no room for two bolts (${where})`);
+  return [{ u: best.u0, slot: false }, { u: best.u1, slot: true }];
+}
+/** Three guide rails per bank. Right-bank cam-side slack rail is the brown 911 105 222 05. */
+export function guideRails(s: 1 | -1): GuideRail[] {
+  const B = basePath(s), P = chainPath(s), T = tensionerLayout(s), obs = sprocketObstacles(s);
+  const avoid = [
+    { c: B.c1, r: B.r1 + RAIL_SPEC.toothAdd + 2 },
+    { c: B.c2, r: B.r2 + RAIL_SPEC.toothAdd + 2 },
+    { c: T.idler, r: T.idlerR + RAIL_SPEC.toothAdd + 2 },
+    { c: T.pivot, r: 18 },
+  ];
+  const specs: { run: GuideRail['run']; a: THREE.Vector2; b: THREE.Vector2; n: THREE.Vector2; two: boolean }[] = [
+    { run: 'upper', a: B.up1, b: B.up2, n: outwardNormal(B.up1, B.up2, B.nUp), two: true },
+    { run: 'slackA', a: P.slackA.pa, b: P.slackA.pb, n: outwardNormal(P.slackA.pa, P.slackA.pb, null), two: false },
+    { run: 'slackB', a: P.slackB.pa, b: P.slackB.pb, n: outwardNormal(P.slackB.pa, P.slackB.pb, null), two: false },
+  ];
+  return specs.map((sp) => {
+    const brown = s > 0 && sp.run === 'slackB';
+    const t = trimRun(sp.a, sp.b, sp.n, s, obs);
+    return {
+      run: sp.run, brown, pn: brown ? '911 105 222 05' : '911 105 222 06',
+      a: t.a, b: t.b, n: sp.n, runLength: t.runLength, length: t.a.distanceTo(t.b),
+      bolts: boltStations(t.a, t.b, sp.n, sp.two, brown, obs, avoid),
+    };
+  });
+}
+/** Distance from the straight pitch line to the wear face, along the outward normal. */
+export function railFace(rail: GuideRail, u: number, zRel = 0) {
+  const S = RAIL_SPEC;
+  return faceLocal(u, zRel, rail.length) - S.bow * Math.sin(Math.PI * u);
+}
+export function railBoltXY(rail: GuideRail, u: number) {
+  return railPoint(rail.a, rail.b, rail.n, u, RAIL_SPEC.boltOff);
+}
+/** Rail bolts (#3, 4 per bank). Seat is the cover-side face of the shoe. */
+export function railBolts(s: 1 | -1) {
+  const z = CHAIN_Z[s] + RAIL_SPEC.hz;
+  return guideRails(s).flatMap((r) => r.bolts.map((b) => { const q = railBoltXY(r, b.u); return new THREE.Vector3(q.x, q.y, z); }));
+}
+/**
+ * One closed shoe. The bolt holes are cylinders along engine Z, cut through the cover face and the
+ * boss face and walled between them. three-bvh-csg leaves a through-hole open, so the hole is meshed
+ * with the sweep instead of subtracted.
+ */
+/** Clamped samples stay distinct and just above the notch floor so the end cap polygon does not collapse. */
+function placedZ(z0: number, floor: number) {
+  if (z0 >= floor - 1e-9) return z0;
+  const below = SECTION_Z.filter((z) => z < floor);
+  const k = Math.max(0, below.indexOf(z0));
+  return floor + 0.015 + (k / Math.max(below.length, 1)) * 0.1;
+}
+/** Local z of the shoe underside. Raised above the idler-arm pivot where the arm stands through the run. */
+function notchFloor(origin: THREE.Vector2, n: THREE.Vector2, pivot: THREE.Vector2) {
+  const relx = pivot.x - origin.x, rely = pivot.y - origin.y;
+  const along = relx * n.x + rely * n.y;
+  const x = Math.max(0, Math.min(26, along));
+  const gap = Math.hypot(pivot.x - (origin.x + n.x * x), pivot.y - (origin.y + n.y * x));
+  // Forged eye r 12, centred 13 mm behind the chain plane, so its top is 7 mm behind that plane.
+  // The whole cam-side slack shoe passes the eye, so the keep-out covers the run.
+  return gap < 28 ? -6.4 : -RAIL_SPEC.hz;
+}
+/** Section samples. A rail the arm crosses for its whole length drops the buried inboard band
+ *  instead of stacking it into a sliver the GLB quantizer would collapse. */
+function sectionFor(floor: number, uniform: boolean) {
+  if (!uniform || floor <= -RAIL_SPEC.hz + 1e-6) return SECTION_Z;
+  const zs = SECTION_Z.filter((z) => z >= floor - 1e-9);
+  if (!zs.length || zs[0] > floor + 1e-4) zs.unshift(floor);
+  return zs;
+}
+/** Local z where the shoe underside meets the boss. Matches the swept section. */
+function railSeatLocal(rail: GuideRail, u: number, pivot: THREE.Vector2) {
+  const steps = Math.max(36, Math.ceil(rail.length / 5));
+  const fl = (uu: number) => notchFloor(bowCenter(rail.a, rail.b, rail.n, uu), rail.n, pivot);
+  const f0 = fl(0);
+  let uniform = true;
+  for (let i = 1; i <= steps; i++) if (Math.abs(fl(i / steps) - f0) > 1e-6) uniform = false;
+  const zs = sectionFor(f0, uniform);
+  return placedZ(zs[0], fl(u));
+}
+function railSolid(rail: GuideRail, zc: number, obstacles: { c: THREE.Vector2; tip: number }[], pivot: THREE.Vector2) {
+  const { a, b, n, length: len, brown } = rail;
+  const steps = Math.max(36, Math.ceil(len / 5));
+  const stationFloor = (u: number) => notchFloor(bowCenter(a, b, n, u), n, pivot);
+  const f0 = stationFloor(0);
+  let uniform = true;
+  for (let i = 1; i <= steps; i++) if (Math.abs(stationFloor(i / steps) - f0) > 1e-6) uniform = false;
+  const ZS = sectionFor(f0, uniform);
+  const Nz = ZS.length;
+  const M = Nz * 2;
+  const faceTop = Nz - 1, backTop = Nz, faceBot = 0, backBot = M - 1;
+  const hz = RAIL_SPEC.hz;
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const at = (i: number, k: number) => i * M + k;
+  const faceX: number[] = [], backX: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const u = i / steps;
+    const taper = ribTaper(u, len);
+    const origin = bowCenter(a, b, n, u);
+    let cap = outwardCap(a, b, n, u, obstacles);
+    // Inside the crankcase chain well the shoe stays a thin slipper. The well is cut for the chain,
+    // and a full ribbed back runs into the case wall.
+    if (Math.abs(origin.x) < CHAIN_BOX_INNER_X + 6) cap = Math.min(cap, faceLocal(u, 0, len) + 3.4);
+    const floor = stationFloor(u);
+    const face: { x: number; z: number }[] = [];
+    const back: { x: number; z: number }[] = [];
+    for (const z0 of ZS) {
+      const z = placedZ(z0, floor);
+      const fx = faceLocal(u, z, len);
+      face.push({ x: fx, z });
+      // Never let the web-thickness floor push the back into a sprocket tip circle.
+      const backX = Math.min(cap - 0.15, Math.max(fx + 0.8, backLocal(z, taper, brown, cap - 0.15)));
+      back.push({ x: backX, z });
+    }
+    faceX.push(face[face.length - 1].x);
+    backX.push(back[back.length - 1].x);
+    const loop = [...face, ...back.slice().reverse()];
+    for (const q of loop) {
+      const p = railPoint(a, b, n, u, q.x);
+      pos.push(p.x, p.y, zc + q.z);
+    }
+  }
+  const xAt = (s: number, which: 'face' | 'back') => {
+    const src = which === 'face' ? faceX : backX;
+    const f = Math.max(0, Math.min(steps, (s / len) * steps));
+    const i = Math.min(steps - 1, Math.floor(f));
+    const t = f - i;
+    return src[i] * (1 - t) + src[i + 1] * t;
+  };
+  const tri = (a0: number, b0: number, c0: number) => idx.push(a0, b0, c0);
+  // Wear face and ribbed back. The cover (z = +hz) and boss (z = -hz) spans are replaced below.
+  for (let i = 0; i < steps; i++) {
+    for (let k = 0; k < M; k++) {
+      if (k === faceTop || k === backBot) continue;
+      const k2 = (k + 1) % M;
+      const a0 = at(i, k), b0 = at(i, k2), c0 = at(i + 1, k2), d0 = at(i + 1, k);
+      tri(a0, d0, b0); tri(b0, d0, c0);
+    }
+  }
+  const capPoly = (u: number) => {
+    const taper = ribTaper(u, len);
+    const origin = bowCenter(a, b, n, u);
+    let capX = outwardCap(a, b, n, u, obstacles);
+    if (Math.abs(origin.x) < CHAIN_BOX_INNER_X + 6) capX = Math.min(capX, faceLocal(u, 0, len) + 3.4);
+    const floor = stationFloor(u);
+    const face: { x: number; z: number }[] = [];
+    const back: { x: number; z: number }[] = [];
+    for (const z0 of ZS) {
+      const z = placedZ(z0, floor);
+      const fx = faceLocal(u, z, len);
+      face.push({ x: fx, z });
+      const backX = Math.min(capX - 0.15, Math.max(fx + 0.8, backLocal(z, taper, brown, capX - 0.15)));
+      back.push({ x: backX, z });
+    }
+    return [...face, ...back.slice().reverse()];
+  };
+  for (const [i, flip] of [[0, true], [steps, false]] as [number, boolean][]) {
+    const poly = capPoly(i / steps).map((p) => new THREE.Vector2(p.x, p.z));
+    const faces = THREE.ShapeUtils.triangulateShape(poly, []);
+    const base = i * M;
+    for (const [i0, i1, i2] of faces) tri(base + i0, base + (flip ? i2 : i1), base + (flip ? i1 : i2));
+  }
+  const contour: THREE.Vector2[] = [];
+  const coverIdx: number[] = [], bossIdx: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    contour.push(new THREE.Vector2((i / steps) * len, faceX[i]));
+    coverIdx.push(at(i, faceTop)); bossIdx.push(at(i, faceBot));
+  }
+  for (let i = steps; i >= 0; i--) {
+    contour.push(new THREE.Vector2((i / steps) * len, backX[i]));
+    coverIdx.push(at(i, backTop)); bossIdx.push(at(i, backBot));
+  }
+  const holes2d: THREE.Vector2[][] = [];
+  const rings: { top: number[]; bot: number[] }[] = [];
+  const put = (s: number, x: number, z: number) => {
+    const p = railPoint(a, b, n, s / len, x);
+    pos.push(p.x, p.y, zc + z);
+    return pos.length / 3 - 1;
+  };
+  for (const bolt of rail.bolts) {
+    const loop = holeLoop(bolt, len);
+    for (const q of loop) {
+      if (q.s <= 0.4 || q.s >= len - 0.4) throw new Error(`guide rail ${rail.run}: bolt hole leaves the shoe`);
+      const face = xAt(q.s, 'face'), back = xAt(q.s, 'back');
+      if (q.x < face + 0.35 || q.x > back - 0.35) {
+        throw new Error(`guide rail ${rail.run}: hole (${q.s.toFixed(1)}, ${q.x.toFixed(2)}) outside the section [${face.toFixed(2)}, ${back.toFixed(2)}]`);
+      }
+    }
+    const top: number[] = [], bot: number[] = [];
+    for (const q of loop) {
+      const floor = stationFloor(q.s / len);
+      top.push(put(q.s, q.x, hz));
+      bot.push(put(q.s, q.x, placedZ(ZS[0], floor)));
+    }
+    rings.push({ top, bot });
+    holes2d.push(loop.map((q) => new THREE.Vector2(q.s, q.x)));
+  }
+  const faces = THREE.ShapeUtils.triangulateShape(contour, holes2d);
+  if (!faces.length) throw new Error(`guide rail ${rail.run}: cover face did not triangulate`);
+  const mapAt = (fi: number, cover: boolean) => {
+    const C = contour.length;
+    if (fi < C) return (cover ? coverIdx : bossIdx)[fi];
+    let off = fi - C;
+    for (const ring of rings) {
+      const ringIdx = cover ? ring.top : ring.bot;
+      if (off < ringIdx.length) return ringIdx[off];
+      off -= ringIdx.length;
+    }
+    throw new Error('guide rail hole index');
+  };
+  // (s, x) CCW maps to engine +Z when t × n points that way. Cover outward is +Z, boss outward is −Z.
+  const tang = b.clone().sub(a).normalize();
+  const coverFlip = tang.x * n.y - tang.y * n.x < 0;
+  for (const [i0, i1, i2] of faces) {
+    const c0 = mapAt(i0, true), c1 = mapAt(i1, true), c2 = mapAt(i2, true);
+    if (coverFlip) tri(c0, c2, c1); else tri(c0, c1, c2);
+    const d0 = mapAt(i0, false), d1 = mapAt(i1, false), d2 = mapAt(i2, false);
+    if (coverFlip) tri(d0, d1, d2); else tri(d0, d2, d1);
+  }
+  for (const ring of rings) {
+    const N = ring.top.length;
+    for (let j = 0; j < N; j++) {
+      const j2 = (j + 1) % N;
+      tri(ring.top[j], ring.bot[j], ring.top[j2]);
+      tri(ring.top[j2], ring.bot[j], ring.bot[j2]);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+/** Guide rails (103-10 / 103-15 #2): one watertight shoe per run, bolted through clearance holes. */
+export function chainGuides(s: 1 | -1) {
+  const p = new Part();
+  const zc = CHAIN_Z[s];
+  const obs = sprocketObstacles(s);
+  const pivot = tensionerLayout(s).pivot;
+  for (const r of guideRails(s)) p.add(railSolid(r, zc, obs, pivot), r.brown ? 'brownPlastic' : 'blackPlastic');
+  return p.g;
+}
+/** @deprecated spacing helper kept for callers that only need the mid-face gap of a straight shoe. */
+export function railInner(u: number) {
+  return faceLocal(u, 0, 200) - RAIL_SPEC.bow * Math.sin(Math.PI * u);
+}
 /** Forged idler-arm leg: waisted bar from one eye to the next, local +X along the leg. */
 function armLinkShape(L: number, rA: number, rB: number) {
   const dip = Math.min(rA, rB) * 0.36;
@@ -1672,11 +2137,6 @@ function idlerSprocket(p: Part, s: 1 | -1, T: ReturnType<typeof tensionerLayout>
   for (const zc of [-4.2, 4.2]) p.add(extrudeC(web, 5.2, 0.15, 20), 'steel', [at[0], at[1], at[2] + zc]);
   // Bronze bush only. The shaft and its bolt head are added with the arm so one pin runs through both.
   p.add(yToZ(lathe([[6.1, -6.5], [8.5, -6.5], [8.5, 6.5], [6.1, 6.5]], 24)), 'bronze', at);
-}
-/** Rail bolts (#3, 4 per bank): one through each end of the first two rails, head on the rail front face. */
-export function railBolts(s: 1 | -1) {
-  const z = CHAIN_Z[s];
-  return guideRails(s).slice(0, 2).flatMap((r) => [r.f0 + 0.04, r.f1 - 0.04].map((f) => { const q = r.a.clone().lerp(r.b, f).add(r.n.clone().multiplyScalar(RAIL_TAB.off)); return new THREE.Vector3(q.x, q.y, z + RAIL_TAB.z1); }));
 }
 export function chainTensioner(s: 1 | -1) {
   const p = new Part();
@@ -1747,66 +2207,6 @@ export function chainTensioner(s: 1 | -1) {
   p.add(yToZ(cyl(4, T.adjZ + 12 - (HOUSING_Z0 + 4) , 10)), 'zincPlate', [T.ear.x, T.ear.y, (T.adjZ + 12 + HOUSING_Z0 + 4) / 2]);
   p.add(yToZ(cyl(8, 1.6, 16)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + 3.6 + 0.8]);
   p.add(yToZ(hexNut(13, 6.5)), 'zincPlate', [T.ear.x, T.ear.y, T.adjZ + 3.6 + 1.6 + 3.25]);
-  // plastic guide rails (#2): one continuous bowed U-channel per rail, not a chord of straight pads
-  const shoe = (a: THREE.Vector2, b: THREE.Vector2, n: THREE.Vector2, f0: number, f1: number) => {
-    const A = a.clone().lerp(b, f0), B = a.clone().lerp(b, f1);
-    const steps = 28;
-    const st = (i: number) => {
-      const u = i / steps;
-      const taper = Math.min(1, u * 7, (1 - u) * 7);
-      const inner = railInner(u);
-      const hz = 5.2 * (0.62 + 0.38 * taper);
-      return { c: A.clone().lerp(B, u), inner, hz, taper };
-    };
-    // Z stays under the rail-bolt seat (RAIL_TAB.z1) so the bolt head still lands on the saddle face.
-    const prism = (rad0: (s: ReturnType<typeof st>) => number, rad1: (s: ReturnType<typeof st>) => number, z0: (s: ReturnType<typeof st>) => number, z1: (s: ReturnType<typeof st>) => number) => {
-      const pos: number[] = []; const idx: number[] = [];
-      const id = (x: number, y: number, zz: number) => { pos.push(x, y, zz); return pos.length / 3 - 1; };
-      const v0: number[] = [], v1: number[] = [], v2: number[] = [], v3: number[] = [];
-      for (let i = 0; i <= steps; i++) {
-        const s = st(i);
-        const p0 = s.c.clone().addScaledVector(n, rad0(s));
-        const p1 = s.c.clone().addScaledVector(n, rad1(s));
-        v0.push(id(p0.x, p0.y, z + z0(s))); v1.push(id(p1.x, p1.y, z + z0(s)));
-        v2.push(id(p0.x, p0.y, z + z1(s))); v3.push(id(p1.x, p1.y, z + z1(s)));
-      }
-      const quad = (a: number, b: number, c: number, d: number) => idx.push(a, b, c, a, c, d);
-      for (let i = 0; i < steps; i++) {
-        quad(v0[i], v1[i], v1[i + 1], v0[i + 1]);
-        quad(v2[i], v2[i + 1], v3[i + 1], v3[i]);
-        quad(v0[i], v0[i + 1], v2[i + 1], v2[i]);
-        quad(v1[i], v3[i], v3[i + 1], v1[i + 1]);
-      }
-      quad(v0[0], v2[0], v3[0], v1[0]);
-      quad(v0[steps], v1[steps], v3[steps], v2[steps]);
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      g.setIndex(idx); g.computeVertexNormals();
-      p.add(g, 'blackPlastic');
-    };
-    prism((s) => s.inner, (s) => s.inner + RAIL_SHOE.thick, (s) => -s.hz, (s) => s.hz);
-    // lips stay ~1 mm proud of the shoe so the roller (r 3.2) is not buried; back rib on the outer face
-    prism((s) => s.inner - 1.05 * s.taper, (s) => s.inner + 0.35 * s.taper, () => 5.3, () => 7.5);
-    prism((s) => s.inner - 1.05 * s.taper, (s) => s.inner + 0.35 * s.taper, () => -7.5, () => -5.3);
-    prism((s) => s.inner + RAIL_SHOE.thick, (s) => s.inner + RAIL_SHOE.thick + 1.5 * s.taper, () => -2.2, () => 2.2);
-  };
-  const rails = guideRails(s);
-  rails.forEach((r, i) => {
-    shoe(r.a, r.b, r.n, r.f0, r.f1);
-    if (i >= 2) return;
-    for (const f of [r.f0 + 0.04, r.f1 - 0.04]) {
-      const run = r.a.clone().lerp(r.b, f);
-      const bolt = run.clone().add(r.n.clone().multiplyScalar(RAIL_TAB.off));
-      p.add(yToZ(cyl(RAIL_TAB.r + 2.6, 5.5, 16)), 'blackPlastic', [bolt.x, bolt.y, z + RAIL_TAB.z0 + 3.2]);
-      p.add(yToZ(cyl(RAIL_TAB.r, RAIL_TAB.z1 - RAIL_TAB.z0, 20)), 'blackPlastic', [bolt.x, bolt.y, z + (RAIL_TAB.z0 + RAIL_TAB.z1) / 2]);
-      const start = RAIL_SHOE.inner + RAIL_SHOE.thick;
-      const len = RAIL_TAB.off - start;
-      const tab = boxMM([-3.4, 0, -6], [3.4, len + 2, 6]);
-      tab.rotateZ(Math.atan2(r.n.y, r.n.x) - Math.PI / 2);
-      tab.translate(run.x + r.n.x * start, run.y + r.n.y * start, z);
-      p.add(tab, 'blackPlastic');
-    }
-  });
   return p.g;
 }
 /** Clip a convex polygon to the half-plane x*s >= x0. */
@@ -2024,6 +2424,13 @@ export function chainHousing(s: 1 | -1) {
   }
   // internal bosses: idler-arm shaft & tensioner seat
   p.add(yToZ(cyl(12, CHAIN_Z[s] - 16 - HOUSING_Z0, 18)), 'castAlu', [T.pivot.x, T.pivot.y, (HOUSING_Z0 + CHAIN_Z[s] - 16) / 2]);
+  // Guide-rail bosses (103-10/15 #2). Closed cylinders, underside of the shoe lands on the top face.
+  for (const r of guideRails(s)) for (const bolt of r.bolts) {
+    const q = railBoltXY(r, bolt.u);
+    const top = CHAIN_Z[s] + railSeatLocal(r, bolt.u, T.pivot);
+    const z0 = Math.min(top - 4, HOUSING_Z0 + 3.5);
+    p.add(yToZ(cyl(RAIL_SPEC.bossR, top - z0, 20)), 'castAlu', [q.x, q.y, (z0 + top) / 2]);
+  }
   // adjuster mounting-ear stud boss from the back wall up to the ear
   p.add(yToZ(cyl(8, T.adjZ - 3 - HOUSING_Z0, 16)), 'castAlu', [T.ear.x, T.ear.y, (HOUSING_Z0 + T.adjZ - 3) / 2]);
   // ears for the cam-housing end studs, bridged back to the top wall

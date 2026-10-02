@@ -461,7 +461,7 @@ The sprocket (**901 105 546 02**, photo of 901 105 546 04) has **17** equally sp
 | Flange | Tall keyed hub, round scallops on the Ø48 rim × 16, lands wider than the scallops, open bore | FVD 901 105 583 02. Rauch & Spiegel 16 / 17 vernier | unverified against the book |
 | Sprocket holes | 17 × Ø6.7 on the Ø48 circle, one boss on the dowel hole | Same | unverified against the book |
 | Idler arm | Heavy forging, wide bronze-bushed boss, smaller pivot, tapered tail. Left **901 105 505 02**, right **901 105 506 02** | 1978 PET numbers. Shape from the later 930 105 510 00 photo (FVD) | curve not traced from the book |
-| Guide rails | left 3 × 911 105 222 06, right 2 × 911 105 222 06. Moulded U-channel, side walls, ribbed back, two saddles, tapered ends. Inner face 4.9 mm off the pitch line | FVD 911 105 222 06 and Heritage. Brown 911 105 222 05 stays the alternate row, not an extra part | rail curve not measured from the book |
+| Guide rails | 3 per bank. Left 3 × 911 105 222 06. Right 2 × 911 105 222 06 (upper run and intermediate-to-idler) plus 1 × 911 105 222 05 (brown, idler-to-cam). Long ribbed shoe on the straight run, lead-in ramp at each end, wear face 0.2–0.5 mm off the rollers and plates. See the measured lengths below | Kat 502 ill. 103-10 (PDF p.70, text p.71) and 103-15 (PDF p.74, text p.75), pos 2. Bolts pos 3, sealing rings pos 4 | tangent run from the sprocket pitch circles on that drawing; shoe shortened where metal blocks it |
 | Chain box | Deep cast box, curved outer wall and ribs. Outline still the photo-scaled hull; bolt stations still 10 right / 9 left | Joe Engineer chain-housing photos. Gasket outline FVD 930 105 193 06 | wall draft *E* |
 | Lid | flat plate, low cam pad r 32 instead of the cone | Same covers | pad height *E* |
 | Chain-side cover | **930 105 196 00**, flat annulus, centre hole r 11, top face at the existing screw seat | Heritage “Camshaft Flange Cover” | unverified against the book |
@@ -476,7 +476,23 @@ The sprocket (**901 105 546 02**, photo of 901 105 546 04) has **17** equally sp
 - Heritage, flange cover: https://www.heritagepartscentre.com/eu/93010519600-camshaft-flange-cover.html
 - Heritage, later idler arms (shape only): https://www.heritagepartscentre.com/eu/93010550900-chain-tensioner-sprocket-support-left.html and https://www.heritagepartscentre.com/eu/93010551000-chain-tensioner-sprocket-support-right.html
 
-Each chain wraps the intermediate sprocket, the cam sprocket and the idler, with rollers on those pitch circles. The plunger still meets the idler-arm pad. The rail shoes sit on the chain runs. No new collision-allowlist entry.
+Each chain wraps the intermediate sprocket, the cam sprocket and the idler, with rollers on those pitch circles. The plunger still meets the idler-arm pad.
+
+### Guide rails (103-10 / 103-15 #2)
+
+The drawing shows a long curved shoe on each straight chain run, not a short pad. Illustration 103-15 (PDF p.74) scales at about 2.72 px/mm off the sprocket tip circles (cam tip Ø 91.9 mm, intermediate Ø 79.8 mm, idler Ø 64.7 mm). The rail ink shares the chain line, so the length matched here is that tangent run. A shoe is shorter only where metal occupies the run. Both banks are mirrors.
+
+| Run | Part | Tangent run | Shoe | Why the shoe stops short of the tangent |
+|---|---|---|---|---|
+| Upper, intermediate to cam | 911 105 222 06 | 303.8 mm | 248.8 mm | Inboard end at x ≈ 36: the crankcase nose (r 42.6) stands outside this run, and the two 26 mm shoes cannot both cross the bank centreline (the chain planes are 23 mm apart). Cam end stays 0.5 mm clear of the 28 T tip circle |
+| Slack, intermediate to idler | 911 105 222 06 | 198.9 mm | 167.4 mm | Both ends stop 0.5 mm clear of the sprocket teeth. The inboard end also clears the chain-housing flange nuts |
+| Slack, idler to cam | right 911 105 222 05 (brown), left 911 105 222 06 | 72.5 mm | 40.3 mm | Both ends stop 0.5 mm clear of the idler and cam teeth. The idler-arm pivot eye stands through this run, so the underside sits 0.6 mm above the eye and the inboard rib is left off along that shoe |
+
+The wear face follows the bowed centreline. In the running band (inside the 14 mm lead-in at each end) the rollers have 0.23–0.35 mm clearance and the plates have 0.36–0.48 mm. Each end ramps the face 2.4 mm out. The shoe is 26 mm wide, with three longitudinal ribs that fade out through the lead-in. The web is 19.4 mm deep and the ribs stand to 22.4 mm; the brown rail's ribs are lower.
+
+Four bolts **901 105 226 03** per bank (pos 3) pass through the shoe into closed bosses on the chain-housing back wall. An A 10×16 sealing ring **900 123 066 30** (pos 4) sits under each head. The upper rail has a round hole inboard and a short slot outboard; each slack rail has one round hole. The hole is Ø10.5 (0.25 mm radial clearance on the M10 shank). The shoe underside lands on the boss. The bosses are added cylinders; the housing skin is not opened.
+
+The seated rail-on-boss pair is an allowlisted joint. The rail bolts use the fastener seat/into rule. The chain × tensioner allowlist is only the idler wrap.
 
 ## 17. Batch 6 — 1978 CIS intake and fuel circuit
 

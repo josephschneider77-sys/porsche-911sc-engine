@@ -29,7 +29,8 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'main-bearings': { shellI: 2, shell: 12, sleeve: 1 },
   'crank-gears': { gear: 1, drive: 1 },
   'rockers': { shaft: 6, bush: 6, arm: 6, screw: 6, locknut: 6 },
-  'chain-tensioner': { rail: 3, support: 1, idler: 1, bolt: 1, adjuster: 1 },
+  'chain-tensioner': { support: 1, idler: 1, bolt: 1, adjuster: 1 },
+  'guide-rails': { rail: 3 },
   'adjuster-cover': { gasket: 1, seal: 1 },
   'sump-plate': { lidgasket: 1, strainer: 1, gasket: 2, plug: 1 },
   'oil-pump': { shaft: 1 },
@@ -98,7 +99,9 @@ export const POOLS: Record<string, { by: string; what: string }[]> = {
 const C = (line: string, by: string, what = 'item', n?: number, note?: string): Claim => ({ line, by, what, n, note });
 const bankLines = (ill: string, b: 'left' | 'right'): Claim[] => [
   C(`${ill}#1`, `timing-chain-${b}`),
-  ...(b === 'left' ? [C('103-10#2', 'chain-tensioner-left', 'rail', 3)] : [C('103-15#2#911 105 222 06', 'chain-tensioner-right', 'rail', 2)]),
+  ...(b === 'left'
+    ? [C('103-10#2', 'guide-rails-left', 'rail', 3)]
+    : [C('103-15#2#911 105 222 06', 'guide-rails-right', 'rail', 2), C('103-15#2#911 105 222 05', 'guide-rails-right', 'rail', 1)]),
   C(`${ill}#3`, `rail-bolts-${b}`), C(`${ill}#4`, `rail-bolts-${b}`, 'washer', undefined, 'sealing ring = the washer under each rail bolt'),
   C(`${ill}#5`, `chain-tensioner-${b}`, 'support'), C(`${ill}#6`, `chain-tensioner-${b}`, 'idler'), C(`${ill}#7`, `chain-tensioner-${b}`, 'bolt'),
   C(`${ill}#8`, `idler-sleeve-${b}`), C(`${ill}#9`, `idler-circlip-${b}`), C(`${ill}#10`, `chain-tensioner-${b}`, 'adjuster'),

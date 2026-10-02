@@ -351,7 +351,7 @@ function tune(m: THREE.MeshStandardMaterial, rest?: THREE.Matrix4) {
   if (rest && CAST_NOISE[m.name] !== undefined) addCastNoise(m, rest, CAST_NOISE[m.name]);
   switch (m.name) {
     case 'chrome': m.envMapIntensity = 1.4; break;
-    case 'satinBlack': case 'blackPlastic': m.envMapIntensity = 0.6; break;
+    case 'satinBlack': case 'blackPlastic': case 'brownPlastic': m.envMapIntensity = 0.6; break;
     case 'castAlu': case 'magnesium': case 'aluminized': m.envMapIntensity = 0.9; break;
     case 'magCast': m.envMapIntensity = 0.12; break;
     case 'shroudRed': m.envMapIntensity = 0.55; break;

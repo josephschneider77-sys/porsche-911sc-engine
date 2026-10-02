@@ -45,6 +45,8 @@ export const RAW_BUILDERS: Record<string, () => THREE.Object3D> = {
   'cam-sprocket-left': () => C.camSprocket(-1),
   'chain-tensioner-right': () => C.chainTensioner(1),
   'chain-tensioner-left': () => C.chainTensioner(-1),
+  'guide-rails-right': () => C.chainGuides(1),
+  'guide-rails-left': () => C.chainGuides(-1),
   'chain-housing-right': () => C.chainHousing(1),
   'chain-housing-left': () => C.chainHousing(-1),
   'chain-housing-lid-right': () => C.chainHousingLid(1),

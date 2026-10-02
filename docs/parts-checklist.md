@@ -16,11 +16,11 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 
 | status | lines |
 |---|---|
-| modelled | 429 |
+| modelled | 431 |
 | N/A (with reason) | 141 |
-| alternative rows | 230 |
+| alternative rows | 229 |
 | excluded (not this engine) | 196 |
-| **MISSING** | 1 |
+| **MISSING** | 0 |
 | countable lines (all but excluded) | 801 |
 
 ## 101-05: Crankcase, left
@@ -438,7 +438,7 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 1 | 993 105 529 00 | Timing chain | 1 | alt | alternative to 103-10 #1 |
 | 1 | 911 105 529 50 | Timing chain | 1 | alt | alternative to 103-10 #1 |
 | 1 | 911 105 529 51 | Timing chain | 1 | alt | alternative to 103-10 #1 |
-| 2 | 911 105 222 06 | Guide rail | 3 | modelled | `chain-tensioner-left` rail × 3 |
+| 2 | 911 105 222 06 | Guide rail | 3 | modelled | `guide-rails-left` rail × 3 |
 | 3 | 901 105 226 03 | Bolt | 4 | modelled | `rail-bolts-left` |
 | 4 | 900 123 066 30 | Sealing ring | 4 | modelled | `rail-bolts-left` washer (sealing ring = the washer under each rail bolt) |
 | 5 | 901 105 505 02 | Chain wheel support | 1 | modelled | `chain-tensioner-left` support |
@@ -505,8 +505,8 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 1 | 993 105 529 00 | Timing chain | 1 | alt | alternative to 103-15 #1 |
 | 1 | 911 105 529 50 | Timing chain | 1 | alt | alternative to 103-15 #1 |
 | 1 | 911 105 529 51 | Timing chain | 1 | alt | alternative to 103-15 #1 |
-| 2 | 911 105 222 05 | Guide rail | 1 | alt | alternative to 103-15 #2 |
-| 2 | 911 105 222 06 | Guide rail | 2 | modelled | `chain-tensioner-right` rail × 2 |
+| 2 | 911 105 222 05 | Guide rail | 1 | modelled | `guide-rails-right` rail × 1 |
+| 2 | 911 105 222 06 | Guide rail | 2 | modelled | `guide-rails-right` rail × 2 |
 | 3 | 901 105 226 03 | Bolt | 4 | modelled | `rail-bolts-right` |
 | 4 | 900 123 066 30 | Sealing ring | 4 | modelled | `rail-bolts-right` washer (sealing ring = the washer under each rail bolt) |
 | 5 | 901 105 506 02 | Chain wheel support | 1 | modelled | `chain-tensioner-right` support |
@@ -756,7 +756,7 @@ Illustration 108-00 (air injection) is outside the checklist and is not modelled
 | 1 | 930 106 041 13 | Air guide | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 999 507 003 02 | Speed nut | 5 | modelled | `shroud-speed-nuts` |
 | 2 | 999 507 003 01 | Speed nut | 5 | alt | alternative to 105-05 #2 |
-| 3 | 911 106 406 00 | Air guide | 1 | **MISSING** | air duct for the front oil cooler (911 106 406 00, trade 911 106 406 01), right front fender, not on the engine and not the CIS intake air guide |
+| 3 | 911 106 406 00 | Air guide | 1 | modelled | `oil-cooler-cap` |
 | 4 | 930 106 326 01 | Hot air socket | 1 | modelled | `upper-air-guide` socket |
 | 5 | 911 106 327 00 | Hot air socket | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 6 | 911 106 036 01 | Cover plate | 1 | modelled | `shroud-cover-plate` |

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 /** PBR material library. Material `name` survives GLB export and is used by the app to re-tune. */
 export type MatKey =
   | 'copper' | 'castAlu' | 'sandCast' | 'machinedAlu' | 'magnesium' | 'nikasil' | 'forgedSteel' | 'steel' | 'darkSteel'
-  | 'chrome' | 'blackPlastic' | 'satinBlack' | 'rubber' | 'gasket' | 'ceramic' | 'brass'
+  | 'chrome' | 'blackPlastic' | 'brownPlastic' | 'satinBlack' | 'rubber' | 'gasket' | 'ceramic' | 'brass'
   | 'heatSteel' | 'zincPlate' | 'friction' | 'redPaint' | 'bore' | 'filterPaper' | 'bronze'
   | 'finBlack' | 'forgedDark' | 'yellowZinc' | 'blackPaint' | 'aluminized' | 'polishedSteel'
   | 'magCast' | 'shroudRed' | 'urethane';
@@ -19,6 +19,7 @@ const DEF: Record<MatKey, { color: number; metalness: number; roughness: number 
   darkSteel: { color: 0x3c3e41, metalness: 0.85, roughness: 0.45 },
   chrome: { color: 0xf2f4f6, metalness: 1.0, roughness: 0.07 },
   blackPlastic: { color: 0x151515, metalness: 0.0, roughness: 0.55 },
+  brownPlastic: { color: 0x8a5a2b, metalness: 0.0, roughness: 0.58 },
   satinBlack: { color: 0x1b1c1e, metalness: 0.35, roughness: 0.48 },
   rubber: { color: 0x0e0e0e, metalness: 0.0, roughness: 0.85 },
   gasket: { color: 0x3a2a1c, metalness: 0.0, roughness: 0.92 },

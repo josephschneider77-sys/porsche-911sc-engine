@@ -1,4 +1,19 @@
-# Catalogue references for the 1978 US (930/04) intake and fuel
+# Catalogue references for the 1978 US (930/04)
+
+The timing-chain guide rails are cited below. The intake and fuel notes follow.
+
+## Timing-chain guide rails
+
+Shapes, part numbers and quantities follow Porsche catalogue **Kat 502 USA 911 '83** (the PDF is not stored in this repo). The rail ink on illustrations 103-10 and 103-15 lies on the chain line, so each shoe length is the tangent run between the sprocket pitch circles on that drawing, cut back where a sprocket tooth, the crankcase nose, the opposite bank, a flange nut, or the idler-arm eye occupies the shoe. Measured lengths are in `docs/engine-spec.md` §16.
+
+| Illustration | PDF page | What this model takes from it |
+|---|---|---|
+| 103-10 | 70 (drawing), 71 (text) | Left-bank chain. Pos 2: guide rail **911 105 222 06** × 3, one shoe on each straight run. Pos 3: bolt **901 105 226 03** × 4. Pos 4: sealing ring **900 123 066 30**, A 10×16, × 4. |
+| 103-15 | 74 (drawing), 75 (text) | Right-bank chain. Pos 2: guide rail **911 105 222 05** × 1 (brown, idler-to-cam run) and **911 105 222 06** × 2 (upper run and intermediate-to-idler). Pos 3 and pos 4 match the left bank: 4 bolts and 4 A 10×16 rings. |
+
+Review sheets (drawing crop, previous shoe, new shoe) are in `docs/review/`.
+
+## Intake and fuel
 
 Shapes, part numbers and quantities for the intake and fuel system follow Porsche catalogue **Kat 502 USA 911 '83** (the PDF is not stored in this repo). Photos are used only for finish and colour. Where a page gives no millimetre dimension, the model scales the drawing and marks the result **E** in `docs/engine-spec.md`.
 
