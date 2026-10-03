@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import {
   Part, V3, DEG, lathe, closedLathe, boxMM, cyl, cylBetween, yToZ, yToX, circlePath, polyShape,
-  extrude, extrudeC, hexNut, tube, csgSub, woodruffGeom,
+  extrude, extrudeC, hexNut, tube, csgSub, woodruffGeom, subtractSolids,
 } from './util';
 import { CAM_X, CAM_HOUSING_OUT_X, CYL_Z, CYL_TOP_X, HEAD_OUT_X } from '../data/layout';
 import { HEAD_HW } from './hwLayout';
@@ -61,7 +61,7 @@ const GUIDE_Y1 = 64; // along the stem from the valve face
 /** Firing TDC on the 720° cycle (opposite cylinders are 360° apart). */
 export const FIRE_CRANK: Record<number, number> = { 1: 0, 6: 120, 2: 240, 4: 360, 3: 480, 5: 600 };
 /** Crank degrees after firing TDC at which the lobe nose points at the rocker pad. */
-const PEAK_CRANK = { in: 450, ex: 270 };
+export const PEAK_CRANK = { in: 450, ex: 270 };
 
 /** Radius of the offset circular nose. Angle is measured from the nose, in radians. */
 function noseCircleRadius(a: number): number {
@@ -106,6 +106,9 @@ const sideOf = (which: 'in' | 'ex'): 1 | -1 => (which === 'in' ? 1 : -1);
 function whichOf(side: 1 | -1): 'in' | 'ex' { return side > 0 ? 'in' : 'ex'; }
 
 /** Stem unit vector in the head frame, pointing from the seat toward the tip. */
+export function valveStemLocal(side: 1 | -1): THREE.Vector3 {
+  return stemDirLocal(side).clone();
+}
 function stemDirLocal(side: 1 | -1): THREE.Vector3 {
   const a = side > 0 ? ANGLE.in : ANGLE.ex;
   return V(Math.cos(a), side * Math.sin(a), 0);
@@ -123,8 +126,48 @@ export function headToEngine(cyl: number, p: THREE.Vector3): THREE.Vector3 {
   const s = bankSign(cyl);
   return V(s * CYL_TOP_X + s * p.x, p.y, CYL_Z[cyl] + s * p.z);
 }
+/**
+ * Stud towers on the cover stand beside the retainers. At full lift the retainer (r 11.4)
+ * enters the tower by about a millimetre. Notch the tower along the stem; stop short of the
+ * tip so the cutter does not break through the cover roof.
+ */
+export function clearValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean) {
+  const side: 1 | -1 = upper ? 1 : -1;
+  const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+  const cuts: THREE.BufferGeometry[] = [];
+  for (const cyl of cyls) {
+    let maxL = 0;
+    for (let d = 0; d < 720; d += 2) maxL = Math.max(maxL, trainPose(cyl, side, d).lift);
+    const dir = stemDirEngine(cyl, side);
+    const tip = valveTipEngine(cyl, side, maxL);
+    // The retainer meets the stud tower in the last 2 mm before the tip (r ~3.5).
+    // Stop 0.8 mm past the tip so that land is open, and stay short of the pan roof.
+    const a = tip.clone().addScaledVector(dir, -18);
+    const b = tip.clone().addScaledVector(dir, 0.8);
+    cuts.push(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 12.6, 14));
+  }
+  // The pan is parented under coverMatrix. subtractSolids bakes world space and
+  // zeroes the mesh, so the meshes have to leave that parent first or the matrix
+  // is applied twice and the cover lands on the intake.
+  const meshes: THREE.Mesh[] = [];
+  root.updateMatrixWorld(true);
+  root.traverse((o: any) => { if (o.isMesh && !o.isInstancedMesh) meshes.push(o); });
+  const hold = new THREE.Group();
+  root.add(hold);
+  for (const m of meshes) hold.attach(m);
+  // No end caps: a disk across the stem would sit in the valve's travel.
+  subtractSolids(hold, cuts, () => false);
+  for (const m of [...hold.children]) root.attach(m);
+  root.remove(hold);
+  return root;
+}
+
 export function valveTipEngine(cyl: number, side: 1 | -1, lift = 0): THREE.Vector3 {
   return headToEngine(cyl, stemPointLocal(side, VALVE_LEN).addScaledVector(stemDirLocal(side), lift));
+}
+/** Valve-face centre in the engine frame. `lift` is the builder's shift along the stem. */
+export function valveFaceEngine(cyl: number, side: 1 | -1, lift = 0): THREE.Vector3 {
+  return headToEngine(cyl, stemPointLocal(side, 0).addScaledVector(stemDirLocal(side), lift));
 }
 function stemDirEngine(cyl: number, side: 1 | -1): THREE.Vector3 {
   const d = stemDirLocal(side);
@@ -323,8 +366,10 @@ export function valveSet(cyl = 1) {
       g.translate(o.x, o.y, o.z);
       return g;
     };
-    const fixed = (g: THREE.BufferGeometry, along: number, m: MatKey) => p.add(place(g, along), m);
-    const moving = (g: THREE.BufferGeometry, along: number, m: MatKey) => p.add(place(g, along + pose.lift), m);
+    const liftKin = side > 0 ? 'lift:in' : 'lift:ex';
+    const springKin = side > 0 ? 'spring:in' : 'spring:ex';
+    const fixed = (g: THREE.BufferGeometry, along: number, m: MatKey, kin?: string) => p.add(place(g, along), m, undefined, undefined, kin);
+    const moving = (g: THREE.BufferGeometry, along: number, m: MatKey) => p.add(place(g, along + pose.lift), m, undefined, undefined, liftKin);
     // thin seat insert. A fat dark collar read as an oversized ring around the head; this one
     // is a narrow land just outside the 45° face.
     const seatR = dia / 2;
@@ -349,8 +394,8 @@ export function valveSet(cyl = 1) {
     // Outer is the heavy dark helix with damper coils at the head end. Inner is a lighter,
     // brighter helix on a smaller radius so the two wires don't merge into one coil.
     // Outer centre Ø20 (wire to Ø11.6) stays inside the cam-housing stud-nut clearance.
-    fixed(springVar(10.0, 1.55, ySpring0, yRet, 5.2, 0.24, 0.4), 0, 'darkSteel');
-    fixed(springVar(6.05, 0.92, ySpring0 + 0.5, yRet - 0.45, 8.0, 0, 1.7), 0, 'steel');
+    fixed(springVar(10.0, 1.55, ySpring0, yRet, 5.2, 0.24, 0.4), 0, 'darkSteel', springKin);
+    fixed(springVar(6.05, 0.92, ySpring0 + 0.5, yRet - 0.45, 8.0, 0, 1.7), 0, 'steel', springKin);
     // stepped retainer (#14)
     moving(lathe([
       [4.6, 0.4], [11.4, 0.4], [11.4, 1.8], [9.4, 1.8], [9.4, 3.0], [7.6, 3.0],
@@ -565,8 +610,10 @@ export function rockers(s: 1 | -1) {
       });
     };
     const carved = csgSub(arm, ...cut('pad', 1), ...cut('pad', -1), ...cut('eye', 1), ...cut('eye', -1));
-    p.add(placeRocker(carved, ang, beta, P, z), 'forgedSteel');
-    p.add(placeRocker(extrudeC(polyShape(padShoe(outline)), PAD_W, 0.25, 3), ang, beta, P, z), 'polishedSteel');
+    const armKin = `arm:${st.cyl}:${st.side}`;
+    const addArm = (g: THREE.BufferGeometry, m: MatKey) => p.add(g, m, undefined, undefined, armKin);
+    addArm(placeRocker(carved, ang, beta, P, z), 'forgedSteel');
+    addArm(placeRocker(extrudeC(polyShape(padShoe(outline)), PAD_W, 0.25, 3), ang, beta, P, z), 'polishedSteel');
     const bh = SHAFT.bossHalf;
     const bush = yToZ(lathe([
       [SHAFT.r + 0.12, -(bh - 2.4)], [SHAFT.r + 1.85, -(bh - 2.4)],
@@ -588,7 +635,7 @@ export function rockers(s: 1 | -1) {
       [Math.cos(oilA) * 12.1, Math.sin(oilA) * 12.1, 0],
       0.85, 8,
     );
-    p.add(placeRocker(oil, ang, beta, P, z), 'bore');
+    addArm(placeRocker(oil, ang, beta, P, z), 'bore');
     // Adjuster: ball surface at the kinematic point, screw and locknut buried in the eye.
     const stemL = rot2(lay.stem, -ang);
     const ballL = localBall(gamma);
@@ -599,16 +646,16 @@ export function rockers(s: 1 | -1) {
       [ballCenterL.x, ballCenterL.y, 0],
       4.0, 12,
     );
-    p.add(placeRocker(screw, ang, beta, P, z), 'steel');
+    addArm(placeRocker(screw, ang, beta, P, z), 'steel');
     const ballGeo = new THREE.SphereGeometry(ballR, 14, 10);
     ballGeo.translate(ballCenterL.x, ballCenterL.y, 0);
-    p.add(placeRocker(ballGeo, ang, beta, P, z), 'polishedSteel');
+    addArm(placeRocker(ballGeo, ang, beta, P, z), 'polishedSteel');
     const nut = hexNut(13, 5);
     const ax = new THREE.Vector3(stemL.x, stemL.y, 0).normalize();
     nut.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), ax));
     const nutC = eyeBackL.clone().addScaledVector(stemL, -1.6);
     nut.translate(nutC.x, nutC.y, 0);
-    p.add(placeRocker(nut, ang, beta, P, z), 'darkSteel');
+    addArm(placeRocker(nut, ang, beta, P, z), 'darkSteel');
     addShaft(p, P.x, P.y, z);
   }
   return p.g;

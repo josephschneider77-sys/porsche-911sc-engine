@@ -60,6 +60,9 @@ export function trianglesClash(
 ): boolean {
   t1.getNormal(n1); t2.getNormal(n2);
   if (Math.abs(n1.dot(n2)) > 0.9995 && Math.abs(n1.dot(v0.subVectors(t2.a, t1.a))) < 0.05) return false;
+  // Separated bounds cannot meet. The triangle intersector still reports a segment for some
+  // large, nearly axis-aligned faces (a web on the split plane against a cheek 15 mm away).
+  if (!triBoundsMeet(t1, t2, 0.2)) return false;
   if (!t1.intersectsTriangle(t2, seg)) return false;
   // A shared edge or a coplanar pair comes back as a zero-length segment. A 1 mm overlap crosses.
   if (seg.start.distanceTo(seg.end) < 1e-3) return false;
@@ -68,6 +71,20 @@ export function trianglesClash(
   // A T-junction (a sheet edge lying on a face) puts every vertex of one triangle on or outside
   // the other's plane. Real overlap puts each triangle through the other's plane.
   if (planeReach(n1, t1.a, t2) > -0.05 || planeReach(n2, t2.a, t1) > -0.05) return false;
+  return true;
+}
+
+function triBoundsMeet(
+  t1: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3 },
+  t2: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3 },
+  pad: number,
+) {
+  for (const ax of ['x', 'y', 'z'] as const) {
+    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    for (const p of [t1.a, t1.b, t1.c]) { const v = p[ax]; if (v < a0) a0 = v; if (v > a1) a1 = v; }
+    for (const p of [t2.a, t2.b, t2.c]) { const v = p[ax]; if (v < b0) b0 = v; if (v > b1) b1 = v; }
+    if (a1 + pad < b0 || b1 + pad < a0) return false;
+  }
   return true;
 }
 

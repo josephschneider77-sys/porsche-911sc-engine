@@ -20,6 +20,8 @@ import { HEAD_HW, CASE_TB, CASE_LUG, caseLugY } from './hwLayout';
 export const CHAIN_Z: Record<1 | -1, number> = { 1: 258, [-1]: 235 } as any;
 
 export const CRANK_GEAR_T = 35;
+/** Distributor drive wheel on the crank nose (102-00 #10). The pinion is 14 T; see aux.ts. */
+export const DIST_WHEEL_TEETH = 22;
 
 export const bankZ = (s: 1 | -1) => (s === 1 ? [CYL_Z[1], CYL_Z[2], CYL_Z[3]] : [CYL_Z[4], CYL_Z[5], CYL_Z[6]]);
 
@@ -265,6 +267,7 @@ export function crankcaseHalf(s: 1 | -1) {
     wall.push([env(z, -1), z]);
   }
   extrudeYZ(wall, 66, 12, CAST, cyls.map((z) => [0, z, 54]));
+  (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.bayWall = true;
 
   // one barrel boss per spigot: open bore, bright counterbore ring, stud bosses just outside the ring
   for (const zc of cyls) {
@@ -276,12 +279,14 @@ export function crankcaseHalf(s: 1 | -1) {
     if (s < 0) boss.rotateZ(Math.PI);
     const root = (DECK_X - 29.5) * s;
     p.add(boss, CAST, [root, 0, zc]);
+    (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.boss = true;
     const face = yToX(lathe([[58.5, 0], [64, 0], [64, 2.2], [58.5, 2.2]], 48));
     if (s < 0) face.rotateZ(Math.PI);
     p.add(face, 'machinedAlu', [(DECK_X - 2.2) * s, 0, zc]);
     const liner = yToX(lathe([[53.2, 0.8], [54, 0.8], [54, 20], [53.2, 20]], 32));
     if (s < 0) liner.rotateZ(Math.PI);
     p.add(liner, 'bore', [root, 0, zc]);
+    (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.boss = true;
     for (const a of [45, 135, 225, 315]) {
       const yy = 57 * Math.sin(a * DEG), zz = 57 * Math.cos(a * DEG);
       p.add(yToX(cyl(6.4, 8, 14)), CAST, [(DECK_X - 7) * s, yy, zc + zz]);
@@ -293,6 +298,7 @@ export function crankcaseHalf(s: 1 | -1) {
   for (let i = 0; i < cyls.length - 1; i++) {
     const zm = (cyls[i] + cyls[i + 1]) / 2;
     p.add(boxMM([s > 0 ? 76 : -90, -16, zm - 6], [s > 0 ? 90 : -76, 16, zm + 6]), CAST);
+    (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.bayWall = true;
   }
 
   // thick saddle webs. They stop inboard of the spigot tunnel so the bore mouth stays a clean circle.
@@ -453,11 +459,14 @@ export function crankcaseHalf(s: 1 | -1) {
     for (const [bx, bz] of [[40, 150], [64, 120], [64, 160]] as [number, number][]) {
       p.add(cyl(11, 10, 16), CAST, [bx, 118, bz]);
       p.add(cyl(18, 50, 16, 11), CAST, [bx, 88, bz]);
+      // Stalks reach the rod-beam swing. The seat on top stays; the swing clip opens the bay.
+      (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.bayWall = true;
     }
     // spot-faced pads for the odd 101-10 #11 bolt and #20/#21 stud nut (E positions)
     for (const bz of [-95, 55]) {
       p.add(cyl(10, 12, 20), CAST, [30, 119, bz]);
       p.add(cyl(16, 46, 16, 10), CAST, [30, 90, bz]);
+      (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.bayWall = true;
     }
     // oil-thermostat pad on TOP of the right half at the pulley end (flange underside y 110).
     // Low enough that the cap stays inside the fan-shroud collar. Matches THERMO in aux.ts.
@@ -478,6 +487,8 @@ export function crankcaseHalf(s: 1 | -1) {
       const a = at(25), b = at(115);
       const cheek = boxMM([-80, 56, 118], [-36, 108, 188]);
       p.add(csgSub(cheek, cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 17.5, 24)), CAST);
+      // Cylinder 1's beam rises through this block. The swing clip opens the rod path; the distributor bore stays.
+      (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.bayWall = true;
     }
     // spot-faced pad under the left half for the 101-05 #22/#23 M10 stud nut (E position)
     p.add(cyl(10, 8, 20), CAST, [-40, -127, -186]);
@@ -485,6 +496,7 @@ export function crankcaseHalf(s: 1 | -1) {
     // warm-up regulator flange underside is y = 116.2 (WUR.flangeTop - 5). Screws thread down into this pad.
     p.add(boxMM([-72, 114.8, -198], [-48, 116.2, -142]), 'machinedAlu');
     p.add(boxMM([-76, 46, -202], [-44, 114.8, -138]), CAST);
+    (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.bayWall = true;
     // Cast distributor boss, blended out of the pulley-end skin. Same axis as DIST in aux.ts.
     // The flange (r 16–38) covers the skin opening. The hold-down stud lands on its own pad,
     // not on a box corner. Mouth face is local t 93, just behind the distributor shoulder.
@@ -545,7 +557,28 @@ export function crankcaseHalf(s: 1 | -1) {
     axial(14.5, yS, 269, 284),
     axial(36.5, 0, 190.8, 225),
   ], open);
+  // Rod bolts swing to r 80.5. The spigot lathes and the inter-bore wall are not opened by the
+  // bay cutter (lathes are skipped; the wall's CSG cut does not clear the bolt circle), so clip
+  // those meshes to the outside of the swing. Saddle bores are not in this set.
+  relieveRodSwing(p.g);
   return p.g;
+}
+
+/** Big-end and bolt circle, plus a millimetre so a faceted cutter does not chord back into the bolts. */
+const ROD_SWING_R = 94;
+
+function relieveRodSwing(root: THREE.Object3D) {
+  const tagged: THREE.Mesh[] = [];
+  root.traverse((o: any) => {
+    if (o.isMesh && (o.userData.boss || o.userData.bayWall)) tagged.push(o);
+  });
+  if (!tagged.length) return;
+  const hold = new THREE.Group();
+  root.add(hold);
+  for (const m of tagged) hold.attach(m);
+  subtractSolids(hold, [yToZ(cyl(ROD_SWING_R, 520, 72)).translate(0, 0, 10)]);
+  for (const m of [...hold.children]) root.attach(m);
+  root.remove(hold);
 }
 
 /** CSG only on closed solids. Open skins (param surfaces, lathes) invert under three-bvh-csg. */
@@ -601,7 +634,7 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
   cuts.push(boxMM([-40, -132, -178], [60, -58, -130]));
   if (s > 0) {
     // Pickup stays in the sump, inboard of the cyl-3 spigot (x < 70). Same bend as oilPump().
-    const path: [number, number, number][] = [[32, -86, -147], [46, -98, -147], [48, -112, -155], [24, -118, -148]];
+    const path: [number, number, number][] = [[32, -96, -147], [46, -98, -147], [48, -112, -155], [24, -118, -148]];
     for (let i = 0; i + 1 < path.length; i++) cuts.push(cylBetween(path[i], path[i + 1], 11, 12));
   }
   // Cylinder register: skirt OD 51.5, bore 54 leaves 2.5 mm. Deck face outside r 54 stays as the seat.
@@ -621,7 +654,7 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
     const at = (t: number): [number, number, number] => [o[0] + u[0] * t, o[1] + u[1] * t, o[2] + u[2] * t];
     cuts.push(cylBetween(at(-6), at(96), 14.6, 24));
   }
-  const nutPockets: [number, number][] = s < 0 ? [[-10, -116], [30, -116]] : [[30, -116], [38, -56]];
+  const nutPockets: [number, number][] = s < 0 ? [[-10, -116], [-24, -92]] : [[30, -116]];
   for (const [x, y] of nutPockets) cuts.push(yToZ(cyl(14, 36, 16)).translate(x, y, -166));
   // Every pocket in one pass. A second pass sees BufferGeometry and skips the flange,
   // which left the gears, the pump and the nut spot-faces buried in the split face.
@@ -654,8 +687,8 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
   if (s > 0) {
     // Oil-cooler deck pad. Face is exactly x = 103 (normal +X), centre near (103, 8, −180),
     // in the pocket between cyl 3 and the ring gear. Keep studs and ports in step with
-    // OIL_COOLER in aux.ts. Nothing of this pad crosses x = 103. Root stays outside the
-    // crank cheek (r ~70) so the pad is not hollowed with the bay.
+    // OIL_COOLER in aux.ts. Nothing of this pad crosses x = 103. The root is inside the
+    // cyl-6 rod swing, so relieveRodSwing notches it; the face and the stud taps stay.
     const face = 103, xRoot = 74;
     const y0 = -72, y1 = 88, z0 = -210, z1 = -150;
     const zMid = (z0 + z1) / 2, yMid = (y0 + y1) / 2;
@@ -687,6 +720,7 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
     cheek = csgSub(cheek, ...taps);
     skin = csgSub(skin, ...taps);
     p.add(cheek, CASE_CAST);
+    (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.bayWall = true;
     p.add(skin, 'machinedAlu');
     for (const [y, z] of studs) {
       const boss = cyl(8, 12, 20);
@@ -917,7 +951,7 @@ export function crankGears() {
   const d0 = N.drive[0], d1 = N.drive[1];
   const dRate = Math.tan(28 * DEG) / 31;
   dist.add(extrude(ringShape(30.2, N.seatR + 0.05), d1 - d0), 'bronze', [0, 0, d0]);
-  addHelix(dist, 22, 29.4, 32.4, 28.6, d0, d1, dRate, 'bronze', [0, 0, 0], 0, false, 0);
+  addHelix(dist, DIST_WHEEL_TEETH, 29.4, 32.4, 28.6, d0, d1, dRate, 'bronze', [0, 0, 0], 0, false, 0);
   dropDegenerate(dist.g);
   p.g.add(dist.g);
   return p.g;
@@ -1039,8 +1073,10 @@ export function piston() {
   // dome height-field with two valve reliefs
   const rd = R - 7.5;
   const domeH = (r: number) => { const t = r / rd; return top + 0.6 + 11.4 * Math.pow(Math.max(0, 1 - t * t), 0.85); };
-  const reliefs = [{ y: 23, r: 23, h: top + 6.2 }, { y: -24, r: 20, h: top + 5.2 }];
-  const wall = (d: number, rl: { r: number; h: number }) => rl.h + Math.max(0, d - rl.r + 2.5) * 3.2;
+  // Wide eyebrows. At overlap the open valve reaches about 6 mm below the squish
+  // plane, so the pocket floor is 8 mm below it.
+  const reliefs = [{ y: 24, r: 36, h: top - 8 }, { y: -24, r: 32, h: top - 8 }];
+  const wall = (d: number, rl: { r: number; h: number }) => rl.h + Math.max(0, d - rl.r + 4) * 1.1;
   const dome = paramSurface((u, v) => {
     const a = u * Math.PI * 2, r = v * rd;
     const y = r * Math.cos(a), z = r * Math.sin(a);
@@ -1051,7 +1087,8 @@ export function piston() {
   }, 144, 44, true);
   p.add(dome, 'machinedAlu');
   // underside
-  p.add(yToX(lathe([[0.1, top - 6], [R - 6, top - 7], [R - 5, -44]], 48)), 'castAlu');
+  // Centre is dropped so the valve pockets are not closed off by the underside.
+  p.add(yToX(lathe([[0.1, top - 14], [R - 6, top - 7], [R - 5, -44]], 48)), 'castAlu');
   // pin bosses and pin (#3) + circlips (#4)
   for (const z of [-1, 1]) {
     p.add(yToZ(lathe([[11.2, -5], [16, -5], [17, 0], [16, 5], [11.2, 5]], 24)), 'machinedAlu', [0, 0, z * (R - 9)]);
@@ -1688,6 +1725,20 @@ export function timingChain(s: 1 | -1) {
   clearNose(p.g);
   return p.g;
 }
+/** Push a chain vertex out of the cam-nose boss and the lower split pad. World frame, millimetres. */
+export function clearChainVertex(v: THREE.Vector3): boolean {
+  let moved = false;
+  const rho = Math.hypot(v.x, v.y);
+  if (v.z > 218 && v.z < 278 && rho < 42.6 && rho > 8) {
+    const f = 42.6 / rho; v.x *= f; v.y *= f; moved = true;
+  }
+  // Pad is only 8 mm wide, but a plate edge can cross it with both vertices outside that strip.
+  // Whole left-chain crown (its plates reach z ≈ 246). The right chain starts at z ≈ 247, so it is left alone.
+  if (v.z > 220 && v.z < 246.5 && Math.abs(v.x) < 36 && v.y > -47.6 && v.y < -20) {
+    v.y = -47.6; moved = true;
+  }
+  return moved;
+}
 function clearNose(root: THREE.Object3D) {
   root.updateMatrixWorld(true);
   const v = new THREE.Vector3();
@@ -1698,17 +1749,7 @@ function clearNose(root: THREE.Object3D) {
     let changed = false;
     for (let i = 0; i < P.count; i++) {
       v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld);
-      let moved = false;
-      const rho = Math.hypot(v.x, v.y);
-      if (v.z > 218 && v.z < 278 && rho < 42.6 && rho > 8) {
-        const f = 42.6 / rho; v.x *= f; v.y *= f; moved = true;
-      }
-      // Pad is only 8 mm wide, but a plate edge can cross it with both vertices outside that strip.
-      // Whole left-chain crown (its plates reach z ≈ 246). The right chain starts at z ≈ 247, so it is left alone.
-      if (v.z > 220 && v.z < 246.5 && Math.abs(v.x) < 36 && v.y > -47.6 && v.y < -20) {
-        v.y = -47.6; moved = true;
-      }
-      if (!moved) continue;
+      if (!clearChainVertex(v)) continue;
       v.applyMatrix4(inv);
       P.setXYZ(i, v.x, v.y, v.z);
       changed = true;
@@ -1957,14 +1998,14 @@ function idlerSprocket(p: Part, s: 1 | -1, T: ReturnType<typeof tensionerLayout>
   const rr = r - 3.6, rt = r + 3.4;
   const at: V3 = [T.idler.x, T.idler.y, z];
   for (const dz of [-ROW, ROW]) {
-    p.add(extrudeC(rollerChainShape(IDLER_T, rr, rt, rr - 4.4), 4.8, 0, 2).rotateZ(phase), 'steel', [at[0], at[1], at[2] + dz]);
+    p.add(extrudeC(rollerChainShape(IDLER_T, rr, rt, rr - 4.4), 4.8, 0, 2).rotateZ(phase), 'steel', [at[0], at[1], at[2] + dz], undefined, 'idler');
   }
   const web = circleShape(rr - 5.4);
   web.holes.push(circlePath(8.6) as THREE.Path);
   // Between the rings. A web at the ring's z sits inside the tooth disc.
-  for (const zc of [-1.4, 1.4]) p.add(extrudeC(web, 2.0, 0, 16), 'steel', [at[0], at[1], at[2] + zc]);
+  for (const zc of [-1.4, 1.4]) p.add(extrudeC(web, 2.0, 0, 16), 'steel', [at[0], at[1], at[2] + zc], undefined, 'idler');
   // Bronze bush only. The shaft and its bolt head are added with the arm so one pin runs through both.
-  p.add(yToZ(closedLathe([[6.1, -6.5], [8.5, -6.5], [8.5, 6.5], [6.1, 6.5]], 24)), 'bronze', at);
+  p.add(yToZ(closedLathe([[6.1, -6.5], [8.5, -6.5], [8.5, 6.5], [6.1, 6.5]], 24)), 'bronze', at, undefined, 'idler');
 }
 /** Closed plate with through-holes. `zAt` returns the bottom and top Z at a plan point. */
 export function holedPlate(outer: [number, number][], holes: [number, number][][], zAt: (x: number, y: number) => [number, number]) {
@@ -2473,6 +2514,49 @@ function boxWallPath(o: [number, number][], s: 1 | -1) {
  * housing that lie on the cam-housing end face (found by stations.searchChainEndStations, E). */
 export const END_PAD = { z0: 216.1, z1: 220.1, r: 9.5 };
 export const END_STUDS: Record<1 | -1, [number, number][]> = { 1: [[266, 62], [282, 66]], [-1]: [[-286, 62], [-266, 62]] } as any;
+/**
+ * Metal the duplex plates sweep through. Outer-plate corners on a sprocket sit past the pitch
+ * circle (straight plate, chordal wrap); both plate edges stand 4.1 mm off a straight run.
+ * The band is the chain centre ± the outer-plate stack, so a cover-stud boss in that band is
+ * notched instead of being left for the chain to clip.
+ */
+function chainSweepCutters(s: 1 | -1): THREE.BufferGeometry[] {
+  const path = chainPath(s);
+  const z = CHAIN_Z[s];
+  const z0 = z - 13, z1 = z + 13;
+  const cuts: THREE.BufferGeometry[] = [];
+  const teethOf = (r: number) => {
+    let teeth = CAM_T, bd = Math.abs(r - CAM_SPROCKET_R);
+    for (const [rr, tt] of [[INT_SPROCKET_R, INT_T], [IDLER_SPROCKET_R, IDLER_T]] as [number, number][]) {
+      const d = Math.abs(r - rr);
+      if (d < bd) { bd = d; teeth = tt; }
+    }
+    return teeth;
+  };
+  for (const arc of path.arcs) {
+    const step = (Math.PI * 2) / teethOf(arc.circ.r);
+    const mid = arc.circ.r * Math.cos(step / 2);
+    const along = PITCH / 2 + 4.4;
+    const outer = Math.hypot(along, mid + 4.1) + 1.1;
+    const inner = Math.max(2, mid - 4.1 - 1.1);
+    const g = extrude(ringShape(outer, inner), z1 - z0, 0, 28);
+    g.translate(arc.circ.c.x, arc.circ.c.y, z0);
+    cuts.push(g);
+  }
+  for (let i = 0; i < path.arcs.length; i++) {
+    const a = path.arcs[i], b = path.arcs[(i + 1) % path.arcs.length];
+    const x0 = a.circ.c.x + a.circ.r * Math.cos(a.a1), y0 = a.circ.c.y + a.circ.r * Math.sin(a.a1);
+    const x1 = b.circ.c.x + b.circ.r * Math.cos(b.a0), y1 = b.circ.c.y + b.circ.r * Math.sin(b.a0);
+    const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
+    if (len < 1) continue;
+    const g = boxMM([-len / 2 - 8, -5.2, z0], [len / 2 + 8, 5.2, z1]);
+    g.rotateZ(Math.atan2(dy, dx));
+    g.translate((x0 + x1) / 2, (y0 + y1) / 2, 0);
+    cuts.push(g);
+  }
+  return cuts;
+}
+
 export function chainHousing(s: 1 | -1) {
   const p = new Part();
   const o = chainOutline(s, 0);
@@ -2653,6 +2737,8 @@ export function chainHousing(s: 1 | -1) {
     // The bridge stays above the round cam-end cover (rim r 47.2).
     p.add(boxMM([x - 7, 52, END_PAD.z0], [x + 7, y, END_PAD.z1]), 'castAlu');
   }
+  // Cover-stud bosses stand in the chain plane. Notch the plate sweep out of them.
+  cutSolids(p.g, chainSweepCutters(s));
   return p.g;
 }
 /** Consecutive sub-runs of a polyline whose points satisfy f. */

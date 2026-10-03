@@ -5,10 +5,13 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { PARTS, PartDef } from '../data/parts';
 import { removedAfter, carriedAfter } from '../data/teardown';
+import { EngineRun } from '../sim/run';
+import { Rig } from '../sim/rig';
 
 interface PartNode {
   def: PartDef;
   root: THREE.Group;
+  inst: THREE.Object3D;
   meshes: THREE.Mesh[];
   mats: THREE.MeshStandardMaterial[];
   base: THREE.Vector3;
@@ -44,6 +47,11 @@ export class Viewer {
   isolated: string | null = null;
   selected: string | null = null;
   onPick: (id: string | null) => void = () => {};
+  onFrame: (run: EngineRun) => void = () => {};
+  engineRun = new EngineRun();
+  rig: Rig | null = null;
+  /** Air-injection pump group. Off until the emissions toggle is on. */
+  emissions = false;
   private removed = new Set<string>();
   private carried = new Map<string, string>();
   private userMoved = false;
@@ -127,7 +135,17 @@ export class Viewer {
       root.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(root);
       const center = box.getCenter(new THREE.Vector3());
-      this.nodes.set(def.id, { def, root, meshes, mats, base: new THREE.Vector3(), box, explodeDir: new THREE.Vector3(...def.explode), opacity: 1, center });
+      this.nodes.set(def.id, { def, root, inst, meshes, mats, base: new THREE.Vector3(), box, explodeDir: new THREE.Vector3(...def.explode), opacity: 1, center });
+    }
+    this.rig = new Rig(this.nodes);
+    this.rig.bind();
+    for (const n of this.nodes.values()) {
+      n.inst.traverse((o) => {
+        const me = o as THREE.Mesh;
+        if (me.name !== 'belt-witness' || !me.isMesh) return;
+        n.meshes.push(me);
+        n.mats.push(me.material as THREE.MeshStandardMaterial);
+      });
     }
     this.kick();
   }
@@ -147,11 +165,29 @@ export class Viewer {
 
   kick(frames = 90) { this.needsFrames = Math.max(this.needsFrames, frames); }
 
-  setStep(n: number) { this.step = n; this.removed = removedAfter(n); this.carried = carriedAfter(n); this.kick(160); }
+  setStep(n: number) {
+    this.step = n; this.removed = removedAfter(n); this.carried = carriedAfter(n); this.kick(160);
+    if (n !== 0) this.haltRun();
+  }
   setExplode(f: number) {
     this.explode = f;
     if (!this.userMoved && !this.urlPose) this.camGoal = this.explodedHome(f);
     this.kick(120);
+    if (f > 0.001) this.haltRun();
+  }
+  setEmissions(on: boolean) { this.emissions = on; this.kick(); }
+  emissionsHidden(id: string) {
+    if (this.emissions) return false;
+    // air-filter and air-cleaner-lid are the intake cleaner, not the air-injection pump.
+    if (id === 'air-filter' || id === 'air-cleaner-lid') return false;
+    return id.startsWith('air-');
+  }
+  /** Snap back to the assembled crank so teardown sees the static mesh. */
+  haltRun() {
+    if (!this.engineRun.running && this.engineRun.crankDeg === 0 && this.engineRun.rpm === 0) return;
+    this.engineRun.stop();
+    this.rig?.pose(0);
+    this.kick();
   }
   /**
    * Pin a `?cam=` / `?target=` pose. Step framing, explode framing and focus must not replace it.
@@ -254,6 +290,7 @@ export class Viewer {
     if (this.hidden.has(id)) return false;
     if (this.isolated && this.isolated !== id) return false;
     if (this.isolated === id) return true;
+    if (this.emissionsHidden(id)) return false;
     return !this.removed.has(id);
   }
 
@@ -280,14 +317,17 @@ export class Viewer {
     const tick = () => {
       requestAnimationFrame(tick);
       const dt = Math.min(this.clock.getDelta(), 0.05);
-      if (this.needsFrames <= 0) return;
-      this.needsFrames--;
+      const live = this.engineRun.tick(dt, this.step, this.explode);
+      if (!live && this.needsFrames <= 0) return;
+      if (this.needsFrames > 0) this.needsFrames--;
       this.update(dt);
+      if (live && this.rig) this.rig.pose(this.engineRun.crankDeg);
       this.controls.update();
       // OrbitControls rewrites the camera from its own spherical state. Put the URL pose back
       // so a teardown step's framing (or the damped control) cannot drift it.
       if (this.urlPose) this.applyUrlPose();
       this.renderer.render(this.scene, this.camera);
+      if (live) this.onFrame(this.engineRun);
     };
     tick();
   }

@@ -269,7 +269,8 @@ export function alternator() {
     p.add(yToZ(hexNut(8, 4)), 'zincPlate', at(50, a, 260));
   }
   // keyed shaft: reaches the M16 nut on the two-groove pulley. Nut face is FAN.zNut (325).
-  p.add(yToZ(cyl(11, 76, 20)), 'steel', [0, y, 286]);
+  // The housing stays put. Only this shaft turns with the fan.
+  p.add(yToZ(cyl(11, 76, 20)), 'steel', [0, y, 286], undefined, 'shaft');
   return p.g;
 }
 export function fanPulley() {
@@ -869,11 +870,11 @@ export const OIL_PUMP = {
   // pulley-side of the flywheel web (solid through z −169).
   coverFace: -158,
   // Ears break the body silhouette (side camera looks along −Z). All stay inboard of
-  // the left relief piston and outside the cyl-6 cheek disc.
-  studs: [[38, -56], [-10, -116], [30, -116]] as [number, number][],
+  // the left relief piston and below the cyl-6 rod swing (the rod passes through y −56).
+  studs: [[-24, -92], [-10, -116], [30, -116]] as [number, number][],
   seals: [
-    [-14, -64.8, -147],
-    [24, -64.8, -147], [-16, -90, -157.2],
+    [-14, -82, -147],
+    [24, -88, -147], [-16, -90, -157.2],
     [16, -88, -157.2],
   ] as [number, number, number][],
 };
@@ -888,17 +889,18 @@ export function oilPump() {
     g.translate(x0, y, zc);
     p.add(g, mat);
   };
-  // Scavenge (larger, −X) and pressure (+X). Tops share y −70. Bottom stays above the relief piston.
-  section(-26, 6, 32, 20, -86, 'castAlu');
-  section(8, 44, 28, 18, -84, 'castAlu');
-  section(3, 11, 34, 20, -85, 'machinedAlu');
+  // Scavenge (larger, −X) and pressure (+X). Tops stay below the cyl-6 rod and cheek
+  // (the rod reaches y −82 beside the pressure section). Bottoms stay above the relief piston.
+  section(-26, 6, 18, 20, -93, 'castAlu');
+  section(8, 44, 14, 18, -97, 'castAlu');
+  section(3, 11, 16, 20, -94, 'machinedAlu');
   for (const dz of [-7.2, -2.4, 2.4, 7.2]) {
-    p.add(boxMM([-20, -70, zc + dz - 1.15], [40, -62.8, zc + dz + 1.15]), 'castAlu');
+    p.add(boxMM([-20, -96, zc + dz - 1.15], [40, -88, zc + dz + 1.15]), 'castAlu');
   }
   // Cover plate behind the body, plus three ears that stick out of the XY silhouette.
-  // Nut face is z = coverFace. No bolts on the pressure-section end.
+  // Nut face is z = coverFace. The plate top is below the rod's flywheel face.
   const plate = polyShape(hull([
-    [-24, -100], [-24, -72], [42, -72], [42, -100],
+    [-24, -100], [-24, -82], [42, -82], [42, -100],
   ]));
   const cover = extrude(plate, 3.4);
   cover.translate(0, 0, z0);
@@ -911,8 +913,8 @@ export function oilPump() {
     p.add(g, 'machinedAlu');
     p.add(cyl(3.5, 6, 12).rotateX(Math.PI / 2), 'bore', [x, y, z0 + 3]);
   }
-  p.add(cyl(7.2, 5, 16), 'castAlu', [-14, -67.2, zc]);
-  p.add(cyl(6.4, 5, 16), 'castAlu', [24, -67.2, zc]);
+  p.add(cyl(7.2, 5, 16), 'castAlu', [-14, -84.5, zc]);
+  p.add(cyl(6.4, 5, 16), 'castAlu', [24, -90.5, zc]);
   for (const [x, y] of OIL_PUMP.seals.slice(2)) p.add(cyl(6.2, 2.2, 14).rotateX(Math.PI / 2), 'castAlu', [x, y, z0 + 1.1]);
   p.add(yToZ(cyl(8, 10, 16)), 'steel', [0, INT_SHAFT_Y, -134]);
   p.add(yToZ(cyl(6.2, 40, 16)), 'darkSteel', [0, INT_SHAFT_Y, -118]);
@@ -924,7 +926,7 @@ export function oilPump() {
   }
   // Pickup stays in the sump, inboard of the cylinder spigots (x < 60) and below the crank.
   // Same polyline as the case pocket in hollowCaseInterior.
-  const bend: V3[] = [[32, -86, zc], [46, -98, zc], [48, -112, zc - 8], [24, -118, -148]];
+  const bend: V3[] = [[32, -96, zc], [46, -98, zc], [48, -112, zc - 8], [24, -118, -148]];
   p.add(tube(bend, 5.2, 12, 32), 'castAlu');
   p.add(yToZ(cyl(7, 8, 16)), 'castAlu', [24, -118, -144]);
   return p.g;
@@ -1195,6 +1197,9 @@ export function airboxStruts() {
  * Local +Y is the rotor axis. Local +X is outboard and a little toward the fan,
  * which is where the vacuum can points.
  */
+/** Helical pinion tooth count (901-00 #36). The crank wheel is DIST_WHEEL_TEETH. */
+export const DIST_PINION_TEETH = 14;
+export const DIST_PINION_TIP = 12;
 export const DIST = {
   pinion: [-36.2, 26.5, 216] as V3,
   aim: [-150, 168, 150] as V3,
@@ -1310,15 +1315,15 @@ export function distributor() {
   // Helical pinion (901-00 #36, CCW 930 602 422 03). Three slices, a small twist, tip r 12.
   // Centre distance to the crank wheel (tip r 32.4) is 44.9 mm, so the tips stay 0.5 mm apart.
   for (let i = 0; i < 3; i++) {
-    const slice = extrude(gearShape(14, 9.4, DIST_PINION_TIP, 5), 2.5);
+    const slice = extrude(gearShape(DIST_PINION_TEETH, 9.4, DIST_PINION_TIP, 5), 2.5);
     slice.rotateX(-Math.PI / 2);
     slice.translate(0, 0.4 + i * 2.35, 0);
     slice.rotateY((i - 1) * 0.14);
-    p.add(bake(slice), 'bronze');
+    p.add(bake(slice), 'bronze', undefined, undefined, 'pinion');
   }
-  p.add(bake(lathe([[4.6, 0], [4.6, 10]], 16)), 'steel');
+  p.add(bake(lathe([[4.6, 0], [4.6, 10]], 16)), 'steel', undefined, undefined, 'pinion');
   // Pinion pin (901-00 #35, 930 602 922 00) across the gear.
-  p.add(bake(cyl(1.5, 18, 8).rotateZ(Math.PI / 2).translate(0, 4.2, 0)), 'steel');
+  p.add(bake(cyl(1.5, 18, 8).rotateZ(Math.PI / 2).translate(0, 4.2, 0)), 'steel', undefined, undefined, 'pinion');
   p.add(holdDownLug(), 'castAlu');
   // Shank in the bore, O-ring groove, shoulder just proud of the case mouth (t 93), then the housing.
   p.add(bake(lathe([
@@ -1370,9 +1375,9 @@ export function distributor() {
   cConn.translate(0, DIST.towerY, 0);
   p.add(bake(cConn), 'blackPlastic');
   // Rotor (#3), under the cap, pointing at tower 0.
-  p.add(bake(boxMM([2, 186, -3.2], [18, 190, 3.2])), 'blackPlastic');
-  p.add(bake(boxMM([16, 186.4, -2.2], [22, 189.6, 2.2])), 'brass');
-  p.add(bake(cyl(5, 4, 12).translate(0, 188, 0)), 'blackPlastic');
+  p.add(bake(boxMM([2, 186, -3.2], [18, 190, 3.2])), 'blackPlastic', undefined, undefined, 'rotor');
+  p.add(bake(boxMM([16, 186.4, -2.2], [22, 189.6, 2.2])), 'brass', undefined, undefined, 'rotor');
+  p.add(bake(cyl(5, 4, 12).translate(0, 188, 0)), 'blackPlastic', undefined, undefined, 'rotor');
   // Vacuum unit (#2): shallow Ø52 × 22 can on a curved saddle under the cap rim.
   // The nipple is on the rim and points toward the cap. Tip local (39, 190, 2).
   const saddle = lathe([[26.3, 140], [29.4, 142], [29.4, 164], [26.3, 166]], 20, -1.05, 2.1);
@@ -1388,7 +1393,6 @@ export function distributor() {
   p.add(bake(cylBetween([39, 176, 2], [39, 190, 2], 2.3, 10)), 'zincPlate');
   return p.g;
 }
-const DIST_PINION_TIP = 12;
 /** Circular fillets so a Catmull-Rom tube stays on the polyline instead of bowing off it. */
 function filleted(corners: V3[], radius = 16): V3[] {
   const P = corners.map((q) => new THREE.Vector3(...q));
