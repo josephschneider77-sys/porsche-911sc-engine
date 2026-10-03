@@ -1117,9 +1117,9 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 12 | — | Sealing rubber | 1 | modelled | `egr-seal` |
 | 13 | — | Pressure screw | 1 | modelled | `egr-fasteners` screw |
 | 14 | — | Washer | 1 | modelled | `egr-fasteners` washer |
-| 15 | 999 239 003 40 | Hose | 1 | modelled | `egr-hose-short` |
-| 16 | 999 239 003 40 | Hose | 1 | modelled | `egr-hose-long` |
-| 17 | 999 239 003 40 | Hose | 2 | modelled | `egr-hose-return` × 1 (Return leg. The printed 465 mm is the diverter piece; these two ends are a short arc.) + `egr-hose-diverter` × 1 (Diverter leg. 465 mm does not clear the left case; the modelled run is the short clear route.) |
+| 15 | 999 239 003 40 | Hose | 1 | modelled | `egr-hose-short` × 1 (Catalogue 40 mm. The tee centre is 7 mm higher, so the tips are 26 mm apart and two 7 mm sleeves make 40 mm. The throttle ray ignores this hose and the tee.) |
+| 16 | 999 239 003 40 | Hose | 1 | modelled | `egr-hose-long` × 1 (Catalogue 770 mm. Modelled 660 mm (straight-line 445 mm) from the tee valve port around the shroud and down aft of cylinder 4.) |
+| 17 | 999 239 003 40 | Hose | 2 | modelled | `egr-hose-return` × 1 (Catalogue 465 mm. Modelled 517 mm (straight-line 474 mm) straight down the shroud slot, then through the distributor and crankcase gap.) + `egr-hose-diverter` × 1 (Catalogue 465 mm. Modelled 389 mm (straight-line 338 mm) under the fan from the tee diverter port to the lower nipple. Hidden with air injection.) |
 | 18 | 999 137 004 40 | T-piece | 1 | modelled | `egr-tee` × 1 (999 137 004 40, qty 1, modelled as egr-tee. The manifold hose has no splice.) |
 | 19 | — | Buffer | 1 | modelled | `egr-buffer` |
 

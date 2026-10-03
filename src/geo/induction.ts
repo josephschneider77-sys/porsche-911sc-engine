@@ -1418,9 +1418,8 @@ export function throttleHousingPart() {
   p.add(boxMM([28, 228, 106], [50, 236.6, 120]), 'castAlu');
   // Both nipples of the p.177 pair. One boss on the pulley end of the barrel,
   // left of the bore. Underside is the shared root plane; both barbs hang
-  // straight down, 11 mm apart in Z. TEE_AIR_INJ is the shape the emissions-off
-  // cap is built for (8 mm, radius 2.8, 10 sides) and stays bare: #31 is not
-  // drawn onto it here, so that nipple has no clamp.
+  // straight down, 11 mm apart in Z. The bands sit on the hoses (bottomAnc),
+  // halfway along the 7 mm push-on, not on the brass.
   {
     const air = TEE_AIR_INJ;
     const egr = THROTTLE_PORTED_VAC;
@@ -1431,14 +1430,6 @@ export function throttleHousingPart() {
     };
     hang(egr.point, egr.barbR, 12);
     hang(air.point, air.barbR, 10);
-    // 202-05 #16 slides 4 mm onto the EGR nipple (bottomAnc, not edited here).
-    // The band's inner radius is that hose's OD, 2 mm inboard of the tip.
-    const egrHoseR = 3.5;
-    const ax = egr.axis;
-    const ring = torus(egrHoseR + CLAMP_WIRE, CLAMP_WIRE, 6, 14);
-    ring.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...ax)));
-    ring.translate(egr.point[0] - ax[0] * 2, egr.point[1] - ax[1] * 2, egr.point[2] - ax[2] * 2);
-    p.add(ring, 'zincPlate');
   }
   // 4 × M6 heads. Angles keep them off the vacuum hose that climbs past the top of the flange.
   for (const a of [0.75, 2.3, 3.95, 5.35]) {

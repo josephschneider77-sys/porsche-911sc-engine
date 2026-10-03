@@ -10,6 +10,8 @@ import { PARTS } from '../src/data/parts';
 import { fastenerSets } from '../src/geo/fasteners';
 import { SMALL_SPECS } from '../src/data/smallSpec';
 import { HOUSING_Z0, tensionerLayout } from '../src/geo/core';
+import { heaterStub } from '../src/geo/aux';
+import { checkValveInlet, DUMP_PORT, DIVERTER_VAC, DIVERTER_VAC_AXIS, DIVERTER_VAC_EGR, DIVERTER_VAC_EGR_AXIS, EGR_BARB_2, EGR_BARB_UP, EGR_TEE_PORTS, HEATER_BLOWER, HEATER_BLOWER_INLET, PUMP_OUT } from '../src/geo/bottomAnc';
 
 export interface Hit { a: string; b: string; tris: number; box: THREE.Box3; samples: THREE.Vector3[] }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
@@ -329,7 +331,22 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('air-pump', 'air-pump-cleaner', 'seated: air-cleaner neck on the pump inlet'),
   pair('air-pump-strap', 'air-retainer', 'seated: strap tab on the retaining clip'),
   pair('air-pump-belt', 'air-pump-pulley|fan-pulley', 'seated: air-injection belt in the outer pulley grooves'),
-  pair('air-hose-vacuum', 'air-diverter', 'seated: air-injection vacuum hose on the diverter vacuum nipple'),
+  pair('air-hose-vacuum', 'air-diverter', 'seated: air-injection vacuum hose 7 mm on the diverter vacuum nipple'),
+  pair('air-hose-pump', 'air-pump', 'seated: air-pump hose 7 mm on the pump outlet spigot'),
+  pair('air-hose-pump', 'air-diverter', 'seated: air-pump hose 7 mm on the diverter inlet nipple'),
+  pair('air-hose-valve', 'air-diverter', 'seated: air-pump hose 7 mm on the diverter outlet nipple'),
+  pair('air-hose-valve', 'air-check-valve', 'seated: air-pump hose 7 mm on the check-valve inlet'),
+  pair('air-hose-dump', 'air-diverter', 'seated: dump hose 7 mm on the diverter dump nipple'),
+  pair('egr-hose-short', 'egr-tee', 'seated: short EGR hose 7 mm on the tee upper barb'),
+  pair('egr-hose-long', 'egr-tee', 'seated: long EGR hose 7 mm on the tee valve barb'),
+  pair('egr-hose-long', 'egr-valve', 'seated: long EGR hose 7 mm on the valve pulley-side barb'),
+  pair('egr-hose-return', 'egr-tee', 'seated: EGR return hose 7 mm on the tee return barb'),
+  pair('egr-hose-return', 'egr-valve', 'seated: EGR return hose 7 mm on the valve upright barb'),
+  pair('egr-hose-diverter', 'egr-tee', 'seated: EGR diverter hose 7 mm on the tee diverter barb'),
+  pair('egr-hose-diverter', 'air-diverter', 'seated: EGR diverter hose 7 mm on the diverter vacuum nipple'),
+  pair('heater-hose-right|heater-hose-left', 'heater-dist-piece', 'seated: blower hose 7 mm on the distributing-piece mouth'),
+  pair('heater-hose-link', 'heater-socket', 'seated: heater link hose 7 mm on the blower socket'),
+  pair('heater-hose-link', 'heater-blower', 'seated: heater link hose 7 mm on the blower inlet'),
   pair('fan-hub', 'fan-impeller|alternator', 'pressed: fan hub on the alternator shaft and the impeller on the hub'),
   pair('warm-up-regulator', 'crankcase-left', 'JOINT regulator flange on the case pad'),
   pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),
@@ -441,10 +458,65 @@ function chainTensionerSide(h: Hit): 1 | -1 | 0 {
  * Rail bosses, the strap, the sleeve and the nut are not covered.
  * Chain × tensioner is only the idler wrap. Chain metal inside a guide rail still fails.
  */
+/**
+ * Hose-on-barb seats. A sample counts only within 12 mm along the barb and 18 mm
+ * of its axis, so a hose that passes through the fitting is not covered.
+ */
+const pumpOut = new THREE.Vector3(...PUMP_OUT.tip).sub(new THREE.Vector3(...PUMP_OUT.neck)).normalize();
+const inletTip = checkValveInlet();
+const rightStub = heaterStub(1);
+const leftStub = heaterStub(-1);
+const hb = HEATER_BLOWER;
+type SeatZone = { a: RegExp; b: RegExp; tips: THREE.Vector3[]; axes: THREE.Vector3[] };
+const seatZone = (a: string, b: string, ends: { point: number[]; axis: number[] }[]): SeatZone => ({
+  a: id(a),
+  b: id(b),
+  tips: ends.map((e) => new THREE.Vector3(...e.point)),
+  axes: ends.map((e) => new THREE.Vector3(...e.axis).normalize()),
+});
+const SEAT_ZONES: SeatZone[] = [
+  seatZone('air-hose-vacuum', 'air-diverter', [{ point: DIVERTER_VAC, axis: DIVERTER_VAC_AXIS }]),
+  seatZone('air-hose-pump', 'air-pump', [{ point: PUMP_OUT.tip, axis: pumpOut.toArray() }]),
+  seatZone('air-hose-pump', 'air-diverter', [{ point: [-172, 26, 448], axis: [-1, 0, 0] }]),
+  seatZone('air-hose-valve', 'air-diverter', [{ point: [-142, 56, 448], axis: [0, 1, 0] }]),
+  seatZone('air-hose-valve', 'air-check-valve', [{ point: inletTip, axis: [0, 1, 0] }]),
+  seatZone('air-hose-dump', 'air-diverter', [{ point: DUMP_PORT.point, axis: DUMP_PORT.axis }]),
+  seatZone('egr-hose-short', 'egr-tee', [{ point: EGR_TEE_PORTS.upper.point, axis: EGR_TEE_PORTS.upper.axis }]),
+  seatZone('egr-hose-long', 'egr-tee', [{ point: EGR_TEE_PORTS.valve.point, axis: EGR_TEE_PORTS.valve.axis }]),
+  seatZone('egr-hose-long', 'egr-valve', [{ point: EGR_BARB_2.point, axis: EGR_BARB_2.axis }]),
+  seatZone('egr-hose-return', 'egr-tee', [{ point: EGR_TEE_PORTS.return.point, axis: EGR_TEE_PORTS.return.axis }]),
+  seatZone('egr-hose-return', 'egr-valve', [{ point: EGR_BARB_UP.point, axis: EGR_BARB_UP.axis }]),
+  seatZone('egr-hose-diverter', 'egr-tee', [{ point: EGR_TEE_PORTS.diverter.point, axis: EGR_TEE_PORTS.diverter.axis }]),
+  seatZone('egr-hose-diverter', 'air-diverter', [{ point: DIVERTER_VAC_EGR, axis: DIVERTER_VAC_EGR_AXIS }]),
+  seatZone('heater-hose-right', 'heater-dist-piece', [{ point: [hb.x + 26, 64, hb.z], axis: [1, 0, 0] }]),
+  seatZone('heater-hose-left', 'heater-dist-piece', [{ point: [hb.x - 26, 64, hb.z], axis: [-1, 0, 0] }]),
+  seatZone('heater-hose-right', 'heat-exchanger-right', [{ point: rightStub.tip, axis: rightStub.axis }]),
+  seatZone('heater-hose-left', 'heat-exchanger-left', [{ point: leftStub.tip, axis: leftStub.axis }]),
+  seatZone('heater-hose-link', 'heater-socket', [{ point: [245, hb.y, 340], axis: [1, 0, 0] }]),
+  seatZone('heater-hose-link', 'heater-blower', [{ point: HEATER_BLOWER_INLET.point, axis: HEATER_BLOWER_INLET.axis }]),
+  seatZone('heater-clamps', 'heat-exchanger-right', [{ point: rightStub.tip, axis: rightStub.axis }]),
+  seatZone('heater-clamps', 'heat-exchanger-left', [{ point: leftStub.tip, axis: leftStub.axis }]),
+];
+function sampleOnSeat(p: THREE.Vector3, tip: THREE.Vector3, axis: THREE.Vector3) {
+  const d = p.clone().sub(tip);
+  const along = d.dot(axis);
+  if (along < -12 || along > 5) return false;
+  const radial = Math.sqrt(Math.max(0, d.lengthSq() - along * along));
+  return radial < 18;
+}
+function hoseSeatZone(h: Hit): boolean | null {
+  const z = SEAT_ZONES.find((s) => (s.a.test(h.a) && s.b.test(h.b)) || (s.a.test(h.b) && s.b.test(h.a)));
+  if (!z) return null;
+  if (!h.samples.length) return false;
+  return h.samples.every((p) => z.tips.some((tip, i) => sampleOnSeat(p, tip, z.axes[i])));
+}
+
 export function allowedClash(h: Hit): boolean {
   const s = tensionerHousingPair(h);
   if (s) return h.samples.length > 0 && h.samples.every((p) => tensionerSeatSample(s, p));
   const cs = chainTensionerSide(h);
   if (cs) return h.samples.length > 0 && h.samples.every((p) => chainOnIdlerSample(cs, p));
+  const seat = hoseSeatZone(h);
+  if (seat != null) return seat;
   return isMating(h.a, h.b);
 }

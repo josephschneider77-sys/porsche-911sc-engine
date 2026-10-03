@@ -196,8 +196,21 @@ describe.each([false, true])('ancillary clearance at 0 and 0.5 mm (emissions %s)
     it(`no unlisted clash on these parts at ${tol} mm erosion`, () => {
       const hits = findCollisions(tol, only);
       const bad = hits
-        .filter((h) => (OURS.test(h.a) || OURS.test(h.b)) && !isMating(h.a, h.b))
+        .filter((h) => (OURS.test(h.a) || OURS.test(h.b)) && !allowedClash(h))
         .map((h) => `${h.a} x ${h.b} (${h.tris} tri, box ${h.box.min.toArray().map((n) => n.toFixed(0)).join(',')})`);
+      expect(bad).toEqual([]);
+    });
+  }
+  const PROBE = /^(air-hose-|egr-hose-|heater-hose-|air-clamp-|egr-clamp-|heater-clamp|heater-hose-supports|air-inj-vac-cap|egr-tee-cap)/;
+  for (const tol of [2, 3.5]) {
+    it(`no buried hose, clamp or cap at ${tol} mm erosion`, () => {
+      // A listed hose-on-barb seat, limited to the push-on, is not a burial.
+      // A clamp on its own hose is a host joint. Clamp-to-clamp and a cap on
+      // anything else still fail. Throttle nipples are not allowlisted.
+      const hits = findCollisions(tol, only);
+      const bad = hits
+        .filter((h) => (PROBE.test(h.a) || PROBE.test(h.b)) && !allowedClash(h))
+        .map((h) => `${h.a} x ${h.b} (${h.tris} tri)`);
       expect(bad).toEqual([]);
     });
   }
