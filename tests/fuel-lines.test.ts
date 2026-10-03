@@ -162,22 +162,22 @@ describe('1978 CIS fuel lines', () => {
     const ends = serviceHoses().flatMap((h) => [h.a, h.b]);
     const seated = ends.filter((e) => new THREE.Vector3(...e.point).distanceTo(tip) <= 0.5);
     expect(seated, 'TEE_AIR_INJ is a handoff to Bottom End, not an end of a hose drawn here').toEqual([]);
-    const root = ASSET_BUILDERS[PART_BY_ID['vacuum-fittings'].asset]();
-    root.updateMatrixWorld(true);
-    let onTee = false;
-    let badParent = false;
-    let line = false;
-    root.traverse((o: any) => {
-      if (typeof o.name === 'string' && o.name.startsWith('line:vac-airinj')) line = true;
-      if (!o.isMesh || !o.parent) return;
+    const housing = ASSET_BUILDERS[PART_BY_ID['throttle-housing'].asset]();
+    housing.updateMatrixWorld(true);
+    let onHousing = false;
+    housing.traverse((o: any) => {
+      if (!o.isMesh) return;
       const box = new THREE.Box3().setFromObject(o);
-      if (box.distanceToPoint(tip) >= 0.6) return;
-      if (o.parent.name === 'fitting:vac-air-t') onTee = true;
-      if (o.parent.name === 'fitting:vac-t') badParent = true;
+      if (box.distanceToPoint(tip) < 0.6) onHousing = true;
     });
-    expect(onTee, 'the diverter barb is part of fitting:vac-air-t').toBe(true);
-    expect(badParent, '107-10 #14 has no diverter barb').toBe(false);
-    expect(line).toBe(false);
+    expect(onHousing, 'the diverter barb is cast into the throttle housing').toBe(true);
+    const vac = ASSET_BUILDERS[PART_BY_ID['vacuum-fittings'].asset]();
+    vac.updateMatrixWorld(true);
+    let splice = false;
+    vac.traverse((o: any) => {
+      if (typeof o.name === 'string' && (o.name === 'fitting:vac-air-t' || o.name.startsWith('line:vac-manifold-b'))) splice = true;
+    });
+    expect(splice, 'the unlisted splice T is gone').toBe(false);
   });
 
   it('every banjo or union on the distributor has exactly one fuel line', () => {

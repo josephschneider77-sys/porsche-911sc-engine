@@ -77,40 +77,42 @@ export const MOULDED_TEE = {
   root: 3,
 } as const;
 /**
- * Manifold-vacuum splice, not a catalogue line.
- * 107-10 #14 (999 137 004 40) is the one T on the nine-piece harness. 202-05 #18
- * is the same part number, qty 1, and Bottom End already models it as `egr-tee`.
- * Kat 502 p.141 (108-00) lists hose #31 and no T-piece. #31 leaves the diverter's
- * own upper nipple (`DIVERTER_VAC`); the lower nipple is 202-05 #17. The splice
- * stays so that hose has a manifold seat. It is not #18. The branch points down.
- * The tip is TEE_AIR_INJ.
+ * How far a rubber hose slides onto a small barb, measured inboard from the tip.
+ * The emissions-off cap on TEE_AIR_INJ covers 5 mm of an 8 mm barb.
  */
-export const AIR_TEE = { origin: [-18, 304, 50] as V3 };
-/**
- * Free barb of the unlisted manifold splice. Seat for 108-00 #31 (999 239 003 40,
- * 3.2×7, 750 mm). Axis is straight down, and the tip sits high enough that 30 mm
- * of that ray clears the plenum lid. The emissions-off cap is built on this
- * constant: root 8 mm above the tip, radius 2.8. Bottom End's air-hose-vacuum is
- * still the hardcoded run and does not end here yet.
- */
-/** How far a rubber hose slides onto a small barb, measured inboard from the tip. */
 export const HOSE_ENGAGE = 7;
+/**
+ * One of the two cast-in nipples on the throttle housing (Kat 502 p.177, 202-05,
+ * upper left). They leave the same boss side by side, 11 mm apart, both straight
+ * down. Page 141 (108-00) draws hose #31 (999 239 003 40, 3.2×7) as an L leaving
+ * the diverter's upper nipple; the far end runs off that sheet and no T-piece is
+ * listed. The seat is inferred from the pair, not from a drawn end. The nipple is
+ * part of housing 930 110 248 02, not its own catalogue line.
+ *
+ * Axis stays straight down. The emissions-off cap is built on this constant as
+ * cylBetween([x, y+8, z], [x, y, z], 2.8, 10) and Bottom End is not edited.
+ * Bottom End's air-hose-vacuum is still the hardcoded run and does not end here.
+ */
 export const TEE_AIR_INJ = {
-  point: [AIR_TEE.origin[0], AIR_TEE.origin[1] - MOULDED_TEE.half, AIR_TEE.origin[2]] as V3,
+  point: [-46, 237, 129] as V3,
   axis: [0, -1, 0] as V3,
+  barbR: 2.8,
+  /** Free brass from the boss face to the tip. */
+  pushOn: 8,
 };
 /**
- * Ported-vacuum nipple on throttle housing 930 110 248 02 (107-10 #4, Kat 502 p.110).
- * Seat for the EGR hose 202-05 #16 (999 239 003 40, 770 mm). That illustration is
- * not in the extract. On fig 107-10 the takeoff is a nipple on the housing body,
- * beside the bore, not a pulley-face stub aimed at the fan. A +Z nipple on the
- * lever pad meets the alternator slip-ring shield at z 164, 18 mm off the tip.
- * This one leaves the left side of the barrel on −X, 90° from +Z, so the hose
- * has a straight lead-in clear of that shield.
+ * The other nipple of that pair. EGR hose #15 (40 mm) leaves one of them for
+ * T-piece #18. Bottom End owns the long hose and will re-end it; this constant
+ * moves with the pair, so the existing 52 mm lead now runs downward. Cross-check
+ * 107-10 #4 (p.110): the takeoff is on throttle housing 930 110 248 02, beside
+ * the bore, not a pulley-face stub. A +Z nipple on the lever pad meets the
+ * alternator slip-ring shield at z 164.
  */
 export const THROTTLE_PORTED_VAC = {
-  point: [-48, 210, 110] as V3,
-  axis: [-1, 0, 0] as V3,
+  point: [-46, 237, 118] as V3,
+  axis: [0, -1, 0] as V3,
+  barbR: 3.2,
+  pushOn: 8,
 };
 /** Auxiliary air valve mount. Prototype +Y is world −Z; the two barbs are prototype ±X. */
 export const AAV_MOUNT = { origin: [52, 200, -95.6] as V3, normal: [0, 0, -1] as V3 };
@@ -1119,8 +1121,11 @@ function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5,
   return pts;
 }
 
-/** Band around a hose. Major radius leaves 0.2 mm of air on the tube, so the wire does not cut it. */
-function hoseClampAt(p: Part, pts: V3[], u: number, hoseR: number, gap = 1.8) {
+/** Wire radius of a small hose clamp. The torus major radius is hose OD plus this. */
+const CLAMP_WIRE = 0.7;
+
+/** Band around a hose. Inner radius equals the hose radius, so the wire reads as tightened. */
+function hoseClampAt(p: Part, pts: V3[], u: number, hoseR: number, wire = CLAMP_WIRE) {
   const n = pts.length - 1;
   const f = Math.min(0.98, Math.max(0.02, u)) * n;
   const i = Math.min(n - 1, Math.floor(f));
@@ -1130,7 +1135,7 @@ function hoseClampAt(p: Part, pts: V3[], u: number, hoseR: number, gap = 1.8) {
   const tan = p1.clone().sub(p0);
   if (tan.lengthSq() < 1e-8) return;
   tan.normalize();
-  const g = torus(hoseR + gap, 0.7, 6, 16);
+  const g = torus(hoseR + wire, wire, 6, 16);
   g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), tan));
   g.translate(c.x, c.y, c.z);
   p.add(g, 'zincPlate');
@@ -1174,8 +1179,8 @@ export function mouldedTee(origin: V3, branch: V3, hoseR: { minusX: number; plus
   const ringAt = (tip: V3, axis: V3, hr: number) => {
     if (hr <= 0) return;
     const c = add(tip, axis, -HOSE_ENGAGE / 2);
-    // The band sits on the sleeve, which is thicker than the free run when the barb needs the wall.
-    const ring = torus(sleeveOuter(hr, barbR) + 0.85, 0.7, 6, 14);
+    // Inner radius is the sleeve OD. The sleeve is the rubber under the wire.
+    const ring = torus(sleeveOuter(hr, barbR) + CLAMP_WIRE, CLAMP_WIRE, 6, 14);
     ring.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...axis)));
     g.add(mesh(ring, 'zincPlate', c));
   };
@@ -1187,10 +1192,6 @@ export function mouldedTee(origin: V3, branch: V3, hoseR: { minusX: number; plus
 
 function vacTPorts() {
   return mouldedTeePorts(VAC_T.origin, [0, 1, 0]);
-}
-
-function airTeePorts() {
-  return mouldedTeePorts(AIR_TEE.origin, [0, -1, 0]);
 }
 
 /**
@@ -1273,7 +1274,6 @@ function vacLimitPort() {
 export function serviceHoses(): FuelLineDef[] {
   const aav = aavPorts();
   const t = vacTPorts();
-  const air = airTeePorts();
   const lim = vacLimitPort();
   const barb = MOULDED_TEE.barbR;
   const on = (point: V3, axis: V3, r: number = barb, segs = 10) => endOf('vacuum-fittings', point, axis, { r, segs });
@@ -1281,11 +1281,10 @@ export function serviceHoses(): FuelLineDef[] {
   return [
     { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis, { r: 5.2, segs: 12 }), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis, { r: 9, segs: 14 }) },
     { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis, { r: 9, segs: 14 }), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis, { r: 4.6, segs: 12 }) },
-    // Small hoses (3.2×7). The manifold run is two segments: the unlisted splice
-    // sits between the plenum nipple and 107-10 #14. 108-00 #31 is not one of
-    // them. It seats on TEE_AIR_INJ, the splice's down barb, which has no hose yet.
-    { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis, { r: 3.4, segs: 10 }), b: on(air.minusX.tip, air.minusX.axis) },
-    { id: 'vac-manifold-b', part: 'vacuum-fittings', a: on(air.plusX.tip, air.plusX.axis), b: on(t.minusX.tip, t.minusX.axis) },
+    // Small hose (3.2×7). One run from the plenum nipple to 107-10 #14. The
+    // unlisted splice is gone. 108-00 #31 seats on TEE_AIR_INJ, on the throttle
+    // housing, and has no hose in this part.
+    { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis, { r: 3.4, segs: 10 }), b: on(t.minusX.tip, t.minusX.axis) },
     { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis, { r: 3.6, segs: 10 }) },
     { id: 'vac-distributor', part: 'vacuum-fittings', a: port(VAC_THERMO.dist), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir, { r: 2.3, segs: 10 }) },
     // Ø9 from 107-10 #14 up to thermo valve 17A. Catalogue cut is #13, 245 mm
@@ -1328,12 +1327,9 @@ export function vacuumHosesPart() {
     const h = byId[id];
     return addHose(p, id, h.a, h.b, mids, 7, ahead, lead, lead, 6);
   };
-  // Up off the plenum nipple, then a short lead onto the splice tee's −X barb.
+  // Up off the plenum nipple, across, and onto 107-10 #14's −X barb. One hose.
   const mani = byId['vac-manifold'];
-  addHose(p, mani.id, mani.a, mani.b, [[-32, 286, 46]], 3.2, 6, 6, 4, 8, 1);
-  // The other collinear barb drops onto 107-10 #14. Both leads point at each other.
-  const maniB = byId['vac-manifold-b'];
-  addHose(p, maniB.id, maniB.a, maniB.b, [[-6, 282, 56]], 3.2, 2, 4, 4, 8, 2);
+  addHose(p, mani.id, mani.a, mani.b, [[-32, 286, 46], [-16, 282, 56]], 3.2, 6, 6, 4, 8, 2);
   small('vac-limiter', [[70, 268, 40], [108, 270, -20], [108, 268, -72]]);
   // End on DIST_VAC_NIPPLE. `ahead` 44 mm is the straight leg each 18 mm fillet needs
   // (2.5× the 7 mm catalogue OD). The first waypoint is on the barb axis. The run
@@ -1352,7 +1348,7 @@ export function vacuumHosesPart() {
   ], 3.2, 44, 8, 16, 18);
   // Direct run from the T up-barb to thermo valve 17A.
   // 107-10 #13 is 245 mm. #13A (30 mm) and #16 (40 mm, 8×14) cannot span these
-  // two fittings; #13B is 370 mm. The old path looped outboard around the splice.
+  // two fittings; #13B is 370 mm. The old path looped outboard.
   // Through the meter's waist (r 20 at y ≈ 267), inboard of the aux-air sleeve on
   // that barb, then up over the flange screws. The neck is x 36, z −8, r 16.
   // 107-10 #13 is 245 mm. #13A is 30 mm, #13B is 370 mm, #16 is 40 mm of 8×14.
@@ -1420,21 +1416,28 @@ export function throttleHousingPart() {
   p.add(spring(5.5, 0.55, -8, 8, 4).rotateZ(Math.PI / 2).translate(-18, y, 106), 'darkSteel');
   // Lever pad. Top face y 236.6 is the linkage plate's seat. Nothing of the housing is above it there.
   p.add(boxMM([28, 228, 106], [50, 236.6, 120]), 'castAlu');
-  // Ported-vacuum nipple. Tip and axis are THROTTLE_PORTED_VAC. The run is −X, outboard
-  // of the bore (107-10 #4), and the root sits on the barrel wall. The ring is 3 mm inboard of the tip.
+  // Both nipples of the p.177 pair. One boss on the pulley end of the barrel,
+  // left of the bore. Underside is the shared root plane; both barbs hang
+  // straight down, 11 mm apart in Z. TEE_AIR_INJ is the shape the emissions-off
+  // cap is built for (8 mm, radius 2.8, 10 sides) and stays bare: #31 is not
+  // drawn onto it here, so that nipple has no clamp.
   {
-    const pv = THROTTLE_PORTED_VAC.point;
-    const ax = THROTTLE_PORTED_VAC.axis;
-    const barrelR = 28;
-    const dy = pv[1] - y;
-    const rootX = -Math.sqrt(barrelR * barrelR - dy * dy);
-    p.add(cylBetween([rootX, pv[1], pv[2]], pv, 3.2, 12), 'brass');
-    // 202-05 #16 slides 4 mm onto this nipple (bottomAnc, not edited here).
-    // The band sits on that hose's OD, inside the overlap, not on the bare brass.
+    const air = TEE_AIR_INJ;
+    const egr = THROTTLE_PORTED_VAC;
+    const rootY = air.point[1] + air.pushOn;
+    p.add(boxMM([-54, rootY, 113], [-12, rootY + 14, 142]), 'castAlu');
+    const hang = (tip: V3, r: number, segs: number) => {
+      p.add(cylBetween([tip[0], rootY, tip[2]], tip, r, segs), 'brass');
+    };
+    hang(egr.point, egr.barbR, 12);
+    hang(air.point, air.barbR, 10);
+    // 202-05 #16 slides 4 mm onto the EGR nipple (bottomAnc, not edited here).
+    // The band's inner radius is that hose's OD, 2 mm inboard of the tip.
     const egrHoseR = 3.5;
-    const ring = torus(egrHoseR + 0.85, 0.7, 6, 14);
+    const ax = egr.axis;
+    const ring = torus(egrHoseR + CLAMP_WIRE, CLAMP_WIRE, 6, 14);
     ring.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...ax)));
-    ring.translate(pv[0] - ax[0] * 2, pv[1] - ax[1] * 2, pv[2] - ax[2] * 2);
+    ring.translate(egr.point[0] - ax[0] * 2, egr.point[1] - ax[1] * 2, egr.point[2] - ax[2] * 2);
     p.add(ring, 'zincPlate');
   }
   // 4 × M6 heads. Angles keep them off the vacuum hose that climbs past the top of the flange.

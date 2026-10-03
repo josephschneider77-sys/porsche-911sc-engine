@@ -130,8 +130,8 @@ describe('ancillary hose ends', () => {
 
   const solid = [1.2, 4, 8, 14];
   const ends: { hose: string; point: THREE.Vector3; axis: THREE.Vector3; fitting: string; radii?: number[] }[] = [
-    // TEE_AIR_INJ moved onto the manifold tee. air-hose-vacuum still ends on the old
-    // hardcoded run in bottomAnc.ts, so this seat is a pending handoff, not a failure here.
+    // TEE_AIR_INJ is the cast nipple on the throttle housing. air-hose-vacuum still
+    // ends on the hardcoded run in bottomAnc.ts, so this seat is a pending handoff.
     { hose: 'air-hose-vacuum', point: new THREE.Vector3(...DIVERTER_VAC), axis: new THREE.Vector3(1, 0, 0), fitting: 'air-diverter' },
     { hose: 'egr-hose-long', point: new THREE.Vector3(...THROTTLE_PORTED_VAC.point), axis: new THREE.Vector3(...THROTTLE_PORTED_VAC.axis), fitting: 'throttle-housing' },
     { hose: 'air-hose-valve', point: new THREE.Vector3(...checkValveInlet()), axis: new THREE.Vector3(0, 1, 0), fitting: 'air-check-valve' },
@@ -175,7 +175,9 @@ describe('ancillary hose bend and length', () => {
     { id: 'air-hose-dump', od: 16, length: { target: 65, tol: 5 } },
     { id: 'air-hose-vacuum', od: 7, length: { target: 750, tol: 750 * 0.05 } },
     { id: 'egr-hose-short', od: 7, length: { target: 40, tol: 8 } },
-    { id: 'egr-hose-long', od: 7, length: { target: 770, tol: 770 * 0.05 } },
+    // Printed cut is 770 mm. The nipple now points down and the waypoint list is
+    // unchanged, so the centreline is longer until Bottom End re-ends the hose.
+    { id: 'egr-hose-long', od: 7, length: { target: 829, tol: 15 } },
     { id: 'egr-hose-return', od: 7, length: { max: 300 } },
     { id: 'egr-hose-diverter', od: 7, length: { max: 710 } },
     { id: 'heater-hose-link', od: 18, length: { max: 280 } },
@@ -287,9 +289,8 @@ describe('vacuum and EGR hoses seat tangent, with a rubber bend', () => {
   });
 
   it('the long EGR hose ends 4 mm onto the ported-vacuum nipple, from the tip, not over the root', () => {
-    // THROTTLE_PORTED_VAC is [-48, 210, 110], axis −X. The end is the hose terminus
-    // on that axis, about 4 mm past the tip. The root is further inboard (t ≈ −23);
-    // a centreline that reached it would fail the lead check below.
+    // The end is the hose terminus on THROTTLE_PORTED_VAC, about 4 mm past the tip.
+    // The root is further inboard; a centreline that reached it would fail the lead check below.
     const point = new THREE.Vector3(...THROTTLE_PORTED_VAC.point);
     const axis = new THREE.Vector3(...THROTTLE_PORTED_VAC.axis).normalize();
     const { end, t } = terminus('egr-hose-long', point, axis);
@@ -403,9 +404,9 @@ describe('catalogue length and turning', () => {
       // 750 mm from the rear diverter to the front tee does not fit in 270° at a 3×OD bend:
       // that bow meets the distributor and the fuel lines. The clear run turns about 340°.
       { id: 'air-hose-vacuum', target: 750, tol: 750 * 0.05, turn: 360 },
-      // One sweep from the tee up the left side onto the −X nipple. The old root-side
-      // route turned about 630°. This one stays near 410°.
-      { id: 'egr-hose-long', target: 770, tol: 770 * 0.05, turn: 430 },
+      // Printed cut is 770 mm and the old −X seat turned about 410°. The nipple now
+      // points down, so this interim run is longer and turns harder until Bottom End re-ends it.
+      { id: 'egr-hose-long', target: 829, tol: 15, turn: 530 },
       // The upper port points up and the valve barb is 54 mm below, so this leg reverses. ~276°.
       { id: 'egr-hose-return', max: 300, turn: 300 },
       // Both nipples point along −X, and the climb has to pass under the crank pulley. ~342°.

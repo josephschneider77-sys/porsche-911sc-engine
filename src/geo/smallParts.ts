@@ -14,7 +14,7 @@ import { LIP_Z } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
 import { VARIANT } from '../data/variant';
 import { catalyticConverterPart, registerAncillarySmall } from './bottomAnc';
-import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, AIR_TEE, mouldedTee, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
+import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, mouldedTee, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const X = V(1, 0, 0), Y = V(0, 1, 0), Z = V(0, 0, 1);
@@ -462,12 +462,6 @@ def('vacuum-fittings', () => {
   const t = mouldedTee(VAC_T.origin, [0, 1, 0], { minusX: 3.2, plusX: 3.2, branch: 4.5 });
   t.name = 'fitting:vac-t';
   p.g.add(t);
-  // Unlisted splice in the manifold hose. Not 202-05 #18 (that qty-1 T is egr-tee)
-  // and not a second 999 137 004 40. Stays in this part so the emissions-off cap
-  // still has a barb when the air-injection group is hidden. The down barb is bare.
-  const air = mouldedTee(AIR_TEE.origin, [0, -1, 0], { minusX: 3.2, plusX: 3.2, branch: 0 });
-  air.name = 'fitting:vac-air-t';
-  p.g.add(air);
   p.g.add(vacuumCluster().g);
   p.g.add(vacuumHosesPart().g);
   return p;
