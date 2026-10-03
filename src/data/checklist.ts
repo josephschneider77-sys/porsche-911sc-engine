@@ -223,7 +223,9 @@ export const CLAIMS: Claim[] = [
   // ---- 107-00 / 107-10 CIS
   // 107-00 #1 and #2 are tagged 930.03/09 in Kat 502, so they are excluded for 930/04. The CIS meshes stay.
   C('107-10#7', 'vacuum-limiter'), C('107-10#8', 'vacuum-limiter', 'sleeve'), C('107-10#9', 'vacuum-limiter', 'bolt'), C('107-10#10', 'vacuum-limiter', 'spring'),
-  C('107-10#12', 'vacuum-fittings', 'clamp', 4), C('107-10#14', 'vacuum-fittings'), C('107-10#15', 'vacuum-fittings', 'clamp', 1), C('107-10#17', 'vacuum-fittings', 'socket'),
+  C('107-10#12', 'vacuum-fittings', 'clamp', 4),
+  C('107-10#14', 'vacuum-fittings', 'item', undefined, 'The only 107-10 T. The manifold splice beside it is not a catalogue line and is not 202-05 #18.'),
+  C('107-10#15', 'vacuum-fittings', 'clamp', 1), C('107-10#17', 'vacuum-fittings', 'socket'),
   C('107-10#1#900 067 089 02', 'afm-screws'), C('107-10#2', 'afm-screws', 'spring'), C('107-10#3', 'afm-screws', 'washer'),
   C('107-10#4#930 110 248 02', 'throttle-housing'), C('107-10#5', 'throttle-housing', 'spring'), C('107-10#6', 'throttle-housing', 'oring'),
   C('107-10#18', 'air-guide'),
@@ -290,7 +292,8 @@ export const CLAIMS: Claim[] = [
   C('202-05#15', 'egr-hose-short'), C('202-05#16', 'egr-hose-long'),
   C('202-05#17', 'egr-hose-return', 'item', 1, 'Return leg. The printed 465 mm is the diverter piece; these two ends are a short arc.'),
   C('202-05#17', 'egr-hose-diverter', 'item', 1, 'Diverter leg. 465 mm does not clear the left case; the modelled run is the short clear route.'),
-  C('202-05#18', 'egr-tee'), C('202-05#19', 'egr-buffer'),
+  C('202-05#18', 'egr-tee', 'item', 1, '999 137 004 40, qty 1, modelled as egr-tee. The manifold splice is not this T.'),
+  C('202-05#19', 'egr-buffer'),
 ];
 
 const range = (ill: string, pos: (string | number)[], why: string): NotApplicable[] => pos.map((p) => ({ line: `${ill}#${p}`, why }));
@@ -318,7 +321,8 @@ export const NOT_APPLICABLE: NotApplicable[] = [
   { line: '107-00#15', why: 'parts kit (no separate item)' },
   { line: '107-10#-#930 110 292 00', why: 'stopper with no illustration in Kat 502 fig 107-10; not placed on the 930/04 flap housing' },
   { line: '107-10#-#930 110 292 00#2', why: 'stopper with no illustration in Kat 502 fig 107-10; not placed on the 930/04 flap housing' },
-  ...['N 020 359 1', 'N 020 353 5', '999 181 709 50'].map((pn) => ({ line: `107-10#-#${pn}`, why: 'bulk hose sold by the metre (qty *), cut to length on assembly' })),
+  ...['N 020 359 1', '999 181 709 50'].map((pn) => ({ line: `107-10#-#${pn}`, why: 'bulk hose sold by the metre (qty *), cut to length on assembly' })),
+  { line: '107-10#-#N 020 353 5', why: 'bulk hose sold by the metre (qty *). The thermo-valve run is cut #13, 245 mm (3.5×2), from illustration 17A to T-piece #14. #13A is 30 mm, #13B is 370 mm and #16 is 40 mm of 8×14; none of those spans that pair.' },
   { line: '301-00#-#915 116 911 00', why: 'repair kit (no separate item)' },
   { line: '901-00#10', why: 'dust cover under the distributor cap (internal, hidden by the cap)' },
   ...range('901-00', [11, 12, 13, 14, 15, 20], 'ignition coil and its mounting / tower cap: ' + BODY + ' (left rear wing)'),

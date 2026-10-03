@@ -454,17 +454,18 @@ def('additional-air-valve', () => {
   return p;
 }, () => [new THREE.Matrix4()]);
 def('aux-air-plumbing', () => auxAirPlumbingPart(), () => [new THREE.Matrix4()]);
-def('vacuum-limiter', () => { const p = new Part(); p.add(lathe([[0.1, 0], [16, 0], [16, 20], [0.1, 20]], 24), 'satinBlack'); p.add(cylBetween([0, 10, 0], [22, 10, 0], 3.6, 10), 'blackPlastic'); p.add(cyl(4.2, 5, 12).translate(0, 23, 0), 'zincPlate'); p.add(hexNut(10, 5).translate(0, 28, 0), 'zincPlate'); p.add(lathe([[3.6, 20], [6.2, 20], [6.2, 21.3], [3.6, 21.3]], 12), 'darkSteel'); return p; }, () => [M(V(...VAC_LIMIT.origin), Y)]);
+def('vacuum-limiter', () => { const p = new Part(); p.add(lathe([[0.1, 0], [16, 0], [16, 20], [0.1, 20]], 24), 'satinBlack'); p.add(cylBetween([0, 10, 0], [24, 10, 0], 3.6, 10), 'blackPlastic'); p.add(cyl(4.2, 5, 12).translate(0, 23, 0), 'zincPlate'); p.add(hexNut(10, 5).translate(0, 28, 0), 'zincPlate'); p.add(lathe([[3.6, 20], [6.2, 20], [6.2, 21.3], [3.6, 21.3]], 12), 'darkSteel'); return p; }, () => [M(V(...VAC_LIMIT.origin), Y)]);
 def('vacuum-fittings', () => {
   const p = new Part();
   // Identity pose so the named vacuum hoses survive export (instancing drops mesh names).
   // 107-10 #14. Plain moulded T: manifold, limiter, and the leg up to thermo valve 17A.
-  const t = mouldedTee(VAC_T.origin, [0, 1, 0]);
+  const t = mouldedTee(VAC_T.origin, [0, 1, 0], { minusX: 3.2, plusX: 3.2, branch: 4.5 });
   t.name = 'fitting:vac-t';
   p.g.add(t);
-  // Second 999 137 004 40 spliced into the manifold hose. Stays in this part so the
-  // emissions-off cap still has a barb when the air-injection group is hidden.
-  const air = mouldedTee(AIR_TEE.origin, [0, -1, 0]);
+  // Unlisted splice in the manifold hose. Not 202-05 #18 (that qty-1 T is egr-tee)
+  // and not a second 999 137 004 40. Stays in this part so the emissions-off cap
+  // still has a barb when the air-injection group is hidden. The down barb is bare.
+  const air = mouldedTee(AIR_TEE.origin, [0, -1, 0], { minusX: 3.2, plusX: 3.2, branch: 0 });
   air.name = 'fitting:vac-air-t';
   p.g.add(air);
   p.g.add(vacuumCluster().g);

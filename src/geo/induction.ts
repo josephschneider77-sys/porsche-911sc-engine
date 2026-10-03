@@ -9,7 +9,7 @@ import {
   Part, V3, lathe, boxMM, cyl, cylBetween, extrude, roundRect, circlePath, hexNut, tube, torus, mesh, cutGroup, csgSub, spring,
 } from './util';
 import { CYL_Z, INTAKE_PORT, INJ, bankOf } from '../data/layout';
-import { DIST_VAC_NIPPLE } from './aux';
+import { DIST_MAT, DIST_VAC_NIPPLE } from './aux';
 
 const CYLS = [1, 2, 3, 4, 5, 6] as const;
 
@@ -77,19 +77,24 @@ export const MOULDED_TEE = {
   root: 3,
 } as const;
 /**
- * Second 999 137 004 40, spliced into the manifold-vacuum hose.
- * 108-00 (Kat 502 p.141) lists hose #31 and no T-piece. 202-05 #18 is the emissions
- * group's own T-piece, so the diverter signal is that second fitting, not a fourth
- * port on 107-10 #14. The branch points down. The tip is TEE_AIR_INJ.
+ * Manifold-vacuum splice, not a catalogue line.
+ * 107-10 #14 (999 137 004 40) is the one T on the nine-piece harness. 202-05 #18
+ * is the same part number, qty 1, and Bottom End already models it as `egr-tee`.
+ * Kat 502 p.141 (108-00) lists hose #31 and no T-piece. #31 leaves the diverter's
+ * own upper nipple (`DIVERTER_VAC`); the lower nipple is 202-05 #17. The splice
+ * stays so that hose has a manifold seat. It is not #18. The branch points down.
+ * The tip is TEE_AIR_INJ.
  */
 export const AIR_TEE = { origin: [-18, 304, 50] as V3 };
 /**
- * Free barb of the spliced manifold tee. Seat for 108-00 #31 (999 239 003 40,
+ * Free barb of the unlisted manifold splice. Seat for 108-00 #31 (999 239 003 40,
  * 3.2×7, 750 mm). Axis is straight down, and the tip sits high enough that 30 mm
  * of that ray clears the plenum lid. The emissions-off cap is built on this
  * constant: root 8 mm above the tip, radius 2.8. Bottom End's air-hose-vacuum is
  * still the hardcoded run and does not end here yet.
  */
+/** How far a rubber hose slides onto a small barb, measured inboard from the tip. */
+export const HOSE_ENGAGE = 7;
 export const TEE_AIR_INJ = {
   point: [AIR_TEE.origin[0], AIR_TEE.origin[1] - MOULDED_TEE.half, AIR_TEE.origin[2]] as V3,
   axis: [0, -1, 0] as V3,
@@ -122,6 +127,10 @@ export interface FuelEnd {
   point: V3;
   /** Unit axis pointing out of the fitting, along the line as it leaves. */
   axis: V3;
+  /** Barb radius the hose bore sits on. Absent on a hard-line seat. */
+  barbR?: number;
+  /** Facet count of that barb, so the bore flats share its faces. */
+  barbSegs?: number;
 }
 export interface FuelLineDef {
   id: string;
@@ -324,8 +333,13 @@ const CSV_BANJO = (() => {
   return banjoFrame(face, axis, stub);
 })();
 
-function endOf(part: string, point: V3, axis: V3): FuelEnd {
-  return { part, point, axis: norm(axis) };
+function endOf(part: string, point: V3, axis: V3, barb?: { r: number; segs?: number }): FuelEnd {
+  return {
+    part,
+    point,
+    axis: norm(axis),
+    ...(barb ? { barbR: barb.r, barbSegs: barb.segs ?? 10 } : {}),
+  };
 }
 
 export const FUEL_LINES: FuelLineDef[] = [
@@ -1004,14 +1018,102 @@ function hoseCentre(a: FuelEnd, b: FuelEnd, mids: V3[], ahead = 10, lead = 8, le
   return filleted([a1, add(a.point, A, lead + ahead), ...mids, add(b.point, B, leadB + aheadB), b1], fillet);
 }
 
+function reverseWinding(g: THREE.BufferGeometry) {
+  const idx = g.getIndex();
+  if (!idx) return g;
+  const a = idx.array;
+  for (let i = 0; i < a.length; i += 3) {
+    const t = a[i];
+    a[i] = a[i + 2];
+    a[i + 2] = t;
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * Roll of the barb's CylinderGeometry. World-space `cylBetween` barbs share
+ * `setFromUnitVectors(+Y, axis)`. A barb baked through a part matrix keeps that
+ * matrix's roll, or the bore flats cut the barb.
+ */
+function sleeveQuat(end: FuelEnd): THREE.Quaternion {
+  const axis = new THREE.Vector3(...end.axis).normalize();
+  if (end.part === 'aux-air-valve') {
+    const xCol = new THREE.Vector3().setFromMatrixColumn(aavMatrix(), 0);
+    const sign = axis.dot(xCol) >= 0 ? 1 : -1;
+    const qLocal = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(sign, 0, 0));
+    return new THREE.Quaternion().setFromRotationMatrix(aavMatrix()).multiply(qLocal);
+  }
+  if (end.part === 'distributor') return new THREE.Quaternion().setFromRotationMatrix(DIST_MAT);
+  return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
+}
+
+/**
+ * Push-on end. The bore is the barb's own prism (same radius, same facets), so
+ * the rubber sits on the surface and does not enter it. The wall stands outside
+ * that bore. The lip stops 1 mm short of an 8 mm shoulder.
+ */
+/**
+ * Outside radius of a push-on. The bore is the barb. The wall is at least 1.5 mm
+ * so a 1 mm erosion, and the chord of a 10- or 12-sided sleeve, stays outside the barb's end cap.
+ */
+function sleeveOuter(hoseR: number, barbR: number) {
+  return Math.max(hoseR, barbR + 1.5);
+}
+
+function addSleeve(p: Part, id: string, end: FuelEnd, hoseR: number) {
+  const barbR = end.barbR ?? hoseR;
+  const segs = end.barbSegs ?? 10;
+  const q = sleeveQuat(end);
+  // The distributor nipple lies 4 mm outside the cap skirt. A wall swollen past the hose
+  // radius meets that skirt, and the skirt's normals point inward so erosion grows it.
+  // The tip disk also walks 1 mm back along the nipple, so this sleeve stops short of it
+  // and stays at the hose radius. The rubber still covers more than 5 mm of the barb.
+  const besideCap = end.part === 'distributor';
+  const outer = besideCap ? hoseR : sleeveOuter(hoseR, barbR);
+  const yIn = besideCap ? -6.5 : -HOSE_ENGAGE;
+  const yTip = besideCap ? -1.2 : -0.08;
+  const yOut = besideCap ? -1.2 : 0.2;
+  const pose = (g: THREE.BufferGeometry) => {
+    g.applyQuaternion(q);
+    g.translate(end.point[0], end.point[1], end.point[2]);
+    return g;
+  };
+  const shell = new THREE.CylinderGeometry(outer, outer, yOut - yIn, segs, 1, true);
+  shell.translate(0, (yIn + yOut) / 2, 0);
+  addNamed(p, id, pose(shell), 'rubber');
+  const bore = reverseWinding(new THREE.CylinderGeometry(barbR, barbR, yTip - yIn, segs, 1, true));
+  bore.translate(0, (yIn + yTip) / 2, 0);
+  addNamed(p, id, pose(bore), 'rubber');
+  // Inboard lip. Normal points at the shoulder, so erosion walks it back onto the barb.
+  const pos: number[] = [];
+  const nor: number[] = [];
+  for (let i = 0; i < segs; i++) {
+    const a0 = (i / segs) * Math.PI * 2;
+    const a1 = ((i + 1) / segs) * Math.PI * 2;
+    const ring = (a: number, rad: number): [number, number, number] => [Math.sin(a) * rad, yIn, Math.cos(a) * rad];
+    const o0 = ring(a0, outer), o1 = ring(a1, outer), i0 = ring(a0, barbR), i1 = ring(a1, barbR);
+    for (const v of [o0, i0, o1, o1, i0, i1]) {
+      pos.push(...v);
+      nor.push(0, -1, 0);
+    }
+  }
+  const lip = new THREE.BufferGeometry();
+  lip.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  lip.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  addNamed(p, id, pose(lip), 'rubber');
+}
+
 function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5, ahead = 10, lead = 8, leadB = lead, fillet = 10, aheadB = ahead) {
   const A = norm(a.axis), B = norm(b.axis);
-  const start = add(a.point, A, 0.35);
-  const end = add(b.point, B, 0.35);
-  const a1 = add(a.point, A, lead);
-  const b1 = add(b.point, B, leadB);
-  addNamed(p, id, cylBetween(start, a1, r, 8), 'rubber');
-  addNamed(p, id, cylBetween(end, b1, r, 8), 'rubber');
+  const run = (end: FuelEnd, axis: V3, leadLen: number) => {
+    if (end.barbR != null) addSleeve(p, id, end, r);
+    const start = add(end.point, axis, end.barbR != null ? 0.2 : 0.35);
+    const far = add(end.point, axis, leadLen);
+    addNamed(p, id, cylBetween(start, far, r, 8), 'rubber');
+  };
+  run(a, A, lead);
+  run(b, B, leadB);
   const pts = hoseCentre(a, b, mids, ahead, lead, leadB, fillet, aheadB);
   addNamed(p, id, tube(pts, r, 7, Math.max(16, pts.length * 3)), 'rubber');
   return pts;
@@ -1050,10 +1152,10 @@ export function mouldedTeePorts(origin: V3, branch: V3) {
 
 /**
  * Plain T mesh. The junction cylinders are one fitting; they cross on purpose.
- * Each barb carries a clamp ring 6 mm inboard of the tip (5.3 mm of free barb
- * under the wire).
+ * A clamp is a wire on the hose OD, halfway along the 7 mm push-on. `hoseR` 0
+ * leaves that barb bare (the diverter seat has no hose in this part yet).
  */
-export function mouldedTee(origin: V3, branch: V3) {
+export function mouldedTee(origin: V3, branch: V3, hoseR: { minusX: number; plusX: number; branch: number }) {
   const [ox, oy, oz] = origin;
   const { barbR, bodyR, half, root } = MOULDED_TEE;
   const g = new THREE.Group();
@@ -1068,18 +1170,18 @@ export function mouldedTee(origin: V3, branch: V3) {
   put([ox - root, oy, oz], [ox - half, oy, oz], barbR, 'blackPlastic', 10);
   put([ox + root, oy, oz], [ox + half, oy, oz], barbR, 'blackPlastic', 10);
   put(branchRoot, branchTip, barbR, 'blackPlastic', 10);
-  const ringAt = (center: V3, axis: V3) => {
-    const ring = torus(3.6, 0.7, 6, 14);
+  const ports = mouldedTeePorts(origin, branch);
+  const ringAt = (tip: V3, axis: V3, hr: number) => {
+    if (hr <= 0) return;
+    const c = add(tip, axis, -HOSE_ENGAGE / 2);
+    // The band sits on the sleeve, which is thicker than the free run when the barb needs the wall.
+    const ring = torus(sleeveOuter(hr, barbR) + 0.85, 0.7, 6, 14);
     ring.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...axis)));
-    g.add(mesh(ring, 'zincPlate', center));
+    g.add(mesh(ring, 'zincPlate', c));
   };
-  const inset = half - 6;
-  ringAt([ox - inset, oy, oz], [-1, 0, 0]);
-  ringAt([ox + inset, oy, oz], [1, 0, 0]);
-  ringAt(
-    [ox + branch[0] * inset, oy + branch[1] * inset, oz + branch[2] * inset],
-    branch,
-  );
+  ringAt(ports.minusX.tip, ports.minusX.axis, hoseR.minusX);
+  ringAt(ports.plusX.tip, ports.plusX.axis, hoseR.plusX);
+  ringAt(ports.branch.tip, ports.branch.axis, hoseR.branch);
   return g;
 }
 
@@ -1100,23 +1202,25 @@ function airTeePorts() {
  * Additional-air vacuum barb. The valve sits flywheel of the right-bank injector ribbon
  * (that ribbon is z −148, y ≤ 278) so the Ø9 hose never crosses it.
  */
-export const ADD_AIR_VAC = { tip: [104, 300, -210] as V3, axis: [0, 0, 1] as V3 };
+export const ADD_AIR_VAC = { tip: [104, 300, -206] as V3, axis: [0, 0, 1] as V3 };
 const VAC_THERMO = {
-  inn: { tip: [20, 300, -158] as V3, axis: [0, 0, 1] as V3 },
-  dist: { tip: [4, 300, -176] as V3, axis: [-1, 0, 0] as V3 },
-  sock: { tip: [32, 300, -176] as V3, axis: [1, 0, 0] as V3 },
+  inn: { tip: [20, 300, -158] as V3, axis: [0, 0, 1] as V3, r: 3.2, segs: 10 },
+  dist: { tip: [4, 300, -176] as V3, axis: [-1, 0, 0] as V3, r: 3.2, segs: 10 },
+  sock: { tip: [36, 300, -176] as V3, axis: [1, 0, 0] as V3, r: 4.2, segs: 10 },
 };
 const VAC_SOCK = {
-  small: { tip: [46, 300, -176] as V3, axis: [-1, 0, 0] as V3 },
-  large: { tip: [70, 300, -176] as V3, axis: [1, 0, 0] as V3 },
+  small: { tip: [44, 300, -176] as V3, axis: [-1, 0, 0] as V3, r: 4.2, segs: 10 },
+  large: { tip: [74, 300, -176] as V3, axis: [1, 0, 0] as V3, r: 6.4, segs: 12 },
 };
 const VAC_BLOCK = {
-  large: { tip: [88, 300, -176] as V3, axis: [-1, 0, 0] as V3 },
-  med: { tip: [104, 300, -196] as V3, axis: [0, 0, -1] as V3 },
-  u1: { tip: [104, 312, -176] as V3, axis: [0, 1, 0] as V3 },
-  u2: { tip: [128, 312, -176] as V3, axis: [0, 1, 0] as V3 },
-  j1: { tip: [157, 300, -192] as V3, axis: [0, 0, 1] as V3 },
-  j2: { tip: [157, 300, -180] as V3, axis: [0, 0, -1] as V3 },
+  large: { tip: [88, 300, -176] as V3, axis: [-1, 0, 0] as V3, r: 6.4, segs: 12 },
+  med: { tip: [104, 300, -196] as V3, axis: [0, 0, -1] as V3, r: 4.2, segs: 10 },
+  u1: { tip: [104, 316, -176] as V3, axis: [0, 1, 0] as V3, r: 6.4, segs: 12 },
+  u2: { tip: [128, 316, -176] as V3, axis: [0, 1, 0] as V3, r: 6.4, segs: 10 },
+  j1: { tip: [157, 300, -188] as V3, axis: [0, 0, 1] as V3, r: 6.4, segs: 10 },
+  // The two boxes were 20 mm apart. Two 8 mm barbs need the far box moved pulley-ward
+  // so the tips still have a hose between them.
+  j2: { tip: [157, 300, -168] as V3, axis: [0, 0, -1] as V3, r: 6.4, segs: 10 },
 };
 
 function fittingGroup(name: string, parts: [THREE.BufferGeometry, string][]) {
@@ -1132,34 +1236,37 @@ export function vacuumCluster() {
   // Flywheel of the injector ribbon (z −148) and above it (y ≤ 278), so the bodies miss the lines.
   p.g.add(fittingGroup('fitting:vac-thermo', [
     [boxMM([12, 292, -184], [28, 308, -166]), 'blackPlastic'],
-    [cylBetween([20, 300, -166], VAC_THERMO.inn.tip, 3.2, 10), 'brass'],
-    [cylBetween([12, 300, -176], VAC_THERMO.dist.tip, 3.2, 10), 'brass'],
-    [cylBetween([28, 300, -176], VAC_THERMO.sock.tip, 4.2, 10), 'brass'],
+    [cylBetween([20, 300, -166], VAC_THERMO.inn.tip, VAC_THERMO.inn.r, VAC_THERMO.inn.segs), 'brass'],
+    [cylBetween([12, 300, -176], VAC_THERMO.dist.tip, VAC_THERMO.dist.r, VAC_THERMO.dist.segs), 'brass'],
+    [cylBetween([28, 300, -176], VAC_THERMO.sock.tip, VAC_THERMO.sock.r, VAC_THERMO.sock.segs), 'brass'],
   ]));
   p.g.add(fittingGroup('fitting:vac-socket', [
     [boxMM([52, 292, -184], [66, 308, -166]), 'blackPlastic'],
-    [cylBetween([52, 300, -176], VAC_SOCK.small.tip, 4.2, 10), 'brass'],
-    [cylBetween([66, 300, -176], VAC_SOCK.large.tip, 6.4, 12), 'brass'],
+    [cylBetween([52, 300, -176], VAC_SOCK.small.tip, VAC_SOCK.small.r, VAC_SOCK.small.segs), 'brass'],
+    [cylBetween([66, 300, -176], VAC_SOCK.large.tip, VAC_SOCK.large.r, VAC_SOCK.large.segs), 'brass'],
   ]));
   p.g.add(fittingGroup('fitting:vac-block', [
     [boxMM([96, 292, -184], [112, 308, -168]), 'blackPlastic'],
-    [cylBetween([96, 300, -176], VAC_BLOCK.large.tip, 6.4, 12), 'brass'],
-    [cylBetween([104, 300, -184], VAC_BLOCK.med.tip, 4.2, 10), 'brass'],
-    [cylBetween([104, 308, -176], VAC_BLOCK.u1.tip, 6.4, 12), 'brass'],
-    [cylBetween([112, 300, -176], [128, 308, -176], 6.4, 12), 'brass'],
-    [cylBetween([128, 308, -176], VAC_BLOCK.u2.tip, 6.4, 10), 'brass'],
+    [cylBetween([96, 300, -176], VAC_BLOCK.large.tip, VAC_BLOCK.large.r, VAC_BLOCK.large.segs), 'brass'],
+    [cylBetween([104, 300, -184], VAC_BLOCK.med.tip, VAC_BLOCK.med.r, VAC_BLOCK.med.segs), 'brass'],
+    [cylBetween([104, 308, -176], VAC_BLOCK.u1.tip, VAC_BLOCK.u1.r, VAC_BLOCK.u1.segs), 'brass'],
+    // The cross hose's sleeve is wider than this pipe. Meet the u2 barb 8 mm below the sleeve.
+    [cylBetween([112, 300, -176], [128, 300, -176], 6.4, 12), 'brass'],
+    [cylBetween([128, 300, -176], VAC_BLOCK.u2.tip, VAC_BLOCK.u2.r, VAC_BLOCK.u2.segs), 'brass'],
   ]));
   p.g.add(fittingGroup('fitting:vac-jumper', [
     [boxMM([150, 292, -210], [164, 308, -196]), 'blackPlastic'],
-    [cylBetween([157, 300, -196], VAC_BLOCK.j1.tip, 6.4, 10), 'brass'],
-    [boxMM([150, 292, -176], [164, 308, -162]), 'blackPlastic'],
-    [cylBetween([157, 300, -176], VAC_BLOCK.j2.tip, 6.4, 10), 'brass'],
+    [cylBetween([157, 300, -196], VAC_BLOCK.j1.tip, VAC_BLOCK.j1.r, VAC_BLOCK.j1.segs), 'brass'],
+    // Pulley-ward of the old seat so an 8 mm barb still clears the other tip.
+    [boxMM([150, 292, -160], [164, 308, -146]), 'blackPlastic'],
+    [cylBetween([157, 300, -160], VAC_BLOCK.j2.tip, VAC_BLOCK.j2.r, VAC_BLOCK.j2.segs), 'brass'],
   ]));
   return p;
 }
 function vacLimitPort() {
   const [ox, oy, oz] = VAC_LIMIT.origin;
-  return { tip: [ox + 22, oy + 10, oz] as V3, axis: [1, 0, 0] as V3 };
+  // The body is r 16. The tip sits 8 mm outside that, so a 7 mm sleeve stops short of the casting.
+  return { tip: [ox + 24, oy + 10, oz] as V3, axis: [1, 0, 0] as V3 };
 }
 
 /** Every air and vacuum hose. Fuel lines stay in FUEL_LINES. Both ends are real fittings. */
@@ -1168,25 +1275,28 @@ export function serviceHoses(): FuelLineDef[] {
   const t = vacTPorts();
   const air = airTeePorts();
   const lim = vacLimitPort();
-  const on = (point: V3, axis: V3, part = 'vacuum-fittings') => endOf(part, point, axis);
+  const barb = MOULDED_TEE.barbR;
+  const on = (point: V3, axis: V3, r: number = barb, segs = 10) => endOf('vacuum-fittings', point, axis, { r, segs });
+  const port = (p: { tip: V3; axis: V3; r: number; segs: number }) => on(p.tip, p.axis, p.r, p.segs);
   return [
-    { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis) },
-    { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
-    // Small hoses (3.2×7). The manifold run is two segments: the splice tee's
-    // collinear barbs sit between the plenum nipple and 107-10 #14. 108-00 #31
-    // is not one of them. It seats on TEE_AIR_INJ, the splice tee's down barb.
-    { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: on(air.minusX.tip, air.minusX.axis) },
+    { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis, { r: 5.2, segs: 12 }), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis, { r: 9, segs: 14 }) },
+    { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis, { r: 9, segs: 14 }), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis, { r: 4.6, segs: 12 }) },
+    // Small hoses (3.2×7). The manifold run is two segments: the unlisted splice
+    // sits between the plenum nipple and 107-10 #14. 108-00 #31 is not one of
+    // them. It seats on TEE_AIR_INJ, the splice's down barb, which has no hose yet.
+    { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis, { r: 3.4, segs: 10 }), b: on(air.minusX.tip, air.minusX.axis) },
     { id: 'vac-manifold-b', part: 'vacuum-fittings', a: on(air.plusX.tip, air.plusX.axis), b: on(t.minusX.tip, t.minusX.axis) },
-    { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
-    { id: 'vac-distributor', part: 'vacuum-fittings', a: on(VAC_THERMO.dist.tip, VAC_THERMO.dist.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
-    // Three medium hoses (Ø9): T to thermo valve 17A, thermo to the reducing socket, socket cluster to the additional air valve.
-    { id: 'vac-thermo', part: 'vacuum-fittings', a: on(t.branch.tip, t.branch.axis), b: on(VAC_THERMO.inn.tip, VAC_THERMO.inn.axis) },
-    { id: 'vac-socket', part: 'vacuum-fittings', a: on(VAC_THERMO.sock.tip, VAC_THERMO.sock.axis), b: on(VAC_SOCK.small.tip, VAC_SOCK.small.axis) },
-    { id: 'vac-addair', part: 'vacuum-fittings', a: endOf('additional-air-valve', ADD_AIR_VAC.tip, ADD_AIR_VAC.axis), b: on(VAC_BLOCK.med.tip, VAC_BLOCK.med.axis) },
+    { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis, { r: 3.6, segs: 10 }) },
+    { id: 'vac-distributor', part: 'vacuum-fittings', a: port(VAC_THERMO.dist), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir, { r: 2.3, segs: 10 }) },
+    // Ø9 from 107-10 #14 up to thermo valve 17A. Catalogue cut is #13, 245 mm
+    // (N 020 353 5, 3.5×2). #13A is 30 mm, #13B is 370 mm, #16 is 40 mm of 8×14.
+    { id: 'vac-thermo', part: 'vacuum-fittings', a: on(t.branch.tip, t.branch.axis), b: port(VAC_THERMO.inn) },
+    { id: 'vac-socket', part: 'vacuum-fittings', a: port(VAC_THERMO.sock), b: port(VAC_SOCK.small) },
+    { id: 'vac-addair', part: 'vacuum-fittings', a: endOf('additional-air-valve', ADD_AIR_VAC.tip, ADD_AIR_VAC.axis, { r: 3.4, segs: 10 }), b: port(VAC_BLOCK.med) },
     // Three large hoses (8×14): socket to the block, the parallel run off the block, and the jumper.
-    { id: 'vac-large-a', part: 'vacuum-fittings', a: on(VAC_SOCK.large.tip, VAC_SOCK.large.axis), b: on(VAC_BLOCK.large.tip, VAC_BLOCK.large.axis) },
-    { id: 'vac-large-b', part: 'vacuum-fittings', a: on(VAC_BLOCK.u1.tip, VAC_BLOCK.u1.axis), b: on(VAC_BLOCK.u2.tip, VAC_BLOCK.u2.axis) },
-    { id: 'vac-large-c', part: 'vacuum-fittings', a: on(VAC_BLOCK.j1.tip, VAC_BLOCK.j1.axis), b: on(VAC_BLOCK.j2.tip, VAC_BLOCK.j2.axis) },
+    { id: 'vac-large-a', part: 'vacuum-fittings', a: port(VAC_SOCK.large), b: port(VAC_BLOCK.large) },
+    { id: 'vac-large-b', part: 'vacuum-fittings', a: port(VAC_BLOCK.u1), b: port(VAC_BLOCK.u2) },
+    { id: 'vac-large-c', part: 'vacuum-fittings', a: port(VAC_BLOCK.j1), b: port(VAC_BLOCK.j2) },
   ];
 }
 
@@ -1240,15 +1350,21 @@ export function vacuumHosesPart() {
     [-150, 316, 40],
     [-200, 250, 130],
   ], 3.2, 44, 8, 16, 18);
-  // Straight up off the T, above the spliced manifold tee, then flywheel to thermo valve 17A.
+  // Direct run from the T up-barb to thermo valve 17A.
+  // 107-10 #13 is 245 mm. #13A (30 mm) and #16 (40 mm, 8×14) cannot span these
+  // two fittings; #13B is 370 mm. The old path looped outboard around the splice.
+  // Through the meter's waist (r 20 at y ≈ 267), inboard of the aux-air sleeve on
+  // that barb, then up over the flange screws. The neck is x 36, z −8, r 16.
+  // 107-10 #13 is 245 mm. #13A is 30 mm, #13B is 370 mm, #16 is 40 mm of 8×14.
   const thermo = byId['vac-thermo'];
-  addHose(p, thermo.id, thermo.a, thermo.b, [[6, 320, 62], [-42, 320, 86], [-42, 314, 36], [-32, 312, -24], [-32, 312, -148], [22, 304, -148]], 4.5, 4, 6, 3, 8);
+  addHose(p, thermo.id, thermo.a, thermo.b, [[12, 280, -20], [13, 267, -64], [14, 280, -96], [18, 286, -125]], 4.5, 4, 8, 6, 10, 4);
   const sock = byId['vac-socket'];
-  addHose(p, sock.id, sock.a, sock.b, [], 4.5, 1, 2);
+  addHose(p, sock.id, sock.a, sock.b, [], 4.5, 1, 2, 2, 2);
   const add = byId['vac-addair'];
   addHose(p, add.id, add.a, add.b, [], 4.5, 1, 2, 2, 4);
   large('vac-large-a', [], 1, 3);
-  large('vac-large-b', [[104, 320, -176], [128, 320, -176]], 1, 3);
+  // Tips are y 316. The cross run stays 8 mm above them, the same rise the fillet had before the barbs grew.
+  large('vac-large-b', [[104, 324, -176], [128, 324, -176]], 1, 3);
   large('vac-large-c', [], 1, 2);
   return p;
 }
@@ -1313,9 +1429,12 @@ export function throttleHousingPart() {
     const dy = pv[1] - y;
     const rootX = -Math.sqrt(barrelR * barrelR - dy * dy);
     p.add(cylBetween([rootX, pv[1], pv[2]], pv, 3.2, 12), 'brass');
-    const ring = torus(4.6, 0.7, 6, 14);
+    // 202-05 #16 slides 4 mm onto this nipple (bottomAnc, not edited here).
+    // The band sits on that hose's OD, inside the overlap, not on the bare brass.
+    const egrHoseR = 3.5;
+    const ring = torus(egrHoseR + 0.85, 0.7, 6, 14);
     ring.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...ax)));
-    ring.translate(pv[0] - ax[0] * 3, pv[1] - ax[1] * 3, pv[2] - ax[2] * 3);
+    ring.translate(pv[0] - ax[0] * 2, pv[1] - ax[1] * 2, pv[2] - ax[2] * 2);
     p.add(ring, 'zincPlate');
   }
   // 4 × M6 heads. Angles keep them off the vacuum hose that climbs past the top of the flange.
