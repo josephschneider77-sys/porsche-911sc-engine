@@ -419,7 +419,7 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 21 | 900 031 014 30 | Washer | 40 | modelled | `pool:cam-chain-nuts` washer |
 | 22 | 900 084 004 03 | Hexagon nut | 40 | modelled | `pool:cam-chain-nuts` |
 | 22 | 900 084 004 02 | Hexagon nut | 40 | alt | alternative to 103-05 #22 |
-| 23 | N 012 241 8 | Spring washer | 40 | modelled | `pool:cam-chain-nuts` spring |
+| 23 | N 012 241 8 | Spring washer | 40 | modelled | `valve-cover-nuts-*` spring × 34 + `valve-cover-special-*` spring × 6 |
 | 24 | 901 111 271 00 | Nut | 6 | modelled | `valve-cover-special-*` |
 | 25 | 900 076 025 02 | Hexagon nut | 34 | modelled | `valve-cover-nuts-*` |
 | 25 | 900 076 064 02 | Hexagon nut | 34 | alt | alternative to 103-05 #25 |

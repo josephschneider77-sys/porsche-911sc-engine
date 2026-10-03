@@ -129,8 +129,13 @@ export function manifoldSub(base: THREE.BufferGeometry, ...cutters: THREE.Buffer
   return g;
 }
 
-/** Bake and subtract closed cutters from every mesh they meet. The result stays closed. */
+/**
+ * Bake and subtract closed cutters from every mesh they meet. The result stays closed.
+ * `skipBroken` leaves a mesh alone when it is not a manifold solid. A raw boss whose
+ * bbox only overlaps the cutter's box must not abort the housing.
+ */
 export function cutClosed(root: THREE.Object3D, ...cutters: THREE.BufferGeometry[]) {
+  const skipBroken = (cutClosed as { skipBroken?: boolean }).skipBroken === true;
   if (!cutters.length) return root;
   root.updateMatrixWorld(true);
   const boxes = cutters.map((c) => {
@@ -156,7 +161,16 @@ export function cutClosed(root: THREE.Object3D, ...cutters: THREE.BufferGeometry
     const g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
     g.computeBoundingBox();
     if (!boxes.some((b) => b.intersectsBox(g.boundingBox!))) return;
-    const b = toM(g, `part ${g.boundingBox!.min.toArray().map((n) => n.toFixed(0)).join(',')}`);
+    let b: ReturnType<typeof toM>;
+    try {
+      b = toM(g, `part ${g.boundingBox!.min.toArray().map((n) => n.toFixed(0)).join(',')}`);
+    } catch (e) {
+      if (skipBroken) {
+        console.log('skip broken', (e as Error).message.split(':')[0]);
+        return;
+      }
+      throw e;
+    }
     const result = b.subtract(ensure());
     b.delete();
     const status = String(result.status());

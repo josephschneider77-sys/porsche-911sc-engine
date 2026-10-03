@@ -955,7 +955,6 @@ export function camshaft(s: 1 | -1) {
   cutClosed(p.g, ...shaftRelief);
   return p.g;
 }
-
 // ---------------------------------------------------------------- cam housing
 function extrudeX(shape: THREE.Shape, x0: number, x1: number, bevel = 0, segs = 8) {
   const depth = Math.abs(x1 - x0);
@@ -1055,6 +1054,35 @@ function shapeZY(pts: [number, number][]) {
   for (const [z, y] of pts.slice(1)) s.lineTo(-z, y);
   s.closePath();
   return s;
+}
+/** Z-up cylinder. Each ring vertex is stored once, so the centroid lies on the axis. */
+function axisZ(r: number, z0: number, z1: number, segs = 16): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const ring = (z: number) => {
+    const base = pos.length / 3;
+    for (let i = 0; i < segs; i++) {
+      const a = (i / segs) * Math.PI * 2;
+      pos.push(Math.cos(a) * r, Math.sin(a) * r, z);
+    }
+    return base;
+  };
+  const b = ring(z0);
+  const t = ring(z1);
+  pos.push(0, 0, z0, 0, 0, z1);
+  const bc = pos.length / 3 - 2;
+  const tc = bc + 1;
+  for (let i = 0; i < segs; i++) {
+    const i1 = (i + 1) % segs;
+    idx.push(b + i, t + i1, t + i, b + i, b + i1, t + i1);
+    idx.push(bc, b + i1, b + i);
+    idx.push(tc, t + i, t + i1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
 }
 export function camHousing(s: 1 | -1) {
   const p = new Part();
@@ -1351,48 +1379,7 @@ export function camHousing(s: 1 | -1) {
   camChainSeat(p, s);
   addCoverLands(p, s);
   addShaftTowers(p, s);
-  // The ear pad the cover stud threads into. A short
-  // pad on the housing side of the gasket (local z −10.8..−7.6, clear of the cover)
-  // is what the thread ray finds. r 4.2 covers the probe at r 3.6.
-  for (const upper of [true, false]) {
-    const frame = coverMatrix(s, upper);
-    for (const st of vcStuds(upper, s)) {
-      // Below the cover underside (trimmed to local z −0.15) by more than the 1 mm erosion.
-      const g = yToZ(cyl(4.2, 3.2, 12));
-      g.translate(st.x, st.y, -9.2);
-      g.applyMatrix4(frame);
-      p.add(g, 'castAlu');
-      // Shank and face on the cover-hole axis, under the gasket.
-      const shank = yToZ(cyl(4.6, 12, 14));
-      shank.translate(st.x, st.y, -14);
-      shank.applyMatrix4(frame);
-      p.add(shank, 'castAlu');
-      const face = yToZ(cyl(upper ? 14 : 10, 2.2, 20));
-      face.translate(st.x, st.y, -3.9);
-      face.applyMatrix4(frame);
-      p.add(face, 'castAlu');
-      if (!upper) continue;
-      const sign = Math.sign(st.x) || 1;
-      const bridge = boxMM(
-        [Math.min(sign * 44, st.x - sign * 6), st.y - 5, -8.2],
-        [Math.max(sign * 44, st.x - sign * 6), st.y + 5, -3.2],
-      );
-      bridge.applyMatrix4(frame);
-      p.add(bridge, 'castAlu');
-    }
-  }
-  // Cap nuts (103-05 #24) sit on the lower lugs, outboard of the rail. The same
-  // thread pad the hex studs use, so the shank reaches the housing.
-  {
-    const frame = coverMatrix(s, false);
-    for (const st of vcLugs(s)) {
-      const g = yToZ(cyl(4.2, 3.2, 12));
-      g.translate(st.x, st.y, -9.2);
-      g.applyMatrix4(frame);
-      p.add(g, 'castAlu');
-    }
-  }
-  // After every later solid (lands, towers, stud pads). The outline cutter leaves one
+  // After every later solid (lands, towers). The outline cutter leaves one
   // side of the arm coplanar with the forging; these cylinders open that face.
   p.g.updateMatrixWorld(true);
   cutClosed(p.g, ...armClearance(s));
@@ -1466,6 +1453,82 @@ export function camHousing(s: 1 | -1) {
     }
   }
   cutClosed(p.g, ...plugAir, ...exhaustStemCuts(s));
+  // Lower flange, outboard of the pan. The lip now wraps the ear bosses, and the
+  // housing rail there was rising through the seat. Stop it 2.6 mm under the
+  // cover, the same gap the main clip keeps, so 1 mm of erosion does not meet.
+  // The lower seal land stays inboard of |x| 38.
+  const flangeCuts: THREE.BufferGeometry[] = [];
+  {
+    const frame = coverMatrix(s, false);
+    for (const sign of [-1, 1] as const) {
+      const box = boxMM([sign * 38, -210, -2.6], [sign * 78, 210, 36]);
+      box.applyMatrix4(frame);
+      flangeCuts.push(box);
+    }
+  }
+  (cutClosed as { skipBroken?: boolean }).skipBroken = true;
+  try { cutClosed(p.g, ...flangeCuts); }
+  finally { (cutClosed as { skipBroken?: boolean }).skipBroken = false; }
+  // A bore that grazes the stud column leaves vertices inside the axis window.
+  // Clear that column, then put a centred pad back.
+  const studClear: THREE.BufferGeometry[] = [];
+  for (const upper of [true, false]) {
+    const frame = coverMatrix(s, upper);
+    for (const st of vcStuds(upper, s)) {
+      const g = axisZ(5.2, -15, -5.8);
+      g.translate(st.x, st.y, 0);
+      g.applyMatrix4(frame);
+      studClear.push(g);
+    }
+  }
+  (cutClosed as { skipBroken?: boolean }).skipBroken = true;
+  try { cutClosed(p.g, ...studClear); }
+  finally { (cutClosed as { skipBroken?: boolean }).skipBroken = false; }
+  for (const upper of [true, false]) {
+    const frame = coverMatrix(s, upper);
+    for (const st of vcStuds(upper, s)) {
+      const g = axisZ(4.2, -10.8, -7.6);
+      g.translate(st.x, st.y, 0);
+      g.applyMatrix4(frame);
+      p.add(g, 'castAlu');
+      const shank = axisZ(4.6, -18, -8);
+      shank.translate(st.x, st.y, 0);
+      shank.applyMatrix4(frame);
+      p.add(shank, 'castAlu');
+      const face = yToZ(lathe([[6, -1.1], [upper ? 14 : 10, -1.1], [upper ? 14 : 10, 1.1], [6, 1.1], [6, -1.1]], 24));
+      face.translate(st.x, st.y, -3.9);
+      face.applyMatrix4(frame);
+      p.add(face, 'castAlu');
+      if (!upper) continue;
+      const sign = Math.sign(st.x) || 1;
+      const bridge = boxMM(
+        [Math.min(sign * 44, st.x - sign * 6), st.y - 5, -8.2],
+        [Math.max(sign * 44, st.x - sign * 6), st.y + 5, -3.2],
+      );
+      bridge.applyMatrix4(frame);
+      p.add(bridge, 'castAlu');
+    }
+  }
+  // Cap nuts (103-05 #24) sit on studs through the lugs. The lug underside is
+  // cover-local z = 0. The boss stops 0.02 mm under that plane, a seated joint.
+  {
+    const frame = coverMatrix(s, false);
+    for (const st of vcLugs(s)) {
+      const out = st.x > 0 ? 1 : -1;
+      const wedge = extrude(polyShape([
+        [st.x - out * 5, st.y - 12],
+        [st.x - out * 5, st.y + 12],
+        [st.x + out * 16, st.y],
+      ]), 12, 0, 1);
+      wedge.translate(0, 0, -12.02);
+      wedge.applyMatrix4(frame);
+      p.add(wedge, 'castAlu');
+      const thread = axisZ(4.2, -14.2, -0.2);
+      thread.translate(st.x, st.y, 0);
+      thread.applyMatrix4(frame);
+      p.add(thread, 'castAlu');
+    }
+  }
   addWindowFrameLands(p, s);
   // Seal land under the cover lip, including the jog around a rail the stem crosses.
   // Top face at local z −0.55, the same gap the straight land keeps.
@@ -1603,9 +1666,8 @@ function orientLandOutward(g: THREE.BufferGeometry, frame: THREE.Matrix4) {
  * short of the annular cover land so the two housings do not occupy one face.
  */
 function addWindowFrameLands(p: Part, s: 1 | -1) {
-  const wins = s > 0
-    ? [[-8, -154], [-8, -76], [-8, 42]]
-    : [[-6, -148], [-8, -30], [-2, 88]];
+  // The lower gasket is one sheet. Both banks use the right-bank windows.
+  const wins = [[-8, -154], [-8, -76], [-8, 42]];
   const frame = coverMatrix(s, false);
   const holeW = 54, holeH = 22, margin = 3;
   const boxes: THREE.BufferGeometry[] = [];
@@ -1929,7 +1991,10 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   // The chain-end stud (engine z ≈ 220, axis +Z) embeds back through the pulley
   // end of the upper cover. Open that end around the stud. The side rails are
   // untouched: the cut is only the existing sprocket-end notch, widened in x.
-  if (upper) {
+  // Chain-end studs are at engine z ≈ 220. On the right, local +y is that end
+  // and the cover reaches it. On the left, local +y is the flywheel (cylinder 6)
+  // and the cover stops near z 164, short of the studs.
+  if (upper && s > 0) {
     const end = boxMM([-24, 168, -4], [24, 220, 12]);
     end.applyMatrix4(frame);
     cuts.push(end);
@@ -1956,16 +2021,7 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
     // cutter under the outer skin so the ribs and the pan outline stay.
     cuts.push(...adjusterSweepCuts(s));
   }
-  if (!upper && s < 0) {
-    cuts.push(...exhaustStemCuts(s));
-    // Cylinder 6's exhaust rocker crosses the seal lip (local z 0..0.4, y about −181).
-    // Hollow that lip from the inside. Stop short of the outer end face (local y −186)
-    // and under the outer skin so the flywheel end matches the right cover and the pan
-    // stays one shell.
-    const endPocket = boxMM([-20, -184.2, -1], [24, -148, 21]);
-    endPocket.applyMatrix4(frame);
-    cuts.push(endPocket);
-  } else if (!upper) cuts.push(...exhaustStemCuts(s));
+  if (!upper) cuts.push(...exhaustStemCuts(s));
   if (cuts.length) cutClosed(root, ...cuts);
   if (upper) addPlugOpenings(root, s);
   // Close the lip where a rail jog or the flywheel-end pocket broke it. The patch
@@ -2022,8 +2078,8 @@ function fixUndersideNormals(root: THREE.Object3D, s: 1 | -1, upper: boolean) {
 /**
  * Cover-local point where the plug axis crosses the cover plane at local z.
  * The cover normal has no Z component, so every cylinder on a bank meets a
- * given z at the same distance along the bore. Cylinder 6's crossing is past
- * the flywheel end of the rail.
+ * given z at the same distance along the bore. The left lid is the right lid
+ * turned 180° about Y, so cylinder 6 meets the hole cylinder 1 uses.
  */
 export function plugCoverLocal(cyl: number, z: number): THREE.Vector3 {
   const s: 1 | -1 = cyl <= 3 ? 1 : -1;

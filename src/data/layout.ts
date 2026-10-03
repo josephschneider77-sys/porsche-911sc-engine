@@ -75,10 +75,9 @@ export function pinX(cyl: number, crankDeg = 0): { pinX: number; throwXY: [numbe
  *   36.79° off the cylinder axis (+X)
  *   8.98° off the cover normal
  * Path length from the datum to the cover face (local z 24) is 144 mm. Cylinders
- * 1–3 lean rearward and 4–6 forward. Cylinder 6's station falls past the flywheel
- * end of the cover rail (the rail is centred on the cam housing, not on the
- * staggered left bank), so that opening is a boss on the end of the upper-left
- * lid, still on this axis. The seal rail is not lengthened.
+ * 1–3 lean rearward and 4–6 forward. The left covers are the right-bank parts
+ * turned 180° about Y, so cylinder 6 seals in the hole that cylinder 1 uses
+ * on the right-hand lid. The left cam housing is built on those stations.
  *
  * partPose: position is this datum, 0.75 mm piston-side of the centre electrode.
  * The quaternion maps plug-local (0, −1, 0) onto the engine axis (s·dx, dy, s·dz).

@@ -301,7 +301,10 @@ describe('top-end batch 1', () => {
       }
       const caps = fastenerSets().find((f) => f.id === `valve-cover-special-${bank}`)!;
       expect(caps.items.length, `${bank} special`).toBe(3);
-      expect(caps.washer, `${bank} special washer`).toBe(washerR);
+      expect(caps.washer, `${bank} special washer`).toBe(0);
+      expect(caps.spring, `${bank} special spring`).toBe(true);
+      expect(nuts.spring, `${bank} hex spring`).toBe(true);
+      expect(nuts.washer, `${bank} hex washer`).toBe(0);
       for (const st of vcLugs(s)) {
         const cap = caps.items.find((it) => Math.hypot(it.p.clone().applyMatrix4(inv).x - st.x, it.p.clone().applyMatrix4(inv).y - st.y) < 2);
         expect(cap, `${bank} cap ${st.y}`).toBeTruthy();
@@ -362,48 +365,20 @@ describe('top-end batch 1', () => {
     expect(leftEx.z).toBeCloseTo(-rightEx.z, 2);
   });
 
-  it('trims the left valve cover to the cam-housing seat, matching the right cover', () => {
+  it('places the left valve cover over the left cylinders, the same shell mirrored', () => {
     const box = (id: string) => new THREE.Box3().setFromObject(ASSET_BUILDERS[id]());
     const lowerL = box('valve-cover-lower-left'), lowerR = box('valve-cover-lower-right');
-    expect(lowerL.min.z, 'lower flywheel end').toBeCloseTo(lowerR.min.z, 0);
+    expect(lowerL.min.z, 'lower flywheel end').toBeCloseTo(-lowerR.max.z, 0);
+    expect(lowerL.max.z, 'lower pulley end').toBeCloseTo(-lowerR.min.z, 0);
+    expect(lowerL.min.z, 'covers cylinder 6').toBeLessThan(-200);
     expect(lowerR.max.z - lowerR.min.z, 'lower right length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
     expect(lowerL.max.z - lowerL.min.z, 'lower left length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
-    expect(lowerL.max.z, 'lower pulley end').toBeCloseTo(lowerR.max.z, 0);
-    expect(lowerL.min.z).toBeGreaterThan(CH_Z0 - 1);
-    expect(lowerL.max.z).toBeLessThan(CH_Z1 + 1);
-    // The seal lip (cover-local z under 3) stays on the cam-housing rail on both
-    // banks. Cylinder 6 is a half-round scallop in the end wall, not a boss past the rail.
-    const lip = (id: string, s: 1 | -1) => {
-      const root = ASSET_BUILDERS[id]();
-      const inv = coverMatrix(s, true).clone().invert();
-      const b = new THREE.Box3();
-      const v = new THREE.Vector3();
-      root.updateMatrixWorld(true);
-      root.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        const P = mesh.geometry.attributes.position;
-        for (let i = 0; i < P.count; i++) {
-          v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
-          const local = v.clone().applyMatrix4(inv);
-          // The cylinder-6 boss is past local |y| 186. The seal is the lip inside the rail.
-          if (local.z < 3 && Math.abs(local.y) < 184) b.expandByPoint(v);
-        }
-      });
-      return b;
-    };
-    const lipL = lip('valve-cover-upper-left', -1), lipR = lip('valve-cover-upper-right', 1);
-    expect(Math.abs(lipL.min.z - lipR.min.z), 'upper seal flywheel end').toBeLessThan(2);
-    expect(Math.abs(lipL.max.z - lipR.max.z), 'upper seal pulley end').toBeLessThan(2);
-    expect(lipL.min.z).toBeGreaterThan(CH_Z0 - 1);
-    expect(lipL.max.z).toBeLessThan(CH_Z1 + 1);
     const upperL = box('valve-cover-upper-left'), upperR = box('valve-cover-upper-right');
-    expect(upperL.min.z, 'upper flywheel end').toBeCloseTo(upperR.min.z, 0);
-    expect(upperL.max.z, 'upper pulley end').toBeCloseTo(upperR.max.z, 0);
+    expect(upperL.min.z, 'upper flywheel end').toBeCloseTo(-upperR.max.z, 0);
+    expect(upperL.max.z, 'upper pulley end').toBeCloseTo(-upperR.min.z, 0);
+    expect(upperL.min.z, 'covers cylinder 6').toBeLessThan(-200);
     expect(upperR.max.z - upperR.min.z, 'upper right length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
     expect(upperL.max.z - upperL.min.z, 'upper left length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
-    expect(upperL.min.z, 'scallop stays on the rail').toBeGreaterThan(CH_Z0 - 1);
-    expect(upperL.max.z).toBeLessThan(CH_Z1 + 1);
   });
 
   it('keeps every rocker sub-mesh in one connected piece per station', () => {

@@ -240,7 +240,9 @@ function plugEndNotch(s: 1 | -1, halfL: number): THREE.BufferGeometry | null {
  */
 const FLANGE_STEP = 0.5;
 // Cell centres sit on multiples of 0.5 mm, so a 0.5 mm clamp sample lands in the cell, not on its edge.
-const FLANGE_X0 = -68.25, FLANGE_X1 = 68.25, FLANGE_Y0 = -190.25, FLANGE_Y1 = 190.25;
+// Lip is local |x| 70 (upper) / 62 (lower). The grid has to cover the ear bosses,
+// which sit inside that outline (upper ear outer 68.4, lower 59.2).
+const FLANGE_X0 = -74.25, FLANGE_X1 = 74.25, FLANGE_Y0 = -190.25, FLANGE_Y1 = 190.25;
 const gasketCache = new Map<string, THREE.BufferGeometry>();
 const bvhCache = new Map<string, MeshBVH>();
 
@@ -824,6 +826,8 @@ function dropUnclamped(
   }
 }
 function coverGasket(s: 1 | -1, up: boolean) {
+  // One gasket per lid. The left bank is that sheet placed by coverMatrix(-1).
+  if (s < 0) return coverGasket(1, up);
   const key = `${s}:${up ? 1 : 0}`;
   let cached = gasketCache.get(key);
   if (!cached) {
@@ -911,6 +915,70 @@ function coverGasket(s: 1 | -1, up: boolean) {
     if (!up) {
       dropUnclamped(mask, nx, ny, s, up, band);
       bridgeHeadSlit(mask, nx, ny, s, blocked);
+    }
+    // Stem stations are the same cover-local points on both banks. Clear the sheet
+    // around the stem, but leave the seal band: a full circle cuts the ring.
+    const stems = up ? [[15.8, 119], [15.8, 1], [15.8, -117]] : [[-25, 132], [-25, 14], [-25, -104]];
+    for (const [x, y] of stems) {
+      // Lower radius reaches the open exhaust valve. Band cells stay, so the ring is not cut.
+      const r = up ? 12 : 16;
+      const r2 = r * r;
+      const ix0 = Math.max(0, Math.floor((x - r - FLANGE_X0) / FLANGE_STEP));
+      const ix1 = Math.min(nx, Math.ceil((x + r - FLANGE_X0) / FLANGE_STEP));
+      const iy0 = Math.max(0, Math.floor((y - r - FLANGE_Y0) / FLANGE_STEP));
+      const iy1 = Math.min(ny, Math.ceil((y + r - FLANGE_Y0) / FLANGE_STEP));
+      for (let iy = iy0; iy < iy1; iy++) {
+        const yy = FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP;
+        for (let ix = ix0; ix < ix1; ix++) {
+          const xx = FLANGE_X0 + (ix + 0.5) * FLANGE_STEP;
+          const i = iy * nx + ix;
+          if (band[i]) continue;
+          if ((xx - x) * (xx - x) + (yy - y) * (yy - y) <= r2) mask[i] = 0;
+        }
+      }
+    }
+    // One sheet on both banks. Field metal the left housing does not meet is
+    // dropped. The seal band stays, so the ring is the same part on both lids.
+    {
+      const left = coverMatrix(-1, up);
+      const ln = new THREE.Vector3().setFromMatrixColumn(left, 2).normalize();
+      const lneg = ln.clone().negate();
+      const ck = `cover:-1:${up ? 1 : 0}`;
+      let lcover = bvhCache.get(ck);
+      if (!lcover) {
+        lcover = bakeWorld(pocketValveCover(valveCover(-1, up), -1, up));
+        bvhCache.set(ck, lcover);
+      }
+      let lhouse = bvhCache.get('house:-1');
+      if (!lhouse) {
+        lhouse = bakeWorld(camHousing(-1));
+        bvhCache.set('house:-1', lhouse);
+      }
+      const world = new THREE.Vector3();
+      // The strips between the three windows stay. Dropping them joins the
+      // openings into one hole. They sit on the cover lands.
+      const bridgeY = chosen.map((c) => c.cy).sort((a, b) => a - b);
+      const onBridge = (x: number, y: number) => {
+        for (let k = 0; k < bridgeY.length - 1; k++) {
+          const y0 = bridgeY[k] + holeH / 2;
+          const y1 = bridgeY[k + 1] - holeH / 2;
+          if (y > y0 - 2 && y < y1 + 2 && Math.abs(x) < holeW / 2 + 8) return true;
+        }
+        return false;
+      };
+      for (let i = 0; i < mask.length; i++) {
+        if (!mask[i] || band[i]) continue;
+        const ix = i % nx, iy = (i - ix) / nx;
+        const xx = FLANGE_X0 + (ix + 0.5) * FLANGE_STEP;
+        const yy = FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP;
+        if (onBridge(xx, yy)) continue;
+        world.set(xx, yy, -0.25).applyMatrix4(left);
+        const cp = rayHits(lcover, world, ln, 40);
+        const cm = rayHits(lcover, world, lneg, 40);
+        const hp = rayHits(lhouse, world, ln, 40);
+        const hm = rayHits(lhouse, world, lneg, 40);
+        if (!((cp && hm) || (cm && hp))) mask[i] = 0;
+      }
     }
     const g = flangeGeometry(mask, nx, ny, blocked);
     g.translate(0, 0, -0.25);
@@ -1176,7 +1244,9 @@ for (const s of BANKS) {
   def(`chain-lid-gasket-${b}`, () => chainLidGasket(s), () => [M(V(0, 0, HOUSING_Z1), Z, X)]);
   def(`chain-lid-plug-${b}`, () => plug(17, 6, 8), () => [onSurf(`chain-housing-lid-${b}`, V(s * 232, -22, 400), V(0, 0, -1))]);
   def(`chain-lid-plug2-${b}`, () => plug(14, 5, 7, false), () => [onSurf(`chain-housing-lid-${b}`, V(s * 250, 30, 400), V(0, 0, -1))]);
-  def(`cam-housing-plug-${b}`, () => plug(14, 6, 7), () => [onSurf(`cam-housing-${b}`, V(s * 450, 0, -110), V(-s, 0, 0))]);
+  // Outer flank, in the gap between cam-edge cover ears (cover-local y −90).
+  // The same world z lands on an ear once the left lid is mirrored.
+  def(`cam-housing-plug-${b}`, () => plug(14, 6, 7), () => [onSurf(`cam-housing-${b}`, V(s * 450, 0, s > 0 ? -68 : 68), V(-s, 0, 0))]);
   def(`chain-case-plug-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [7.5, 0], [7.5, 0.6], [6, 1.6], [0.1, 1.6]], 24), 'steel'); return p; }, () => [onSurf(`chain-housing-${b}`, V(s * 230, 120, HOUSING_Z0 + 30), V(0, -1, 0))]);
   // cam housing: valve-cover gaskets (#18 upper, #20 lower), end lid (#16), splash tube, stoppers, banjo feed, temp switch
   for (const up of [true, false]) {

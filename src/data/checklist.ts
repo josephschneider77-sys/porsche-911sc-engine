@@ -98,7 +98,8 @@ export const POOLS: Record<string, { by: string; what: string }[]> = {
     { by: 'ishaft-cover-nuts', what: 'stud' },
   ],
   'exhaust-studs': [{ by: 'exhaust-nuts-*', what: 'stud' }, { by: 'exhaust-socket-nuts-*', what: 'stud' }],
-  // 103-05 #21-#23: 40 x (washer, M8 nut, spring washer) = cam housing to heads 24 + chain housing 12 + chain-housing end studs 4
+  // 103-05 #21-#22: 40 x (washer, M8 nut) = cam housing to heads 24 + chain housing 12 + chain-housing end studs 4.
+  // #23 (spring washer B 8×15, qty 40) is the cover hardware: 34 hex nuts #25 + 6 cap nuts #24.
   'cam-chain-nuts': [{ by: 'cam-housing-nuts-*', what: '' }, { by: 'chain-housing-nuts-*', what: '' }, { by: 'chain-end-nuts-*', what: '' }],
 };
 
@@ -186,7 +187,8 @@ export const CLAIMS: Claim[] = [
   C('103-05#-#930 105 362 00', 'cam-splash-tube-*'), C('103-05#-#901 105 379 00', 'cam-housing-stoppers-*'),
   C('103-05#16', 'cam-end-cover-*'), C('103-05#17', 'valve-cover-upper-*'), C('103-05#18', 'valve-cover-gasket-upper-*'),
   C('103-05#19', 'valve-cover-lower-*'), C('103-05#20', 'valve-cover-gasket-lower-*'),
-  C('103-05#21', 'pool:cam-chain-nuts', 'washer'), C('103-05#22', 'pool:cam-chain-nuts', 'item'), C('103-05#23', 'pool:cam-chain-nuts', 'spring'),
+  C('103-05#21', 'pool:cam-chain-nuts', 'washer'), C('103-05#22', 'pool:cam-chain-nuts', 'item'),
+  C('103-05#23', 'valve-cover-nuts-*', 'spring', 34), C('103-05#23', 'valve-cover-special-*', 'spring', 6),
   C('103-05#24', 'valve-cover-special-*'), C('103-05#25', 'valve-cover-nuts-*'), C('103-05#26', 'cam-housing-plug-*'),
   C('103-05#27', 'cam-oil-banjo-*', 'piece'), C('103-05#28', 'cam-oil-banjo-*', 'ring'), C('103-05#29', 'cam-oil-banjo-*'),
   C('103-05#30', 'cam-temp-switch'), C('103-05#31', 'cam-temp-switch', 'ring'),

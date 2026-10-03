@@ -78,8 +78,12 @@ function blockedCells(s: 1 | -1, upper: boolean) {
   const { nx, ny } = gridSize();
   const blocked = new Uint8Array(nx * ny);
   const studs = vcStuds(upper, s);
-  const bvh = hardware(s);
-  const frame = coverMatrix(s, upper);
+  // The sheet is one part, placed on the left by turning it 180° about Y.
+  // Cylinder 4 is on overlap, so its open valve is larger than the closed
+  // valve the right-bank loop would mirror onto that station. Block both.
+  const obstacles = s > 0
+    ? [{ bvh: hardware(1), frame: coverMatrix(1, upper) }, { bvh: hardware(-1), frame: coverMatrix(-1, upper) }]
+    : [{ bvh: hardware(s), frame: coverMatrix(s, upper) }];
   const world = new THREE.Vector3();
   const info = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
   const halfL = (CH_Z1 - CH_Z0 - 8) / 2;
@@ -97,10 +101,13 @@ function blockedCells(s: 1 | -1, upper: boolean) {
     const notchX = upper ? 22 : 26;
     if (upper && y > halfL - 20 && Math.abs(x) < notchX) { blocked[iy * nx + ix] = 1; continue; }
     let near = false;
-    for (const z of [-1.6, -0.8, -0.3, 0.45]) {
-      world.set(x, y, z).applyMatrix4(frame);
-      const h = bvh.closestPointToPoint(world, info, 0, CLEAR);
-      if (h && h.distance <= CLEAR) { near = true; break; }
+    for (const ob of obstacles) {
+      for (const z of [-1.6, -0.8, -0.3, 0.45]) {
+        world.set(x, y, z).applyMatrix4(ob.frame);
+        const h = ob.bvh.closestPointToPoint(world, info, 0, CLEAR);
+        if (h && h.distance <= CLEAR) { near = true; break; }
+      }
+      if (near) break;
     }
     if (near) blocked[iy * nx + ix] = 1;
   }
@@ -211,11 +218,12 @@ function route(
   return out;
 }
 
-function sealLoop(s: 1 | -1, upper: boolean): Loop {
-  const key = `${s}:${upper ? 1 : 0}`;
+function sealLoop(_s: 1 | -1, upper: boolean): Loop {
+  // The sheet is one part. The left bank reuses the right-bank loop.
+  const key = `1:${upper ? 1 : 0}`;
   const hit = loopCache.get(key);
   if (hit) return hit;
-  const { walk, nx, ny } = blockedCells(s, upper);
+  const { walk, nx, ny } = blockedCells(1, upper);
   // Windows occupy the middle of the sheet. The leg has to stay outboard of
   // them or the opening cuts the ring.
   // Upper band sits on the cast flange (wall at |x| 40, lip at 48).
@@ -444,7 +452,7 @@ export function sealPatchGeometry(
   // Lower window frames sit outboard of the lip. Give them a cover face too,
   // or the frame metal is not clamped and the openings run together.
   if (coverSide && !upper) {
-    const wins = s > 0 ? [[-8, -154], [-8, -76], [-8, 42]] : [[-6, -148], [-8, -30], [-2, 88]];
+    const wins = [[-8, -154], [-8, -76], [-8, 42]];
     const mark = (xa: number, ya: number, xb: number, yb: number) => {
       const ix0 = Math.max(0, Math.floor((Math.min(xa, xb) - x0) / step));
       const ix1 = Math.min(nx, Math.ceil((Math.max(xa, xb) - x0) / step));

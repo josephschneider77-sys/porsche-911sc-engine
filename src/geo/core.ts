@@ -1249,7 +1249,8 @@ export const VC_EDGE = 46;
 /**
  * Upper-lid stud axis, cover-local |x|. Outboard of the sealing flange so the
  * gasket ring stays on the land and each ear carries its own washer.
- * On the right bank +x is the head edge; on the left bank +x is the cam edge.
+ * The cover is one part. Local +x is the head edge of that part; the left
+ * bank is the same part turned 180° about Y (`coverMatrix`).
  */
 export const UPPER_STUD_X = 56;
 /** Flat top of the three raised lugs on the lower cover (special nuts). Same plane as the hex-nut faces. */
@@ -1259,32 +1260,31 @@ export interface CoverStud { x: number; y: number }
  * Cover studs, cover-local. Stations sit in the gaps between rocker shafts.
  * Upper: 3 per edge (6 per cover, 12 per engine). The upper gasket is drawn with those 6 holes.
  * Lower: 6 on the head edge and 5 on the cam edge (11 per cover, 22 per engine).
- * The banks are staggered, so each side has its own list.
+ * 901 105 115 03 and 930 105 116 00 are each one part (qty 2). The stations are
+ * the right-bank list; `coverMatrix(-1)` turns that part onto the left cylinders.
  */
-export function vcStuds(upper: boolean, s: 1 | -1): CoverStud[] {
+export function vcStuds(upper: boolean, _s: 1 | -1): CoverStud[] {
   if (upper) {
     // Kat 502 p.66 ill. 103-05 #17: six ears, three along each long edge, none
     // opposite its neighbour. The head edge carries the ear nearest the plug
     // scallop; the cam edge carries the ear at the far rounded end. The drawing
     // pitch is snapped into the gaps between the intake shafts on this housing.
-    const head = s > 0 ? [150, 40, -85] : [-125, 15, 120];
-    const cam = s > 0 ? [90, -25, -158] : [-95, 45, 155];
-    const headX = s > 0 ? UPPER_STUD_X : -UPPER_STUD_X;
+    const head = [150, 40, -85];
+    const cam = [90, -25, -158];
     return [
-      ...head.map((y) => ({ x: headX, y })),
-      ...cam.map((y) => ({ x: -headX, y })),
+      ...head.map((y) => ({ x: UPPER_STUD_X, y })),
+      ...cam.map((y) => ({ x: -UPPER_STUD_X, y })),
     ];
   }
   // Keep each station far enough from the exhaust shaft that the cover pocket still
   // clears the shaft screw, and the tower does not meet the housing.
-  const head = s > 0 ? [-165, -145, -55, -30, 52, 90] : [-125, -100, -15, 10, 115, 165];
-  const cam = s > 0 ? [-170, -60, 56, 98, 170] : [-132, -8, 105, 148, 170];
+  const head = [-165, -145, -55, -30, 52, 90];
+  const cam = [-170, -60, 56, 98, 170];
   return [...head.map((y) => ({ x: -VC_EDGE, y })), ...cam.map((y) => ({ x: VC_EDGE, y }))];
 }
 /** Three raised lugs on the lower cover, on the cam edge between the hex studs. */
-export function vcLugs(s: 1 | -1): CoverStud[] {
-  const ys = s > 0 ? [-148, -38, 76] : [-108, 14, 128];
-  return ys.map((y) => ({ x: VC_EDGE, y }));
+export function vcLugs(_s: 1 | -1): CoverStud[] {
+  return [-148, -38, 76].map((y) => ({ x: VC_EDGE, y }));
 }
 
 /** Minimal stroke font for cast lettering (4x6 grid). */
@@ -1316,7 +1316,9 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
  */
 const UPPER_CAST = {
   wall: 4,
-  flangeW: 8,
+  // Lip = inner + wall + flange = 70, outside the ear (axis 56, radius 12.4).
+  // The drawing keeps the ear bosses inside the flange outline.
+  flangeW: 30,
   flangeT: 5,
   innerX: 36,
   // The connector elbow clears the crown by about 3 mm (it rides near local z 25).
@@ -1338,13 +1340,13 @@ export function upperCrownZ(x: number) {
  * Lower lid 930 105 116 00, cover-local. Same closed-shell construction as the
  * upper lid: 4 mm walls, an 8 mm flange, a shallow crown. Kat 502 p.66 ill.
  * 103-05 #19 draws this pan with rounded ends, diagonal ribs and three lugs,
- * and no plug holes. The lip (inner + wall + flange = 46) covers the cam-side
- * rail (about local x −46..−39). The pan (inner half-width 34) clears the
+ * and no plug holes. The lip (inner + wall + flange = 62) is outside the ear
+ * bosses (axis 46, radius 13.2). The pan (inner half-width 34) clears the
  * exhaust rockers (|x| about 31, local z about 17).
  */
 const LOWER_CAST = {
   wall: 4,
-  flangeW: 8,
+  flangeW: 24,
   flangeT: 4.5,
   innerX: 34,
   shoulder: 21,
@@ -1415,11 +1417,36 @@ function castUpperShell(studHoles: THREE.BufferGeometry[], notch: THREE.BufferGe
 /** Valve-cover cavity: half-width at the seat (w0 + 8 bevel = 26) and how much the v5 hollow pan top rose (z 13.5 -> 22). */
 export const VC_CAV = { w0: 18 }, VC_RAISE = 8.5;
 /**
- * Extra cover length at the flywheel end. Both banks are 0: the cover matches the cam-housing seat rails
- * (`CH_Z0`..`CH_Z1`), the same length and Z position as the right cover.
+ * Extra cover length at the flywheel end. The shell is one length. The left
+ * bank is that shell turned 180° about Y, so it is not stretched here.
  */
 export const VC_EXT = (_s: 1 | -1) => 0;
 export function valveCover(s: 1 | -1, upper: boolean) {
+  if (s < 0) {
+    // The right cover is already in engine space. Bake that, then turn it
+    // 180° about Y. Rotating the local geometry under the right-bank matrix
+    // would leave the shell on the right cylinders.
+    const g = valveCover(1, upper);
+    const R = new THREE.Matrix4().makeRotationY(Math.PI);
+    g.updateMatrixWorld(true);
+    g.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld).applyMatrix4(R);
+      mesh.position.set(0, 0, 0);
+      mesh.rotation.set(0, 0, 0);
+      mesh.scale.set(1, 1, 1);
+      mesh.updateMatrix();
+    });
+    g.traverse((o) => {
+      o.position.set(0, 0, 0);
+      o.rotation.set(0, 0, 0);
+      o.scale.set(1, 1, 1);
+      o.updateMatrix();
+    });
+    g.updateMatrixWorld(true);
+    return g;
+  }
   const loc = new Part();
   const len = CH_Z1 - CH_Z0 - 8;
   const ext = VC_EXT(s), cy = -ext / 2;
@@ -1488,8 +1515,12 @@ export function valveCover(s: 1 | -1, upper: boolean) {
         [lug.x - out * 5, lug.y + 12],
         [lug.x + out * 16, lug.y],
       ]), VC_LUG_Z, 0.2, 1);
-      loc.add(wedge, 'castAlu');
-      loc.add(yToZ(cyl(8.4, 1.4, 20)).translate(lug.x, lug.y, VC_LUG_Z - 0.7), 'castAlu');
+      const disc = yToZ(cyl(8.4, 1.4, 20)).translate(lug.x, lug.y, VC_LUG_Z - 0.7);
+      // Clearance for the M8 stud (r 3.84). The cap nut sits on the stud, not on a shank cast into the nut.
+      // Same clearance as the hex-stud ears (r 6.4 vs the M8 shank at r 3.84).
+      const hole = () => yToZ(cyl(6.4, 24, 16)).translate(lug.x, lug.y, 2);
+      loc.add(manifoldSub(wedge, hole()), 'castAlu');
+      loc.add(manifoldSub(disc, hole()), 'castAlu');
     }
   }
   loc.g.applyMatrix4(coverMatrix(s, upper));
@@ -1497,7 +1528,8 @@ export function valveCover(s: 1 | -1, upper: boolean) {
 }
 
 /** Valve-cover frame: local x = along the slope, local y = engine Z, local z = outward normal (seat flange at z 0). */
-export function coverMatrix(s: 1 | -1, upper: boolean) {
+function rightCoverMatrix(upper: boolean) {
+  const s = 1;
   // Seat shifted +17 mm outboard in x. The head casting stays short; the cover,
   // gasket and studs move so the real-length valves land under the pan.
   const a0 = new THREE.Vector3((HEAD_OUT_X + 13 + 17) * s, upper ? 74 : -74, 0);
@@ -1511,6 +1543,16 @@ export function coverMatrix(s: 1 | -1, upper: boolean) {
   const m = new THREE.Matrix4().makeBasis(u, e, n);
   m.setPosition(mid.clone().add(n.clone().multiplyScalar(2)).setZ((CH_Z0 + CH_Z1) / 2));
   return m;
+}
+/**
+ * Cover frame. The left bank is the right-bank part turned 180° about Y, so the
+ * same casting sits on cylinders 4–6 (the Z mirror of 1–3) instead of sharing
+ * the right bank's absolute Z.
+ */
+export function coverMatrix(s: 1 | -1, upper: boolean) {
+  const right = rightCoverMatrix(upper);
+  if (s > 0) return right;
+  return new THREE.Matrix4().makeRotationY(Math.PI).multiply(right);
 }
 
 // ---------------------------------------------------------------- camshaft (103-10/-15 #42)
