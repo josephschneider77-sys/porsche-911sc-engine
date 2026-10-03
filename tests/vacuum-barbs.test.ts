@@ -509,9 +509,9 @@ function surfaceGap(a: THREE.BufferGeometry, b: THREE.BufferGeometry): number {
   const ga = a.index ? a.toNonIndexed() : a;
   const gb = b.index ? b.toNonIndexed() : b;
   const bvh = new MeshBVH(gb);
-  const hit: { distance?: number } = {};
-  bvh.closestPointToGeometry(ga, new THREE.Matrix4(), hit, {});
-  return hit.distance ?? Infinity;
+  const hit = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
+  bvh.closestPointToGeometry(ga, new THREE.Matrix4(), hit, { point: new THREE.Vector3(), distance: 0, faceIndex: 0 });
+  return hit.distance;
 }
 
 type Lead = { point: THREE.Vector3; axis: THREE.Vector3; reach: number; radial: number };
