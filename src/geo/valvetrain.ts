@@ -16,7 +16,7 @@ import { cutClosed, manifoldAdd, manifoldSub } from './manifoldCut';
 import { sealPatchGeometry, sealHousingPatch } from './sealRing';
 import { CAM_X, CAM_HOUSING_OUT_X, CYL_Z, CYL_TOP_X, HEAD_OUT_X, SPARK_HOLE_R, SPARK_BEND_R, SPARK_FLANGE_T, SPARK_MOUTH, SPARK_TUBE_R, plugTipEngine, plugAxisEngine, sparkRoll } from '../data/layout';
 import { HEAD_HW } from './hwLayout';
-import { CH_Z0, CH_Z1, vcStuds, CAM_NOSE, CHAIN_Z, bankZ, coverMatrix, CAM_COVER, camCoverAngles, camCoverBolt, camNoseStack } from './core';
+import { CH_Z0, CH_Z1, vcStuds, vcLugs, CAM_NOSE, CHAIN_Z, bankZ, coverMatrix, CAM_COVER, camCoverAngles, camCoverBolt, camNoseStack } from './core';
 import {
   VALVE_LEN, valveLen, STEM_R, GUIDE_Y0, GUIDE_Y1,
   stemDirLocal, stemPointLocal, headToEngine, camSpringCutters,
@@ -1379,6 +1379,17 @@ export function camHousing(s: 1 | -1) {
       );
       bridge.applyMatrix4(frame);
       p.add(bridge, 'castAlu');
+    }
+  }
+  // Cap nuts (103-05 #24) sit on the lower lugs, outboard of the rail. The same
+  // thread pad the hex studs use, so the shank reaches the housing.
+  {
+    const frame = coverMatrix(s, false);
+    for (const st of vcLugs(s)) {
+      const g = yToZ(cyl(4.2, 3.2, 12));
+      g.translate(st.x, st.y, -9.2);
+      g.applyMatrix4(frame);
+      p.add(g, 'castAlu');
     }
   }
   // After every later solid (lands, towers, stud pads). The outline cutter leaves one
