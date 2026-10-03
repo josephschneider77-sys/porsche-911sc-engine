@@ -1174,11 +1174,22 @@ function leftCamHousing() {
   host.add(yToZ(lathe([
     [CAM.boreR, -7.6], [CAM.boreR + 1.2, -7.6], [CAM.boreR + 1.2, 7.6], [CAM.boreR, 7.6], [CAM.boreR, -7.6],
   ], 28)).translate(cx, 0, CH_Z1 - 16), 'machinedAlu');
+  // Clip only the new plate and pad. The mirrored casting was already clipped,
+  // and a second pass takes the seal lands the gasket sits on.
+  clipHousingUnderCovers(host.g, -1);
   g.add(host.g);
-  clipHousingUnderCovers(g, -1);
   const seat = new Part();
   camChainSeat(seat, -1);
   g.add(seat.g);
+  // Cylinder 4 is on overlap. Those pockets graze the lower seal land in two
+  // strips the gasket still crosses. Put the land back at the same height as
+  // the mirrored sheet (local z −1.85..−0.55).
+  const lower = coverMatrix(-1, false);
+  for (const [y0, y1] of [[-120, -88], [-2, 30]] as const) {
+    const strip = boxMM([19.6, y0, -1.85], [23.2, y1, -0.55]);
+    strip.applyMatrix4(lower);
+    g.add(mesh(strip, 'machinedAlu'));
+  }
   return g;
 }
 
