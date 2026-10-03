@@ -348,8 +348,9 @@ function coverGasket(s: 1 | -1, up: boolean) {
   } else if (s < 0) {
     // Three upright slots and three diagonals, the right pattern mirrored about
     // engine z = 0. Clip every slot inside the sheet. The flywheel mirror would
-    // hang past the cover; the clip leaves the closing strip on the flange
-    // (outline at ±halfL, cover lip 0.25 mm past that) instead of an ear in free air.
+    // hang past the cover; the clip keeps its strip on the flange. Cylinder 6's
+    // exhaust head still meets that strip in the end corner, so a short bite
+    // opens the slot there without running out through the lip.
     const yLim = halfL - 4;
     const src = rightLowerWindows();
     for (const poly of src.slots) {
@@ -357,6 +358,7 @@ function coverGasket(s: 1 | -1, up: boolean) {
       const clipped = clipWindow(moved, -46, -yLim, 46, yLim);
       if (clipped.length >= 3) shape.holes.push(new THREE.Path(clipped));
     }
+    bites.push(boxMM([14, -(halfL - 1.6), -4], [30, -(halfL - 8), 4]));
     for (const poly of src.diagonals) {
       let cx = 0, cy = 0;
       for (const p of poly) { const [x, y] = mirrorLocal(p.x, p.y); cx += x; cy += y; }
