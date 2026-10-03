@@ -19,7 +19,7 @@ import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP,
 import { VARIANT } from '../data/variant';
 import { PARTS } from '../data/parts';
 import { catalyticConverterPart, registerAncillarySmall } from './bottomAnc';
-import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, TEE_AIR_INJ, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
+import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, AIR_TEE, mouldedTee, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
 function hull2(pts: [number, number][]): [number, number][] {
   const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -1364,38 +1364,20 @@ def('additional-air-valve', () => {
   return p;
 }, () => [new THREE.Matrix4()]);
 def('aux-air-plumbing', () => auxAirPlumbingPart(), () => [new THREE.Matrix4()]);
-def('vacuum-limiter', () => { const p = new Part(); p.add(lathe([[0.1, 0], [16, 0], [16, 20], [0.1, 20]], 24), 'satinBlack'); p.add(cylBetween([0, 10, 0], [22, 10, 0], 3.6, 10), 'blackPlastic'); p.add(cyl(4.2, 5, 12).translate(0, 23, 0), 'zincPlate'); p.add(hexNut(10, 5).translate(0, 28, 0), 'zincPlate'); p.add(lathe([[3.6, 20], [6.2, 20], [6.2, 21.3], [3.6, 21.3]], 12), 'darkSteel'); return p; }, () => [M(V(...VAC_LIMIT.origin), Y)]);
+def('vacuum-limiter', () => { const p = new Part(); p.add(lathe([[0.1, 0], [16, 0], [16, 20], [0.1, 20]], 24), 'satinBlack'); p.add(cylBetween([0, 10, 0], [24, 10, 0], 3.6, 10), 'blackPlastic'); p.add(cyl(4.2, 5, 12).translate(0, 23, 0), 'zincPlate'); p.add(hexNut(10, 5).translate(0, 28, 0), 'zincPlate'); p.add(lathe([[3.6, 20], [6.2, 20], [6.2, 21.3], [3.6, 21.3]], 12), 'darkSteel'); return p; }, () => [M(V(...VAC_LIMIT.origin), Y)]);
 def('vacuum-fittings', () => {
   const p = new Part();
   // Identity pose so the named vacuum hoses survive export (instancing drops mesh names).
-  const [ox, oy, oz] = VAC_T.origin;
-  // The T body is one fitting. Its primitives cross on purpose; they are not separate parts.
-  const t = new THREE.Group();
+  // 107-10 #14. Plain moulded T: manifold, limiter, and the leg up to thermo valve 17A.
+  const t = mouldedTee(VAC_T.origin, [0, 1, 0], { minusX: 3.2, plusX: 3.2, branch: 4.5 });
   t.name = 'fitting:vac-t';
-  t.add(mesh(cylBetween([ox - 14, oy, oz], [ox + 14, oy, oz], 3.6, 10), 'blackPlastic'));
-  t.add(mesh(cylBetween([ox, oy, oz], [ox, oy, oz + 16], 3.6, 10), 'blackPlastic'));
-  // Elbow up. The hose seat is vacTPorts().plusZ; a straight leg would meet the throttle flange.
-  t.add(mesh(cylBetween([ox, oy, oz + 16], [ox, oy, oz + 22], 2.8, 10), 'brass'));
-  t.add(mesh(cylBetween([ox, oy, oz + 20], [10, 274, 76], 2.8, 8), 'brass'));
-  // Last 8 mm is along +Y so the hose seat is a flat face on vacTPorts().plusZ.
-  t.add(mesh(cylBetween([10, 274, 76], [10, 282, 76], 2.8, 8), 'brass'));
-  // Rings around the three catalogue barbs, inboard of each tip.
-  // Fig 107-10 #14 is a three-port T. There is no flywheel (−Z) leg to cap.
-  const xRing = torus(4.2, 0.7, 6, 14).rotateY(Math.PI / 2);
-  t.add(mesh(xRing, 'zincPlate', [ox - 4, oy, oz]));
-  t.add(mesh(xRing.clone(), 'zincPlate', [ox + 10, oy, oz]));
-  t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, 276, 78]));
-  // 108-00 #31 branches off this tee. The run is one piece with the T body.
-  // Last 8 mm is cylBetween(root, tip, 2.8, 10) on −Y, which is the barb the
-  // emissions-off cap is built against. Ring centre is 6 mm above the tip
-  // (tube r 0.7), so 5.3 mm of free barb sits below the ring.
-  const [ix, iy, iz] = TEE_AIR_INJ.point;
-  const root: [number, number, number] = [ix, iy + 8, iz];
-  t.add(mesh(cylBetween([ox, oy, oz], [ox, root[1], oz], 2.2, 8), 'brass'));
-  t.add(mesh(cylBetween([ox, root[1], oz], root, 2.2, 8), 'brass'));
-  t.add(mesh(cylBetween(root, [ix, iy, iz], 2.8, 10), 'brass'));
-  t.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ix, iy + 6, iz]));
   p.g.add(t);
+  // Unlisted splice in the manifold hose. Not 202-05 #18 (that qty-1 T is egr-tee)
+  // and not a second 999 137 004 40. Stays in this part so the emissions-off cap
+  // still has a barb when the air-injection group is hidden. The down barb is bare.
+  const air = mouldedTee(AIR_TEE.origin, [0, -1, 0], { minusX: 3.2, plusX: 3.2, branch: 0 });
+  air.name = 'fitting:vac-air-t';
+  p.g.add(air);
   p.g.add(vacuumCluster().g);
   p.g.add(vacuumHosesPart().g);
   return p;

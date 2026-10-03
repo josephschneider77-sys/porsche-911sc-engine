@@ -892,8 +892,8 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | - | N 020 359 1 | Hose | * | N/A | bulk hose sold by the metre (qty *), cut to length on assembly |
 | 12 | N 023 577 2 | Hose clamp | 4 | modelled | `vacuum-fittings` clamp × 4 |
 | - | 999 239 020 40 | Hose | * | excluded | model years 80-: not a 1978 engine |
-| - | N 020 353 5 | Hose | * | N/A | bulk hose sold by the metre (qty *), cut to length on assembly |
-| 14 | 999 137 004 40 | T-piece | 1 | modelled | `vacuum-fittings` |
+| - | N 020 353 5 | Hose | * | N/A | bulk hose sold by the metre (qty *). The thermo-valve run is cut #13, 245 mm (3.5×2), from illustration 17A to T-piece #14. #13A is 30 mm, #13B is 370 mm and #16 is 40 mm of 8×14; none of those spans that pair. |
+| 14 | 999 137 004 40 | T-piece | 1 | modelled | `vacuum-fittings` (The only 107-10 T. The manifold splice beside it is not a catalogue line and is not 202-05 #18.) |
 | 15 | N 023 577 2 | Hose clamp | 1 | modelled | `vacuum-fittings` clamp × 1 |
 | - | 999 181 709 50 | Hose | * | N/A | bulk hose sold by the metre (qty *), cut to length on assembly |
 | 17 | 930 110 273 02 | Reducing socket | 1 | modelled | `vacuum-fittings` socket |
@@ -1120,8 +1120,8 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 14 | — | Washer | 1 | modelled | `egr-fasteners` washer |
 | 15 | 999 239 003 40 | Hose | 1 | modelled | `egr-hose-short` |
 | 16 | 999 239 003 40 | Hose | 1 | modelled | `egr-hose-long` |
-| 17 | 999 239 003 40 | Hose | 2 | modelled | `egr-hose-return`, `egr-hose-diverter` |
-| 18 | — | T-piece | 1 | modelled | `egr-tee` |
+| 17 | 999 239 003 40 | Hose | 2 | modelled | `egr-hose-return` × 1 (Return leg. The printed 465 mm is the diverter piece; these two ends are a short arc.) + `egr-hose-diverter` × 1 (Diverter leg. 465 mm does not clear the left case; the modelled run is the short clear route.) |
+| 18 | 999 137 004 40 | T-piece | 1 | modelled | `egr-tee` × 1 (999 137 004 40, qty 1, modelled as egr-tee. The manifold splice is not this T.) |
 | 19 | — | Buffer | 1 | modelled | `egr-buffer` |
 
 ## 202-20: Exhaust system, catalytic converter lines

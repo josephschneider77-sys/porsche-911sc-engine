@@ -455,7 +455,6 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('air-pump-strap', 'air-retainer', 'seated: strap tab on the retaining clip'),
   pair('air-pump-belt', 'air-pump-pulley|fan-pulley', 'seated: air-injection belt in the outer pulley grooves'),
   pair('air-hose-vacuum', 'air-diverter', 'seated: air-injection vacuum hose on the diverter vacuum nipple'),
-  pair('air-hose-vacuum', 'vacuum-fittings', 'seated: air-injection vacuum hose on the TEE_AIR_INJ barb'),
   pair('fan-hub', 'fan-impeller|alternator', 'pressed: fan hub on the alternator shaft and the impeller on the hub'),
   pair('warm-up-regulator', 'crankcase-left', 'seated: regulator flange on the case pad'),
   pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),

@@ -109,8 +109,21 @@ describe('1978 CIS fuel lines', () => {
         const p = new THREE.Vector3(...end.point);
         const axis = new THREE.Vector3(...end.axis).normalize();
         if (verts.length) {
-          const d = Math.min(...verts.map((q) => q.distanceTo(p)));
-          if (d > 0.5) bad.push(`${line.id} @ ${end.part}: nearest line vertex ${d.toFixed(2)} mm from the fitting (free air)`);
+          const barbR = 'barbR' in end ? end.barbR : undefined;
+          if (barbR != null) {
+            // The bore sits on the barb surface, within 1.5 mm of the tip. The distributor
+            // sleeve stops 1.2 mm short so the nipple's tip disk does not walk into it.
+            const onBarb = verts.some((q) => {
+              const rel = q.clone().sub(p);
+              const along = rel.dot(axis);
+              const radial = Math.sqrt(Math.max(0, rel.lengthSq() - along * along));
+              return along > -1.5 && along < 0.6 && Math.abs(radial - barbR) < 0.3;
+            });
+            if (!onBarb) bad.push(`${line.id} @ ${end.part}: hose bore does not meet the barb at the tip`);
+          } else {
+            const d = Math.min(...verts.map((q) => q.distanceTo(p)));
+            if (d > 0.5) bad.push(`${line.id} @ ${end.part}: nearest line vertex ${d.toFixed(2)} mm from the fitting (free air)`);
+          }
         }
         // Off the centreline: a nipple is an annulus, a heater mouth is a large tube. Try a few radii.
         const side0 = new THREE.Vector3(0, 1, 0).cross(axis);
@@ -152,14 +165,18 @@ describe('1978 CIS fuel lines', () => {
     const root = ASSET_BUILDERS[PART_BY_ID['vacuum-fittings'].asset]();
     root.updateMatrixWorld(true);
     let onTee = false;
+    let badParent = false;
     let line = false;
     root.traverse((o: any) => {
       if (typeof o.name === 'string' && o.name.startsWith('line:vac-airinj')) line = true;
-      if (!o.isMesh || !o.parent || o.parent.name !== 'fitting:vac-t') return;
+      if (!o.isMesh || !o.parent) return;
       const box = new THREE.Box3().setFromObject(o);
-      if (box.distanceToPoint(tip) < 0.6) onTee = true;
+      if (box.distanceToPoint(tip) >= 0.6) return;
+      if (o.parent.name === 'fitting:vac-air-t') onTee = true;
+      if (o.parent.name === 'fitting:vac-t') badParent = true;
     });
-    expect(onTee, 'the diverter barb is part of fitting:vac-t').toBe(true);
+    expect(onTee, 'the diverter barb is part of fitting:vac-air-t').toBe(true);
+    expect(badParent, '107-10 #14 has no diverter barb').toBe(false);
     expect(line).toBe(false);
   });
 

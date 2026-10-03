@@ -4,13 +4,15 @@ import { MeshBVH } from 'three-mesh-bvh';
 import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PARTS, PART_BY_ID } from '../src/data/parts';
 import { SMALL_SPECS } from '../src/data/smallSpec';
-import { TEE_AIR_INJ } from '../src/geo/induction';
+import { TEE_AIR_INJ, THROTTLE_PORTED_VAC, serviceHoses } from '../src/geo/induction';
+import { cylBetween } from '../src/geo/util';
 import { emissionsHidden } from '../src/data/teardown';
 
 const BRASS = 0xc9a54a;
 const PLASTIC = 0x151515;
 const CAST = 0x96989a;
 const RUBBER = 0x0e0e0e;
+const ZINC = 0xb4b6ae;
 
 const INDUCTION_HW = new Set(
   SMALL_SPECS.filter((s) => s.step === 'intake' || s.step === 'cis').map((s) => s.id),
@@ -368,6 +370,425 @@ describe('diverter barb lead-in', () => {
       if (hit && hit.distance < best) { best = hit.distance; who = p.id; }
     }
     expect(best + 0.5, `first hit ${who}`).toBeGreaterThanOrEqual(30);
+  });
+});
+
+type Ring = { part: string; center: THREE.Vector3; axis: THREE.Vector3; tube: number };
+
+/** Hole axis of a torus. Vertices stay in generator order after a baked rotation. */
+function torusFrame(geom: THREE.BufferGeometry, world: THREE.Matrix4): { center: THREE.Vector3; axis: THREE.Vector3 } | null {
+  const radial = params(geom)?.radialSegments;
+  const tubular = params(geom)?.tubularSegments;
+  if (radial == null || tubular == null) return null;
+  const stride = tubular + 1;
+  const P = geom.attributes.position;
+  const centers: THREE.Vector3[] = [];
+  for (let i = 0; i < tubular; i++) {
+    const c = new THREE.Vector3();
+    let n = 0;
+    for (let j = 0; j < radial; j++) {
+      c.add(new THREE.Vector3().fromBufferAttribute(P, j * stride + i));
+      n++;
+    }
+    if (n) centers.push(c.multiplyScalar(1 / n).applyMatrix4(world));
+  }
+  if (centers.length < 3) return null;
+  const center = new THREE.Vector3();
+  for (const c of centers) center.add(c);
+  center.multiplyScalar(1 / centers.length);
+  const axis = new THREE.Vector3();
+  for (let i = 0; i < centers.length; i++) {
+    const a = centers[i], b = centers[(i + 1) % centers.length];
+    axis.x += (a.y - center.y) * (b.z - center.z) - (a.z - center.z) * (b.y - center.y);
+    axis.y += (a.z - center.z) * (b.x - center.x) - (a.x - center.x) * (b.z - center.z);
+    axis.z += (a.x - center.x) * (b.y - center.y) - (a.y - center.y) * (b.x - center.x);
+  }
+  if (axis.lengthSq() < 1e-8) return null;
+  return { center, axis: axis.normalize() };
+}
+
+function clampRings(): Ring[] {
+  const rings: Ring[] = [];
+  for (const part of PARTS) {
+    if (!inScope(part.id)) continue;
+    const root = ASSET_BUILDERS[part.asset]();
+    root.updateMatrixWorld(true);
+    const pose = poseOf(part.id);
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const hex = (mesh.material as THREE.MeshStandardMaterial)?.color?.getHex?.();
+      if (hex !== ZINC) return;
+      const tube = params(mesh.geometry)?.tube;
+      const radius = params(mesh.geometry)?.radius;
+      // Wire clamps on a barb or a small hose. Boot bands and ring terminals are larger.
+      if (tube == null || radius == null || tube < 0.55 || tube > 0.85 || radius < 3 || radius > 8) return;
+      for (const inst of instancesOf(mesh)) {
+        const frame = torusFrame(mesh.geometry, worldOf(pose, mesh, inst));
+        if (frame) rings.push({ part: part.id, ...frame, tube });
+      }
+    });
+  }
+  return rings;
+}
+
+type Seat = { id: string; point: THREE.Vector3; axis: THREE.Vector3 };
+
+/** Push-on seats: every vacuum and aux-air end, plus the EGR hose on the throttle nipple. */
+function hoseSeats(): Seat[] {
+  const seats: Seat[] = [];
+  for (const h of serviceHoses()) {
+    for (const end of [h.a, h.b]) {
+      seats.push({
+        id: `${h.id}@${end.part}`,
+        point: new THREE.Vector3(...end.point),
+        axis: new THREE.Vector3(...end.axis).normalize(),
+      });
+    }
+  }
+  seats.push({
+    id: 'egr-hose-long@throttle',
+    point: new THREE.Vector3(...THROTTLE_PORTED_VAC.point),
+    axis: new THREE.Vector3(...THROTTLE_PORTED_VAC.axis).normalize(),
+  });
+  return seats;
+}
+
+/** Rubber vertices, world space. The throttle band sits on an EGR hose outside the induction set. */
+function rubberCloud(): THREE.Vector3[] {
+  const want = new Set<string>([
+    'vacuum-fittings', 'aux-air-plumbing',
+    'egr-hose-long', 'egr-hose-short', 'egr-hose-return', 'egr-hose-diverter',
+    'air-hose-vacuum', 'air-hose-pump', 'air-hose-valve', 'air-hose-dump',
+  ]);
+  const out: THREE.Vector3[] = [];
+  const v = new THREE.Vector3();
+  for (const part of PARTS) {
+    if (!want.has(part.id)) continue;
+    const root = ASSET_BUILDERS[part.asset]();
+    root.updateMatrixWorld(true);
+    const pose = poseOf(part.id);
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const hex = (mesh.material as THREE.MeshStandardMaterial)?.color?.getHex?.();
+      if (hex !== RUBBER) return;
+      const P = mesh.geometry.attributes.position;
+      for (const inst of instancesOf(mesh)) {
+        const world = worldOf(pose, mesh, inst);
+        for (let i = 0; i < P.count; i++) out.push(v.fromBufferAttribute(P, i).applyMatrix4(world).clone());
+      }
+    });
+  }
+  return out;
+}
+
+describe('vacuum clamp rings', () => {
+  const rings = clampRings();
+  const seats = hoseSeats();
+  const rubber = rubberCloud();
+
+  it('every clamp ring is coaxial with a hose end and lies inside that overlap', () => {
+    const rel = new THREE.Vector3();
+    const bad: string[] = [];
+    for (const ring of rings) {
+      const seat = seats
+        .map((s) => {
+          const along = ring.center.clone().sub(s.point).dot(s.axis);
+          const radial = ring.center.clone().sub(s.point).addScaledVector(s.axis, -along).length();
+          return { s, along, radial, align: Math.abs(ring.axis.dot(s.axis)) };
+        })
+        .filter((x) => x.align > 0.85 && x.radial < 1.2 && x.along < 1 && x.along > -12)
+        .sort((a, b) => a.radial - b.radial)[0];
+      const at = `${ring.part} @ ${ring.center.toArray().map((n) => n.toFixed(0)).join(',')}`;
+      if (!seat) { bad.push(`${at}: no coaxial hose end`); continue; }
+      let inner = Infinity;
+      for (const q of rubber) {
+        rel.copy(q).sub(seat.s.point);
+        const along = rel.dot(seat.s.axis);
+        if (along < -12 || along > 1) continue;
+        const radial = Math.sqrt(Math.max(0, rel.lengthSq() - along * along));
+        if (radial < 1.5 || radial > 16) continue;
+        if (along < inner) inner = along;
+      }
+      if (!Number.isFinite(inner)) { bad.push(`${at}: no hose over ${seat.s.id}`); continue; }
+      // Inboard of the lip, and still short of the tip, so the wire is on rubber over the barb.
+      if (seat.along < inner + 0.3 || seat.along > -0.4) {
+        bad.push(`${at} on ${seat.s.id}: ring ${seat.along.toFixed(2)} mm, hose from ${inner.toFixed(2)} mm`);
+      }
+    }
+    expect(bad).toEqual([]);
+    expect(rings.length).toBeGreaterThan(0);
+  });
+});
+
+describe('thermo-valve hose length', () => {
+  it('stays near the 107-10 #13 cut of 245 mm', () => {
+    // #13A is 30 mm, #13B is 370 mm, #16 is 40 mm of a larger hose. #13 is the cut that fits.
+    const root = ASSET_BUILDERS[PART_BY_ID['vacuum-fittings'].asset]();
+    let path = 0;
+    let leads = 0;
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || mesh.name !== 'line:vac-thermo') return;
+      const par = params(mesh.geometry);
+      const curve = (mesh.geometry as THREE.TubeGeometry).parameters?.path;
+      if (curve && 'getLength' in curve) path += (curve as { getLength: () => number }).getLength();
+      else if (par?.height != null && (par.radiusTop ?? 0) > 4) leads += par.height;
+    });
+    // Two 7 mm push-ons, plus the straight leads, plus the swept run. The sleeve shell is 7.2 mm.
+    const sleeves = 7.2 * 2;
+    const length = path + Math.max(0, leads - sleeves);
+    expect(length, `centreline ${length.toFixed(1)} mm`).toBeGreaterThan(220);
+    expect(length).toBeLessThan(270);
+  });
+});
+
+describe('hose slides onto the barb', () => {
+  it('each vacuum and aux-air end covers at least 5 mm of its barb, coaxially', () => {
+    // CIS fuel lines are steel tube in union nuts. They have no push-on barb.
+    const clouds = new Map<string, THREE.Vector3[]>();
+    const bad: string[] = [];
+    const rel = new THREE.Vector3();
+    for (const h of serviceHoses()) {
+      const key = `${h.part}:${h.id}`;
+      if (!clouds.has(key)) {
+        const root = ASSET_BUILDERS[PART_BY_ID[h.part].asset]();
+        root.updateMatrixWorld(true);
+        const pose = poseOf(h.part);
+        const pts: THREE.Vector3[] = [];
+        const v = new THREE.Vector3();
+        root.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh || mesh.name !== `line:${h.id}`) return;
+          const P = mesh.geometry.attributes.position;
+          for (const inst of instancesOf(mesh)) {
+            const world = worldOf(pose, mesh, inst);
+            for (let i = 0; i < P.count; i++) pts.push(v.fromBufferAttribute(P, i).applyMatrix4(world).clone());
+          }
+        });
+        clouds.set(key, pts);
+      }
+      const verts = clouds.get(key)!;
+      for (const end of [h.a, h.b]) {
+        const where = `${h.id} @ ${end.part}`;
+        if (end.barbR == null) { bad.push(`${where}: no barb radius`); continue; }
+        const tip = new THREE.Vector3(...end.point);
+        const axis = new THREE.Vector3(...end.axis).normalize();
+        const bore: THREE.Vector3[] = [];
+        let reaches = false;
+        for (const q of verts) {
+          rel.copy(q).sub(tip);
+          const along = rel.dot(axis);
+          const radial = Math.sqrt(Math.max(0, rel.lengthSq() - along * along));
+          if (along > -1 && radial < 20) reaches = true;
+          if (Math.abs(radial - end.barbR) < 0.2 && along > -12 && along < 1) bore.push(q.clone());
+        }
+        if (bore.length < 8) { bad.push(`${where}: bore not on the barb`); continue; }
+        let inner = Infinity;
+        const centroid = new THREE.Vector3();
+        for (const q of bore) {
+          centroid.add(q);
+          const along = q.clone().sub(tip).dot(axis);
+          if (along < inner) inner = along;
+        }
+        centroid.multiplyScalar(1 / bore.length);
+        rel.copy(centroid).sub(tip);
+        const cAlong = rel.dot(axis);
+        const cRadial = Math.sqrt(Math.max(0, rel.lengthSq() - cAlong * cAlong));
+        if (inner > -5) bad.push(`${where}: covers ${(-inner).toFixed(2)} mm`);
+        if (cRadial > 0.35) bad.push(`${where}: bore ${cRadial.toFixed(2)} mm off the axis`);
+        if (!reaches) bad.push(`${where}: hose stops short of the tip`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+});
+
+/** Surface gap between two triangle soups. Faceted cylinders read a few tenths under the true radii. */
+function surfaceGap(a: THREE.BufferGeometry, b: THREE.BufferGeometry): number {
+  const ga = a.index ? a.toNonIndexed() : a;
+  const gb = b.index ? b.toNonIndexed() : b;
+  const bvh = new MeshBVH(gb);
+  const hit = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
+  bvh.closestPointToGeometry(ga, new THREE.Matrix4(), hit, { point: new THREE.Vector3(), distance: 0, faceIndex: 0 });
+  return hit.distance;
+}
+
+type Lead = { point: THREE.Vector3; axis: THREE.Vector3; reach: number; radial: number };
+
+/**
+ * Drop triangles that touch this hose's own straight lead.
+ * The lead is the capsule along the outward axis from the fitting tip.
+ * A mid-run contact is not a lead, even when the surfaces touch.
+ */
+function withoutLeads(geom: THREE.BufferGeometry, leads: Lead[]): THREE.BufferGeometry {
+  const g = geom.index ? geom.toNonIndexed() : geom;
+  const P = g.attributes.position;
+  const keep: number[] = [];
+  const rel = new THREE.Vector3();
+  for (let i = 0; i < P.count; i += 3) {
+    let seated = false;
+    for (let k = 0; k < 3 && !seated; k++) {
+      const vert = new THREE.Vector3().fromBufferAttribute(P, i + k);
+      seated = leads.some((lead) => {
+        rel.copy(vert).sub(lead.point);
+        const along = rel.dot(lead.axis);
+        // The sleeve occupies the 7 mm inboard of the tip. That contact is the seat, not a clash.
+        if (along < -9 || along > lead.reach) return false;
+        return rel.addScaledVector(lead.axis, -along).length() < lead.radial;
+      });
+    }
+    if (seated) continue;
+    for (let k = 0; k < 3; k++) {
+      const v = new THREE.Vector3().fromBufferAttribute(P, i + k);
+      keep.push(v.x, v.y, v.z);
+    }
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
+  return out;
+}
+
+describe('hose to fitting clearance', () => {
+  it('a 6 mm centreline offset between an r 1.5 rod and an r 4.5 hose fails the 2 mm rule', () => {
+    // 6.0 = 1.5 + 4.5, so the surfaces touch. Centreline distance would report 6 mm and pass.
+    const rod = cylBetween([0, 0, 0], [0, 40, 0], 1.5, 24);
+    const hose = cylBetween([6, 0, 0], [6, 40, 0], 4.5, 24);
+    const gap = surfaceGap(rod, hose);
+    expect(gap, `surface gap ${gap.toFixed(2)} mm`).toBeLessThan(2);
+    expect(gap).toBeLessThan(0.5);
+  });
+
+  it('every barb and fitting body stays at least 2 mm off every hose except that hose\'s own lead', () => {
+    // The old check called any vertex within 1.2 mm a seated contact, then ignored
+    // every sample within 16 mm of those vertices. The wire arm kissed vac-thermo
+    // mid-run (6.0 mm between centrelines, r 1.5 + r 4.5) and those samples were
+    // dropped, so the table reported about 15.9 mm. A tangent also is not a triangle
+    // clash: trianglesClash wants a segment that crosses a face. This is the
+    // surface distance, and the only samples removed are each hose's own lead.
+    const leadsOf = new Map<string, Lead[]>();
+    for (const h of serviceHoses()) {
+      const list = leadsOf.get(`${h.part}:${h.id}`) ?? [];
+      for (const end of [h.a, h.b]) {
+        list.push({
+          point: new THREE.Vector3(...end.point),
+          axis: new THREE.Vector3(...end.axis).normalize(),
+          reach: 4,
+          radial: 4,
+        });
+      }
+      leadsOf.set(`${h.part}:${h.id}`, list);
+    }
+    type Soup = { id: string; geom: THREE.BufferGeometry; box: THREE.Box3; radial: number };
+    const fittings: Soup[] = [];
+    const hoses: Soup[] = [];
+    const bake = (mesh: THREE.Mesh, world: THREE.Matrix4) => {
+      const src = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
+      const baked = src.clone();
+      baked.applyMatrix4(world);
+      baked.computeBoundingBox();
+      const p = params(mesh.geometry);
+      const radial = Math.max(p?.radius ?? 0, p?.radiusTop ?? 0, p?.radiusBottom ?? 0);
+      return { geom: baked, box: baked.boundingBox!, radial };
+    };
+    // Emissions on is the larger set: the cap is not a hose, and every vacuum hose is present.
+    const hidden = emissionsHidden(true);
+    const wanted = new Set([
+      'vacuum-fittings', 'aux-air-plumbing',
+      'air-hose-vacuum', 'air-hose-pump', 'air-hose-valve', 'air-hose-dump',
+      'egr-hose-long', 'egr-hose-short', 'egr-hose-return', 'egr-hose-diverter',
+    ]);
+    for (const part of PARTS) {
+      if (hidden.has(part.id) || !wanted.has(part.id)) continue;
+      const root = ASSET_BUILDERS[part.asset]();
+      root.updateMatrixWorld(true);
+      const pose = poseOf(part.id);
+      root.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const hex = (mesh.material as THREE.MeshStandardMaterial)?.color?.getHex?.();
+        const named = typeof mesh.name === 'string' ? mesh.name : '';
+        const tubular = params(mesh.geometry)?.tubularSegments != null;
+        const hose = named.startsWith('line:') || (tubular && hex === RUBBER);
+        let fitting: string | null = null;
+        let p: THREE.Object3D | null = mesh.parent;
+        while (p) {
+          if (typeof p.name === 'string' && p.name.startsWith('fitting:')) { fitting = p.name; break; }
+          p = p.parent;
+        }
+        for (const inst of instancesOf(mesh)) {
+          const world = worldOf(pose, mesh, inst);
+          const baked = bake(mesh, world);
+          if (hose) {
+            const id = named.startsWith('line:') ? `${part.id}:${named.slice(5)}` : part.id;
+            hoses.push({ id, ...baked });
+          } else if (fitting && part.id === 'vacuum-fittings') {
+            fittings.push({ id: fitting, ...baked });
+          }
+        }
+      });
+    }
+    const fitById = new Map<string, Soup[]>();
+    for (const f of fittings) {
+      const list = fitById.get(f.id) ?? [];
+      list.push(f);
+      fitById.set(f.id, list);
+    }
+    const fitPacked = [...fitById.entries()].map(([id, parts]) => {
+      const pts: number[] = [];
+      const box = new THREE.Box3();
+      for (const part of parts) {
+        box.union(part.box);
+        const P = part.geom.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          pts.push(P.getX(i), P.getY(i), P.getZ(i));
+        }
+      }
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      return { id, geom, box };
+    });
+    const byHose = new Map<string, Soup[]>();
+    for (const h of hoses) {
+      const list = byHose.get(h.id) ?? [];
+      list.push(h);
+      byHose.set(h.id, list);
+    }
+    const report: string[] = [];
+    const bad: string[] = [];
+    for (const [id, geoms] of byHose) {
+      const leads = (leadsOf.get(id) ?? []).map((lead) => ({
+        ...lead,
+        // Open sleeves and the flared aux-air bore do not always carry a radius parameter.
+        radial: Math.max(lead.radial, 14, ...geoms.map((g) => g.radial + 1.5)),
+      }));
+      let min = Infinity;
+      for (const geom of geoms) {
+        const stripped = withoutLeads(geom.geom, leads);
+        const count = stripped.attributes.position?.count ?? 0;
+        if (count < 3) continue;
+        stripped.computeBoundingBox();
+        const hoseBox = stripped.boundingBox!;
+        for (const fit of fitPacked) {
+          const dx = Math.max(0, hoseBox.min.x - fit.box.max.x, fit.box.min.x - hoseBox.max.x);
+          const dy = Math.max(0, hoseBox.min.y - fit.box.max.y, fit.box.min.y - hoseBox.max.y);
+          const dz = Math.max(0, hoseBox.min.z - fit.box.max.z, fit.box.min.z - hoseBox.max.z);
+          const boxGap = Math.hypot(dx, dy, dz);
+          if (boxGap >= 2 && !id.startsWith('vacuum-fittings:')) {
+            if (boxGap < min) min = boxGap;
+            continue;
+          }
+          const d = surfaceGap(stripped, fit.geom);
+          if (d < min) min = d;
+        }
+      }
+      if (!Number.isFinite(min)) continue;
+      report.push(`${id} ${min.toFixed(2)}`);
+      if (min < 2) bad.push(`${id} ${min.toFixed(2)} mm`);
+    }
+    report.sort();
+    expect(bad, report.join('; ')).toEqual([]);
   });
 });
 
