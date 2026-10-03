@@ -1255,7 +1255,9 @@ export function camHousing(s: 1 | -1) {
       }
     }
   }
-  // cover-seat rails and stud bosses — same stations as the valve covers (do not move)
+  // cover-seat rails and lower stud bosses. Upper studs are placed after the
+  // cover clip, on the cover-stud axis. The old upper bosses treated local
+  // x < 0 as the head edge; on the right bank that is the cam edge.
   const zc = (CH_Z0 + CH_Z1) / 2;
   // Exhaust stems pass through the head-side lower rail. Leave a gap there; the
   // jogged cover land is the continuous seal. A full-length bar left a sliver the
@@ -1300,6 +1302,7 @@ export function camHousing(s: 1 | -1) {
     }
   }
   for (const upper of [true, false]) for (const st of vcStuds(upper, s)) {
+    if (upper) continue;
     const z = zc + st.y;
     const headSide = st.x < 0;
     p.add(yToX(cyl(6.5, 12, 14)), 'castAlu', [X(headSide ? HEAD_OUT_X + 29 : CAM_HOUSING_OUT_X - 10), upper ? (headSide ? 69 : 32) : (headSide ? -69 : -32), z]);
@@ -1366,6 +1369,24 @@ export function camHousing(s: 1 | -1) {
       g.translate(st.x, st.y, -9.2);
       g.applyMatrix4(frame);
       p.add(g, 'castAlu');
+      if (!upper) continue;
+      // Shank on the cover-hole axis. The early rail boss was on the wrong rail.
+      const shank = yToZ(cyl(4.6, 12, 14));
+      shank.translate(st.x, st.y, -14);
+      shank.applyMatrix4(frame);
+      p.add(shank, 'castAlu');
+      // Face under the ear, wide enough for the M8 washer, clear of the cover.
+      const face = yToZ(cyl(14, 2.2, 20));
+      face.translate(st.x, st.y, -3.9);
+      face.applyMatrix4(frame);
+      p.add(face, 'castAlu');
+      const sign = Math.sign(st.x) || 1;
+      const bridge = boxMM(
+        [Math.min(sign * 44, st.x - sign * 6), st.y - 5, -8.2],
+        [Math.max(sign * 44, st.x - sign * 6), st.y + 5, -3.2],
+      );
+      bridge.applyMatrix4(frame);
+      p.add(bridge, 'castAlu');
     }
   }
   // After every later solid (lands, towers, stud pads). The outline cutter leaves one
@@ -1628,8 +1649,9 @@ function addCoverLands(p: Part, s: 1 | -1) {
     // Inset 4 mm from the cover lip so the two outer walls are not the same
     // face. A shared wall overlaps once each mesh erodes 1 mm.
     // Top face at local z −0.55, under the gasket.
-    const sh = roundRect(50, L, 6);
-    sh.holes.push(new THREE.Path(roundRect(42, L - 14, 4).getPoints(6).reverse()));
+    // Upper land reaches the new lip (half-width 46). Lower stays the old 50 mm sheet.
+    const sh = roundRect(upper ? 92 : 50, L, upper ? 10 : 6);
+    sh.holes.push(new THREE.Path(roundRect(upper ? 68 : 42, L - 14, 4).getPoints(6).reverse()));
     let g: THREE.BufferGeometry = extrudeC(sh, 2.3);
     g.translate(0, 0, -1.7);
     const frame = coverMatrix(s, upper);
@@ -1950,7 +1972,31 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   // The underside cap from the seat trim sometimes points up. Erosion then
   // walks that face down into the gasket. Point it out of the metal.
   fixUndersideNormals(root, s, upper);
+  if (upper) fixCrownNormals(root, s);
   return root;
+}
+/** Outer crown faces must point out. An inverted cap erodes up into the plug connector. */
+function fixCrownNormals(root: THREE.Object3D, s: 1 | -1) {
+  const frame = coverMatrix(s, true);
+  const inv = frame.clone().invert();
+  const axis = new THREE.Vector3().setFromMatrixColumn(frame, 2);
+  const v = new THREE.Vector3(), n = new THREE.Vector3();
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry.attributes.normal) return;
+    const P = mesh.geometry.attributes.position;
+    const N = mesh.geometry.attributes.normal;
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(inv);
+      if (v.z < 22) continue;
+      n.fromBufferAttribute(N, i);
+      if (n.dot(axis) < -0.25) N.setXYZ(i, -n.x, -n.y, -n.z);
+    }
+  });
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh && mesh.geometry.attributes.normal) mesh.geometry.attributes.normal.needsUpdate = true;
+  });
 }
 function fixUndersideNormals(root: THREE.Object3D, s: 1 | -1, upper: boolean) {
   const frame = coverMatrix(s, upper);

@@ -240,7 +240,7 @@ function plugEndNotch(s: 1 | -1, halfL: number): THREE.BufferGeometry | null {
  */
 const FLANGE_STEP = 0.5;
 // Cell centres sit on multiples of 0.5 mm, so a 0.5 mm clamp sample lands in the cell, not on its edge.
-const FLANGE_X0 = -52.25, FLANGE_X1 = 52.25, FLANGE_Y0 = -190.25, FLANGE_Y1 = 190.25;
+const FLANGE_X0 = -68.25, FLANGE_X1 = 68.25, FLANGE_Y0 = -190.25, FLANGE_Y1 = 190.25;
 const gasketCache = new Map<string, THREE.BufferGeometry>();
 const bvhCache = new Map<string, MeshBVH>();
 
@@ -876,7 +876,7 @@ function coverGasket(s: 1 | -1, up: boolean) {
       for (let cy = -165 + holeH / 2; cy <= 165 - holeH / 2; cy += 2) {
         let best = Infinity, bestCx = 0;
         // The 48 mm hole stays inside the pan. The seal band sits on the
-        // flange outside |x| ≈ 29, so a window that reaches the lip cuts the ring.
+        // flange outside |x| ≈ 40, so a window that reaches the lip cuts the ring.
         for (let cx = -4; cx <= 4; cx += 2) {
           const x0 = cx - holeW / 2, y0 = cy - holeH / 2, x1 = cx + holeW / 2, y1 = cy + holeH / 2;
           if (frameBlocked(blocked, nx, ny, x0, y0, x1, y1, 6)) continue;

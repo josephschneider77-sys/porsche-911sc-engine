@@ -215,10 +215,10 @@ function sealLoop(s: 1 | -1, upper: boolean): Loop {
   const { walk, nx, ny } = blockedCells(s, upper);
   // Windows occupy the middle of the sheet. The leg has to stay outboard of
   // them or the opening cuts the ring.
-  // Upper band sits on the cast flange (wall at |x| 29, lip at 36.5).
+  // Upper band sits on the cast flange (wall at |x| 40, lip at 48).
   // Lower band stays outboard of the upright windows.
-  const rail = upper ? 33 : 42;
-  const keep = upper ? 28 : 36;
+  const rail = upper ? 43 : 42;
+  const keep = upper ? 38 : 36;
   const side = (sign: 1 | -1, y0: number, y1: number) => {
     const a = nearest(walk, nx, ny, sign * rail, y0);
     const b = nearest(walk, nx, ny, sign * rail, y1);
@@ -239,9 +239,9 @@ function sealLoop(s: 1 | -1, upper: boolean): Loop {
     const b = nearest(walk, nx, ny, q[0], q[1]);
     if (!a || !b) return [];
     return route(walk, nx, ny, a, b, (x, y) => {
-      // Upper flange ends at |x| 36.5. A detour outside it becomes a pad off the casting.
+      // Upper lip is |x| 48. Past that the path is off the casting and onto an ear.
       let c = Math.abs(y - ySign * 181) * 0.35 + (Math.abs(x) > 46 ? 6 : 0);
-      if (upper && Math.abs(x) > 36) c += 25;
+      if (upper && Math.abs(x) > 48) c += 25;
       return c;
     });
   };

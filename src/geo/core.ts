@@ -1240,8 +1240,14 @@ export function cylinderHead() {
 // The housing, camshaft and rocker meshes live in valvetrain.ts. These stations stay here because the
 // valve covers, chain housings and the keyed cam-nose hardware are built from them.
 export const CH_Z0 = -168, CH_Z1 = CASE_Z.pulley;
-/** Ear centre offset across the cover (cover-local x). Negative x is the head edge. */
+/** Lower-cover ear offset (cover-local x). The upper lid uses `UPPER_STUD_X`. */
 export const VC_EDGE = 31;
+/**
+ * Upper-lid stud axis, cover-local |x|. Outboard of the sealing flange so the
+ * gasket ring stays on the land and each ear carries its own washer.
+ * On the right bank +x is the head edge; on the left bank +x is the cam edge.
+ */
+export const UPPER_STUD_X = 56;
 /** Flat top of the three raised lugs on the lower cover (special nuts). Same plane as the hex-nut faces. */
 export const VC_LUG_Z = 7;
 export interface CoverStud { x: number; y: number }
@@ -1253,8 +1259,17 @@ export interface CoverStud { x: number; y: number }
  */
 export function vcStuds(upper: boolean, s: 1 | -1): CoverStud[] {
   if (upper) {
-    const ys = s > 0 ? [-150, -52, 155] : [-110, 8, 148];
-    return ys.flatMap((y) => [-VC_EDGE, VC_EDGE].map((x) => ({ x, y })));
+    // Kat 502 p.66 ill. 103-05 #17: six ears, three along each long edge, none
+    // opposite its neighbour. The head edge carries the ear nearest the plug
+    // scallop; the cam edge carries the ear at the far rounded end. The drawing
+    // pitch is snapped into the gaps between the intake shafts on this housing.
+    const head = s > 0 ? [150, 40, -85] : [-125, 15, 120];
+    const cam = s > 0 ? [90, -25, -158] : [-95, 45, 155];
+    const headX = s > 0 ? UPPER_STUD_X : -UPPER_STUD_X;
+    return [
+      ...head.map((y) => ({ x: headX, y })),
+      ...cam.map((y) => ({ x: -headX, y })),
+    ];
   }
   // Keep each station far enough from the exhaust shaft that the cover pocket still
   // clears the shaft screw, and the tower does not meet the housing.
@@ -1289,17 +1304,21 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
 }
 
 /**
- * Upper lid 901 105 115 03, cover-local. A closed cast shell: 4 mm walls, a 7.5 mm
+ * Upper lid 901 105 115 03, cover-local. A closed cast shell: 4 mm walls, an 8 mm
  * flange 5 mm thick, and a crowned roof. The sealing face stays at z = 0.
- * Inner half-width 25 mm leaves the intake rockers (they reach about |x| 21) inside the pan.
+ * The lip (inner + wall + flange = 48) covers the cam-housing rails (about
+ * local x +34.5 and −33) and the head-side stem bridges (about +45).
+ * The pan (inner half-width 36) still clears the intake rockers (|x| about 21).
  */
 const UPPER_CAST = {
   wall: 4,
-  flangeW: 7.5,
+  flangeW: 8,
   flangeT: 5,
-  innerX: 25,
-  shoulder: 23,
-  crown: 2.4,
+  innerX: 36,
+  // The connector elbow clears the crown by about 3 mm (it rides near local z 25).
+  // A taller arch erodes up into that tube.
+  shoulder: 21,
+  crown: 1.2,
   ceil: 19,
 };
 /** Outer height of the crowned roof at cover-local x. Peak is shoulder + crown. */
@@ -1319,9 +1338,10 @@ function castUpperShell(studHoles: THREE.BufferGeometry[], notch: THREE.BufferGe
   const lipX = outerX + C.flangeW;
   const innerY = halfL - C.flangeW - C.wall;
   const outerY = innerY + C.wall;
-  const endR = 12;
-  const flange = extrude(roundRect(lipX * 2, halfL * 2, endR), C.flangeT, 0, 10);
-  const walls = extrude(roundRect(outerX * 2, outerY * 2, 8), C.shoulder - C.flangeT + 1.2, 0, 10);
+  // Rounded ends, the long pan on 103-05 #17, not a square-cut box.
+  const endR = 28;
+  const flange = extrude(roundRect(lipX * 2, halfL * 2, endR), C.flangeT, 0, 12);
+  const walls = extrude(roundRect(outerX * 2, outerY * 2, 18), C.shoulder - C.flangeT + 1.2, 0, 10);
   walls.translate(0, 0, C.flangeT - 0.6);
   const rise = C.crown;
   const R = (outerX * outerX) / (2 * rise) + rise / 2;
@@ -1390,7 +1410,7 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   // Closed tower. The stud bore is the later cut, so the profile runs to the axis.
   // Upper ears are wide enough that the seal jog around the stud lands on the boss.
   const earBoss = yToZ(lathe(upper
-    ? [[18.5, 0], [16.2, 1.6], [13.2, 3.2], [10.4, 5.0], [8.8, 6.3], [8.8, 7], [0.4, 7], [18.5, 0]]
+    ? [[12.4, 0], [11.2, 1.6], [10.0, 3.4], [8.8, 5.4], [8.8, 7], [0.4, 7], [12.4, 0]]
     : [[16.4, 0], [14.8, 1.4], [12.4, 3.0], [10.2, 4.8], [8.8, 6.3], [8.8, 7], [0.4, 7], [16.4, 0]],
   24));
   studs.forEach((st, i) => {
@@ -1405,6 +1425,12 @@ export function valveCover(s: 1 | -1, upper: boolean) {
     loc.add(manifoldSub(extrude(polyShape(gussetPts), 5.8, 0.45, 2), earCut, studHole), 'castAlu');
   });
   if (upper) {
+    // Two longitudinal ribs on the crown, outboard of the plug collars and the
+    // connector elbow (that tube reaches about |x| 23).
+    for (const rx of [-32, 32]) {
+      const z0 = upperCrownZ(rx);
+      loc.add(boxMM([rx - 1.7, -152, z0 - 0.25], [rx + 1.7, 142, z0 + 1.4]), 'castAlu');
+    }
     // Raised cast PORSCHE lettering on the flat top, in the gap between plug holes.
     // Right holes sit near local Y −60 and +58; left holes sit near +16 and −102.
     // reads correctly from each bank's own side (letter-up toward +Y, advance toward the viewer's right)

@@ -6,7 +6,8 @@ import {
   rockerStations, plugCoverLocal, valveHeadEngine,
 } from '../src/geo/valvetrain';
 import { CAM_X, SPARK_TIP, SPARK_Z, SPARK_AXIS, SPARK_HOLE_R, SPARK_FLANGE_T, sparkDirHead, sparkRoll, plugTipEngine, plugAxisEngine } from '../src/data/layout';
-import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1, coverMatrix } from '../src/geo/core';
+import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1, coverMatrix, vcStuds } from '../src/geo/core';
+import { DIM, fastenerSets } from '../src/geo/fasteners';
 import { crownSurfaceX, PISTON_DECK, VALVE_DIA, VALVE_FACE, STEM_R, stemDirLocal } from '../src/geo/valveGeom';
 import { ASSET_BUILDERS, partPose } from '../src/geo/assets';
 import { SMALL_GEOM } from '../src/geo/smallParts';
@@ -169,6 +170,72 @@ describe('top-end batch 1', () => {
     expect(span('valve-cover-upper-left', -1, true)).toBeLessThanOrEqual(27.9);
     expect(span('valve-cover-lower-right', 1, false)).toBeCloseTo(24, 1);
     expect(span('valve-cover-lower-left', -1, false)).toBeCloseTo(24, 1);
+  });
+
+  it('seats each upper-cover ear on its cam-housing stud', () => {
+    const washerR = DIM[8].wr;
+    for (const s of [1, -1] as const) {
+      const bank = s > 0 ? 'right' : 'left';
+      const frame = coverMatrix(s, true);
+      const inv = frame.clone().invert();
+      const normal = new THREE.Vector3(0, 0, 1).transformDirection(frame).normalize();
+      const down = normal.clone().negate();
+      const coverId = `valve-cover-upper-${bank}`;
+      const houseId = `cam-housing-${bank}`;
+      const house = ASSET_BUILDERS[houseId]();
+      house.updateMatrixWorld(true);
+      const hv: THREE.Vector3[] = [];
+      const tmp = new THREE.Vector3();
+      house.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const P = mesh.geometry.attributes.position;
+        for (let i = 0; i < P.count; i++) hv.push(tmp.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld).clone());
+      });
+      const nuts = fastenerSets().find((f) => f.id === `valve-cover-nuts-upper-${bank}`)!;
+      expect(nuts.items.length, bank).toBe(6);
+      for (const st of vcStuds(true, s)) {
+        // Open bore: rays that miss the cover. The centroid is the hole axis.
+        const open: THREE.Vector2[] = [];
+        for (let y = st.y - 5; y <= st.y + 5; y += 0.5) for (let x = st.x - 5; x <= st.x + 5; x += 0.5) {
+          const origin = new THREE.Vector3(x, y, 18).applyMatrix4(frame);
+          const hit = rayHit(coverId, origin, down, 30);
+          if (!hit) open.push(new THREE.Vector2(x, y));
+        }
+        expect(open.length, `${bank} hole ${st.x},${st.y}`).toBeGreaterThan(20);
+        const hole = open.reduce((a, p) => a.add(p), new THREE.Vector2()).multiplyScalar(1 / open.length);
+        const near: THREE.Vector3[] = [];
+        for (const p of hv) {
+          const loc = p.clone().applyMatrix4(inv);
+          if (loc.z > -2 || loc.z < -20) continue;
+          if (Math.hypot(loc.x - hole.x, loc.y - hole.y) > 5) continue;
+          near.push(loc);
+        }
+        expect(near.length, `${bank} stud under ${st.x},${st.y}`).toBeGreaterThan(12);
+        const stud = near.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / near.length);
+        expect(Math.hypot(stud.x - hole.x, stud.y - hole.y), `${bank} stud axis`).toBeLessThanOrEqual(0.2);
+        // Washer bearing ring on the ear face (the nut's seat plane, local z = 7).
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const x = hole.x + Math.cos(a) * washerR * 0.85;
+          const y = hole.y + Math.sin(a) * washerR * 0.85;
+          const origin = new THREE.Vector3(x, y, 16).applyMatrix4(frame);
+          const hit = rayHit(coverId, origin, down, 20);
+          expect(hit, `${bank} washer ${k}`).not.toBeNull();
+          const at = origin.clone().addScaledVector(down, hit!.distance).applyMatrix4(inv);
+          expect(at.z, `${bank} washer seat`).toBeGreaterThan(6.5);
+          expect(at.z, `${bank} washer seat`).toBeLessThan(7.4);
+        }
+        const nut = nuts.items.find((it) => {
+          const loc = it.p.clone().applyMatrix4(inv);
+          return Math.hypot(loc.x - hole.x, loc.y - hole.y) < 2;
+        });
+        expect(nut, `${bank} nut`).toBeTruthy();
+        const loc = nut!.p.clone().applyMatrix4(inv);
+        expect(Math.hypot(loc.x - hole.x, loc.y - hole.y), `${bank} nut axis`).toBeLessThanOrEqual(0.2);
+        expect(loc.z, `${bank} nut face`).toBeCloseTo(7, 1);
+      }
+    }
   });
 
   it('phases the opposite bank so cylinder 4 is on overlap while cylinder 1 is closed', () => {
