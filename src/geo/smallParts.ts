@@ -469,25 +469,23 @@ def('vacuum-fittings', () => {
   t.add(mesh(cylBetween([ox, oy, oz + 20], [10, 274, 76], 2.8, 8), 'brass'));
   // Last 8 mm is along +Y so the hose seat is a flat face on vacTPorts().plusZ.
   t.add(mesh(cylBetween([10, 274, 76], [10, 282, 76], 2.8, 8), 'brass'));
-  // Spare −Z leg of the tee. The diverter hose seats on the handoff nipple, not here.
-  t.add(mesh(cylBetween([ox, oy, oz], [ox, oy, oz - 14], 2.8, 8), 'brass'));
-  // Rings around the barbs, inboard of each tip so the hose ray meets the barb face.
+  // Rings around the three catalogue barbs, inboard of each tip.
+  // Fig 107-10 #14 is a three-port T. There is no flywheel (−Z) leg to cap.
   const xRing = torus(4.2, 0.7, 6, 14).rotateY(Math.PI / 2);
   t.add(mesh(xRing, 'zincPlate', [ox - 4, oy, oz]));
   t.add(mesh(xRing.clone(), 'zincPlate', [ox + 10, oy, oz]));
   t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, 276, 78]));
-  t.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ox, oy, oz - 6]));
-  p.g.add(t);
-  // Handoff nipple for Bottom End's air-hose-vacuum. No hose mesh leaves this barb.
-  // Tip stays at TEE_AIR_INJ. The clamp ring's lower edge is 5.3 mm above that tip
-  // (centre iy+6, tube r 0.7), so a rubber cap can grip more than 5 mm of free barb.
-  // The root stops at iy+8, under the air-cleaner shell.
-  const inj = new THREE.Group();
-  inj.name = 'fitting:vac-airinj';
+  // 108-00 #31 branches off this tee. The run is one piece with the T body.
+  // Last 8 mm is cylBetween(root, tip, 2.8, 10) on −Y, which is the barb the
+  // emissions-off cap is built against. Ring centre is 6 mm above the tip
+  // (tube r 0.7), so 5.3 mm of free barb sits below the ring.
   const [ix, iy, iz] = TEE_AIR_INJ.point;
-  inj.add(mesh(cylBetween([ix, iy + 8, iz], [ix, iy, iz], 2.8, 10), 'brass'));
-  inj.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ix, iy + 6, iz]));
-  p.g.add(inj);
+  const root: [number, number, number] = [ix, iy + 8, iz];
+  t.add(mesh(cylBetween([ox, oy, oz], [ox, root[1], oz], 2.2, 8), 'brass'));
+  t.add(mesh(cylBetween([ox, root[1], oz], root, 2.2, 8), 'brass'));
+  t.add(mesh(cylBetween(root, [ix, iy, iz], 2.8, 10), 'brass'));
+  t.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ix, iy + 6, iz]));
+  p.g.add(t);
   p.g.add(vacuumCluster().g);
   p.g.add(vacuumHosesPart().g);
   return p;

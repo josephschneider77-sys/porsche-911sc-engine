@@ -150,13 +150,16 @@ describe('1978 CIS fuel lines', () => {
     const seated = ends.filter((e) => new THREE.Vector3(...e.point).distanceTo(tip) <= 0.5);
     expect(seated, 'TEE_AIR_INJ is a handoff to Bottom End, not an end of a hose drawn here').toEqual([]);
     const root = ASSET_BUILDERS[PART_BY_ID['vacuum-fittings'].asset]();
-    let fitting = false;
+    root.updateMatrixWorld(true);
+    let onTee = false;
     let line = false;
     root.traverse((o: any) => {
-      if (o.name === 'fitting:vac-airinj') fitting = true;
       if (typeof o.name === 'string' && o.name.startsWith('line:vac-airinj')) line = true;
+      if (!o.isMesh || !o.parent || o.parent.name !== 'fitting:vac-t') return;
+      const box = new THREE.Box3().setFromObject(o);
+      if (box.distanceToPoint(tip) < 0.6) onTee = true;
     });
-    expect(fitting).toBe(true);
+    expect(onTee, 'the diverter barb is part of fitting:vac-t').toBe(true);
     expect(line).toBe(false);
   });
 
