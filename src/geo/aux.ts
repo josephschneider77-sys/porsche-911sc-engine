@@ -1545,17 +1545,13 @@ function radialOf(i: number) {
 function radLen(i: number, axis: THREE.Vector3) {
   const b = bendPoint(i, axis);
   const r = radialOf(i);
-  let len = 80;
-  if (r.y > 0.02) len = Math.min(len, (310 - b.y) / r.y);
+  // Long enough that the turn onto the tower still clears 21 mm, and under the air-cleaner floor.
+  let len = 150;
+  if (r.y > 0.02) len = Math.min(len, (312 - b.y) / r.y);
   return Math.max(62, len);
 }
 function preOf(i: number, axis: THREE.Vector3) {
   return bendPoint(i, axis).clone().addScaledVector(radialOf(i), radLen(i, axis));
-}
-function onRadial(i: number, dist: number, axis: THREE.Vector3) {
-  const pre = preOf(i, axis);
-  const rin = bendPoint(i, axis).clone().sub(pre).normalize();
-  return pre.clone().addScaledVector(rin, -dist);
 }
 function capEnd(i: number, axis: THREE.Vector3) {
   return [preOf(i, axis), bendPoint(i, axis), towerSeat(i, axis)];
@@ -1588,30 +1584,63 @@ function leftLocal(cyl: number, lane: number, m: THREE.Vector3, D: THREE.Vector3
   const end = new THREE.Vector3(lane, -158, LEAD_ZL);
   return [seat, p1, p2, p3, p4, end];
 }
-function rightTail(end: THREE.Vector3, lane: number, tower: number, axis: THREE.Vector3) {
-  const off = (lane - LEAD_LANE_MID) / 14;
-  // Lift along the cover normal and lock a Z spread. Crossing in X/Y cannot close that spread.
-  const lift = end.clone().add(new THREE.Vector3(0.742, 0.671, 0).multiplyScalar(160));
-  lift.z = 250 + off * 24;
-  const z = lift.z;
-  const road: Record<number, THREE.Vector3[]> = {
-    0: [W(460, 280, z), W(460, 240, 175), W(-180, 190, 175), W(-500, 130, 230), onRadial(0, 300, axis)],
-    4: [W(580, 260, z), W(580, 300, 170), W(40, 300, 175)],
-    2: [W(420, 290, z), W(420, 290, 55), W(40, 300, 50), W(-160, 300, 18)],
-  };
-  return [lift, ...road[tower], ...capEnd(tower, axis)];
+/**
+ * After the cam-cover loom. Each lead takes its own road to the tower: up in its own
+ * lane, across clear of the fan and the plenum, then a long straight into `pre`.
+ * The straight is aimed so the turn onto the tower radial stays at 24 mm or more.
+ */
+function plugTail(end: THREE.Vector3, cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
+  const pre = preOf(LEAD_TOWER[cyl], axis);
+  const cap = capEnd(LEAD_TOWER[cyl], axis);
+  let mid: THREE.Vector3[];
+  if (cyl === 1) {
+    const top = pre.y + 95;
+    mid = [W(end.x, top, end.z), W(end.x, top, 140), W(pre.x, top, 140), W(pre.x, top, pre.z)];
+  } else if (cyl === 2) {
+    // Tower 4's axis is crossed by the distributor vacuum hose about 50 mm out.
+    return shallowJoin(4, end, axis, 300);
+  } else if (cyl === 3) {
+    // The flywheel-side ribbon (fuel, warm-up, vacuum) fills z −145…−190 near y 250.
+    // Cross above the flywheel, outboard of both covers, and arrive along +Z.
+    const zBack = -230;
+    const xOut = -420;
+    const zNear = pre.z - 80;
+    mid = [
+      W(end.x, pre.y, end.z), W(end.x, pre.y, zBack), W(xOut, pre.y, zBack),
+      W(xOut, pre.y, zNear), W(pre.x, pre.y, zNear),
+    ];
+  } else if (cyl === 4) {
+    mid = [W(end.x, pre.y, end.z), W(end.x, pre.y, pre.z)];
+  } else if (cyl === 5) {
+    const x0 = pre.x - 80;
+    mid = [W(x0, pre.y, end.z), W(x0, pre.y, pre.z)];
+  } else {
+    // Tower 5's axis is crossed by the distributor vacuum hose about 36 mm out.
+    return shallowJoin(5, end, axis, 220);
+  }
+  return [...mid, ...cap];
 }
-function leftTail(end: THREE.Vector3, lane: number, tower: number, axis: THREE.Vector3) {
-  const off = (lane - LEAD_LANE_MID) / 14;
-  const lift = end.clone().add(new THREE.Vector3(-0.742, 0.671, 0).multiplyScalar(160));
-  lift.z = 130 + off * 24;
-  const z = lift.z;
-  const road: Record<number, THREE.Vector3[]> = {
-    1: [W(-640, 210, z), W(-620, 150, 170), onRadial(1, 220, axis)],
-    3: [W(-180, 318, z), W(160, 318, z), W(170, 310, -90), W(30, 300, -80)],
-    5: [W(-340, 260, z), W(-260, 275, 330), W(-250, 200, 340), W(-235, 210, 250)],
-  };
-  return [lift, ...road[tower], ...capEnd(tower, axis)];
+/**
+ * Join a tower whose rotor-axis line is crossed by the distributor vacuum hose.
+ * A 90° entry along the tower radial stays on that line through the hose.
+ * Arrive 35° off the axis, on the side the hose leaves, and meet the axis
+ * 16 mm out, where the hose is already clear of it.
+ */
+function shallowJoin(tower: number, end: THREE.Vector3, axis: THREE.Vector3, yRoad: number): THREE.Vector3[] {
+  const mouth = towerMouth(tower);
+  const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
+  const bend = mouth.clone().addScaledVector(axis, 16);
+  const ax = axis.clone().normalize();
+  const u = new THREE.Vector3().crossVectors(ax, new THREE.Vector3(0, 1, 0)).normalize();
+  const beta = 35 * Math.PI / 180;
+  const dir = ax.clone().negate().multiplyScalar(Math.cos(beta)).addScaledVector(u, Math.sin(beta)).normalize();
+  const prev = bend.clone().addScaledVector(dir, -100);
+  // Past both the cover end and the approach, so every corner has a long straight.
+  const z1 = Math.max(end.z, prev.z) + 110;
+  return [
+    W(end.x, yRoad, end.z), W(end.x, yRoad, z1), W(prev.x, yRoad, z1),
+    prev, bend, seat,
+  ];
 }
 
 function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
@@ -1620,35 +1649,48 @@ function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
   const { local, D } = mouthLocal(cyl, fr);
   const cover = cyl <= 3 ? rightLocal(cyl, lane, local, D) : leftLocal(cyl, lane, local, D);
   const world = cover.map((p) => toWorld(fr, p));
-  const tower = LEAD_TOWER[cyl];
-  const tail = cyl <= 3 ? rightTail(world[world.length - 1], lane, tower, axis) : leftTail(world[world.length - 1], lane, tower, axis);
-  return [...world, ...tail];
+  return [...world, ...plugTail(world[world.length - 1], cyl, axis)];
 }
 
 /** Coil lead (#18) and primary (#9). Tuned once the plug runs exist; see ignitionLeadRuns. */
-function serviceCorners(axis: THREE.Vector3): { coil: THREE.Vector3[]; primary: THREE.Vector3[]; coilDir: THREE.Vector3; priDir: THREE.Vector3 } {
-  const lx = new THREE.Vector3(DIST_MAT.elements[0], DIST_MAT.elements[1], DIST_MAT.elements[2]);
-  const lz = new THREE.Vector3(DIST_MAT.elements[8], DIST_MAT.elements[9], DIST_MAT.elements[10]);
+function serviceCorners(axis: THREE.Vector3): {
+  coil: THREE.Vector3[]; primary: THREE.Vector3[];
+  coilDir: THREE.Vector3; priDir: THREE.Vector3;
+  coilRing: THREE.Vector3; priRing: THREE.Vector3;
+} {
   const mouth = v3(distW(0, DIST.towerY + 30, 0));
   const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
-  const far = mouth.clone().addScaledVector(axis, 100);
-  // Leave along local +Z, under the plug-lead highways, then out to a ring.
-  const side = far.clone().addScaledVector(lz, 90);
-  const down = side.clone().add(new THREE.Vector3(0, -80, 0));
-  const approach = down.clone().addScaledVector(lx, -80);
-  const dir = lx.clone().negate();
-  const ring = approach.clone().addScaledVector(dir, 40);
-  const past = ring.clone().addScaledVector(dir, 12);
-  const coil = [past, ring, approach, down, side, far, seat];
-  // Primary leaves the housing on the side opposite the vacuum can, and ends in a parallel ring.
+  const far = mouth.clone().addScaledVector(axis, 110);
+  // Step off the cap axis, then climb outboard of the left-bank risers (x ≈ −362…−381).
+  const side = new THREE.Vector3(axis.z, 0, -axis.x).normalize();
+  if (side.x > 0) side.negate();
+  const elbow = far.clone().addScaledVector(side, 110);
+  const dir = new THREE.Vector3(1, 0, 0);
+  const ring = new THREE.Vector3(-460, 168, 30);
+  const past = ring.clone().add(new THREE.Vector3(-18, 0, 0));
+  const xRun = -390;
+  const next = new THREE.Vector3(xRun, ring.y, ring.z);
+  const zCorner = new THREE.Vector3(xRun, ring.y, elbow.z);
+  const high = new THREE.Vector3(xRun, elbow.y, elbow.z);
+  const coil = [past, ring, next, zCorner, high, elbow, far, seat];
   const body = v3(distW(-24, 150, 18));
-  const priRing = ring.clone().addScaledVector(lz, 18);
-  const priPast = past.clone().addScaledVector(lz, 18);
-  const priApproach = approach.clone().addScaledVector(lz, 18);
-  const clear = body.clone().addScaledVector(dir, 110);
-  const beside = priApproach.clone().addScaledVector(dir, -110);
-  const primary = [body, clear, beside, priApproach, priRing, priPast];
-  return { coil, primary, coilDir: dir, priDir: dir };
+  const outward = body.clone().sub(v3(distW(0, 150, 0))).normalize();
+  const clearPt = body.clone().addScaledVector(outward, 100);
+  const priDir = new THREE.Vector3(-1, 0, 0);
+  // Behind the flywheel and above it, so the run never crosses the left-bank intake runners.
+  const yHi = 180;
+  const zBack = -250;
+  const priRing = new THREE.Vector3(-500, yHi, zBack);
+  const priPast = priRing.clone().add(new THREE.Vector3(-18, 0, 0));
+  const priNext = priRing.clone().add(new THREE.Vector3(120, 0, 0));
+  const primary = [
+    body, clearPt,
+    new THREE.Vector3(clearPt.x, clearPt.y, -160),
+    new THREE.Vector3(clearPt.x, yHi, -160),
+    new THREE.Vector3(clearPt.x, yHi, zBack),
+    priNext, priRing, priPast,
+  ];
+  return { coil, primary, coilDir: dir, priDir: priDir, coilRing: ring, priRing };
 }
 
 let leadRunCache: LeadRun[] | null = null;
@@ -1666,13 +1708,13 @@ export function ignitionLeadRuns(): LeadRun[] {
     name: 'lead:coil',
     radius: LEAD_R,
     points: filleted(svc.coil.map((p) => [p.x, p.y, p.z] as V3), LEAD_BEND, 6).map((q) => v3(q)),
-    ring: { center: svc.coil[1], dir: svc.coilDir },
+    ring: { center: svc.coilRing, dir: svc.coilDir },
   });
   runs.push({
     name: 'lead:primary',
     radius: 1.8,
     points: filleted(svc.primary.map((p) => [p.x, p.y, p.z] as V3), LEAD_BEND, 6).map((q) => v3(q)),
-    ring: { center: svc.primary[3], dir: svc.priDir },
+    ring: { center: svc.priRing, dir: svc.priDir },
   });
   leadRunCache = runs;
   return runs;
