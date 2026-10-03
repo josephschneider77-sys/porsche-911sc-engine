@@ -531,13 +531,13 @@ describe('tee clearance to vacuum hoses', () => {
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.Float32BufferAttribute(teePts, 3));
     const bvh = new MeshBVH(geom);
-    const target = new THREE.Vector3();
+    const hitInfo = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
     const report: string[] = [];
     const bad: string[] = [];
     for (const [id, pts] of hoses) {
       const gaps: { d: number; p: THREE.Vector3 }[] = [];
       for (let i = 0; i < pts.length; i += 2) {
-        const hit = bvh.closestPointToPoint(pts[i], target) as { distance: number } | null;
+        const hit = bvh.closestPointToPoint(pts[i], hitInfo);
         if (hit) gaps.push({ d: hit.distance, p: pts[i] });
       }
       const contact = gaps.filter((g) => g.d < 1.2).map((g) => g.p);
