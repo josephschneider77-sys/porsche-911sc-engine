@@ -603,6 +603,100 @@ describe('top-end batch 1', () => {
     }
   });
 
+  it('seals every plug connector against the upper cover', () => {
+    // Cylinders 2 and 3 use the round holes; cylinder 1 uses the end scallop.
+    // The left lid is that casting turned about Y, so 5 and 4 use the holes and 6 the scallop.
+    const bake = (root: THREE.Object3D) => {
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    const right = bake(ASSET_BUILDERS['valve-cover-upper-right']());
+    const left = bake(ASSET_BUILDERS['valve-cover-upper-left']());
+    const target = { point: new THREE.Vector3(), distance: Infinity };
+    for (const c of [1, 2, 3, 4, 5, 6]) {
+      const conn = ASSET_BUILDERS['spark-plug-connector']();
+      conn.applyMatrix4(partPose(`spark-plug-connector-${c}`));
+      conn.updateMatrixWorld(true);
+      const bvh = c <= 3 ? right : left;
+      let min = Infinity;
+      const v = new THREE.Vector3();
+      conn.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const P = m.geometry.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          bvh.closestPointToPoint(v, target as never);
+          if (target.distance < min) min = target.distance;
+        }
+      });
+      console.log(`connector cyl ${c} gap ${min.toFixed(3)} mm`);
+      expect(min, `cyl ${c}`).toBeLessThanOrEqual(0.2);
+    }
+  }, 300000);
+
+  it('keeps at least 85% of the upper seat on the housing land', () => {
+    const bake = (root: THREE.Object3D) => {
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    for (const s of [1, -1] as const) {
+      const bank = s > 0 ? 'right' : 'left';
+      const frame = coverMatrix(s, true);
+      const inv = frame.clone().invert();
+      const normal = new THREE.Vector3().setFromMatrixColumn(frame, 2).normalize();
+      const neg = normal.clone().negate();
+      const cover = bake(ASSET_BUILDERS[`valve-cover-upper-${bank}`]());
+      const house = bake(ASSET_BUILDERS[`cam-housing-${bank}`]());
+      const world = new THREE.Vector3();
+      const at = new THREE.Vector3();
+      let under = 0, over = 0;
+      for (let y = -186; y <= 186; y += 2) for (let x = -74; x <= 74; x += 2) {
+        world.set(x, y, -2).applyMatrix4(frame);
+        const h = cover.raycastFirst(new THREE.Ray(world, normal), THREE.DoubleSide) as { distance: number; point: THREE.Vector3 } | null;
+        if (!h || h.distance > 3.2) continue;
+        at.copy(h.point).applyMatrix4(inv);
+        if (at.z > 1.2) continue;
+        under++;
+        world.set(x, y, 0.4).applyMatrix4(frame);
+        const hh = house.raycastFirst(new THREE.Ray(world, neg), THREE.DoubleSide) as { distance: number } | null;
+        if (hh && hh.distance > 0.02 && hh.distance <= 3.2) over++;
+      }
+      const pct = 100 * over / under;
+      console.log(`upper ${bank} seat ${pct.toFixed(1)}% over land (${over}/${under})`);
+      expect(under, bank).toBeGreaterThan(1000);
+      expect(pct, bank).toBeGreaterThanOrEqual(85);
+    }
+  }, 300000);
+
   it('keeps the electrode 1.5 mm off the piston at TDC and clear of both valve heads', () => {
     const tip = new THREE.Vector3(SPARK_TIP.x, SPARK_TIP.y, SPARK_Z);
     const crown = crownSurfaceX(tip.y, tip.z);

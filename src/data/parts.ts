@@ -146,7 +146,7 @@ function perBank(): PartDef[] {
         asset: `valve-cover-${up ? 'upper' : 'lower'}-${b}`, explode: [s * 560, up ? 160 : -160, 0],
         catalog: [up ? { ill: '103-05', pos: '17', pn: '901 105 115 03', qty: 2, note: 'Blank remark and model (1978 USA 930/04). Gasket #18 930 105 194 00, same.' } : { ill: '103-05', pos: '19', pn: '930 105 116 00', qty: 2, note: 'Blank remark and model (1978 USA 930/04). 116 05 is the other line. Gasket #20 930 105 195 01, same.' }],
         description: up
-          ? 'Upper (intake-side) valve cover. Two round plug holes one cylinder pitch apart, plus the end opening, each with a cast collar between the rocker pockets. The lower cover has no plug holes.'
+          ? 'Upper (intake-side) valve cover. Cylinders 2 and 3 use two round plug holes one cylinder pitch apart; cylinder 1 uses the half-round end scallop. The left cover is this casting turned about Y, so cylinders 5 and 4 use the holes and cylinder 6 uses the scallop. The lower cover has no plug holes.'
           : 'Lower (exhaust-side) ribbed valve cover sealing the rocker gallery. No plug holes.',
         specs: { Material: 'Cast alloy', Fasteners: 'Nuts on studs' },
       });

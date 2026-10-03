@@ -2098,17 +2098,6 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   const under = boxMM([-140, -260, -90], [140, 260, -0.02]);
   under.applyMatrix4(frame);
   const cuts: THREE.BufferGeometry[] = [under];
-  // The chain-end stud (engine z ≈ 220, axis +Z) embeds back through the pulley
-  // end of the upper cover. Open that end around the stud. The side rails are
-  // untouched: the cut is only the existing sprocket-end notch, widened in x.
-  // Chain-end studs are at engine z ≈ 220. On the right, local +y is that end
-  // and the cover reaches it. On the left, local +y is the flywheel (cylinder 6)
-  // and the cover stops near z 164, short of the studs.
-  if (upper && s > 0) {
-    const end = boxMM([-24, 168, -4], [24, 220, 12]);
-    end.applyMatrix4(frame);
-    cuts.push(end);
-  }
   if (!upper) {
     // The Ø6.4 ball sits on the exhaust tip, in the corner where the head-side
     // wall meets the roof. The wall there is about 4 mm thick.
@@ -2224,12 +2213,14 @@ function addPlugOpenings(root: THREE.Object3D, s: 1 | -1) {
     const cutB = at(36);
     cuts.push(cylBetween([cutA.x, cutA.y, cutA.z], [cutB.x, cutB.y, cutB.z], SPARK_HOLE_R, 48));
     if (atEnd) {
-      // Half-round scallop in the end wall. A full collar here is a ring on a lug.
-      const endY = Math.sign(loc.y) * halfL;
-      const scallop = yToZ(cyl(SPARK_HOLE_R, 48, 48));
-      scallop.translate(loc.x, endY, 12);
-      scallop.applyMatrix4(frame);
-      cuts.push(scallop);
+      // End scallop for cylinder 1 (and 6, the same casting turned about Y).
+      // A boss grown from the flange along the plug axis, then bored to the
+      // seal diameter, so the connector seats the way cylinders 2 and 3 do
+      // in their round holes. A slot here left an 8.8 mm gap.
+      // Start above the seat. A boss centred on z = 0 dips through the gasket.
+      const a = at(4);
+      const b = at(32);
+      extra.add(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], SPARK_HOLE_R + 4.5, 40), 'castAlu');
     } else {
       // Boss stands proud of the crown (peak ≈ 25.4) and stays under the 27.9 mm envelope.
       const a = at(18);

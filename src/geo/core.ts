@@ -1308,18 +1308,21 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
 }
 
 /**
- * Upper lid 901 105 115 03, cover-local. A closed cast shell: 4 mm walls, an 8 mm
- * flange 5 mm thick, and a crowned roof. The sealing face stays at z = 0.
- * The lip (inner + wall + flange = 48) covers the cam-housing rails (about
- * local x +34.5 and −33) and the head-side stem bridges (about +45).
+ * Upper lid 901 105 115 03, cover-local. A closed cast shell: 4 mm walls, a
+ * 5 mm seat flange, and a crowned roof. The sealing face stays at z = 0.
+ * The rim follows the cam-housing land (local |x| 46). Each ear (axis 56,
+ * radius 12.4) gets its own round pad on that rim, not a plate out to |x| 70.
  * The pan (inner half-width 36) still clears the intake rockers (|x| about 21).
  */
 const UPPER_CAST = {
   wall: 4,
-  // Lip = inner + wall + flange = 70, outside the ear (axis 56, radius 12.4).
-  // The drawing keeps the ear bosses inside the flange outline.
-  flangeW: 30,
+  // Y inset of the pan from the cover end. The X outline is `landX` plus the ear pads.
+  endInset: 30,
   flangeT: 5,
+  /** Housing land half-width. The rim sits on this, and bulges only at the ears. */
+  landX: 46,
+  /** Round pad around each upper ear, outside the r 12.4 boss, so the boss blends into the rim. */
+  earPadR: 13.2,
   innerX: 36,
   // The connector elbow clears the crown by about 3 mm (it rides near local z 25).
   // A taller arch erodes up into that tube.
@@ -1379,17 +1382,19 @@ function castLowerShell(studHoles: THREE.BufferGeometry[], notch: THREE.BufferGe
   const shell = manifoldAdd(flange, walls, dome);
   return manifoldSub(shell, cavity, notch, ...studHoles);
 }
-function castUpperShell(studHoles: THREE.BufferGeometry[], notch: THREE.BufferGeometry) {
+function castUpperShell(studHoles: THREE.BufferGeometry[]) {
   const len = CH_Z1 - CH_Z0 - 8;
   const halfL = len / 2;
   const C = UPPER_CAST;
   const outerX = C.innerX + C.wall;
-  const lipX = outerX + C.flangeW;
-  const innerY = halfL - C.flangeW - C.wall;
+  const innerY = halfL - C.endInset - C.wall;
   const outerY = innerY + C.wall;
   // Rounded ends, the long pan on 103-05 #17, not a square-cut box.
+  // The rim is the housing land. A round pad at each ear blends out of that rim.
   const endR = 28;
-  const flange = extrude(roundRect(lipX * 2, halfL * 2, endR), C.flangeT, 0, 12);
+  const land = extrude(roundRect(C.landX * 2, halfL * 2, endR), C.flangeT, 0, 12);
+  const pads = vcStuds(true, 1).map((st) => yToZ(cyl(C.earPadR, C.flangeT, 28)).translate(st.x, st.y, C.flangeT / 2));
+  const flange = manifoldAdd(land, ...pads);
   const walls = extrude(roundRect(outerX * 2, outerY * 2, 18), C.shoulder - C.flangeT + 1.2, 0, 10);
   walls.translate(0, 0, C.flangeT - 0.6);
   const rise = C.crown;
@@ -1400,13 +1405,13 @@ function castUpperShell(studHoles: THREE.BufferGeometry[], notch: THREE.BufferGe
   const keep = extrude(roundRect(outerX * 2 + 0.6, outerY * 2 + 0.6, 8), rise + 2.2, 0, 10);
   keep.translate(0, 0, C.shoulder - 0.5);
   const dome = manifoldIntersect(cap, keep);
-  // The pulley end (+y) stays solid back to the sprocket notch. The seal crosses
-  // that bulkhead, so the pan does not need a sheet laid across the opening.
-  const cavY1 = innerY - 22;
-  const cavity = extrude(roundRect(C.innerX * 2, innerY + cavY1, 6, 0, (cavY1 - innerY) / 2), C.ceil + 2, 0, 8);
+  // The seat is a rim on the housing land. A plate across either end sits over
+  // the open rocker bay. Leave a lip at the end for the seal and the scallop.
+  const cavHalf = halfL - 12;
+  const cavity = extrude(roundRect(C.innerX * 2, cavHalf * 2, 8), C.ceil + 2, 0, 8);
   cavity.translate(0, 0, -2);
   const shell = manifoldAdd(flange, walls, dome);
-  return manifoldSub(shell, cavity, notch, ...studHoles);
+  return manifoldSub(shell, cavity, ...studHoles);
 }
 /**
  * Upper / lower valve cover (103-05 positions 17 and 19), engine coords. Kat 502 draws the upper lid
@@ -1455,10 +1460,15 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   const studs = vcStuds(upper, s);
   // Tall enough to pierce the lower pan wall where an ear overlaps it.
   const studHoles = studs.map((st) => yToZ(cyl(6.4, 42, 16)).translate(st.x, st.y, 5));
-  // Sprocket-end notch (pulley / chain end, local +y). On the upper lid it stops
-  // under the crown so the top skin stays closed.
-  const notch = boxMM([-15, len / 2 - 16 + cy, -1], [15, len / 2 + 4 + cy, upper ? 12 : 16]);
-  if (upper) loc.add(castUpperShell(studHoles, notch), 'castAlu');
+  // Cap-nut lugs: ø8.5 (r 4.25) through the 4.5 mm flange. The wedge above is
+  // drilled with the same bore. An M8 stud is r 3.84.
+  if (!upper) {
+    for (const lug of vcLugs(s)) studHoles.push(yToZ(cyl(4.25, 42, 20)).translate(lug.x, lug.y, 5));
+  }
+  // Lower lid keeps the sprocket-end notch. The upper end is the plug scallop,
+  // cut in addPlugOpenings, not a slot the connector stands loose in.
+  const notch = boxMM([-15, len / 2 - 16 + cy, -1], [15, len / 2 + 4 + cy, 16]);
+  if (upper) loc.add(castUpperShell(studHoles), 'castAlu');
   else loc.add(castLowerShell(studHoles, notch), 'castAlu');
   // Stud towers blended into the pan wall. The nut face stays a flat disc at z = 7.
   // The cavity runs through the ear centres. Keep the nut face (z = 7, out to r 8.8)
@@ -1484,7 +1494,11 @@ export function valveCover(s: 1 | -1, upper: boolean) {
     const gussetPts: [number, number][] = sign > 0
       ? [[wall, st.y - 13], [root, st.y - 8], [root, st.y + 8], [wall, st.y + 13]]
       : [[root, st.y - 8], [wall, st.y - 13], [wall, st.y + 13], [root, st.y + 8]];
-    loc.add(manifoldSub(extrude(polyShape(gussetPts), 5.8, 0.45, 2), earCut, studHole), 'castAlu');
+    // Upper braces start above the seat. A web down to z = 0 is extra underside
+    // hanging off the land, beside the ear pad.
+    const gusset = extrude(polyShape(gussetPts), upper ? 4.2 : 5.8, upper ? 0 : 0.45, 2);
+    if (upper) gusset.translate(0, 0, 1.8);
+    loc.add(manifoldSub(gusset, earCut, studHole), 'castAlu');
   });
   if (upper) {
     // Two longitudinal ribs on the crown, outboard of the plug collars and the
@@ -1510,15 +1524,17 @@ export function valveCover(s: 1 | -1, upper: boolean) {
     }
     for (const lug of vcLugs(s)) {
       const out = lug.x > 0 ? 1 : -1;
+      // Wedge stops under the spot face. A bevelled top sat above z = 7 and
+      // left the washer on the rim of a counterbore.
       const wedge = extrude(polyShape([
         [lug.x - out * 5, lug.y - 12],
         [lug.x - out * 5, lug.y + 12],
         [lug.x + out * 16, lug.y],
-      ]), VC_LUG_Z, 0.2, 1);
-      const disc = yToZ(cyl(8.4, 1.4, 20)).translate(lug.x, lug.y, VC_LUG_Z - 0.7);
-      // Clearance for the M8 stud (r 3.84). The cap nut sits on the stud, not on a shank cast into the nut.
-      // Same clearance as the hex-stud ears (r 6.4 vs the M8 shank at r 3.84).
-      const hole = () => yToZ(cyl(6.4, 24, 16)).translate(lug.x, lug.y, 2);
+      ]), 6.2, 0, 1);
+      // Spot face r 9. B 8×15 is r 7.5, so the washer seats on the face, not on a 0.5 mm rim.
+      const disc = yToZ(cyl(9, 1.6, 24)).translate(lug.x, lug.y, VC_LUG_Z - 0.8);
+      // ø8.5 through the wedge and the spot face. The flange bore is in the shell.
+      const hole = () => yToZ(cyl(4.25, 28, 20)).translate(lug.x, lug.y, 2);
       loc.add(manifoldSub(wedge, hole()), 'castAlu');
       loc.add(manifoldSub(disc, hole()), 'castAlu');
     }

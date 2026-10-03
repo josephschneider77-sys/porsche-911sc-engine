@@ -240,8 +240,8 @@ function plugEndNotch(s: 1 | -1, halfL: number): THREE.BufferGeometry | null {
  */
 const FLANGE_STEP = 0.5;
 // Cell centres sit on multiples of 0.5 mm, so a 0.5 mm clamp sample lands in the cell, not on its edge.
-// Lip is local |x| 70 (upper) / 62 (lower). The grid has to cover the ear bosses,
-// which sit inside that outline (upper ear outer 68.4, lower 59.2).
+// The upper rim follows the land at |x| 46 and the ear pads reach about |x| 69.
+// The lower lip is |x| 62. The grid covers both.
 const FLANGE_X0 = -74.25, FLANGE_X1 = 74.25, FLANGE_Y0 = -190.25, FLANGE_Y1 = 190.25;
 const gasketCache = new Map<string, THREE.BufferGeometry>();
 const bvhCache = new Map<string, MeshBVH>();
