@@ -10,7 +10,7 @@ import { PARTS } from '../src/data/parts';
 import { fastenerSets } from '../src/geo/fasteners';
 import { SMALL_SPECS } from '../src/data/smallSpec';
 import { SHAFT, rockerStations } from '../src/geo/valvetrain';
-import { coverMatrix, HOUSING_Z0, tensionerLayout } from '../src/geo/core';
+import { coverMatrix, HOUSING_Z0, tensionerLayout, vcLugs, VC_EDGE } from '../src/geo/core';
 import { SPARK_MINOR_D, SPARK_PROJ, SPARK_REACH, SPARK_SEAT_Y, SPARK_HOLE_R, SPARK_FLANGE_T, CYL_TOP_X, HEAD_OUT_X } from '../src/data/layout';
 import { HEAD_HW } from '../src/geo/hwLayout';
 
@@ -137,6 +137,8 @@ function solid(id: string, asset: string, pos: number[] | undefined, rot: number
  *   spark plug × head — M14 minor bore along the 19 mm reach, and the washer spot-face
  *   spark plug connector × upper cover — seal flange in the machined hole.
  *     The tube and the elbow stay clear of the hole edge; only this flange seats.
+ *   lower valve cover × cam housing — cap-nut lug seated on its boss.
+ *     The wedge footprint only. A rail through the pan still clashes.
  */
 const SHAFT_SEAT_R = 0.45;
 const GASKET_SEAT_Z = 0.45;
@@ -211,6 +213,21 @@ function narrowSeat(a: string, b: string, p: THREE.Vector3): boolean {
     // Seal flange of 911 602 315 00 in the cover hole. The window is the
     // cylindrical wall only: 0.35 mm along the bore and 0.35 mm radially.
     if (Math.abs(t - SPARK_FLANGE_T) <= 0.35 && Math.abs(radial - SPARK_HOLE_R) <= 0.35) return true;
+  }
+  const lower = /^valve-cover-lower-(left|right)$/.test(a) ? a : /^valve-cover-lower-(left|right)$/.test(b) ? b : '';
+  if (lower && house && lower.endsWith(house.split('-').pop()!)) {
+    const inv = GASKET_INV.get(lower.replace('valve-cover-', 'valve-cover-gasket-'));
+    if (!inv) return false;
+    _seat.copy(p).applyMatrix4(inv);
+    // Boss top is 0.02 mm under the lug. Erosion pushes the sample up into the wedge.
+    if (_seat.z < -1.5 || _seat.z > 7.5) return false;
+    const out = 1;
+    for (const lug of vcLugs(1)) {
+      const dx = (_seat.x - (lug.x - out * 5)) * out;
+      const dy = Math.abs(_seat.y - lug.y);
+      if (dx >= -1.2 && dx <= (VC_EDGE + 16 - (lug.x - 5)) + 1.2 && dy <= 12 - Math.max(0, dx) * (12 / 21) + 1.2) return true;
+    }
+    return false;
   }
   const camHouse = /^cam-housing-(left|right)$/.test(a) ? a : /^cam-housing-(left|right)$/.test(b) ? b : '';
   const camHead = /^head-(\d)$/.exec(a)?.[1] ? a : /^head-(\d)$/.exec(b)?.[1] ? b : '';
