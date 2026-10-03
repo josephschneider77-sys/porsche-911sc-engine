@@ -5,6 +5,7 @@ import { cameraFromQuery, viewFromQuery } from './app/queryCamera';
 import { PARTS, PART_BY_ID } from './data/parts';
 import { TEARDOWN, stepIndexOf } from './data/teardown';
 import { SYSTEMS, SystemKey, design911Url, ILLUSTRATIONS } from './data/catalog';
+import { IDLE_RPM, REDLINE_RPM, TACH_MAX_RPM, RED_ZONE_RPM } from './sim/drive';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const variantLabel = `Type ${ENGINE_VARIANT}`;
@@ -73,6 +74,78 @@ function showInfo(id: string | null) {
 viewer.onPick = (id) => showInfo(id && id === viewer.selected ? null : id);
 
 // ---------------------------------------------------------------- parts list
+// ---------------------------------------------------------------- run: pedal, tach, stop, emissions
+const pedal = $('btn-pedal') as HTMLButtonElement;
+function setPedal(down: boolean) {
+  if (down && !viewer.engineRun.running) viewer.engineRun.start();
+  viewer.engineRun.pedal = down && viewer.engineRun.running;
+  pedal.classList.toggle('held', viewer.engineRun.pedal);
+}
+pedal.addEventListener('pointerdown', (e) => { e.preventDefault(); pedal.setPointerCapture(e.pointerId); setPedal(true); });
+pedal.addEventListener('pointerup', () => setPedal(false));
+pedal.addEventListener('pointercancel', () => setPedal(false));
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  if (e.code !== 'Space' && e.code !== 'ArrowUp') return;
+  const tag = (e.target as HTMLElement | null)?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  e.preventDefault();
+  setPedal(true);
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code !== 'Space' && e.code !== 'ArrowUp') return;
+  setPedal(false);
+});
+$('btn-stop').onclick = () => { viewer.haltRun(); setPedal(false); paintTach(0); };
+const emissions = $('emissions') as HTMLInputElement;
+emissions.onchange = () => { viewer.setEmissions(emissions.checked); renderList(); };
+
+const TACH_SWEEP = 270;
+const TACH_START = -225;
+function tachAngle(rpm: number) {
+  const t = Math.max(0, Math.min(1, rpm / TACH_MAX_RPM));
+  return TACH_START + t * TACH_SWEEP;
+}
+function polar(rpm: number, r: number) {
+  const a = tachAngle(rpm) * Math.PI / 180;
+  return [60 + r * Math.sin(a), 60 - r * Math.cos(a)];
+}
+(function drawTach() {
+  const ticks = $('tach-ticks');
+  for (let rpm = 0; rpm <= TACH_MAX_RPM; rpm += 500) {
+    const major = rpm % 1000 === 0;
+    const [x0, y0] = polar(rpm, major ? 40 : 44);
+    const [x1, y1] = polar(rpm, 50);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x0.toFixed(2)); line.setAttribute('y1', y0.toFixed(2));
+    line.setAttribute('x2', x1.toFixed(2)); line.setAttribute('y2', y1.toFixed(2));
+    if (rpm >= RED_ZONE_RPM) line.setAttribute('stroke', '#ff4d2e');
+    ticks.appendChild(line);
+    if (major) {
+      const [tx, ty] = polar(rpm, 32);
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', tx.toFixed(2)); label.setAttribute('y', (ty + 3).toFixed(2));
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('fill', rpm >= RED_ZONE_RPM ? '#ff4d2e' : '#c8ccd2');
+      label.setAttribute('font-size', '8');
+      label.textContent = String(rpm / 1000);
+      ticks.appendChild(label);
+    }
+  }
+  const [ax, ay] = polar(RED_ZONE_RPM, 51);
+  const [bx, by] = polar(TACH_MAX_RPM, 51);
+  const large = TACH_SWEEP * (1 - RED_ZONE_RPM / TACH_MAX_RPM) > 180 ? 1 : 0;
+  $('tach-red').setAttribute('d', `M ${ax.toFixed(2)} ${ay.toFixed(2)} A 51 51 0 ${large} 1 ${bx.toFixed(2)} ${by.toFixed(2)}`);
+})();
+function paintTach(rpm: number) {
+  const a = tachAngle(rpm);
+  $('tach-needle').setAttribute('transform', `rotate(${a.toFixed(2)} 60 60)`);
+  $('tach-rpm').textContent = String(Math.round(rpm));
+  $('tach').setAttribute('aria-label', `Tachometer ${Math.round(rpm)} rpm, idle ${IDLE_RPM}, redline ${REDLINE_RPM}`);
+}
+paintTach(0);
+viewer.onFrame = (run) => paintTach(run.rpm);
+
 const order: SystemKey[] = ['crankcase', 'crank', 'pistons', 'heads', 'valvetrain', 'camdrive', 'lubrication', 'cooling', 'induction', 'ignition', 'exhaust', 'clutch', 'hardware'];
 function renderList() {
   const list = $('parts-list');
@@ -83,7 +156,7 @@ function renderList() {
     if (!items.length) return '';
     const groups = [...new Set(items.map((p) => p.catalog[0].ill))].map((i) => ILLUSTRATIONS[i]?.ill ?? i).join(', ');
     return `<div class="grp"><div class="grp-head"><span>${esc(SYSTEMS[sys].label)}</span><small>Ill. ${esc(groups)}</small></div>${items.map((p) => {
-      const off = viewer.hidden.has(p.id) || viewer.isRemoved(p.id);
+      const off = viewer.hidden.has(p.id) || viewer.isRemoved(p.id) || viewer.emissionsHidden(p.id);
       return `<div class="item ${viewer.selected === p.id ? 'sel' : ''} ${off ? 'off' : ''}" data-id="${p.id}">
         <span class="nm">${esc(p.name)}</span>
         <button class="eye" data-eye="${p.id}" aria-label="Toggle visibility">${viewer.hidden.has(p.id) ? '◌' : '●'}</button></div>`;
@@ -107,6 +180,7 @@ $('parts-close').onclick = () => $('parts').classList.add('hidden');
 
 // ---------------------------------------------------------------- reset
 $('btn-reset').onclick = () => {
+  viewer.haltRun(); setPedal(false); paintTach(0);
   viewer.setStep(0); viewer.setExplode(0); slider.value = '0'; $('explode-val').textContent = '0%';
   viewer.hidden.clear(); viewer.isolate(null); showInfo(null); viewer.resetView(); renderStep();
 };
@@ -129,6 +203,11 @@ viewer.load(import.meta.env.BASE_URL, (f) => { $('load-text').textContent = `Loa
       const keep = new Set(q.get('only')!.split(',').map((s) => s.trim()).filter(Boolean));
       for (const id of viewer.nodes.keys()) if (!keep.has(id)) viewer.hidden.add(id);
     }
+    if (q.get('emissions') === '1') { emissions.checked = true; viewer.setEmissions(true); }
+    if (q.has('rpm')) viewer.engineRun.snapshot(Math.max(0, +q.get('rpm')!), q.has('crank') ? +q.get('crank')! : 40);
+    else if (q.get('run') === '1') { viewer.engineRun.start(); if (q.has('crank')) viewer.engineRun.crankDeg = +q.get('crank')!; }
+    if (viewer.rig && (q.get('run') === '1' || q.has('rpm'))) viewer.rig.pose(viewer.engineRun.crankDeg);
+    paintTach(viewer.engineRun.rpm);
     viewer.snap();
     // ?cam= / ?target= win over step, explode and focus framing (including teardown step 27).
     const stepPose = {

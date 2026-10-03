@@ -33,6 +33,25 @@
       <div id="parts-list" class="parts-list"></div>
     </aside>
 
+    <section id="runbar" class="runbar card" aria-label="Engine run">
+      <div class="tach-wrap">
+        <svg id="tach" viewBox="0 0 120 120" role="img" aria-label="Tachometer">
+          <circle cx="60" cy="60" r="54" class="tach-face" />
+          <path id="tach-red" class="tach-red" />
+          <g id="tach-ticks"></g>
+          <line id="tach-needle" x1="60" y1="64" x2="60" y2="22" />
+          <circle cx="60" cy="60" r="4" class="tach-hub" />
+          <text id="tach-rpm" x="60" y="86">0</text>
+          <text x="60" y="98" class="tach-unit">rpm</text>
+        </svg>
+      </div>
+      <div class="run-controls">
+        <button id="btn-pedal" class="pedal" type="button">Accelerator</button>
+        <button id="btn-stop" class="stop" type="button">Stop</button>
+        <label class="emissions" for="emissions"><input id="emissions" type="checkbox" /> Emissions equipment</label>
+      </div>
+    </section>
+
     <footer class="dock card">
       <div class="row explode-row">
         <label for="explode">Explode</label>

@@ -9,10 +9,13 @@ export const DEG = Math.PI / 180;
 export function yToZ(g: THREE.BufferGeometry) { return g.rotateX(Math.PI / 2); }
 export function yToX(g: THREE.BufferGeometry) { return g.rotateZ(-Math.PI / 2); }
 
-export function mesh(g: THREE.BufferGeometry, m: MatKey, pos?: V3, rot?: V3): THREE.Mesh {
+export function mesh(g: THREE.BufferGeometry, m: MatKey, pos?: V3, rot?: V3, kin?: string): THREE.Mesh {
   const me = new THREE.Mesh(g, mat(m));
   if (rot) me.rotation.set(rot[0], rot[1], rot[2]);
   if (pos) me.position.set(pos[0], pos[1], pos[2]);
+  // Named kinematic group. consolidate keeps it as its own mesh so a running engine can move
+  // the rotor, a valve, or an idler sprocket without taking the housing with it.
+  if (kin) me.userData.kin = kin;
   return me;
 }
 
@@ -227,7 +230,7 @@ export function spring(R: number, wire: number, y0: number, y1: number, turns: n
 /** Group builder that tracks meshes. */
 export class Part {
   g = new THREE.Group();
-  add(geo: THREE.BufferGeometry, m: MatKey, pos?: V3, rot?: V3) { this.g.add(mesh(geo, m, pos, rot)); return this; }
+  add(geo: THREE.BufferGeometry, m: MatKey, pos?: V3, rot?: V3, kin?: string) { this.g.add(mesh(geo, m, pos, rot, kin)); return this; }
   addObj(o: THREE.Object3D) { this.g.add(o); return this; }
 }
 
@@ -504,7 +507,7 @@ export function cutGroup(root: THREE.Object3D, ...cutters: THREE.BufferGeometry[
 /** Merge all meshes of a group per material into a compact object (no uvs). */
 export function consolidate(root: THREE.Object3D, name: string): THREE.Group {
   root.updateMatrixWorld(true);
-  const byMat = new Map<string, { m: THREE.Material; geos: THREE.BufferGeometry[] }>();
+  const byMat = new Map<string, { m: THREE.Material; geos: THREE.BufferGeometry[]; kin: string }>();
   const inst: THREE.InstancedMesh[] = [];
   root.traverse((o) => {
     const me = o as THREE.Mesh;
@@ -522,15 +525,22 @@ export function consolidate(root: THREE.Object3D, name: string): THREE.Group {
     for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
     if (!g.attributes.normal) g.computeVertexNormals();
     const mm = me.material as THREE.Material;
-    const e = byMat.get(mm.name) ?? { m: mm, geos: [] };
-    e.geos.push(g); byMat.set(mm.name, e);
+    const kin = typeof me.userData.kin === 'string' ? me.userData.kin : '';
+    const key = kin ? `${mm.name}\0${kin}` : mm.name;
+    const e = byMat.get(key) ?? { m: mm, geos: [], kin };
+    e.geos.push(g); byMat.set(key, e);
   });
   const out = new THREE.Group(); out.name = name;
   for (const [k, e] of byMat) {
     let g = mergeGeometries(e.geos, false)!;
     g = mergeVertices(g, 1e-3);
     g.computeBoundingBox(); g.computeBoundingSphere();
-    const me = new THREE.Mesh(g, e.m); me.name = `${name}:${k}`; out.add(me);
+    const me = new THREE.Mesh(g, e.m);
+    const matName = k.split('\0')[0];
+    // `#kin` survives GLB export. The viewer binds those meshes; untagged metal keeps the old name.
+    me.name = e.kin ? `${name}#${e.kin}#${matName}` : `${name}:${matName}`;
+    if (e.kin) me.userData.kin = e.kin;
+    out.add(me);
   }
   for (const c of inst) { c.computeBoundingBox(); c.computeBoundingSphere(); out.add(c); }
   return out;
