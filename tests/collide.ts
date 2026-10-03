@@ -137,8 +137,8 @@ function solid(id: string, asset: string, pos: number[] | undefined, rot: number
  *   spark plug × head — M14 minor bore along the 19 mm reach, and the washer spot-face
  *   spark plug connector × upper cover — seal flange in the machined hole.
  *     The tube and the elbow stay clear of the hole edge; only this flange seats.
- *   lower valve cover × cam housing — cap-nut lug seated on its boss.
- *     The wedge footprint only. A rail through the pan still clashes.
+ *   The cap-nut lug sits 0.02 mm above its housing boss. That gap is not an overlap,
+ *   so the lug needs no window here.
  */
 const SHAFT_SEAT_R = 0.45;
 const GASKET_SEAT_Z = 0.45;

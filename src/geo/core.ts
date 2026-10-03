@@ -1405,13 +1405,32 @@ function castUpperShell(studHoles: THREE.BufferGeometry[]) {
   const keep = extrude(roundRect(outerX * 2 + 0.6, outerY * 2 + 0.6, 8), rise + 2.2, 0, 10);
   keep.translate(0, 0, C.shoulder - 0.5);
   const dome = manifoldIntersect(cap, keep);
-  // The seat is a rim on the housing land. A plate across either end sits over
-  // the open rocker bay. Leave a lip at the end for the seal and the scallop.
-  const cavHalf = halfL - 12;
-  const cavity = extrude(roundRect(C.innerX * 2, cavHalf * 2, 8), C.ceil + 2, 0, 8);
+  // Stop at the inner face of the roof. A cavity out to halfL − 12 ran past
+  // |y| ≈ 156 and deleted both end walls.
+  const cavity = extrude(roundRect(C.innerX * 2, innerY * 2, 8), C.ceil + 2, 0, 8);
   cavity.translate(0, 0, -2);
-  const shell = manifoldAdd(flange, walls, dome);
-  return manifoldSub(shell, cavity, ...studHoles);
+  // 4 mm end walls, from the roof down to the rim. They stand on the housing
+  // shelf (cover-local y 160–164 and −183 to −179), not on the open bay, so
+  // the seat under the wall stays on the land. The rounded side-wall extrusion
+  // stops at |y| ≈ 156 and does not close its own corners.
+  const peakZ = C.shoulder + C.crown + 0.4;
+  const x0 = -outerX + 0.2;
+  const x1 = outerX - 0.2;
+  const shoes = [
+    boxMM([x0, 160.2, 0], [x1, 164.2, peakZ]),
+    boxMM([x0, -183.2, 0], [x1, -179.2, peakZ]),
+  ];
+  const bridges = [
+    boxMM([x0, innerY, C.flangeT - 0.6], [x1, 164.2, peakZ]),
+    boxMM([x0, -183.2, C.flangeT - 0.6], [x1, -innerY, peakZ]),
+  ];
+  const shell = manifoldAdd(flange, walls, dome, ...shoes, ...bridges);
+  // The bay inboard of those walls is open. Cut only the seat plate there.
+  const lipCuts = [
+    boxMM([-(C.innerX - 1.5), innerY - 0.5, -2], [C.innerX - 1.5, 159.9, C.flangeT + 0.2]),
+    boxMM([-(C.innerX - 1.5), -178.9, -2], [C.innerX - 1.5, -(innerY - 0.5), C.flangeT + 0.2]),
+  ];
+  return manifoldSub(shell, cavity, ...lipCuts, ...studHoles);
 }
 /**
  * Upper / lower valve cover (103-05 positions 17 and 19), engine coords. Kat 502 draws the upper lid

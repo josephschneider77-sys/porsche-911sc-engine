@@ -603,6 +603,102 @@ describe('top-end batch 1', () => {
     }
   });
 
+  it('stops outside rays at the upper cover except through the plug wells', () => {
+    // Above, both ends, and both sides. A ray may reach the cam chamber only
+    // by passing through a plug well (the round holes or the end scallop).
+    const bake = (root: THREE.Object3D, inv: THREE.Matrix4) => {
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    // Closest distance between two segments. Eberly's clamped solution.
+    const segDist = (p0: THREE.Vector3, p1: THREE.Vector3, q0: THREE.Vector3, q1: THREE.Vector3) => {
+      const u = p1.clone().sub(p0);
+      const v = q1.clone().sub(q0);
+      const w = p0.clone().sub(q0);
+      const a = u.dot(u), b = u.dot(v), c = v.dot(v), d = u.dot(w), e = v.dot(w);
+      const D = a * c - b * b;
+      let sN: number, sD = D, tN: number, tD = D;
+      if (D < 1e-8) { sN = 0; sD = 1; tN = e; tD = c; }
+      else {
+        sN = b * e - c * d; tN = a * e - b * d;
+        if (sN < 0) { sN = 0; tN = e; tD = c; }
+        else if (sN > sD) { sN = sD; tN = e + b; tD = c; }
+      }
+      if (tN < 0) {
+        tN = 0;
+        if (-d < 0) sN = 0;
+        else if (-d > a) sN = sD;
+        else { sN = -d; sD = a; }
+      } else if (tN > tD) {
+        tN = tD;
+        if (-d + b < 0) sN = 0;
+        else if (-d + b > a) sN = sD;
+        else { sN = -d + b; sD = a; }
+      }
+      const sc = Math.abs(sN) < 1e-8 ? 0 : sN / sD;
+      const tc = Math.abs(tN) < 1e-8 ? 0 : tN / tD;
+      return w.addScaledVector(u, sc).addScaledVector(v, -tc).length();
+    };
+    const targets = [
+      new THREE.Vector3(0, 0, 10),
+      new THREE.Vector3(0, 140, 8),
+      new THREE.Vector3(0, -140, 8),
+      new THREE.Vector3(22, 80, 12),
+      new THREE.Vector3(-22, -80, 6),
+    ];
+    const origins: THREE.Vector3[] = [];
+    for (let x = -36; x <= 36; x += 3) for (let z = 0.6; z <= 21; z += 2) {
+      origins.push(new THREE.Vector3(x, -210, z), new THREE.Vector3(x, 210, z));
+    }
+    for (let y = -170; y <= 170; y += 5) for (let z = 1; z <= 21; z += 2.5) {
+      origins.push(new THREE.Vector3(-92, y, z), new THREE.Vector3(92, y, z));
+    }
+    for (let x = -32; x <= 32; x += 8) for (let y = -160; y <= 160; y += 8) {
+      origins.push(new THREE.Vector3(x, y, 46));
+    }
+    const ray = new THREE.Ray();
+    const dir = new THREE.Vector3();
+    for (const s of [1, -1] as const) {
+      const bank = s > 0 ? 'right' : 'left';
+      const inv = coverMatrix(s, true).invert();
+      const cover = bake(ASSET_BUILDERS[`valve-cover-upper-${bank}`](), inv);
+      const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+      const wells = cyls.map((c) => ({
+        a: plugCoverLocal(c, 8),
+        b: plugCoverLocal(c, 32),
+      }));
+      let leaks = 0;
+      let example = '';
+      for (const origin of origins) for (const target of targets) {
+        dir.copy(target).sub(origin);
+        const far = dir.length();
+        dir.multiplyScalar(1 / far);
+        ray.set(origin, dir);
+        const hit = cover.raycastFirst(ray, THREE.DoubleSide) as { distance: number } | null;
+        if (hit && hit.distance < far - 0.4) continue;
+        const throughWell = wells.some((w) => segDist(origin, target, w.a, w.b) <= SPARK_HOLE_R + 0.5);
+        if (throughWell) continue;
+        leaks++;
+        if (!example) example = `(${origin.x.toFixed(0)},${origin.y.toFixed(0)},${origin.z.toFixed(1)}) → (${target.x.toFixed(0)},${target.y.toFixed(0)},${target.z.toFixed(0)})`;
+      }
+      expect(leaks, `${bank} ${example}`).toBe(0);
+    }
+  }, 120000);
+
   it('seals every plug connector against the upper cover', () => {
     // Cylinders 2 and 3 use the round holes; cylinder 1 uses the end scallop.
     // The left lid is that casting turned about Y, so 5 and 4 use the holes and 6 the scallop.
