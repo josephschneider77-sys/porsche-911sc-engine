@@ -201,4 +201,18 @@ describe.each([false, true])('ancillary clearance at 0 and 0.5 mm (emissions %s)
       expect(bad).toEqual([]);
     });
   }
+  const HOSES = /^(air-hose-|egr-hose-|heater-hose-)/;
+  const CLAMP = /^(air-clamp-|egr-clamp-|heater-clamp|heater-hose-supports)/;
+  for (const tol of [2, 3.5]) {
+    it(`no buried hose pair at ${tol} mm erosion`, () => {
+      // A listed hose-on-barb seat is not a burial. A clamp wire is not either: its inner
+      // normals point at the hose, so erosion walks the wire into the rubber. Anything else
+      // still crossing after 2 mm has come off each side is inside the other part.
+      const hits = findCollisions(tol, only);
+      const bad = hits
+        .filter((h) => (HOSES.test(h.a) || HOSES.test(h.b)) && !CLAMP.test(h.a) && !CLAMP.test(h.b) && !isMating(h.a, h.b))
+        .map((h) => `${h.a} x ${h.b} (${h.tris} tri)`);
+      expect(bad).toEqual([]);
+    });
+  }
 });

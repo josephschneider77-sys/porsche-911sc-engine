@@ -289,9 +289,10 @@ export const CLAIMS: Claim[] = [
   C('202-05#4', 'egr-fasteners', 'bolt'), C('202-05#5', 'egr-fasteners', 'spring'), C('202-05#6', 'egr-fasteners', 'nut'),
   C('202-05#7', 'egr-valve'), C('202-05#8', 'egr-fasteners', 'bolt2'), C('202-05#9', 'egr-fasteners', 'spring2'), C('202-05#10', 'egr-fasteners', 'nut2'),
   C('202-05#11', 'egr-pipe-return'), C('202-05#12', 'egr-seal'), C('202-05#13', 'egr-fasteners', 'screw'), C('202-05#14', 'egr-fasteners', 'washer'),
-  C('202-05#15', 'egr-hose-short'), C('202-05#16', 'egr-hose-long'),
-  C('202-05#17', 'egr-hose-return', 'item', 1, 'Return leg. The printed 465 mm is the diverter piece; these two ends are a short arc.'),
-  C('202-05#17', 'egr-hose-diverter', 'item', 1, 'Diverter leg. 465 mm does not clear the left case; the modelled run is the short clear route.'),
+  C('202-05#15', 'egr-hose-short', 'item', 1, '40 mm from the ported-vacuum nipple straight down to T #18.'),
+  C('202-05#16', 'egr-hose-long', 'item', 1, 'Catalogue 770 mm. Modelled 1008 mm from the tee outboard port to the valve rear barb: the chord crosses the crankcase, and the last bend needs a flywheel-side approach.'),
+  C('202-05#17', 'egr-hose-return', 'item', 1, 'Catalogue 465 mm. Modelled 807 mm from the tee upper outboard port to the valve upright barb. The chord crosses the crankcase.'),
+  C('202-05#17', 'egr-hose-diverter', 'item', 1, 'Catalogue 465 mm. Modelled 931 mm from the tee aft port to the diverter, over the fan. Hidden with air injection.'),
   C('202-05#18', 'egr-tee', 'item', 1, '999 137 004 40, qty 1, modelled as egr-tee. The manifold hose has no splice.'),
   C('202-05#19', 'egr-buffer'),
 ];

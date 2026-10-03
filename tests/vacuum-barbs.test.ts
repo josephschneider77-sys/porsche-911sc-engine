@@ -325,11 +325,9 @@ describe('induction and fuel barbs', () => {
         else bad.push(where);
       }
       expect(bad, 'open barbs').toEqual([]);
-      // air-hose-vacuum is still the hardcoded run in bottomAnc.ts. It is present with
-      // emissions on and does not sit on the new barb, so that state is a pending handoff.
-      // The emissions-off cap is built from TEE_AIR_INJ and has to cover the barb.
-      if (on) expect(pending, 'TEE_AIR_INJ stays a pending handoff until air-hose-vacuum is re-ended').not.toEqual([]);
-      else expect(pending, 'the emissions-off cap seats on TEE_AIR_INJ').toEqual([]);
+      // Emissions on: air-hose-vacuum covers TEE_AIR_INJ. Emissions off: the cap does.
+      // #15 stays on THROTTLE_PORTED_VAC in both states.
+      expect(pending, 'every nipple is hosed or capped').toEqual([]);
     });
   }
 });
@@ -483,9 +481,14 @@ function hoseSeats(): Seat[] {
     }
   }
   seats.push({
-    id: 'egr-hose-long@throttle',
+    id: 'egr-hose-short@throttle',
     point: new THREE.Vector3(...THROTTLE_PORTED_VAC.point),
     axis: new THREE.Vector3(...THROTTLE_PORTED_VAC.axis).normalize(),
+  });
+  seats.push({
+    id: 'air-hose-vacuum@throttle',
+    point: new THREE.Vector3(...TEE_AIR_INJ.point),
+    axis: new THREE.Vector3(...TEE_AIR_INJ.axis).normalize(),
   });
   return seats;
 }

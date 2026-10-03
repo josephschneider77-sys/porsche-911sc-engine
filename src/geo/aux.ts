@@ -1717,15 +1717,20 @@ export function heatExchanger(s: 1 | -1) {
     // sleeve where the primary enters the box
     p.add(yToZ(lathe([[19, -8], [24, -8], [24, 8], [19, 8]], 20)).rotateX(-Math.PI / 2 + 0.5), 'aluminized', [X(EXH_PORT.x - 2), -136, zc + 8]);
   }
-  // outlet to silencer
-  p.add(tube([[X(shellX - 10), shellY - 5, zB - 10], [X(shellX - 20), shellY - 8, 280], [X(150), -185, 318], [X(150), -185, 334]], 22, 16, 30), 'aluminized');
+  // Outlet to the silencer. It leaves the pulley-end cap on the inboard-lower
+  // quadrant so the fresh-air hose (r 15 on the stub at x ±238) can sit on the
+  // spigot and still turn in front of the drum.
+  p.add(tube([[X(200), -190, zB - 10], [X(155), -198, 250], [X(150), -185, 318], [X(150), -185, 334]], 22, 16, 30), 'aluminized');
   // heater air outlet (to cabin) at the flywheel end, with adapter (#27)
   p.add(tube([[X(shellX), shellY + 10, zA + 10], [X(shellX), shellY + 20, -240], [X(shellX - 20), shellY + 40, -262]], 26, 20, 16), 'aluminized');
   p.add(yToZ(lathe([[25, -6], [29, -6], [29, 6], [25, 6]], 24)).rotateX(-0.7), 'heatSteel', [X(shellX - 18), shellY + 38, -258]);
   // Fresh-air inlet (108-10 #10 left, #13 right). Straight beaded spigot on +Z, out of the pulley-end cap,
   // low enough to clear the chain box. The blower hose clamps over the plain end; the bead stops it.
   const stub = heaterStub(s);
-  p.add(tube([stub.root, stub.tip], HEATER_STUB_R, 12, 10), 'aluminized');
+  // The outer 10 mm is a 12-sided cylinder, the same roll as cylBetween, so a hose bore can sit on it.
+  const seat: V3 = [stub.tip[0], stub.tip[1], stub.tip[2] - 10];
+  p.add(tube([stub.root, seat], HEATER_STUB_R, 12, 10), 'aluminized');
+  p.add(cylBetween(seat, stub.tip, HEATER_STUB_R, 12), 'aluminized');
   p.add(yToZ(lathe([[HEATER_STUB_R, -2.4], [HEATER_STUB_R + 3.2, -2.4], [HEATER_STUB_R + 3.2, 2.4], [HEATER_STUB_R, 2.4]], 18)), 'aluminized', [stub.tip[0], stub.tip[1], stub.beadZ]);
   // EGR takeoff (202-05 #1) is on the left exchanger only: a flanged nipple pointing down.
   if (s < 0) {
@@ -1745,7 +1750,10 @@ export function heaterStub(s: 1 | -1) {
   const x = s * (shellX + 10), y = shellY + 8;
   const root: V3 = [x, y, zB - 8];
   const tip: V3 = [x, y, zB + 40];
-  return { root, tip, beadZ: tip[2] - 16, axis: [0, 0, 1] as V3 };
+  // The bead sits 36 mm behind the tip. The blower hose needs that much plain
+  // spigot: 7 mm of push-on, then a coaxial run long enough to bend at 1.5× OD
+  // before the silencer.
+  return { root, tip, beadZ: tip[2] - 36, axis: [0, 0, 1] as V3 };
 }
 
 /**
