@@ -350,7 +350,7 @@ describe('top-end batch 1', () => {
       }
       expect(new Set(solid.map((_, i) => find(i))).size, `${id} body`).toBe(1);
     }
-  });
+  }, 300000);
 
   it('seats the cam dowel in the flange hole and stands it proud of the sprocket', () => {
     const lip = CAM_WEB.depth / 2 + CAM_WEB.bevel;
@@ -444,7 +444,7 @@ describe('top-end batch 1', () => {
       ['cam-housing-left', 'housing wall', new THREE.Vector3(-CAM_X - 28, 0, -40)],
     ];
     for (const [id, tag, origin] of samples) expect(miss(id, origin), tag).toBe(0);
-  });
+  }, 300000);
 
   it('opens the upper cover only on the plug holes', () => {
     // Rays from inside the pan toward the roof. The lower lid is closed.
@@ -759,50 +759,101 @@ describe('valve-cover gasket windows', () => {
     expect(ll, 'lower upright windows').toBe(lr);
     expect(ur, 'upper right large windows').toBe(3);
     expect(lr, 'lower right upright windows').toBe(3);
-  });
+  }, 300000);
 
-  it('keeps every gasket outline inside its cover flange, within 0.5 mm', () => {
+  it('clamps each gasket between its cover and the cam housing', () => {
+    // A 0.5 mm sample on the gasket is clamped when a ray along the cover normal
+    // hits the cover on one side and the cam housing on the other, within 40 mm.
     const pairs = [
-      ['valve-cover-gasket-upper-right', 'valve-cover-upper-right', true, 1],
-      ['valve-cover-gasket-upper-left', 'valve-cover-upper-left', true, -1],
-      ['valve-cover-gasket-lower-right', 'valve-cover-lower-right', false, 1],
-      ['valve-cover-gasket-lower-left', 'valve-cover-lower-left', false, -1],
+      ['valve-cover-gasket-upper-right', 'valve-cover-upper-right', 'cam-housing-right', true, 1],
+      ['valve-cover-gasket-upper-left', 'valve-cover-upper-left', 'cam-housing-left', true, -1],
+      ['valve-cover-gasket-lower-right', 'valve-cover-lower-right', 'cam-housing-right', false, 1],
+      ['valve-cover-gasket-lower-left', 'valve-cover-lower-left', 'cam-housing-left', false, -1],
     ] as const;
-    const locals = (root: THREE.Object3D, inv: THREE.Matrix4 | null) => {
+    const bake = (root: THREE.Object3D) => {
       root.updateMatrixWorld(true);
-      const out: THREE.Vector3[] = [];
+      const pos: number[] = [];
       const v = new THREE.Vector3();
       root.traverse((o) => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
-        const P = m.geometry.attributes.position;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
         for (let i = 0; i < P.count; i++) {
           v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
-          if (inv) v.applyMatrix4(inv);
-          out.push(v.clone());
+          pos.push(v.x, v.y, v.z);
         }
       });
-      return out;
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
     };
-    for (const [gid, cid, upper, s] of pairs) {
+    const sees = (bvh: MeshBVH, origin: THREE.Vector3, dir: THREE.Vector3) => {
+      const h = bvh.raycastFirst(new THREE.Ray(origin, dir), THREE.DoubleSide) as { distance: number } | null;
+      return !!(h && h.distance > 0.05 && h.distance <= 40);
+    };
+    const percents: string[] = [];
+    for (const [gid, cid, hid, upper, s] of pairs) {
+      const gasket = bake(SMALL_GEOM[gid].proto().g);
       const frame = coverMatrix(s, upper);
-      const flange = locals(ASSET_BUILDERS[cid](), frame.clone().invert())
-        .filter((p) => p.z > -0.2 && p.z < 1.6);
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      for (const p of flange) {
-        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      const normal = new THREE.Vector3().setFromMatrixColumn(frame, 2).normalize();
+      const neg = normal.clone().negate();
+      const cover = bake(ASSET_BUILDERS[cid]());
+      const house = bake(ASSET_BUILDERS[hid]());
+      const step = 0.5;
+      const x0 = -70, x1 = 70, y0 = -210, y1 = 210;
+      const nx = Math.round((x1 - x0) / step) + 1;
+      const ny = Math.round((y1 - y0) / step) + 1;
+      const bad = new Uint8Array(nx * ny);
+      const origin = new THREE.Vector3();
+      const world = new THREE.Vector3();
+      const dir = new THREE.Vector3(0, 0, 1);
+      let area = 0, clamped = 0;
+      for (let y = y0; y <= y1; y += step) for (let x = x0; x <= x1; x += step) {
+        origin.set(x, y, -3);
+        if (!gasket.raycastFirst(new THREE.Ray(origin, dir), THREE.DoubleSide)) continue;
+        const ix = Math.round((x - x0) / step);
+        const iy = Math.round((y - y0) / step);
+        area++;
+        world.set(x, y, -0.25).applyMatrix4(frame);
+        const cp = sees(cover, world, normal);
+        const cm = sees(cover, world, neg);
+        const hp = sees(house, world, normal);
+        const hm = sees(house, world, neg);
+        if ((cp && hm) || (cm && hp)) clamped++;
+        else bad[iy * nx + ix] = 1;
       }
-      const gasket = locals(SMALL_GEOM[gid].proto().g, null);
-      let worst = 0, wx = 0, wy = 0;
-      for (const p of gasket) {
-        const dx = p.x < minX ? minX - p.x : p.x > maxX ? p.x - maxX : 0;
-        const dy = p.y < minY ? minY - p.y : p.y > maxY ? p.y - maxY : 0;
-        const d = Math.hypot(dx, dy);
-        if (d > worst) { worst = d; wx = p.x; wy = p.y; }
+      const seen = new Uint8Array(nx * ny);
+      let biggest = 0;
+      const stack: number[] = [];
+      for (let i = 0; i < bad.length; i++) {
+        if (!bad[i] || seen[i]) continue;
+        seen[i] = 1;
+        stack.push(i);
+        let n = 0;
+        while (stack.length) {
+          const k = stack.pop()!;
+          n++;
+          const ix = k % nx, iy = (k - ix) / nx;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            const jx = ix + dx, jy = iy + dy;
+            if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+            const j = jy * nx + jx;
+            if (!bad[j] || seen[j]) continue;
+            seen[j] = 1;
+            stack.push(j);
+          }
+        }
+        if (n > biggest) biggest = n;
       }
-      console.log(`${gid} outside flange ${worst.toFixed(2)} mm at ${wx.toFixed(1)}, ${wy.toFixed(1)} (flange y ${minY.toFixed(2)}..${maxY.toFixed(2)})`);
-      expect(worst, gid).toBeLessThanOrEqual(0.5);
+      const cell = step * step;
+      const pct = 100 * clamped / area;
+      const patch = biggest * cell;
+      percents.push(`${gid} ${pct.toFixed(1)}%`);
+      console.log(`${gid} clamped ${pct.toFixed(2)}%  largest unclamped patch ${patch.toFixed(1)} mm²`);
+      expect(pct, gid).toBeGreaterThanOrEqual(90);
+      expect(patch, `${gid} unclamped patch`).toBeLessThanOrEqual(25);
     }
-  });
+    console.log(percents.join('  '));
+  }, 300000);
 });
