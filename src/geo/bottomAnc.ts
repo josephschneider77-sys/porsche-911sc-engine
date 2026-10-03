@@ -701,9 +701,17 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
       return new Part().add(hose([start, end], 2.2), 'rubber');
     }, () => [new THREE.Matrix4()]);
     const egrVac = THROTTLE_PORTED_VAC.point;
+    const egrAxis = THROTTLE_PORTED_VAC.axis;
+    // Last point of the straight run, 56 mm out along the nipple axis. The fillet
+    // takes the corner before this, so more than 30 mm of the run stays straight.
+    const egrLead: V3 = [
+      egrVac[0] + egrAxis[0] * 56,
+      egrVac[1] + egrAxis[1] * 56,
+      egrVac[2] + egrAxis[2] * 56,
+    ];
     // 202-05 #16 is 770 mm. Under the left exchanger, up just outboard of the shroud
-    // skirt, then inboard above that sheet and onto the port. The alternator face is
-    // at z 152, so the hose stops on the nipple.
+    // skirt, then a jog above the left of the bay and straight in on the nipple axis.
+    // That axis is −X, so the lead-in stays off the alternator slip-ring shield (z 164).
     def('egr-hose-long', () => new Part().add(hose([
       [e.x + 30, e.y + 50, e.z + 14],
       // Outboard of the left cover plate, inboard of the plug-lead drop, then up
@@ -714,6 +722,9 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
       [-201, 140, 134],
       [-201, 172, 160],
       [-188, 230, 146],
+      [-188, 268, 170],
+      [-140, 268, 140],
+      egrLead,
       egrVac,
     ], 2.2, 12), 'rubber'), () => [new THREE.Matrix4()]);
     def('egr-hose-pair', () => {
