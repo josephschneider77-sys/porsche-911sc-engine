@@ -297,24 +297,6 @@ function coverGasket(s: 1 | -1, up: boolean) {
       const cy = (j.y0 + j.y1) / 2;
       for (const y of [j.y0 - 8, cy, j.y1 + 8]) extra.push([outer, clampY(y)]);
     }
-    // The flywheel slot is the right slot mirrored about engine z = 0, and that
-    // mirror hangs past this cover. An ear carries an 8 mm strip outside the
-    // slot — the same strip the right windows leave in front of a notch — so
-    // the ring stays closed instead of the slot running out through the end.
-    const STRIP = 8;
-    for (const poly of rightLowerWindows().slots) {
-      let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
-      for (const p of poly) {
-        const [x, y] = mirrorLocal(p.x, p.y);
-        minx = Math.min(minx, x); maxx = Math.max(maxx, x);
-        miny = Math.min(miny, y); maxy = Math.max(maxy, y);
-      }
-      const yOut = miny < -halfL + STRIP ? miny - STRIP : maxy > halfL - STRIP ? maxy + STRIP : 0;
-      if (!yOut) continue;
-      const x0 = minx - STRIP, x1 = maxx + STRIP;
-      const ySide = Math.sign(yOut) * (halfL - 16);
-      extra.push([x0, ySide], [x1, ySide], [x0, yOut], [x1, yOut]);
-    }
     if (extra.length) {
       outline = hull2([...outline, ...extra]);
       if (ringArea(outline) < 0) outline.reverse();
@@ -335,19 +317,19 @@ function coverGasket(s: 1 | -1, up: boolean) {
     const notch = plugEndNotch(1, halfL);
     if (notch) bites.push(notch);
   } else if (up) {
-    // Right windows, mirrored about engine z = 0. The flywheel window is held
-    // 8 mm short of the end notch: on the right that strip is what keeps the
-    // scallop from joining the last window. Cylinder 6's plug is past the rail,
-    // so the notch only breaks the end edge.
+    // Right windows, mirrored about engine z = 0. Cylinder 6's plug is past
+    // the rail, and the intake rocker crosses the sheet at local y −173.5.
+    // A full mirror of the right scallop (inboard edge near y −166) would cut
+    // through that window. The notch stops 8 mm outboard of the window instead,
+    // which is as deep as the closed ring allows.
     const plugs = [4, 5, 6]
       .map((c) => plugCoverLocal(c, 0))
       .filter((p) => Math.abs(p.y) < halfL - SPARK_HOLE_R - 4);
     const tubeClear = SPARK_TUBE_R + 4.2;
     const endLoc = plugCoverLocal(6, 0);
     const STRIP = 8;
-    // Intake rocker on cylinder 6 reaches local y −173, the valve −169.
-    // The window clears both before the strip starts.
-    const windowOut = -(halfL - 9);
+    // Window clears the rocker (y −173.5) by 2 mm. The notch starts beyond the strip.
+    const windowOut = -175.5;
     const notchIn = windowOut - STRIP;
     const yLim = halfL - 8;
     for (const w of bankUpperWindows(1, halfL)) {
@@ -365,16 +347,14 @@ function coverGasket(s: 1 | -1, up: boolean) {
     ));
   } else if (s < 0) {
     // Three upright slots and three diagonals, the right pattern mirrored about
-    // engine z = 0. Slots that stay on the sheet are clipped. The flywheel slot
-    // is left whole: the ear above wraps it, so clipping it would open the end.
+    // engine z = 0. Clip every slot inside the sheet. The flywheel mirror would
+    // hang past the cover; the clip leaves the closing strip on the flange
+    // (outline at ±halfL, cover lip 0.25 mm past that) instead of an ear in free air.
     const yLim = halfL - 4;
     const src = rightLowerWindows();
     for (const poly of src.slots) {
       const moved = poly.map((p) => { const [x, y] = mirrorLocal(p.x, p.y); return new THREE.Vector2(x, y); });
-      const ys = moved.map((p) => p.y);
-      const miny = Math.min(...ys), maxy = Math.max(...ys);
-      const held = miny < -yLim || maxy > yLim;
-      const clipped = held ? moved : clipWindow(moved, -46, -yLim, 46, yLim);
+      const clipped = clipWindow(moved, -46, -yLim, 46, yLim);
       if (clipped.length >= 3) shape.holes.push(new THREE.Path(clipped));
     }
     for (const poly of src.diagonals) {

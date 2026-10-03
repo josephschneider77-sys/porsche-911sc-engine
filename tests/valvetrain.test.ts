@@ -760,4 +760,49 @@ describe('valve-cover gasket windows', () => {
     expect(ur, 'upper right large windows').toBe(3);
     expect(lr, 'lower right upright windows').toBe(3);
   });
+
+  it('keeps every gasket outline inside its cover flange, within 0.5 mm', () => {
+    const pairs = [
+      ['valve-cover-gasket-upper-right', 'valve-cover-upper-right', true, 1],
+      ['valve-cover-gasket-upper-left', 'valve-cover-upper-left', true, -1],
+      ['valve-cover-gasket-lower-right', 'valve-cover-lower-right', false, 1],
+      ['valve-cover-gasket-lower-left', 'valve-cover-lower-left', false, -1],
+    ] as const;
+    const locals = (root: THREE.Object3D, inv: THREE.Matrix4 | null) => {
+      root.updateMatrixWorld(true);
+      const out: THREE.Vector3[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const P = m.geometry.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          if (inv) v.applyMatrix4(inv);
+          out.push(v.clone());
+        }
+      });
+      return out;
+    };
+    for (const [gid, cid, upper, s] of pairs) {
+      const frame = coverMatrix(s, upper);
+      const flange = locals(ASSET_BUILDERS[cid](), frame.clone().invert())
+        .filter((p) => p.z > -0.2 && p.z < 1.6);
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const p of flange) {
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      }
+      const gasket = locals(SMALL_GEOM[gid].proto().g, null);
+      let worst = 0, wx = 0, wy = 0;
+      for (const p of gasket) {
+        const dx = p.x < minX ? minX - p.x : p.x > maxX ? p.x - maxX : 0;
+        const dy = p.y < minY ? minY - p.y : p.y > maxY ? p.y - maxY : 0;
+        const d = Math.hypot(dx, dy);
+        if (d > worst) { worst = d; wx = p.x; wy = p.y; }
+      }
+      console.log(`${gid} outside flange ${worst.toFixed(2)} mm at ${wx.toFixed(1)}, ${wy.toFixed(1)} (flange y ${minY.toFixed(2)}..${maxY.toFixed(2)})`);
+      expect(worst, gid).toBeLessThanOrEqual(0.5);
+    }
+  });
 });
