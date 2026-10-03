@@ -44,10 +44,14 @@ function worldOf(pose: THREE.Matrix4, o: THREE.Object3D, inst: THREE.Matrix4) {
   return pose.clone().multiply(o.matrixWorld).multiply(inst);
 }
 
+/** `parameters` exists on concrete geometries (Tube, Cylinder), not on the BufferGeometry type. */
+const params = (g: THREE.BufferGeometry) =>
+  (g as THREE.BufferGeometry & { parameters?: Record<string, number> }).parameters;
+
 /** Centreline samples of a tubular hose, in world space. */
 function tubeCenterline(geom: THREE.BufferGeometry, world: THREE.Matrix4): THREE.Vector3[] | null {
-  const radial = geom.parameters?.radialSegments as number | undefined;
-  const tubular = geom.parameters?.tubularSegments as number | undefined;
+  const radial = params(geom)?.radialSegments as number | undefined;
+  const tubular = params(geom)?.tubularSegments as number | undefined;
   if (radial == null || tubular == null) return null;
   const stride = radial + 1;
   const P = geom.attributes.position;
@@ -175,7 +179,7 @@ function nippleEnds(): End[] {
       if (!mesh.isMesh) return;
       if (typeof mesh.name === 'string' && mesh.name.startsWith('line:')) return;
       const hex = (mesh.material as THREE.MeshStandardMaterial)?.color?.getHex?.();
-      const p = mesh.geometry.parameters as { radiusTop?: number; radiusBottom?: number; height?: number } | undefined;
+      const p = params(mesh.geometry) as { radiusTop?: number; radiusBottom?: number; height?: number } | undefined;
       const r = Math.max(p?.radiusTop ?? 0, p?.radiusBottom ?? 0);
       const nipple = !!p && p.height != null && p.height >= 3.5 && p.height <= 48 && nippleMaterial(part.id, hex, r, p.height);
       for (const inst of instancesOf(mesh)) {
@@ -237,7 +241,7 @@ function hoseEnds(visible: Set<string>): HoseEnd[] {
       if (!mesh.isMesh) return;
       const named = typeof mesh.name === 'string' && mesh.name.startsWith('line:');
       const hex = (mesh.material as THREE.MeshStandardMaterial)?.color?.getHex?.();
-      const tubular = mesh.geometry.parameters?.tubularSegments as number | undefined;
+      const tubular = params(mesh.geometry)?.tubularSegments as number | undefined;
       const hose = named || (tubular != null && hex === RUBBER);
       if (!hose) return;
       for (const inst of instancesOf(mesh)) {
