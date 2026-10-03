@@ -1589,12 +1589,14 @@ function addWindowFrameLands(p: Part, s: 1 | -1) {
     // Existing annular land occupies |x| 21..25. Stay 2.5 mm clear of it.
     const spans: [number, number][] = [];
     const lo = Math.min(xa, xb), hi = Math.max(xa, xb);
-    const cuts = [-27.5, -18.5, 18.5, 27.5].filter((c) => c > lo && c < hi);
+    // The head-side wall occupies x −36..−30 and rises through the cover.
+    const cuts = [-36, -30, -27.5, -18.5, 18.5, 27.5].filter((c) => c > lo && c < hi);
     const pts = [lo, ...cuts, hi];
+    const blocked = (x: number) =>
+      (x >= -36 && x <= -30) || (Math.abs(x) >= 18.5 && Math.abs(x) <= 27.5);
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1];
-      const mid = (a + b) / 2;
-      if (Math.abs(mid) >= 18.5 && Math.abs(mid) <= 27.5) continue;
+      if (blocked((a + b) / 2)) continue;
       if (b - a >= 0.4) spans.push([a, b]);
     }
     for (const [a, b] of spans) {
@@ -1616,6 +1618,7 @@ function addWindowFrameLands(p: Part, s: 1 | -1) {
   if (!boxes.length) return;
   let g = boxes[0];
   if (boxes.length > 1) g = manifoldAdd(g, ...boxes.slice(1));
+  orientLandOutward(g, frame);
   p.add(g, 'machinedAlu');
 }
 function addCoverLands(p: Part, s: 1 | -1) {

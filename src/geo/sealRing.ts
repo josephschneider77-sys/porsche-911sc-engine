@@ -427,7 +427,13 @@ export function sealPatchGeometry(
       const ix1 = Math.min(nx, Math.ceil((Math.max(xa, xb) - x0) / step));
       const iy0 = Math.max(0, Math.floor((Math.min(ya, yb) - y0) / step));
       const iy1 = Math.min(ny, Math.ceil((Math.max(ya, yb) - y0) / step));
-      for (let iy = iy0; iy < iy1; iy++) for (let ix = ix0; ix < ix1; ix++) on[iy * nx + ix] = 1;
+      for (let iy = iy0; iy < iy1; iy++) for (let ix = ix0; ix < ix1; ix++) {
+        // The head-side wall occupies x −36..−30 and rises through the cover.
+        // Keep the bar outboard of that wall. A face on the cam-side bar lands
+        // inside the housing wall that is already there.
+        const x = x0 + (ix + 0.5) * step;
+        if (x < -36) on[iy * nx + ix] = 1;
+      }
     };
     for (const [cx, cy] of wins) {
       const x0w = cx - 30, x1w = cx + 30, y0w = cy - 14, y1w = cy + 14;

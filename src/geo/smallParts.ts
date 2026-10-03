@@ -779,6 +779,28 @@ function joinSpareHoles(
     }
   }
 }
+/**
+ * The head-side rail stands in a slit between the lower windows. The cover
+ * cannot cross that wall, so the slit is not clamped, and the openings run
+ * together through it. One row of cells welds the sheet across the slit.
+ * Each strip is a few square millimetres, under the unclamped-patch limit.
+ */
+function bridgeHeadSlit(mask: Uint8Array, nx: number, ny: number, s: 1 | -1, blocked: Uint8Array) {
+  const rows = s > 0 ? [-89.5, 30.5] : [-41.5, 76.5];
+  const ixAt = (x: number) => Math.round((x - FLANGE_X0) / FLANGE_STEP - 0.5);
+  for (const y of rows) {
+    const iy = Math.round((y - FLANGE_Y0) / FLANGE_STEP - 0.5);
+    if (iy < 1 || iy >= ny - 1) continue;
+    let lo = ixAt(-39.5);
+    let hi = ixAt(-28.5);
+    for (let ix = lo; ix >= ixAt(-46) && !mask[iy * nx + ix]; ix--) lo = ix;
+    for (let ix = hi; ix <= ixAt(-18) && !mask[iy * nx + ix]; ix++) hi = ix;
+    for (let ix = lo; ix <= hi; ix++) {
+      const i = iy * nx + ix;
+      if (!blocked[i]) mask[i] = 1;
+    }
+  }
+}
 /** Cells the cover and the housing do not both meet, apart from the seal band. */
 function dropUnclamped(
   mask: Uint8Array, nx: number, ny: number, s: 1 | -1, up: boolean, band: Uint8Array,
@@ -884,7 +906,10 @@ function coverGasket(s: 1 | -1, up: boolean) {
     for (const st of vcStuds(up, s)) clearCircle(mask, nx, ny, st.x, st.y, 6.6);
     for (let i = 0; i < mask.length; i++) if (blocked[i]) mask[i] = 0;
     if (up) joinSpareHoles(mask, nx, ny, chosen, band);
-    if (!up) dropUnclamped(mask, nx, ny, s, up, band);
+    if (!up) {
+      dropUnclamped(mask, nx, ny, s, up, band);
+      bridgeHeadSlit(mask, nx, ny, s, blocked);
+    }
     const g = flangeGeometry(mask, nx, ny, blocked);
     g.translate(0, 0, -0.25);
     if (!g.attributes.normal) g.computeVertexNormals();
