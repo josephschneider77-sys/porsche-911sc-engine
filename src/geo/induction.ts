@@ -65,20 +65,33 @@ export const PLENUM_AUX = { tip: [32, 180, -134] as V3, axis: [0, 0, -1] as V3 }
 /** Manifold-vacuum nipple on the plenum lid, downstream of the throttle. */
 export const MANIFOLD_VAC = { tip: [-30, 268, 40] as V3, axis: [0, 1, 0] as V3 };
 /**
- * Diverter-vacuum barb on the manifold tee (107-10 #14, 999 137 004 40).
- * Seat for 108-00 #31 (999 239 003 40, 3.2×7, 750 mm). That hose is the air-injection
- * diverter's manifold-vacuum signal. Fig 107-10 draws #14 as a three-port T: the
- * manifold hose, the limiter hose, and the elbow up to thermo valve 17A. #31 is not
- * a fourth port aimed at the flywheel. The nipple is the last 8 mm, on −Y, so the
- * emissions-off cap built from this constant still fits, with 5.3 mm of free brass
- * below the clamp ring. The plastic cross lies on the plenum lid, so this nipple
- * stands just off the cross: high enough for 30 mm of air under the tip, and clear
- * of the cross so the ray does not meet it. The 750 mm hose leaves straight down
- * that axis. Bottom End's air-hose-vacuum is a hardcoded run and still ends on the
- * previous point.
+ * Moulded T-piece 999 137 004 40 (Kat 502 fig 107-10 #14). Two collinear barbs and
+ * one perpendicular barb, all the same OD, on a junction thicker than the barbs.
+ * Tip-to-tip is 22 mm. The barb past the junction is 8 mm, which is the length the
+ * emissions-off cap is built against.
+ */
+export const MOULDED_TEE = {
+  barbR: 2.8,
+  bodyR: 4.0,
+  half: 11,
+  root: 3,
+} as const;
+/**
+ * Second 999 137 004 40, spliced into the manifold-vacuum hose.
+ * 108-00 (Kat 502 p.141) lists hose #31 and no T-piece. 202-05 #18 is the emissions
+ * group's own T-piece, so the diverter signal is that second fitting, not a fourth
+ * port on 107-10 #14. The branch points down. The tip is TEE_AIR_INJ.
+ */
+export const AIR_TEE = { origin: [-18, 304, 50] as V3 };
+/**
+ * Free barb of the spliced manifold tee. Seat for 108-00 #31 (999 239 003 40,
+ * 3.2×7, 750 mm). Axis is straight down, and the tip sits high enough that 30 mm
+ * of that ray clears the plenum lid. The emissions-off cap is built on this
+ * constant: root 8 mm above the tip, radius 2.8. Bottom End's air-hose-vacuum is
+ * still the hardcoded run and does not end here yet.
  */
 export const TEE_AIR_INJ = {
-  point: [22, 286, 70] as V3,
+  point: [AIR_TEE.origin[0], AIR_TEE.origin[1] - MOULDED_TEE.half, AIR_TEE.origin[2]] as V3,
   axis: [0, -1, 0] as V3,
 };
 /**
@@ -984,14 +997,14 @@ export function aavPorts() {
  * Rubber / vacuum hose. `ahead` is the collinear run past the straight lead; keep it short
  * where a long lead would enter the shroud (the auxiliary-air valve's lower barb).
  */
-function hoseCentre(a: FuelEnd, b: FuelEnd, mids: V3[], ahead = 10, lead = 8, leadB = lead, fillet = 10): V3[] {
+function hoseCentre(a: FuelEnd, b: FuelEnd, mids: V3[], ahead = 10, lead = 8, leadB = lead, fillet = 10, aheadB = ahead): V3[] {
   const A = norm(a.axis), B = norm(b.axis);
   const a1 = add(a.point, A, lead);
   const b1 = add(b.point, B, leadB);
-  return filleted([a1, add(a.point, A, lead + ahead), ...mids, add(b.point, B, leadB + ahead), b1], fillet);
+  return filleted([a1, add(a.point, A, lead + ahead), ...mids, add(b.point, B, leadB + aheadB), b1], fillet);
 }
 
-function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5, ahead = 10, lead = 8, leadB = lead, fillet = 10) {
+function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5, ahead = 10, lead = 8, leadB = lead, fillet = 10, aheadB = ahead) {
   const A = norm(a.axis), B = norm(b.axis);
   const start = add(a.point, A, 0.35);
   const end = add(b.point, B, 0.35);
@@ -999,7 +1012,7 @@ function addHose(p: Part, id: string, a: FuelEnd, b: FuelEnd, mids: V3[], r = 5,
   const b1 = add(b.point, B, leadB);
   addNamed(p, id, cylBetween(start, a1, r, 8), 'rubber');
   addNamed(p, id, cylBetween(end, b1, r, 8), 'rubber');
-  const pts = hoseCentre(a, b, mids, ahead, lead, leadB, fillet);
+  const pts = hoseCentre(a, b, mids, ahead, lead, leadB, fillet, aheadB);
   addNamed(p, id, tube(pts, r, 7, Math.max(16, pts.length * 3)), 'rubber');
   return pts;
 }
@@ -1021,14 +1034,61 @@ function hoseClampAt(p: Part, pts: V3[], u: number, hoseR: number, gap = 1.8) {
   p.add(g, 'zincPlate');
 }
 
-function vacTPorts() {
-  const [ox, oy, oz] = VAC_T.origin;
+/** Three ports of a moulded T. Collinear barbs lie on X; `branch` is the perpendicular axis, outward. */
+export function mouldedTeePorts(origin: V3, branch: V3) {
+  const [ox, oy, oz] = origin;
+  const h = MOULDED_TEE.half;
   return {
-    minusX: { tip: [ox - 14, oy, oz] as V3, axis: [-1, 0, 0] as V3 },
-    plusX: { tip: [ox + 14, oy, oz] as V3, axis: [1, 0, 0] as V3 },
-    // Elbow turns the leg up. A straight Ø9 hose will not fit between this tip and the throttle flange (z 96).
-    plusZ: { tip: [10, 282, 76] as V3, axis: [0, 1, 0] as V3 },
+    minusX: { tip: [ox - h, oy, oz] as V3, axis: [-1, 0, 0] as V3 },
+    plusX: { tip: [ox + h, oy, oz] as V3, axis: [1, 0, 0] as V3 },
+    branch: {
+      tip: [ox + branch[0] * h, oy + branch[1] * h, oz + branch[2] * h] as V3,
+      axis: [branch[0], branch[1], branch[2]] as V3,
+    },
   };
+}
+
+/**
+ * Plain T mesh. The junction cylinders are one fitting; they cross on purpose.
+ * Each barb carries a clamp ring 6 mm inboard of the tip (5.3 mm of free barb
+ * under the wire).
+ */
+export function mouldedTee(origin: V3, branch: V3) {
+  const [ox, oy, oz] = origin;
+  const { barbR, bodyR, half, root } = MOULDED_TEE;
+  const g = new THREE.Group();
+  const put = (a: V3, b: V3, r: number, mat: 'blackPlastic' | 'zincPlate', segs = 12) => {
+    g.add(mesh(cylBetween(a, b, r, segs), mat));
+  };
+  put([ox - root, oy, oz], [ox + root, oy, oz], bodyR, 'blackPlastic');
+  const branchRoot: V3 = [ox + branch[0] * root, oy + branch[1] * root, oz + branch[2] * root];
+  const branchTip: V3 = [ox + branch[0] * half, oy + branch[1] * half, oz + branch[2] * half];
+  put([ox, oy, oz], branchRoot, bodyR, 'blackPlastic');
+  // 10 sides: the emissions-off cap bore is built for a 10-gon of this radius.
+  put([ox - root, oy, oz], [ox - half, oy, oz], barbR, 'blackPlastic', 10);
+  put([ox + root, oy, oz], [ox + half, oy, oz], barbR, 'blackPlastic', 10);
+  put(branchRoot, branchTip, barbR, 'blackPlastic', 10);
+  const ringAt = (center: V3, axis: V3) => {
+    const ring = torus(3.6, 0.7, 6, 14);
+    ring.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...axis)));
+    g.add(mesh(ring, 'zincPlate', center));
+  };
+  const inset = half - 6;
+  ringAt([ox - inset, oy, oz], [-1, 0, 0]);
+  ringAt([ox + inset, oy, oz], [1, 0, 0]);
+  ringAt(
+    [ox + branch[0] * inset, oy + branch[1] * inset, oz + branch[2] * inset],
+    branch,
+  );
+  return g;
+}
+
+function vacTPorts() {
+  return mouldedTeePorts(VAC_T.origin, [0, 1, 0]);
+}
+
+function airTeePorts() {
+  return mouldedTeePorts(AIR_TEE.origin, [0, -1, 0]);
 }
 
 /**
@@ -1106,18 +1166,21 @@ function vacLimitPort() {
 export function serviceHoses(): FuelLineDef[] {
   const aav = aavPorts();
   const t = vacTPorts();
+  const air = airTeePorts();
   const lim = vacLimitPort();
   const on = (point: V3, axis: V3, part = 'vacuum-fittings') => endOf(part, point, axis);
   return [
     { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis) },
     { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
-    // Three small hoses (3.2×7): manifold, limiter, distributor.
-    // 108-00 #31 is not one of them. It seats on TEE_AIR_INJ, the short barb above this tee.
-    { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: on(t.minusX.tip, t.minusX.axis) },
+    // Small hoses (3.2×7). The manifold run is two segments: the splice tee's
+    // collinear barbs sit between the plenum nipple and 107-10 #14. 108-00 #31
+    // is not one of them. It seats on TEE_AIR_INJ, the splice tee's down barb.
+    { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: on(air.minusX.tip, air.minusX.axis) },
+    { id: 'vac-manifold-b', part: 'vacuum-fittings', a: on(air.plusX.tip, air.plusX.axis), b: on(t.minusX.tip, t.minusX.axis) },
     { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
     { id: 'vac-distributor', part: 'vacuum-fittings', a: on(VAC_THERMO.dist.tip, VAC_THERMO.dist.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
     // Three medium hoses (Ø9): T to thermo valve 17A, thermo to the reducing socket, socket cluster to the additional air valve.
-    { id: 'vac-thermo', part: 'vacuum-fittings', a: on(t.plusZ.tip, t.plusZ.axis), b: on(VAC_THERMO.inn.tip, VAC_THERMO.inn.axis) },
+    { id: 'vac-thermo', part: 'vacuum-fittings', a: on(t.branch.tip, t.branch.axis), b: on(VAC_THERMO.inn.tip, VAC_THERMO.inn.axis) },
     { id: 'vac-socket', part: 'vacuum-fittings', a: on(VAC_THERMO.sock.tip, VAC_THERMO.sock.axis), b: on(VAC_SOCK.small.tip, VAC_SOCK.small.axis) },
     { id: 'vac-addair', part: 'vacuum-fittings', a: endOf('additional-air-valve', ADD_AIR_VAC.tip, ADD_AIR_VAC.axis), b: on(VAC_BLOCK.med.tip, VAC_BLOCK.med.axis) },
     // Three large hoses (8×14): socket to the block, the parallel run off the block, and the jumper.
@@ -1155,7 +1218,12 @@ export function vacuumHosesPart() {
     const h = byId[id];
     return addHose(p, id, h.a, h.b, mids, 7, ahead, lead, lead, 6);
   };
-  small('vac-manifold', [[-22, 274, 52]]);
+  // Up off the plenum nipple, then a short lead onto the splice tee's −X barb.
+  const mani = byId['vac-manifold'];
+  addHose(p, mani.id, mani.a, mani.b, [[-32, 286, 46]], 3.2, 6, 6, 4, 8, 1);
+  // The other collinear barb drops onto 107-10 #14. Both leads point at each other.
+  const maniB = byId['vac-manifold-b'];
+  addHose(p, maniB.id, maniB.a, maniB.b, [[-6, 282, 56]], 3.2, 2, 4, 4, 8, 2);
   small('vac-limiter', [[70, 268, 40], [108, 270, -20], [108, 268, -72]]);
   // End on DIST_VAC_NIPPLE. `ahead` 44 mm is the straight leg each 18 mm fillet needs
   // (2.5× the 7 mm catalogue OD). The first waypoint is on the barb axis. The run
@@ -1172,9 +1240,9 @@ export function vacuumHosesPart() {
     [-150, 316, 40],
     [-200, 250, 130],
   ], 3.2, 44, 8, 16, 18);
-  // Up off the T before the throttle flange (z 96), then above the duct and the injector lines.
+  // Straight up off the T, above the spliced manifold tee, then flywheel to thermo valve 17A.
   const thermo = byId['vac-thermo'];
-  addHose(p, thermo.id, thermo.a, thermo.b, [[-32, 312, 70], [-32, 312, -148], [22, 304, -148]], 4.5, 4, 6, 3, 4);
+  addHose(p, thermo.id, thermo.a, thermo.b, [[6, 320, 62], [-42, 320, 86], [-42, 314, 36], [-32, 312, -24], [-32, 312, -148], [22, 304, -148]], 4.5, 4, 6, 3, 8);
   const sock = byId['vac-socket'];
   addHose(p, sock.id, sock.a, sock.b, [], 4.5, 1, 2);
   const add = byId['vac-addair'];

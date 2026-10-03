@@ -152,14 +152,18 @@ describe('1978 CIS fuel lines', () => {
     const root = ASSET_BUILDERS[PART_BY_ID['vacuum-fittings'].asset]();
     root.updateMatrixWorld(true);
     let onTee = false;
+    let badParent = false;
     let line = false;
     root.traverse((o: any) => {
       if (typeof o.name === 'string' && o.name.startsWith('line:vac-airinj')) line = true;
-      if (!o.isMesh || !o.parent || o.parent.name !== 'fitting:vac-t') return;
+      if (!o.isMesh || !o.parent) return;
       const box = new THREE.Box3().setFromObject(o);
-      if (box.distanceToPoint(tip) < 0.6) onTee = true;
+      if (box.distanceToPoint(tip) >= 0.6) return;
+      if (o.parent.name === 'fitting:vac-air-t') onTee = true;
+      if (o.parent.name === 'fitting:vac-t') badParent = true;
     });
-    expect(onTee, 'the diverter barb is part of fitting:vac-t').toBe(true);
+    expect(onTee, 'the diverter barb is part of fitting:vac-air-t').toBe(true);
+    expect(badParent, '107-10 #14 has no diverter barb').toBe(false);
     expect(line).toBe(false);
   });
 
