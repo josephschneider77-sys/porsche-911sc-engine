@@ -699,6 +699,101 @@ describe('top-end batch 1', () => {
     }
   }, 120000);
 
+  it('keeps the cam chamber off the outside on a 1 mm flood, connectors in place', () => {
+    // The ray test above allows any line that passes the plug-well radius, so it
+    // misses a slit beside the tube. This flood does not. Cover, housing and the
+    // three connectors are solid. A 6-connected walk from the chamber may not
+    // reach past the cover. The sealed wells are the connectors' own metal.
+    const bake = (root: THREE.Object3D, inv: THREE.Matrix4) => {
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return geom;
+    };
+    const x0 = -70, x1 = 80, y0 = -200, y1 = 210, z0 = 0, z1 = 30;
+    const nx = x1 - x0 + 1, ny = y1 - y0 + 1, nz = z1 - z0 + 1;
+    const voxelize = (geoms: THREE.BufferGeometry[]) => {
+      const blocked = new Uint8Array(nx * ny * nz);
+      const tri = new THREE.Triangle();
+      const box = new THREE.Box3();
+      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+      for (const g of geoms) {
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i += 3) {
+          a.fromBufferAttribute(P, i);
+          b.fromBufferAttribute(P, i + 1);
+          c.fromBufferAttribute(P, i + 2);
+          tri.set(a, b, c);
+          const minx = Math.max(x0, Math.floor(Math.min(a.x, b.x, c.x)));
+          const maxx = Math.min(x1, Math.floor(Math.max(a.x, b.x, c.x)));
+          const miny = Math.max(y0, Math.floor(Math.min(a.y, b.y, c.y)));
+          const maxy = Math.min(y1, Math.floor(Math.max(a.y, b.y, c.y)));
+          const minz = Math.max(z0, Math.floor(Math.min(a.z, b.z, c.z)));
+          const maxz = Math.min(z1, Math.floor(Math.max(a.z, b.z, c.z)));
+          for (let x = minx; x <= maxx; x++) for (let y = miny; y <= maxy; y++) for (let z = minz; z <= maxz; z++) {
+            box.min.set(x, y, z);
+            box.max.set(x + 1, y + 1, z + 1);
+            if (!box.intersectsTriangle(tri)) continue;
+            blocked[(x - x0) + nx * ((y - y0) + ny * (z - z0))] = 1;
+          }
+        }
+      }
+      return blocked;
+    };
+    for (const s of [1, -1] as const) {
+      const bank = s > 0 ? 'right' : 'left';
+      const inv = coverMatrix(s, true).invert();
+      const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+      const solids = [
+        bake(ASSET_BUILDERS[`valve-cover-upper-${bank}`](), inv),
+        bake(ASSET_BUILDERS[`cam-housing-${bank}`](), inv),
+        ...cyls.map((c) => {
+          const conn = ASSET_BUILDERS['spark-plug-connector']();
+          conn.applyMatrix4(partPose(`spark-plug-connector-${c}`));
+          return bake(conn, inv);
+        }),
+      ];
+      const blocked = voxelize(solids);
+      const seen = new Uint8Array(nx * ny * nz);
+      const qx: number[] = [], qy: number[] = [], qz: number[] = [];
+      const push = (x: number, y: number, z: number) => {
+        if (x < x0 || x > x1 || y < y0 || y > y1 || z < z0 || z > z1) return;
+        const id = (x - x0) + nx * ((y - y0) + ny * (z - z0));
+        if (blocked[id] || seen[id]) return;
+        seen[id] = 1;
+        qx.push(x); qy.push(y); qz.push(z);
+      };
+      for (const p of [[0, 0, 10], [0, 140, 8], [0, -140, 8], [22, 80, 8], [-22, -80, 6]] as const) push(...p);
+      let outside = 0;
+      let example = '';
+      for (let qi = 0; qi < qx.length; qi++) {
+        const x = qx[qi], y = qy[qi], z = qz[qi];
+        if (x <= -68 || x >= 78 || y <= -198 || y >= 208 || z >= 29) {
+          outside++;
+          if (!example) example = `(${x},${y},${z})`;
+          continue;
+        }
+        push(x + 1, y, z); push(x - 1, y, z);
+        push(x, y + 1, z); push(x, y - 1, z);
+        push(x, y, z + 1); push(x, y, z - 1);
+      }
+      expect(qx.length, `${bank} chamber seeds`).toBeGreaterThan(1000);
+      expect(outside, `${bank} ${example}`).toBe(0);
+    }
+  }, 120000);
+
   it('seals every plug connector against the upper cover', () => {
     // Cylinders 2 and 3 use the round holes; cylinder 1 uses the end scallop.
     // The left lid is that casting turned about Y, so 5 and 4 use the holes and 6 the scallop.

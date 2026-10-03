@@ -2209,20 +2209,31 @@ function addPlugOpenings(root: THREE.Object3D, s: 1 | -1) {
     const at = (z: number) => plugCoverLocal(c, z).applyMatrix4(frame);
     const loc = plugCoverLocal(c, 8);
     const atEnd = Math.abs(loc.y) + SPARK_HOLE_R > halfL - 6;
-    const cutA = at(-2);
-    const cutB = at(36);
-    cuts.push(cylBetween([cutA.x, cutA.y, cutA.z], [cutB.x, cutB.y, cutB.z], SPARK_HOLE_R, 48));
     if (atEnd) {
       // End scallop for cylinder 1 (and 6, the same casting turned about Y).
-      // A boss grown from the flange along the plug axis, then bored to the
-      // seal diameter, so the connector seats the way cylinders 2 and 3 do
-      // in their round holes. A slot here left an 8.8 mm gap.
-      // Start above the seat. A boss centred on z = 0 dips through the gasket.
-      // Stop at the seal. A longer boss clears the 27.9 mm cover envelope.
-      const a = at(4);
+      // The boss meets the seat. A full bore from the seat left a channel
+      // under the boss, beside the tube (about x 14–17, y 169–184, z 0–2.5),
+      // out the end notch. Below the seal the bore is only tube clearance;
+      // the seal itself stays the full hole. The axis is tilted, so the blank
+      // starts below the seat and is clipped there — nothing enters the gasket.
+      // The boss stops at the seal so the cover stays inside 27.9 mm.
+      const a = at(-6);
       const b = at(25.25);
-      extra.add(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], SPARK_HOLE_R + 3.2, 40), 'castAlu');
+      const boss = cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], SPARK_HOLE_R + 3.2, 40);
+      const below = boxMM([-100, -240, -40], [100, 240, 0]);
+      below.applyMatrix4(frame);
+      extra.add(manifoldSub(boss, below), 'castAlu');
+      const neckR = SPARK_TUBE_R + 0.9;
+      const n0 = at(-2);
+      const n1 = at(18);
+      cuts.push(cylBetween([n0.x, n0.y, n0.z], [n1.x, n1.y, n1.z], neckR, 48));
+      const s0 = at(16);
+      const s1 = at(36);
+      cuts.push(cylBetween([s0.x, s0.y, s0.z], [s1.x, s1.y, s1.z], SPARK_HOLE_R, 48));
     } else {
+      const cutA = at(-2);
+      const cutB = at(36);
+      cuts.push(cylBetween([cutA.x, cutA.y, cutA.z], [cutB.x, cutB.y, cutB.z], SPARK_HOLE_R, 48));
       // Boss stands proud of the crown (peak ≈ 25.4) and stays under the 27.9 mm envelope.
       const a = at(18);
       const b = at(24.6);
