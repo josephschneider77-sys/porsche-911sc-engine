@@ -5,7 +5,7 @@ import { PART_BY_ID, PARTS } from '../src/data/parts';
 import { heaterStub } from '../src/geo/aux';
 import { TEE_AIR_INJ, THROTTLE_PORTED_VAC } from '../src/geo/induction';
 import {
-  HOSE_PUSH, PUMP_OUT, DUMP_PORT, DIVERTER_VAC, DIVERTER_VAC_EGR, EGR_BARB_UP, EGR_BARB_2, EGR_TEE_PORTS, HEATER_BLOWER, HEATER_BLOWER_INLET,
+  HOSE_PUSH, PUMP_OUT, DUMP_PORT, DIVERTER_VAC, DIVERTER_VAC_AXIS, DIVERTER_VAC_EGR, DIVERTER_VAC_EGR_AXIS, EGR_BARB_UP, EGR_BARB_2, EGR_TEE_PORTS, HEATER_BLOWER, HEATER_BLOWER_INLET,
   checkValveInlet,
 } from '../src/geo/bottomAnc';
 
@@ -22,7 +22,7 @@ const inlet = checkValveInlet();
 
 /** Every rubber hose this branch owns. Bore radius is the barb radius. */
 const SEATS: Seat[] = [
-  { hose: 'air-hose-vacuum', point: DIVERTER_VAC, axis: [1, 0, 0], barbR: 2.2, hoseR: 3.5 },
+  { hose: 'air-hose-vacuum', point: DIVERTER_VAC, axis: DIVERTER_VAC_AXIS, barbR: 2.2, hoseR: 3.5 },
   { hose: 'air-hose-vacuum', point: TEE_AIR_INJ.point, axis: TEE_AIR_INJ.axis, barbR: TEE_AIR_INJ.barbR, hoseR: 3.5 },
   { hose: 'egr-hose-short', point: THROTTLE_PORTED_VAC.point, axis: THROTTLE_PORTED_VAC.axis, barbR: THROTTLE_PORTED_VAC.barbR, hoseR: 3.5 },
   { hose: 'egr-hose-short', point: EGR_TEE_PORTS.upper.point, axis: EGR_TEE_PORTS.upper.axis, barbR: 2.2, hoseR: 3.5 },
@@ -31,7 +31,7 @@ const SEATS: Seat[] = [
   { hose: 'egr-hose-return', point: EGR_TEE_PORTS.return.point, axis: EGR_TEE_PORTS.return.axis, barbR: 2.2, hoseR: 3.5 },
   { hose: 'egr-hose-return', point: EGR_BARB_UP.point, axis: EGR_BARB_UP.axis, barbR: 2.2, hoseR: 3.5 },
   { hose: 'egr-hose-diverter', point: EGR_TEE_PORTS.diverter.point, axis: EGR_TEE_PORTS.diverter.axis, barbR: 2.2, hoseR: 3.5 },
-  { hose: 'egr-hose-diverter', point: DIVERTER_VAC_EGR, axis: [1, 0, 0], barbR: 2.2, hoseR: 3.5 },
+  { hose: 'egr-hose-diverter', point: DIVERTER_VAC_EGR, axis: DIVERTER_VAC_EGR_AXIS, barbR: 2.2, hoseR: 3.5 },
   { hose: 'air-hose-pump', point: PUMP_OUT.tip, axis: outDir.toArray(), barbR: 6.2, hoseR: 6 },
   { hose: 'air-hose-pump', point: [-172, 26, 448], axis: [-1, 0, 0], barbR: 7, hoseR: 6 },
   { hose: 'air-hose-valve', point: [-142, 56, 448], axis: [0, 1, 0], barbR: 7, hoseR: 6 },

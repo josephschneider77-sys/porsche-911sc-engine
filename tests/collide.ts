@@ -11,7 +11,7 @@ import { fastenerSets } from '../src/geo/fasteners';
 import { SMALL_SPECS } from '../src/data/smallSpec';
 import { HOUSING_Z0, tensionerLayout } from '../src/geo/core';
 import { heaterStub } from '../src/geo/aux';
-import { checkValveInlet, DUMP_PORT, DIVERTER_VAC, DIVERTER_VAC_EGR, EGR_BARB_2, EGR_BARB_UP, EGR_TEE_PORTS, HEATER_BLOWER, HEATER_BLOWER_INLET, PUMP_OUT } from '../src/geo/bottomAnc';
+import { checkValveInlet, DUMP_PORT, DIVERTER_VAC, DIVERTER_VAC_AXIS, DIVERTER_VAC_EGR, DIVERTER_VAC_EGR_AXIS, EGR_BARB_2, EGR_BARB_UP, EGR_TEE_PORTS, HEATER_BLOWER, HEATER_BLOWER_INLET, PUMP_OUT } from '../src/geo/bottomAnc';
 
 export interface Hit { a: string; b: string; tris: number; box: THREE.Box3; samples: THREE.Vector3[] }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
@@ -475,7 +475,7 @@ const seatZone = (a: string, b: string, ends: { point: number[]; axis: number[] 
   axes: ends.map((e) => new THREE.Vector3(...e.axis).normalize()),
 });
 const SEAT_ZONES: SeatZone[] = [
-  seatZone('air-hose-vacuum', 'air-diverter', [{ point: DIVERTER_VAC, axis: [1, 0, 0] }]),
+  seatZone('air-hose-vacuum', 'air-diverter', [{ point: DIVERTER_VAC, axis: DIVERTER_VAC_AXIS }]),
   seatZone('air-hose-pump', 'air-pump', [{ point: PUMP_OUT.tip, axis: pumpOut.toArray() }]),
   seatZone('air-hose-pump', 'air-diverter', [{ point: [-172, 26, 448], axis: [-1, 0, 0] }]),
   seatZone('air-hose-valve', 'air-diverter', [{ point: [-142, 56, 448], axis: [0, 1, 0] }]),
@@ -487,7 +487,7 @@ const SEAT_ZONES: SeatZone[] = [
   seatZone('egr-hose-return', 'egr-tee', [{ point: EGR_TEE_PORTS.return.point, axis: EGR_TEE_PORTS.return.axis }]),
   seatZone('egr-hose-return', 'egr-valve', [{ point: EGR_BARB_UP.point, axis: EGR_BARB_UP.axis }]),
   seatZone('egr-hose-diverter', 'egr-tee', [{ point: EGR_TEE_PORTS.diverter.point, axis: EGR_TEE_PORTS.diverter.axis }]),
-  seatZone('egr-hose-diverter', 'air-diverter', [{ point: DIVERTER_VAC_EGR, axis: [1, 0, 0] }]),
+  seatZone('egr-hose-diverter', 'air-diverter', [{ point: DIVERTER_VAC_EGR, axis: DIVERTER_VAC_EGR_AXIS }]),
   seatZone('heater-hose-right', 'heater-dist-piece', [{ point: [hb.x + 26, 64, hb.z], axis: [1, 0, 0] }]),
   seatZone('heater-hose-left', 'heater-dist-piece', [{ point: [hb.x - 26, 64, hb.z], axis: [-1, 0, 0] }]),
   seatZone('heater-hose-right', 'heat-exchanger-right', [{ point: rightStub.tip, axis: rightStub.axis }]),

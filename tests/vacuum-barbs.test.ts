@@ -369,15 +369,18 @@ describe('paired throttle nipples', () => {
     expect(short).toEqual([]);
   });
 
-  it.each(seats)('a ray of at least 30 mm from $name along its axis misses every part that is present with emissions on', ({ seat }) => {
+  it.each(seats)('a ray of at least 30 mm from $name along its axis misses every part that is present with emissions on', ({ name, seat }) => {
     const hidden = emissionsHidden(true);
+    // #15 is pulled straight off THROTTLE_PORTED_VAC, so its own hose and tee
+    // are not obstacles. TEE_AIR_INJ stays strict.
+    const ignore = name === 'THROTTLE_PORTED_VAC' ? new Set(['egr-hose-short', 'egr-tee']) : new Set<string>();
     const point = new THREE.Vector3(...seat.point);
     const axis = new THREE.Vector3(...seat.axis).normalize();
     const origin = point.clone().addScaledVector(axis, 0.5);
     let best = Infinity;
     let who = '';
     for (const p of PARTS) {
-      if (hidden.has(p.id)) continue;
+      if (hidden.has(p.id) || ignore.has(p.id)) continue;
       const root = ASSET_BUILDERS[p.asset]();
       root.updateMatrixWorld(true);
       const pose = poseOf(p.id);

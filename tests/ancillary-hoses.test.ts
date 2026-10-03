@@ -5,7 +5,7 @@ import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PART_BY_ID, PARTS } from '../src/data/parts';
 import { TEE_AIR_INJ, THROTTLE_PORTED_VAC } from '../src/geo/induction';
 import { AIR_CHECK_VALVE_OUTLET, heaterStub, EGR_FEED_PORT } from '../src/geo/aux';
-import { checkValveInlet, DIVERTER_VAC, DIVERTER_VAC_EGR, DUMP_PORT, EGR_BARB_2, EGR_BARB_UP, EGR_TEE_CTR, EGR_TEE_PORTS } from '../src/geo/bottomAnc';
+import { checkValveInlet, DIVERTER_VAC, DIVERTER_VAC_AXIS, DIVERTER_VAC_EGR, DIVERTER_VAC_EGR_AXIS, DUMP_PORT, EGR_BARB_2, EGR_BARB_UP, EGR_TEE_CTR, EGR_TEE_PORTS } from '../src/geo/bottomAnc';
 import { activeFilter } from '../src/data/teardown';
 
 const poseOf = (id: string) => {
@@ -131,14 +131,14 @@ describe('ancillary hose ends', () => {
 
   const solid = [1.2, 4, 8, 14];
   const ends: { hose: string; point: THREE.Vector3; axis: THREE.Vector3; fitting: string; radii?: number[] }[] = [
-    { hose: 'air-hose-vacuum', point: new THREE.Vector3(...DIVERTER_VAC), axis: new THREE.Vector3(1, 0, 0), fitting: 'air-diverter' },
+    { hose: 'air-hose-vacuum', point: new THREE.Vector3(...DIVERTER_VAC), axis: new THREE.Vector3(...DIVERTER_VAC_AXIS), fitting: 'air-diverter' },
     { hose: 'air-hose-vacuum', point: new THREE.Vector3(...TEE_AIR_INJ.point), axis: new THREE.Vector3(...TEE_AIR_INJ.axis), fitting: 'throttle-housing' },
     { hose: 'egr-hose-short', point: new THREE.Vector3(...THROTTLE_PORTED_VAC.point), axis: new THREE.Vector3(...THROTTLE_PORTED_VAC.axis), fitting: 'throttle-housing' },
     { hose: 'air-hose-valve', point: new THREE.Vector3(...checkValveInlet()), axis: new THREE.Vector3(0, 1, 0), fitting: 'air-check-valve' },
     { hose: 'heater-hose-right', point: new THREE.Vector3(...heaterStub(1).tip), axis: new THREE.Vector3(...heaterStub(1).axis), fitting: 'heat-exchanger-right', radii: [11.2, 11.6, 12] },
     { hose: 'heater-hose-left', point: new THREE.Vector3(...heaterStub(-1).tip), axis: new THREE.Vector3(...heaterStub(-1).axis), fitting: 'heat-exchanger-left', radii: [11.2, 11.6, 12] },
     { hose: 'egr-pipe-feed', point: new THREE.Vector3(...EGR_FEED_PORT.tip), axis: new THREE.Vector3(...EGR_FEED_PORT.axis), fitting: 'heat-exchanger-left', radii: [7.2, 7.6, 8] },
-    { hose: 'egr-hose-diverter', point: new THREE.Vector3(...DIVERTER_VAC_EGR), axis: new THREE.Vector3(1, 0, 0), fitting: 'air-diverter' },
+    { hose: 'egr-hose-diverter', point: new THREE.Vector3(...DIVERTER_VAC_EGR), axis: new THREE.Vector3(...DIVERTER_VAC_EGR_AXIS), fitting: 'air-diverter' },
     { hose: 'egr-hose-return', point: new THREE.Vector3(...EGR_BARB_UP.point), axis: new THREE.Vector3(...EGR_BARB_UP.axis), fitting: 'egr-valve' },
     { hose: 'air-hose-dump', point: new THREE.Vector3(...DUMP_PORT.point), axis: new THREE.Vector3(...DUMP_PORT.axis), fitting: 'air-diverter' },
     { hose: 'egr-hose-long', point: new THREE.Vector3(...EGR_BARB_2.point), axis: new THREE.Vector3(...EGR_BARB_2.axis), fitting: 'egr-valve' },
@@ -175,21 +175,22 @@ describe('ancillary hose bend and length', () => {
     { id: 'air-hose-pump', od: 12, length: { max: 420 } },
     { id: 'air-hose-valve', od: 12, length: { max: 380 } },
     { id: 'air-hose-dump', od: 16, length: { target: 65, tol: 5 } },
-    // #31 is printed 750 mm. Measured 914 mm. Outboard of the distributor,
-    // over the fan-mouth horn, and above the air-pump strap. Allowance 180 (cap 930).
-    { id: 'air-hose-vacuum', od: 7, sleeves: 14, length: { max: 930 } },
-    // #15 is printed 40 mm. Tips are 33 mm apart and each sleeve is 7 mm, so the
-    // cut is 47 mm. A 26 mm tip gap would put the tee in the 30 mm clear-air ray.
-    { id: 'egr-hose-short', od: 7, sleeves: 14, length: { max: 48 } },
-    // #16 is printed 770 mm. The clear drop jogs inboard of the exchanger.
-    // Measured 860 mm. Allowance 100 (cap 870). Still well under the old 1008 mm loop.
-    { id: 'egr-hose-long', od: 7, sleeves: 14, length: { max: 870 } },
-    // Both #17 cuts are printed 465 mm. The valve leg runs aft of #16.
-    // Measured 943 mm. Allowance 490 (cap 955).
-    { id: 'egr-hose-return', od: 7, sleeves: 14, length: { max: 955 } },
-    // The diverter leg stays left of the fan. Measured 900 mm, turn 552°. It clears the
-    // alternator, the horn, the belt, the pump pulley and the bracket. Allowance 465 (cap 930).
-    { id: 'egr-hose-diverter', od: 7, sleeves: 14, length: { max: 930 } },
+    // #31 is printed 750 mm. Allowance 80 (cap 830): under the fan, outboard of
+    // the shroud slot, then up TEE_AIR_INJ. Shorter than the catalogue is the
+    // clear path, not a padded loop.
+    { id: 'air-hose-vacuum', od: 7, sleeves: 14, length: { max: 830 } },
+    // #15 is printed 40 mm. The tee centre is 7 mm higher, so the tips are 26 mm
+    // apart and two 7 mm sleeves make 40 mm. Allowance 2 (cap 42) for float.
+    { id: 'egr-hose-short', od: 7, sleeves: 14, length: { max: 42 } },
+    // #16 is printed 770 mm. Allowance 80 (cap 850): around the shroud and down
+    // aft of cylinder 4.
+    { id: 'egr-hose-long', od: 7, sleeves: 14, length: { max: 850 } },
+    // Valve leg of #17, printed 465 mm. Allowance 185 (cap 650): down the shroud
+    // slot and through the distributor/crankcase gap.
+    { id: 'egr-hose-return', od: 7, sleeves: 14, length: { max: 650 } },
+    // Diverter leg of #17, printed 465 mm. Allowance 95 (cap 560): under the fan
+    // onto the lower nipple.
+    { id: 'egr-hose-diverter', od: 7, sleeves: 14, length: { max: 560 } },
     // Socket faces +X and the blower inlet faces −Z, so the 1.5×OD bends need a drop.
     { id: 'heater-hose-link', od: 18, length: { max: 480 } },
     // The stub end is a 50 mm arc in front of the muffler, after a drop outboard
@@ -235,14 +236,14 @@ describe('vacuum and EGR hoses seat tangent, with a rubber bend', () => {
     axis: new THREE.Vector3(...axis).normalize(),
   });
   const ends: { hose: string; seat: { point: THREE.Vector3; axis: THREE.Vector3 } }[] = [
-    { hose: 'air-hose-vacuum', seat: seat(DIVERTER_VAC, [1, 0, 0]) },
+    { hose: 'air-hose-vacuum', seat: seat(DIVERTER_VAC, DIVERTER_VAC_AXIS) },
     { hose: 'air-hose-vacuum', seat: seat(TEE_AIR_INJ.point, TEE_AIR_INJ.axis) },
     { hose: 'air-hose-dump', seat: seat(DUMP_PORT.point, DUMP_PORT.axis) },
     { hose: 'egr-hose-short', seat: seat(THROTTLE_PORTED_VAC.point, THROTTLE_PORTED_VAC.axis) },
     { hose: 'egr-hose-short', seat: seat(EGR_TEE_PORTS.upper.point, EGR_TEE_PORTS.upper.axis) },
     { hose: 'egr-hose-long', seat: seat(EGR_TEE_PORTS.valve.point, EGR_TEE_PORTS.valve.axis) },
     { hose: 'egr-hose-long', seat: seat(EGR_BARB_2.point, EGR_BARB_2.axis) },
-    { hose: 'egr-hose-diverter', seat: seat(DIVERTER_VAC_EGR, [1, 0, 0]) },
+    { hose: 'egr-hose-diverter', seat: seat(DIVERTER_VAC_EGR, DIVERTER_VAC_EGR_AXIS) },
     { hose: 'egr-hose-return', seat: seat(EGR_BARB_UP.point, EGR_BARB_UP.axis) },
     { hose: 'egr-hose-return', seat: seat(EGR_TEE_PORTS.return.point, EGR_TEE_PORTS.return.axis) },
     { hose: 'egr-hose-diverter', seat: seat(EGR_TEE_PORTS.diverter.point, EGR_TEE_PORTS.diverter.axis) },
@@ -303,12 +304,13 @@ describe('vacuum and EGR hoses seat tangent, with a rubber bend', () => {
     expect(bad).toEqual([]);
   });
 
-  it('each throttle nipple hose stays on the axis through the 30 mm of clear air and does not run up to the root', () => {
-    // #15 is the straight run on THROTTLE_PORTED_VAC. #31 is the straight run on TEE_AIR_INJ.
+  it('each throttle nipple hose stays on the axis through its clear air and does not run up to the root', () => {
+    // #31 is straight on TEE_AIR_INJ for 30 mm. #15 meets the tee 26 mm down
+    // THROTTLE_PORTED_VAC, so the coaxial check stops at 22 mm, before that barb.
     // The free tube ends at the tip. The sleeve, not this centreline, covers the 7 mm.
     const seats = [
-      { hose: 'egr-hose-short', point: THROTTLE_PORTED_VAC.point, axis: THROTTLE_PORTED_VAC.axis },
-      { hose: 'air-hose-vacuum', point: TEE_AIR_INJ.point, axis: TEE_AIR_INJ.axis },
+      { hose: 'egr-hose-short', point: THROTTLE_PORTED_VAC.point, axis: THROTTLE_PORTED_VAC.axis, clear: 22 },
+      { hose: 'air-hose-vacuum', point: TEE_AIR_INJ.point, axis: TEE_AIR_INJ.axis, clear: 30 },
     ];
     for (const seat of seats) {
       const point = new THREE.Vector3(...seat.point);
@@ -318,7 +320,7 @@ describe('vacuum and EGR hoses seat tangent, with a rubber bend', () => {
       expect(t, seat.hose).toBeGreaterThan(-2);
       const radial = end.clone().sub(point).addScaledVector(axis, -t).length();
       expect(radial, seat.hose).toBeLessThan(0.6);
-      const lead = point.clone().addScaledVector(axis, 30);
+      const lead = point.clone().addScaledVector(axis, seat.clear);
       expect(nearest(centerlines(seat.hose), lead), seat.hose).toBeLessThan(0.6);
       const towardRoot = point.clone().addScaledVector(axis, -16);
       expect(nearest(centerlines(seat.hose), towardRoot), seat.hose).toBeGreaterThan(8);
@@ -417,20 +419,21 @@ describe('catalogue length and turning', () => {
   // Cuts include 7 mm on each barb. The free tube is shorter by that.
   it('pins vacuum and EGR lengths, and caps turning', () => {
     const rows: { id: string; catalogue: number; allowance: number; turn: number }[] = [
-      // Catalogue 750 mm. Measured 914 mm, turn 552°. Outboard of the distributor,
-      // over the horn, above the pump strap. Allowance 180 (cap 930).
-      { id: 'air-hose-vacuum', catalogue: 750, allowance: 180, turn: 570 },
-      // Catalogue 770 mm. Measured 860 mm, turn 455°. Allowance 100 (cap 870).
-      { id: 'egr-hose-long', catalogue: 770, allowance: 100, turn: 465 },
-      // Catalogue 465 mm. Measured 943 mm, turn 476°. The leg runs aft of #16
-      // and jogs inboard below it. Allowance 490 (cap 955).
-      { id: 'egr-hose-return', catalogue: 465, allowance: 490, turn: 490 },
-      // Catalogue 465 mm. Measured 900 mm, turn 552°. Clears the alternator, the horn, the
-      // belt, the pump pulley and the pump bracket. Allowance 465 (cap 930).
-      { id: 'egr-hose-diverter', catalogue: 465, allowance: 465, turn: 600 },
-      // Catalogue 40 mm. 47 mm is the shortest cut that keeps both 7 mm sleeves
-      // and the 30 mm ray under THROTTLE_PORTED_VAC.
-      { id: 'egr-hose-short', catalogue: 40, allowance: 8, turn: 30 },
+      // Catalogue 750 mm. Allowance 80 (cap 830). Turn budget 240°: onto the nipple
+      // and the two sweeps under the fan.
+      { id: 'air-hose-vacuum', catalogue: 750, allowance: 80, turn: 240 },
+      // Catalogue 770 mm. Allowance 80 (cap 850). Turn budget 360°: the outboard
+      // drop, the vertical, and the turn onto the valve.
+      { id: 'egr-hose-long', catalogue: 770, allowance: 80, turn: 360 },
+      // Catalogue 465 mm. Allowance 185 (cap 650). Turn budget 240°: into the
+      // shroud slot, through the crankcase gap, and onto the valve.
+      { id: 'egr-hose-return', catalogue: 465, allowance: 185, turn: 240 },
+      // Catalogue 465 mm. Allowance 95 (cap 560). Turn budget 180°: one sweep
+      // under the fan onto the lower nipple.
+      { id: 'egr-hose-diverter', catalogue: 465, allowance: 95, turn: 180 },
+      // Catalogue 40 mm. The tee is 7 mm higher, so the tips are 26 mm apart and
+      // two 7 mm sleeves make 40 mm. Allowance 2 (cap 42). The run is straight.
+      { id: 'egr-hose-short', catalogue: 40, allowance: 2, turn: 15 },
     ];
     const bad: string[] = [];
     for (const row of rows) {
@@ -445,14 +448,12 @@ describe('catalogue length and turning', () => {
     expect(bad).toEqual([]);
   });
 
-  it('the diverter leg of 202-05 #17 stays left of the fan', () => {
-    // Catalogue 465 mm. The hose passes the fan on the left, over the horn,
-    // forward of the belt and above the pump bracket. Still under the old 931 mm loop.
+  it('the diverter leg of 202-05 #17 stays under the fan and inside its allowance', () => {
+    // Catalogue 465 mm. Allowance 95 (cap 560). Turn budget 180°.
     const [line] = centerlines('egr-hose-diverter');
     const L = pathLength(line) + 14;
-    expect(L).toBeLessThanOrEqual(930);
-    expect(L).toBeLessThan(931);
-    expect(totalTurn(line)).toBeLessThan(600);
+    expect(L).toBeLessThanOrEqual(560);
+    expect(totalTurn(line)).toBeLessThan(180);
   });
 });
 
@@ -498,10 +499,13 @@ describe.each([false, true])('connections with emissions %s', (on) => {
 });
 
 describe('ported-vacuum lead-in', () => {
-  it('a ray of at least 30 mm from the throttle nipple tip along its axis misses every assembled part', () => {
+  it('a ray of at least 30 mm from the throttle nipple tip along its axis misses every assembled part but the hose and tee it pulls off', () => {
     const point = new THREE.Vector3(...THROTTLE_PORTED_VAC.point);
     const axis = new THREE.Vector3(...THROTTLE_PORTED_VAC.axis).normalize();
     // Half a millimetre off the cap, so the ray starts in the lead-in rather than on the face.
+    // #15 and egr-tee sit on this ray so the hose can be pulled straight off. They are
+    // not obstacles. TEE_AIR_INJ's ray, in vacuum-barbs, still misses everything.
+    const ignore = new Set(['egr-hose-short', 'egr-tee']);
     const origin = point.clone().addScaledVector(axis, 0.5);
     const solids: { id: string; bvh: MeshBVH; box: THREE.Box3 }[] = [];
     for (const p of PARTS) {
@@ -536,6 +540,7 @@ describe('ported-vacuum lead-in', () => {
     let best = Infinity;
     let who = '';
     for (const s of solids) {
+      if (ignore.has(s.id)) continue;
       const ray = new THREE.Ray(origin, axis);
       if (!ray.intersectsBox(s.box)) continue;
       const hit = s.bvh.raycastFirst(ray, THREE.DoubleSide) as { distance: number } | null;

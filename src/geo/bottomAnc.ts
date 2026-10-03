@@ -268,11 +268,12 @@ export function airDiverter() {
   p.add(yToX(cyl(7, 16, 12)), 'castAlu', [-164, 26, 448]);
   p.add(cyl(7, 16, 12), 'castAlu', [-142, 48, 448]);
   p.add(yToZ(cyl(7, 20, 12)), 'castAlu', [-142, 26, 472]);
-  // Two vacuum nipples on the inboard face, clear of the support ear (ear starts z 440).
-  // Upper: air-injection hose 108-00 #31. Lower: one EGR hose 202-05 #17.
+  // Two vacuum nipples on the forward face. Each points up and forward, along the
+  // hose that leaves it, so the run does not turn through a right angle at the brass.
   // Radius 2.2 (OD 4.4) so the 3.2×7 hose (OD 7) pushes over the barb.
-  p.add(yToX(cyl(2.2, 14, 10)), 'castAlu', [-116, 22, 432]);
-  p.add(yToX(cyl(2.2, 14, 10)), 'castAlu', [-116, 12, 432]);
+  // Roots sit inside the body; the free length is the part proud of the skin.
+  p.add(cylBetween(vadd(DIVERTER_VAC, vmul(DIVERTER_VAC_AXIS, -36)), DIVERTER_VAC, 2.2, 10), 'castAlu');
+  p.add(cylBetween(vadd(DIVERTER_VAC_EGR, vmul(DIVERTER_VAC_EGR_AXIS, -36)), DIVERTER_VAC_EGR, 2.2, 10), 'castAlu');
   return p.g;
 }
 /**
@@ -280,10 +281,23 @@ export function airDiverter() {
  * The nipple is yToZ(cyl(7, 20)) centred at z 472, so the tip is z 482.
  */
 export const DUMP_PORT = { point: [-142, 26, 482] as V3, axis: [0, 0, 1] as V3 };
-/** Free end of the diverter vacuum nipple (axis +X). The air-injection hose slides on along −X. */
-export const DIVERTER_VAC: V3 = [-109, 22, 432];
-/** Lower nipple, same axis. One EGR vacuum hose (202-05 #17) seats here. */
-export const DIVERTER_VAC_EGR: V3 = [-109, 12, 432];
+/**
+ * Free end of the upper vacuum nipple. Axis points out of the brass, up and
+ * forward, which is the way 108-00 #31 leaves for TEE_AIR_INJ. The hose slides
+ * on along the opposite direction.
+ */
+export const DIVERTER_VAC_AXIS: V3 = vnorm([44, 78, -120]);
+/** Root buried in the forward face; the tip is 34 mm out along the hose to [-94, 104, 328]. */
+const DIVERTER_VAC_ROOT: V3 = [-138, 26, 448];
+export const DIVERTER_VAC: V3 = vadd(DIVERTER_VAC_ROOT, vmul(DIVERTER_VAC_AXIS, 34));
+/**
+ * Lower nipple for one EGR hose 202-05 #17. More level than #31's nipple so
+ * its root stays in the body while the tip sits 12 mm below, clear of #31.
+ */
+export const DIVERTER_VAC_EGR_AXIS: V3 = vnorm([-24, 10, -94]);
+/** Root in the body; the tip is 32 mm out along the hose toward [-172, 32, 356]. */
+const DIVERTER_VAC_EGR_ROOT: V3 = [-148, 22, 450];
+export const DIVERTER_VAC_EGR: V3 = vadd(DIVERTER_VAC_EGR_ROOT, vmul(DIVERTER_VAC_EGR_AXIS, 32));
 
 export function airDiverterSupport() {
   const p = new Part();
@@ -370,41 +384,45 @@ export function heaterBlowerSupport() {
 }
 
 export const EGR = { x: -70, y: -300, z: 20 };
-/** Top face of the upright vacuum barb (axis +Y). The valve leg of #17 slides on from above. */
+/**
+ * Valve leg of #17. The axis points out of the brass, up and aft, along the
+ * hose that climbs to the tee. The root sits in the diaphragm.
+ */
 export const EGR_BARB_UP = {
-  point: [EGR.x + 18, EGR.y + 43, EGR.z] as V3,
-  axis: [0, 1, 0] as V3,
+  point: [-84, -254, 72] as V3,
+  axis: vnorm([-12, 24, 12]),
 };
 /**
- * Free end of the second barb (axis +Z). `egr-hose-long` (#16) slides on along −Z.
- * The tip faces the pulley, so the hose does not run past the valve and loop back.
- * The root stays clear of the upright barb and of the diaphragm neck.
+ * #16. The axis points out of the brass toward the outboard drop, so the hose
+ * leaves the valve without turning back on itself. The tip sits clear of #17.
  */
 export const EGR_BARB_2 = {
-  point: [EGR.x + 18, EGR.y + 40, EGR.z + 30] as V3,
-  axis: [0, 0, 1] as V3,
+  point: [-110, -246, 90] as V3,
+  axis: vnorm([-50, 31, 69]),
 };
 /**
- * EGR vacuum tee (202-05 #18), centre fixed just below the ported-vacuum nipple.
- * #15 is the straight run up to THROTTLE_PORTED_VAC. The catalogue T is three
- * ports. Four hoses meet here (#15, #16 and two #17s), so the model is a cross:
- * the fourth barb is the diverter leg, and `egr-tee-cap` closes it when that
- * hose is off. The valve-side ports aim left and up, over the distributor,
- * toward the clear drop. They do not point back into the plenum.
+ * EGR vacuum tee (202-05 #18). Centre is 7 mm higher than the old seat so #15,
+ * the straight run up to THROTTLE_PORTED_VAC, is the catalogue 40 mm. The
+ * catalogue T is three ports. Four hoses meet here (#15, #16 and two #17s), so
+ * the model is a cross: the fourth barb is the diverter leg, and `egr-tee-cap`
+ * closes it when that hose is off. Each side barb points at the first leg of
+ * its own hose.
  */
-export const EGR_TEE_CTR: V3 = [-46, 186, 118];
-/** Shared aim of the #16 and valve-#17 barrels: left, up, and a little aft. */
-const EGR_TEE_VALVE_AXIS = vnorm([-0.85, 0.5, 0.15]);
-const EGR_TEE_VALVE_TIP = vadd(EGR_TEE_CTR, vmul(EGR_TEE_VALVE_AXIS, 36));
-/** 22 mm beside the #16 tip so the two parallel clamps stay apart. */
-const EGR_TEE_RETURN_TIP = vadd(EGR_TEE_VALVE_TIP, vmul(vnorm(vcross(EGR_TEE_VALVE_AXIS, [0, 0, 1])), 22));
-/** Diverter leg, up and aft, toward the pulley and clear of the fan mouth. */
-const EGR_TEE_DIV_AXIS = vnorm([-0.25, 0.35, 0.9]);
+export const EGR_TEE_CTR: V3 = [-46, 193, 118];
+/** #16 leaves outboard and slightly down, toward the clear drop past the shroud. */
+const EGR_TEE_VALVE_AXIS = vnorm([-102, 15, -26]);
+/** Valve leg of #17. Straight down the clear slot beside the shroud. */
+const EGR_TEE_RETURN_AXIS = vnorm([0, -1, 0]);
+/** Diverter leg of #17, outboard and aft, the way that hose runs to the pulley. */
+const EGR_TEE_DIV_AXIS = vnorm([-66, -4, 58]);
 export const EGR_TEE_PORTS = {
   upper: { point: [EGR_TEE_CTR[0], EGR_TEE_CTR[1] + 18, EGR_TEE_CTR[2]] as V3, axis: [0, 1, 0] as V3 },
-  valve: { point: EGR_TEE_VALVE_TIP, axis: EGR_TEE_VALVE_AXIS },
-  return: { point: EGR_TEE_RETURN_TIP, axis: EGR_TEE_VALVE_AXIS },
-  diverter: { point: vadd(EGR_TEE_CTR, vmul(EGR_TEE_DIV_AXIS, 32)), axis: EGR_TEE_DIV_AXIS },
+  valve: { point: vadd(EGR_TEE_CTR, vmul(EGR_TEE_VALVE_AXIS, 30)), axis: EGR_TEE_VALVE_AXIS },
+  return: {
+    point: [-64, 208, 176] as V3,
+    axis: EGR_TEE_RETURN_AXIS,
+  },
+  diverter: { point: vadd(EGR_TEE_CTR, vmul(EGR_TEE_DIV_AXIS, 30)), axis: EGR_TEE_DIV_AXIS },
 };
 /** 999 239 003 40 is 3.2×7: outside diameter 7 mm, larger than the 4.4 mm barbs. */
 export const VAC_HOSE_R = 3.5;
@@ -419,10 +437,13 @@ export function egrValve() {
   p.add(lathe([
     [12, 0], [18, 2], [20, 8], [16, 18], [14, 24], [12, 26],
   ], 28), 'castAlu', [e.x, e.y - 6, e.z]);
-  // Upright barb OD 4.4, under the 3.2×7 hose (OD 7). Tip stays EGR_BARB_UP.
-  p.add(cyl(2.2, 14, 10), 'castAlu', [e.x + 18, e.y + 36, e.z]);
-  // #16 barb, axis +Z. 22 mm, tip at the pulley end, root clear of the upright barb.
-  p.add(yToZ(cyl(2.2, 22, 8)), 'castAlu', [EGR_BARB_2.point[0], EGR_BARB_2.point[1], EGR_BARB_2.point[2] - 11]);
+  // Both vacuum barbs OD 4.4, under the 3.2×7 hose (OD 7). Each axis is the
+  // direction its hose leaves, so the root is back along that axis, in the can.
+  const vacBarb = (tip: V3, axis: V3, len: number) => {
+    p.add(cylBetween(vadd(tip, vmul(vnorm(axis), -len)), tip, 2.2, 10), 'castAlu');
+  };
+  vacBarb(EGR_BARB_UP.point, EGR_BARB_UP.axis, 22);
+  vacBarb(EGR_BARB_2.point, EGR_BARB_2.axis, 24);
   // Side port for the sealing rubber, proud of the body.
   p.add(yToZ(cyl(6, 16, 12)), 'castAlu', [e.x, e.y + 10, e.z + 26]);
   // Inlet and outlet nipples the two pipelines seat on.
@@ -975,30 +996,25 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     def('air-hose-valve', () => pushHose(valveHose, 6, 24, [outletSeat, valveSeat], false), () => [new THREE.Matrix4()]);
     def('air-hose-dump', () => pushHose(dumpCtrl, 8, 28, [dumpSeat]), () => [new THREE.Matrix4()]);
     // 108-00 #31, catalogue 750 mm. 7 mm on the diverter nipple and 7 mm on TEE_AIR_INJ.
-    // Outboard of the distributor and over the fan-mouth horn, then forward of
-    // the ignition loom and up onto the nipple. The lead is 39 mm so the fillet
-    // is done before the 30 mm mark and that clear air stays coaxial. The old
-    // run crossed the fan and the tee.
+    // Under the fan mouth, outboard of the shroud slot so the return hose can drop
+    // through it, then straight up the nipple. The throttle lead is 56 mm so the
+    // fillet is done before the 30 mm mark and that clear air stays coaxial.
     const airSeat: PushSeat = {
       point: TEE_AIR_INJ.point, axis: TEE_AIR_INJ.axis, barbR: TEE_AIR_INJ.barbR, segs: 10, hoseR: VAC_HOSE_R, slideOff: true,
     };
     const vacCtrl = seated(
-      { point: DIVERTER_VAC, axis: [1, 0, 0] },
+      { point: DIVERTER_VAC, axis: DIVERTER_VAC_AXIS },
       airSeat,
       [
-        [-48, 140, 450],
-        [-170, 190, 430],
-        [-230, 210, 280],
-        [-230, 248, 190],
-        [-230, 190, 86],
-        [-108, 188, 88],
-        [-72, 186, 129],
+        [-94, 104, 328],
+        [-80, 174, 244],
+        [-92, 174, 200],
       ],
-      58,
-      39,
+      40,
+      56,
       HOSE_PUSH,
     );
-    const vacDiverterSeat: PushSeat = { point: DIVERTER_VAC, axis: [1, 0, 0], barbR: 2.2, segs: 10, hoseR: VAC_HOSE_R };
+    const vacDiverterSeat: PushSeat = { point: DIVERTER_VAC, axis: DIVERTER_VAC_AXIS, barbR: 2.2, segs: 10, hoseR: VAC_HOSE_R };
     def('air-hose-vacuum', () => pushHose(vacCtrl, VAC_HOSE_R, 24, [vacDiverterSeat, airSeat], false), () => [new THREE.Matrix4()]);
     def('air-clamp-vacuum', () => {
       const p = new Part();
@@ -1064,14 +1080,15 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
         p.add(cylBetween(EGR_TEE_CTR, root, 2.2, 10), 'blackPlastic');
       };
       p.add(cylBetween(EGR_TEE_CTR, EGR_TEE_PORTS.upper.point, 2.2, 10), 'blackPlastic');
-      barrel(EGR_TEE_PORTS.valve, 14);
-      // The straight spoke to the return root crosses the #15 sleeve. Bow it aft
-      // of the upper barb, then up into the root, so the hose and its clamp stay clear.
+      // Each side port is a straight barrel. They aim down and out, clear of #15.
+      barrel(EGR_TEE_PORTS.valve, 16);
+      // #17's barrel stands over the shroud slot. A straight spoke from the centre
+      // would pass through #31, so the tube climbs forward of #15 and then aft.
       {
-        const root = vadd(EGR_TEE_PORTS.return.point, vmul(vnorm(EGR_TEE_PORTS.return.axis), -14));
+        const root = vadd(EGR_TEE_PORTS.return.point, vmul(vnorm(EGR_TEE_PORTS.return.axis), -16));
+        const via: V3[] = [EGR_TEE_CTR, [-58, 208, 110], [-62, 222, 130], root];
         p.add(cylBetween(root, EGR_TEE_PORTS.return.point, 2.2, 10), 'blackPlastic');
-        // Forward of the upper barb and of the air-injection nipple, then up into the root.
-        p.add(tube([EGR_TEE_CTR, [-70, 200, 105], [-60, 216, 108], root], 2.2, 8, 20), 'blackPlastic');
+        for (let i = 0; i < via.length - 1; i++) p.add(cylBetween(via[i], via[i + 1], 2.2, 10), 'blackPlastic');
       }
       barrel(EGR_TEE_PORTS.diverter, 16);
       return p;
@@ -1079,64 +1096,48 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     const vacSeat = (end: { point: V3; axis: V3 }, segs = 10, barbR = 2.2, slideOff = false): PushSeat => ({
       ...end, barbR, segs, hoseR: VAC_HOSE_R, slideOff,
     });
-    // 202-05 #15. Tips are 33 mm apart. Two 7 mm sleeves make the cut 47 mm.
-    // Closing the gap to the printed 40 mm would put the tee in the 30 mm ray.
+    // 202-05 #15. The tee sits 7 mm higher, so the tips are 26 mm apart.
+    // Two 7 mm sleeves make the catalogue 40 mm. Leads sum to less than that gap.
     const up = EGR_TEE_PORTS.upper;
-    const shortCtrl = seated(THROTTLE_PORTED_VAC, up, [], 16, 12, HOSE_PUSH);
+    const shortCtrl = seated(THROTTLE_PORTED_VAC, up, [], 10, 8, HOSE_PUSH);
     const shortSeats = [vacSeat(THROTTLE_PORTED_VAC, 12, 3.2, true), vacSeat(up)];
     def('egr-hose-short', () => pushHose(shortCtrl, VAC_HOSE_R, 24, shortSeats, false), () => [new THREE.Matrix4()]);
-    // 202-05 #16, catalogue 770 mm. Over the distributor, down the left side,
-    // then onto the valve's +Z barb from the pulley side.
+    // 202-05 #16, catalogue 770 mm. Around the left edge of the shroud, then
+    // straight down the clear slot aft of cylinder 4, then onto the valve barb.
     const valvePort = EGR_TEE_PORTS.valve;
-    // Aft of cylinder 4, outboard of the distributor, then a jog inboard
-    // under the heat-exchanger shell before the run to the +Z barb.
     const longCtrl = seated(valvePort, EGR_BARB_2, [
-      [-182, 242, 168],
-      [-232, 155, 192],
-      [-232, -100, 192],
-      [-162, -100, 188],
-      [-162, -225, 168],
-      [-76, -256, 150],
-    ], 44, 50, HOSE_PUSH);
+      [-148, 208, 92],
+      [-188, 178, 88],
+      [-208, 148, 116],
+      [-160, 96, 159],
+      [-160, -215, 159],
+    ], 24, 40, HOSE_PUSH);
     const longSeats = [vacSeat(valvePort), vacSeat(EGR_BARB_2, 8)];
     def('egr-hose-long', () => pushHose(longCtrl, VAC_HOSE_R, 24, longSeats, false), () => [new THREE.Matrix4()]);
-    // One 202-05 #17, catalogue 465 mm. The straight chord crosses the crankcase.
-    // This leg drops on the flywheel side of #16 and comes in under the cover plate.
+    // One 202-05 #17, catalogue 465 mm. Straight down the shroud slot, inboard of #16.
     const retPort = EGR_TEE_PORTS.return;
-    // Above the cam housing, then aft of #16 so the two drops stay apart.
-    // The inboard jog is below #16's jog. The last line meets the +Y barb at
-    // about 84° so the 40 mm lead still bends at 3× OD, and it crosses the
-    // cover-plate edge where that edge is only a kiss.
+    // Down the clear slot beside the shroud (x −64, z 176), through the gap
+    // between the distributor and the crankcase, then straight down aft of cylinder 4.
     const backCtrl = seated(retPort, EGR_BARB_UP, [
-      [-150, 258, 155],
-      [-245, 250, 175],
-      [-245, 175, 208],
-      [-242, 95, 203],
-      [-242, -122, 203],
-      [-158, -122, 155],
-      [-142, -208, 20],
-    ], 46, 40, HOSE_PUSH);
+      [-64, 140, 176],
+      [-84.4, 122.6, 152.4],
+      [-112.6, 66, 143.4],
+      [-112, -62, 152],
+      [-96, -230, 84],
+    ], 0, 18, HOSE_PUSH);
     const returnSeats = [vacSeat(retPort), vacSeat(EGR_BARB_UP)];
     def('egr-hose-return', () => pushHose(backCtrl, VAC_HOSE_R, 24, returnSeats, false), () => [new THREE.Matrix4()]);
     // The other 202-05 #17, to the diverter. Hidden with air injection;
     // egr-tee-cap closes this port while it is off. It stays left of the fan
     // instead of climbing over the drum.
     const divPort = EGR_TEE_PORTS.diverter;
-    // The barb axis meets the alternator at 26 mm out. A straight drop crosses
-    // the fan-mouth horn, and the belt plane crosses the pump pulley. The lead
-    // turns off the axis at 18 mm, climbs over the horn, drops forward of the
-    // belt, and crosses above the pump bracket before the diverter.
-    const divCtrl = seated(divPort, { point: DIVERTER_VAC_EGR, axis: [1, 0, 0] }, [
-      [-120, 245, 200],
-      [-210, 250, 190],
-      [-230, 150, 240],
-      [-230, 82, 260],
-      [-170, 108, 290],
-      [-120, 108, 400],
-      [35, 68, 432],
-      [35, 12, 432],
-    ], 18, 52, HOSE_PUSH);
-    const divSeats = [vacSeat(divPort), vacSeat({ point: DIVERTER_VAC_EGR, axis: [1, 0, 0] })];
+    // Under the fan, beside #31, onto the lower diverter nipple.
+    const divCtrl = seated(divPort, { point: DIVERTER_VAC_EGR, axis: DIVERTER_VAC_EGR_AXIS }, [
+      [-112, 188, 176],
+      [-148, 164, 212],
+      [-172, 32, 356],
+    ], 20, 36, HOSE_PUSH);
+    const divSeats = [vacSeat(divPort), vacSeat({ point: DIVERTER_VAC_EGR, axis: DIVERTER_VAC_EGR_AXIS })];
     def('egr-hose-diverter', () => pushHose(divCtrl, VAC_HOSE_R, 24, divSeats, false), () => [new THREE.Matrix4()]);
     const band = sleeveOuter(VAC_HOSE_R, 2.2);
     def('egr-clamp-diverter', () => {
