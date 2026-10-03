@@ -340,6 +340,16 @@ describe('paired throttle nipples', () => {
     { name: 'THROTTLE_PORTED_VAC', seat: THROTTLE_PORTED_VAC },
   ];
 
+  it('the pair is parallel, 10 to 12 mm apart, both pointing down', () => {
+    const a = new THREE.Vector3(...TEE_AIR_INJ.axis).normalize();
+    const b = new THREE.Vector3(...THROTTLE_PORTED_VAC.axis).normalize();
+    expect(a.dot(b)).toBeGreaterThan(0.999);
+    expect(a.y).toBeLessThan(-0.999);
+    const d = new THREE.Vector3(...TEE_AIR_INJ.point).distanceTo(new THREE.Vector3(...THROTTLE_PORTED_VAC.point));
+    expect(d).toBeGreaterThanOrEqual(10);
+    expect(d).toBeLessThanOrEqual(12);
+  });
+
   it('each nipple has at least 5 mm of push-on brass', () => {
     const root = ASSET_BUILDERS[PART_BY_ID['throttle-housing'].asset]();
     root.updateMatrixWorld(true);
@@ -399,7 +409,7 @@ describe('paired throttle nipples', () => {
   });
 });
 
-type Ring = { part: string; center: THREE.Vector3; axis: THREE.Vector3; tube: number };
+type Ring = { part: string; center: THREE.Vector3; axis: THREE.Vector3; tube: number; radius: number };
 
 /** Hole axis of a torus. Vertices stay in generator order after a baked rotation. */
 function torusFrame(geom: THREE.BufferGeometry, world: THREE.Matrix4): { center: THREE.Vector3; axis: THREE.Vector3 } | null {
@@ -451,7 +461,7 @@ function clampRings(): Ring[] {
       if (tube == null || radius == null || tube < 0.55 || tube > 0.85 || radius < 3 || radius > 8) return;
       for (const inst of instancesOf(mesh)) {
         const frame = torusFrame(mesh.geometry, worldOf(pose, mesh, inst));
-        if (frame) rings.push({ part: part.id, ...frame, tube });
+        if (frame) rings.push({ part: part.id, ...frame, tube, radius });
       }
     });
   }
@@ -545,6 +555,41 @@ describe('vacuum clamp rings', () => {
     }
     expect(bad).toEqual([]);
     expect(rings.length).toBeGreaterThan(0);
+  });
+
+  it('each ring inner radius meets the hose, with at most 0.2 mm of gap and no overlap', () => {
+    const rel = new THREE.Vector3();
+    const bad: string[] = [];
+    for (const ring of rings) {
+      const seat = seats
+        .map((s) => {
+          const along = ring.center.clone().sub(s.point).dot(s.axis);
+          const radial = ring.center.clone().sub(s.point).addScaledVector(s.axis, -along).length();
+          return { s, along, radial, align: Math.abs(ring.axis.dot(s.axis)) };
+        })
+        .filter((x) => x.align > 0.85 && x.radial < 1.2 && x.along < 1 && x.along > -12)
+        .sort((a, b) => a.radial - b.radial)[0];
+      const at = `${ring.part} @ ${ring.center.toArray().map((n) => n.toFixed(0)).join(',')}`;
+      if (!seat) { bad.push(`${at}: no coaxial hose end`); continue; }
+      const inner = ring.radius - ring.tube;
+      const ringAlong = ring.center.clone().sub(seat.s.point).dot(seat.s.axis);
+      // Sleeve vertices sit on the end rings, about 3.5 mm from the band. A wider
+      // window reaches the next hose at the junction.
+      const outside = ring.radius + ring.tube + 0.3;
+      let od = 0;
+      for (const q of rubber) {
+        rel.copy(q).sub(seat.s.point);
+        const along = rel.dot(seat.s.axis);
+        if (Math.abs(along - ringAlong) > 3.8) continue;
+        const radial = Math.sqrt(Math.max(0, rel.lengthSq() - along * along));
+        if (radial < 1.2 || radial > outside) continue;
+        if (radial > od) od = radial;
+      }
+      if (od <= 0) { bad.push(`${at}: no hose under the ring`); continue; }
+      const gap = inner - od;
+      if (gap < -0.02 || gap > 0.2) bad.push(`${at}: gap ${gap.toFixed(3)} mm (ring inner ${inner.toFixed(2)}, hose ${od.toFixed(2)})`);
+    }
+    expect(bad).toEqual([]);
   });
 });
 
