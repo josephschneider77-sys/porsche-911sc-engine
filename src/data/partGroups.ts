@@ -57,7 +57,7 @@ export const PART_GROUPS: readonly PartGroup[] = [
       // Top End owns these plugs. Shown only when emissions equipment is off.
       ...n('air-port-plug-', 6),
       'air-inj-vac-cap',
-      // Closes the EGR tee's aft port while the diverter leg (202-05 #17) is hidden.
+      // Closes the EGR tee's diverter port while that leg of 202-05 #17 is hidden.
       'egr-tee-cap',
     ],
   },

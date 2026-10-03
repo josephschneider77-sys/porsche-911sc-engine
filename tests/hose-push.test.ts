@@ -5,7 +5,7 @@ import { PART_BY_ID, PARTS } from '../src/data/parts';
 import { heaterStub } from '../src/geo/aux';
 import { TEE_AIR_INJ, THROTTLE_PORTED_VAC } from '../src/geo/induction';
 import {
-  HOSE_PUSH, PUMP_OUT, DUMP_PORT, DIVERTER_VAC, DIVERTER_VAC_EGR, EGR_BARB_UP, EGR_BARB_2, EGR_TEE_PORTS, HEATER_BLOWER,
+  HOSE_PUSH, PUMP_OUT, DUMP_PORT, DIVERTER_VAC, DIVERTER_VAC_EGR, EGR_BARB_UP, EGR_BARB_2, EGR_TEE_PORTS, HEATER_BLOWER, HEATER_BLOWER_INLET,
   checkValveInlet,
 } from '../src/geo/bottomAnc';
 
@@ -26,11 +26,11 @@ const SEATS: Seat[] = [
   { hose: 'air-hose-vacuum', point: TEE_AIR_INJ.point, axis: TEE_AIR_INJ.axis, barbR: TEE_AIR_INJ.barbR, hoseR: 3.5 },
   { hose: 'egr-hose-short', point: THROTTLE_PORTED_VAC.point, axis: THROTTLE_PORTED_VAC.axis, barbR: THROTTLE_PORTED_VAC.barbR, hoseR: 3.5 },
   { hose: 'egr-hose-short', point: EGR_TEE_PORTS.upper.point, axis: EGR_TEE_PORTS.upper.axis, barbR: 2.2, hoseR: 3.5 },
-  { hose: 'egr-hose-long', point: EGR_TEE_PORTS.outboard.point, axis: EGR_TEE_PORTS.outboard.axis, barbR: 2.2, hoseR: 3.5 },
+  { hose: 'egr-hose-long', point: EGR_TEE_PORTS.valve.point, axis: EGR_TEE_PORTS.valve.axis, barbR: 2.2, hoseR: 3.5 },
   { hose: 'egr-hose-long', point: EGR_BARB_2.point, axis: EGR_BARB_2.axis, barbR: 2.2, hoseR: 3.5 },
-  { hose: 'egr-hose-return', point: EGR_TEE_PORTS.lower.point, axis: EGR_TEE_PORTS.lower.axis, barbR: 2.2, hoseR: 3.5 },
+  { hose: 'egr-hose-return', point: EGR_TEE_PORTS.return.point, axis: EGR_TEE_PORTS.return.axis, barbR: 2.2, hoseR: 3.5 },
   { hose: 'egr-hose-return', point: EGR_BARB_UP.point, axis: EGR_BARB_UP.axis, barbR: 2.2, hoseR: 3.5 },
-  { hose: 'egr-hose-diverter', point: EGR_TEE_PORTS.aft.point, axis: EGR_TEE_PORTS.aft.axis, barbR: 2.2, hoseR: 3.5 },
+  { hose: 'egr-hose-diverter', point: EGR_TEE_PORTS.diverter.point, axis: EGR_TEE_PORTS.diverter.axis, barbR: 2.2, hoseR: 3.5 },
   { hose: 'egr-hose-diverter', point: DIVERTER_VAC_EGR, axis: [1, 0, 0], barbR: 2.2, hoseR: 3.5 },
   { hose: 'air-hose-pump', point: PUMP_OUT.tip, axis: outDir.toArray(), barbR: 6.2, hoseR: 6 },
   { hose: 'air-hose-pump', point: [-172, 26, 448], axis: [-1, 0, 0], barbR: 7, hoseR: 6 },
@@ -42,6 +42,7 @@ const SEATS: Seat[] = [
   { hose: 'heater-hose-left', point: [hb.x - 26, 64, hb.z], axis: [-1, 0, 0], barbR: 12, hoseR: 15 },
   { hose: 'heater-hose-left', point: leftStub.tip, axis: [0, 0, 1], barbR: 12, hoseR: 15 },
   { hose: 'heater-hose-link', point: [245, hb.y, 340], axis: [1, 0, 0], barbR: 11, hoseR: 9 },
+  { hose: 'heater-hose-link', point: HEATER_BLOWER_INLET.point, axis: HEATER_BLOWER_INLET.axis, barbR: HEATER_BLOWER_INLET.barbR, hoseR: 9 },
 ];
 
 function poseOf(id: string) {
@@ -140,7 +141,7 @@ function clampRings(): Ring[] {
       const known = par?.radius != null && par.tube != null && par.tube <= 1.4 && par.radius <= 20;
       // Instanced clamp parts are merged, so the torus parameters are gone. The instance
       // matrix is the frame: origin at the wire centre, local +Y down the barb.
-      if (!known && !mesh.isInstancedMesh) return;
+      if (!known && !(mesh as THREE.InstancedMesh).isInstancedMesh) return;
       for (const inst of instancesOf(mesh)) {
         const world = new THREE.Matrix4().multiplyMatrices(pose, mesh.matrixWorld).multiply(inst);
         if (known) {
@@ -210,7 +211,7 @@ describe('owned hoses push onto the barb', () => {
         if (cRadial > 0.6) bad.push(`${where}: bore ${cRadial.toFixed(2)} mm off the axis`);
       }
       if (!reaches) bad.push(`${where}: hose stops short of the tip`);
-      const outer = Math.max(seat.hoseR, seat.barbR + 1.5);
+      const outer = Math.max(seat.hoseR, seat.barbR + 0.6);
       const ring = clampRings()
         .map((r) => {
           const along = r.center.clone().sub(tip).dot(axis);

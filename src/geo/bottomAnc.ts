@@ -312,6 +312,16 @@ export function airPumpCleaner() {
 
 /** Heater blower on the right of the fan housing (108-10). */
 export const HEATER_BLOWER = { x: 340, y: 140, z: 410 };
+/**
+ * Inlet spigot on the scroll's −Z face. The lip of the lathe is local y −26,
+ * world z 384. The tip stands 12.2 mm proud of that face so the hose can
+ * push on 7 mm without entering the scroll.
+ */
+export const HEATER_BLOWER_INLET = {
+  point: [HEATER_BLOWER.x, HEATER_BLOWER.y, HEATER_BLOWER.z - 26 - 12.2] as V3,
+  axis: [0, 0, -1] as V3,
+  barbR: 8,
+};
 /** Two bolts through the lapped arm and foot. Clear of the foot edges and the scroll tangent. */
 const HEATER_BOLT_HOLE = 2.6;
 const HEATER_BOLTS: [number, number][] = [
@@ -330,6 +340,10 @@ export function heaterBlower() {
   p.add(yToZ(cyl(6, 8, 10)), 'darkSteel', [b.x, b.y, b.z + 80]);
   // Outlet nipple down, same place as before so the distributing piece still seats.
   p.add(cyl(14, 20, 16), 'blackPlastic', [b.x, b.y - 44, b.z]);
+  // Inlet spigot, 0.2 mm proud of the scroll face, axis −Z.
+  const lipZ = b.z - 26;
+  const inletTipZ = HEATER_BLOWER_INLET.point[2];
+  p.add(yToZ(cyl(8, 12, 12)), 'blackPlastic', [b.x, b.y, (lipZ - 0.2 + inletTipZ) / 2]);
   // Mounting foot on the scroll's inboard tangent (x 292). Its aft face is the lap
   // the support arm sits on; the two bolt holes go through that lap.
   const face = b.x - 48;
@@ -362,34 +376,35 @@ export const EGR_BARB_UP = {
   axis: [0, 1, 0] as V3,
 };
 /**
- * Free end of the second barb (axis −Z). `egr-hose-return` slides on along +Z.
- * The tip stands 6 mm further out than the old face, so a 7 mm push-on ends
- * where the old 1 mm seat was. Deeper than that the sleeve meets the diaphragm.
+ * Free end of the second barb (axis +Z). `egr-hose-long` (#16) slides on along −Z.
+ * The tip faces the pulley, so the hose does not run past the valve and loop back.
+ * The root stays clear of the upright barb and of the diaphragm neck.
  */
 export const EGR_BARB_2 = {
-  point: [EGR.x + 18, EGR.y + 40, EGR.z - 29] as V3,
-  axis: [0, 0, -1] as V3,
+  point: [EGR.x + 18, EGR.y + 40, EGR.z + 30] as V3,
+  axis: [0, 0, 1] as V3,
 };
 /**
- * EGR vacuum tee (202-05 #18), just below the ported-vacuum nipple.
- * #15 is the straight 33 mm between those two tips. The other three ports leave
- * into clear air: #16 and one #17 outboard, the diverter #17 toward the pulley.
- * None of them points down through the shroud or back into the plenum.
+ * EGR vacuum tee (202-05 #18), centre fixed just below the ported-vacuum nipple.
+ * #15 is the straight run up to THROTTLE_PORTED_VAC. The catalogue T is three
+ * ports. Four hoses meet here (#15, #16 and two #17s), so the model is a cross:
+ * the fourth barb is the diverter leg, and `egr-tee-cap` closes it when that
+ * hose is off. The valve-side ports aim left and up, over the distributor,
+ * toward the clear drop. They do not point back into the plenum.
  */
 export const EGR_TEE_CTR: V3 = [-46, 186, 118];
-/**
- * Diverter port. Aimed up and out so the lead clears the vacuum hose, which
- * crosses under the tee on its way to TEE_AIR_INJ. The cap closes this port.
- */
-const EGR_TEE_AFT_AXIS = vnorm([-94, 84, 42]);
+/** Shared aim of the #16 and valve-#17 barrels: left, up, and a little aft. */
+const EGR_TEE_VALVE_AXIS = vnorm([-0.85, 0.5, 0.15]);
+const EGR_TEE_VALVE_TIP = vadd(EGR_TEE_CTR, vmul(EGR_TEE_VALVE_AXIS, 36));
+/** 22 mm beside the #16 tip so the two parallel clamps stay apart. */
+const EGR_TEE_RETURN_TIP = vadd(EGR_TEE_VALVE_TIP, vmul(vnorm(vcross(EGR_TEE_VALVE_AXIS, [0, 0, 1])), 22));
+/** Diverter leg, up and aft, toward the pulley and clear of the fan mouth. */
+const EGR_TEE_DIV_AXIS = vnorm([-0.25, 0.35, 0.9]);
 export const EGR_TEE_PORTS = {
   upper: { point: [EGR_TEE_CTR[0], EGR_TEE_CTR[1] + 18, EGR_TEE_CTR[2]] as V3, axis: [0, 1, 0] as V3 },
-  // #17 return. 14 mm above the #16 port so the two outboard leads stay apart.
-  lower: { point: [EGR_TEE_CTR[0] - 22, EGR_TEE_CTR[1] + 18, EGR_TEE_CTR[2]] as V3, axis: [-1, 0, 0] as V3 },
-  // #16. Level with the tee, straight outboard.
-  outboard: { point: [EGR_TEE_CTR[0] - 22, EGR_TEE_CTR[1] + 4, EGR_TEE_CTR[2]] as V3, axis: [-1, 0, 0] as V3 },
-  // 36 mm, not 20: the cap's cup has to clear the return barb beside it.
-  aft: { point: vadd(EGR_TEE_CTR, vmul(EGR_TEE_AFT_AXIS, 36)), axis: EGR_TEE_AFT_AXIS },
+  valve: { point: EGR_TEE_VALVE_TIP, axis: EGR_TEE_VALVE_AXIS },
+  return: { point: EGR_TEE_RETURN_TIP, axis: EGR_TEE_VALVE_AXIS },
+  diverter: { point: vadd(EGR_TEE_CTR, vmul(EGR_TEE_DIV_AXIS, 32)), axis: EGR_TEE_DIV_AXIS },
 };
 /** 999 239 003 40 is 3.2×7: outside diameter 7 mm, larger than the 4.4 mm barbs. */
 export const VAC_HOSE_R = 3.5;
@@ -406,9 +421,8 @@ export function egrValve() {
   ], 28), 'castAlu', [e.x, e.y - 6, e.z]);
   // Upright barb OD 4.4, under the 3.2×7 hose (OD 7). Tip stays EGR_BARB_UP.
   p.add(cyl(2.2, 14, 10), 'castAlu', [e.x + 18, e.y + 36, e.z]);
-  // Second vacuum barb, offset in Z, for one of the 202-05 #17 hoses.
-  // 20 mm, rooted where the old 14 mm barb ended, so the extra length is all free tip.
-  p.add(yToZ(cyl(2.2, 20, 8)), 'castAlu', [EGR_BARB_2.point[0], EGR_BARB_2.point[1], EGR_BARB_2.point[2] + 10]);
+  // #16 barb, axis +Z. 22 mm, tip at the pulley end, root clear of the upright barb.
+  p.add(yToZ(cyl(2.2, 22, 8)), 'castAlu', [EGR_BARB_2.point[0], EGR_BARB_2.point[1], EGR_BARB_2.point[2] - 11]);
   // Side port for the sealing rubber, proud of the body.
   p.add(yToZ(cyl(6, 16, 12)), 'castAlu', [e.x, e.y + 10, e.z + 26]);
   // Inlet and outlet nipples the two pipelines seat on.
@@ -597,9 +611,32 @@ function seated(a: { point: V3; axis: V3 }, b: { point: V3; axis: V3 }, mids: V3
  * least 1.5 mm outside that bore. The wire sits on that wall, halfway along the overlap.
  */
 export const HOSE_PUSH = 7;
-export type PushSeat = { point: V3; axis: V3; barbR: number; segs: number; hoseR: number };
+export type PushSeat = { point: V3; axis: V3; barbR: number; segs: number; hoseR: number; slideOff?: boolean };
 function sleeveOuter(hoseR: number, barbR: number) {
-  return Math.max(hoseR, barbR + 1.5);
+  // 0.6 mm of rubber outside a barb that is already near the hose radius.
+  // The throttle nipple (r 3.2) then wears a 7.6 mm sleeve instead of 9.4.
+  return Math.max(hoseR, barbR + 0.6);
+}
+/** Open cylinder, every normal local −Y, so erosion slides it toward +Y. */
+function slideCyl(radius: number, y0: number, y1: number, segs: number) {
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const lo = Math.min(y0, y1);
+  const hi = Math.max(y0, y1);
+  for (let i = 0; i < segs; i++) {
+    const a0 = (i / segs) * Math.PI * 2;
+    const a1 = ((i + 1) / segs) * Math.PI * 2;
+    const at = (a: number, y: number) => [Math.sin(a) * radius, y, Math.cos(a) * radius];
+    const b0 = at(a0, lo), b1 = at(a1, lo), t0 = at(a0, hi), t1 = at(a1, hi);
+    for (const v of [b0, t0, b1, b1, t0, t1]) {
+      pos.push(...v);
+      nor.push(0, -1, 0);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  return g;
 }
 /** Same roll as cylBetween / an unrotated cyl: local +Y goes to the outward axis. Even facet counts still share flats when the axis is reversed. */
 function pushQuat(axis: V3) {
@@ -612,28 +649,37 @@ function addPushEnd(p: Part, seat: PushSeat, withRing = true) {
   const yIn = -HOSE_PUSH;
   const yTip = -0.08;
   const yOut = 0.2;
+  // Throttle nipples are not an allowlisted joint. A 0.12 mm radial gap keeps the
+  // bore off the brass, and −Y normals slide the rubber toward the tip under erosion
+  // instead of into the barb or across onto the neighbour 11 mm away.
+  const boreR = seat.slideOff ? seat.barbR + 0.12 : seat.barbR;
   const pose = (g: THREE.BufferGeometry) => {
     g.applyQuaternion(q);
     g.translate(seat.point[0], seat.point[1], seat.point[2]);
     return g;
   };
-  if (outer > seat.hoseR + 0.05 || seat.hoseR <= seat.barbR + 0.05) {
-    const shell = new THREE.CylinderGeometry(outer, outer, yOut - yIn, seat.segs, 1, true);
-    shell.translate(0, (yIn + yOut) / 2, 0);
-    p.add(pose(shell), 'rubber');
+  if (seat.slideOff) {
+    p.add(pose(slideCyl(outer, yIn, yOut, seat.segs)), 'rubber');
+    p.add(pose(slideCyl(boreR, yIn, yTip, seat.segs)), 'rubber');
+  } else {
+    if (outer > seat.hoseR + 0.05 || seat.hoseR <= seat.barbR + 0.05) {
+      const shell = new THREE.CylinderGeometry(outer, outer, yOut - yIn, seat.segs, 1, true);
+      shell.translate(0, (yIn + yOut) / 2, 0);
+      p.add(pose(shell), 'rubber');
+    }
+    // Outward bore normals. Erosion shrinks the bore onto the barb (that joint is
+    // allowlisted) instead of growing it into a neighbour.
+    const bore = new THREE.CylinderGeometry(boreR, boreR, yTip - yIn, seat.segs, 1, true);
+    bore.translate(0, (yIn + yTip) / 2, 0);
+    p.add(pose(bore), 'rubber');
   }
-  // Outward bore normals. Erosion shrinks the bore onto the barb (that joint is
-  // allowlisted) instead of growing it into the neighbouring nipple 11 mm away.
-  const bore = new THREE.CylinderGeometry(seat.barbR, seat.barbR, yTip - yIn, seat.segs, 1, true);
-  bore.translate(0, (yIn + yTip) / 2, 0);
-  p.add(pose(bore), 'rubber');
   const pos: number[] = [];
   const nor: number[] = [];
   for (let i = 0; i < seat.segs; i++) {
     const a0 = (i / seat.segs) * Math.PI * 2;
     const a1 = ((i + 1) / seat.segs) * Math.PI * 2;
     const ring = (a: number, rad: number): [number, number, number] => [Math.sin(a) * rad, yIn, Math.cos(a) * rad];
-    const o0 = ring(a0, outer), o1 = ring(a1, outer), i0 = ring(a0, seat.barbR), i1 = ring(a1, seat.barbR);
+    const o0 = ring(a0, outer), o1 = ring(a1, outer), i0 = ring(a0, boreR), i1 = ring(a1, boreR);
     for (const v of [o0, i0, o1, o1, i0, i1]) {
       pos.push(...v);
       nor.push(0, -1, 0);
@@ -652,19 +698,31 @@ function addPushEnd(p: Part, seat: PushSeat, withRing = true) {
 }
 /**
  * Wire radius. Major radius is the sleeve OD plus this, so the inner radius equals
- * the OD (gap 0, inside the 0.2 mm allowance). 0.4 keeps the two parallel throttle
- * clamps, 11 mm apart, from meeting: their outer extents sum to 10.6 mm.
+ * the OD (gap 0, inside the 0.2 mm allowance). The tessellated section is under
+ * 0.55 mm thick, so erosion stays on the sheet cap and cannot fold the wire into
+ * the barb. Two parallel rings 11 mm apart still clear: outer radii sum to 8 mm.
  */
-const CLAMP_WIRE = 0.4;
-function clampTorus(outer: number) {
-  return torus(outer + CLAMP_WIRE, CLAMP_WIRE, 6, 14);
+const CLAMP_WIRE = 0.25;
+function clampTorus(outer: number, wire = CLAMP_WIRE) {
+  const g = torus(outer + wire, wire, 6, 14);
+  // Radial from the hole, not the tube. A 0.8 mm wire eroded by 2–3.5 mm
+  // turns inside out on tube normals and the stretched faces hit the neighbour.
+  const p = g.attributes.position;
+  const nrm = g.attributes.normal;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i);
+    const L = Math.hypot(x, y) || 1;
+    nrm.setXYZ(i, x / L, y / L, 0);
+  }
+  return g;
 }
 /** World-space wire, centred on the push-on. Kept off the hose mesh: its inner normals walk outward under erosion. */
-function placeClamp(p: Part, outer: number, seat: PushSeat) {
+function placeClamp(p: Part, outer: number, seat: PushSeat, bias = 0, wire = CLAMP_WIRE) {
   const axis = vnorm(seat.axis);
-  const ring = clampTorus(outer);
+  const ring = clampTorus(outer, wire);
   ring.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...axis)));
-  const c = vadd(seat.point, vmul(axis, -HOSE_PUSH / 2));
+  // bias moves the ring toward the tip (positive) without leaving the overlap.
+  const c = vadd(seat.point, vmul(axis, -HOSE_PUSH / 2 + bias));
   ring.translate(c[0], c[1], c[2]);
   p.add(ring, 'zincPlate');
 }
@@ -795,6 +853,16 @@ function gonCapLocal(r: number, segs: number, engage: number, outer: number, cup
   const length = engage + cup;
   const side = new THREE.CylinderGeometry(outer, outer, length, 32, 1, true);
   side.translate(0, (cup - engage) / 2, 0);
+  // Mostly toward the root, and a little toward the barb. Erosion then lifts
+  // the cup off the tip. A fully inward normal walks it onto the nipple 11 mm away.
+  const sn = side.attributes.normal;
+  const inward = 0.35;
+  const axial = -Math.sqrt(1 - inward * inward);
+  for (let i = 0; i < sn.count; i++) {
+    const x = sn.getX(i), z = sn.getZ(i);
+    const radial = Math.hypot(x, z) || 1;
+    sn.setXYZ(i, -inward * x / radial, axial, -inward * z / radial);
+  }
   const disc = new THREE.CircleGeometry(outer, 32);
   disc.rotateX(Math.PI / 2);
   disc.translate(0, cup, 0);
@@ -833,8 +901,8 @@ export function airInjVacCap() {
  * barrel, bore on the flats.
  */
 function egrTeeCapGeom() {
-  const tip = EGR_TEE_PORTS.aft.point;
-  const axis = vnorm(EGR_TEE_PORTS.aft.axis);
+  const tip = EGR_TEE_PORTS.diverter.point;
+  const axis = vnorm(EGR_TEE_PORTS.diverter.axis);
   const root = vadd(tip, vmul(axis, -18));
   return capOnCylBetween(root, tip, 2.2, 10, 5, 3.15, 3.2);
 }
@@ -906,28 +974,28 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     def('air-hose-pump', () => pushHose(pumpHose, 6, 24, [pumpSeat, inletSeat], false), () => [new THREE.Matrix4()]);
     def('air-hose-valve', () => pushHose(valveHose, 6, 24, [outletSeat, valveSeat], false), () => [new THREE.Matrix4()]);
     def('air-hose-dump', () => pushHose(dumpCtrl, 8, 28, [dumpSeat]), () => [new THREE.Matrix4()]);
-    // 108-00 #31, catalogue 750 mm, modelled 848 mm. 7 mm on the diverter nipple and 7 mm on TEE_AIR_INJ.
-    // The throttle end is straight up the axis from y 190 through the tip, so the
-    // 30 mm of clear air under the nipple stays coaxial. The turn onto that leg
-    // is a 3×OD bend. Bore on that barb is the nipple radius, 2.8.
+    // 108-00 #31, catalogue 750 mm. 7 mm on the diverter nipple and 7 mm on TEE_AIR_INJ.
+    // Outboard of the distributor and over the fan-mouth horn, then forward of
+    // the ignition loom and up onto the nipple. The lead is 39 mm so the fillet
+    // is done before the 30 mm mark and that clear air stays coaxial. The old
+    // run crossed the fan and the tee.
     const airSeat: PushSeat = {
-      point: TEE_AIR_INJ.point, axis: TEE_AIR_INJ.axis, barbR: TEE_AIR_INJ.barbR, segs: 10, hoseR: VAC_HOSE_R,
+      point: TEE_AIR_INJ.point, axis: TEE_AIR_INJ.axis, barbR: TEE_AIR_INJ.barbR, segs: 10, hoseR: VAC_HOSE_R, slideOff: true,
     };
     const vacCtrl = seated(
       { point: DIVERTER_VAC, axis: [1, 0, 0] },
       airSeat,
       [
-        // U-turn off the +X nipple, then the outboard road over the fan.
-        // A reversal here fillets to about 4 mm, under the 3×OD floor.
-        [-59, 110, 410],
-        [-200, 140, 390],
-        [-230, 235, 300],
-        [-230, 250, 118],
-        [-145, 240, 115],
-        [-90, 190, 165],
+        [-48, 140, 450],
+        [-170, 190, 430],
+        [-230, 210, 280],
+        [-230, 248, 190],
+        [-230, 190, 86],
+        [-108, 188, 88],
+        [-72, 186, 129],
       ],
-      50,
-      47,
+      58,
+      39,
       HOSE_PUSH,
     );
     const vacDiverterSeat: PushSeat = { point: DIVERTER_VAC, axis: [1, 0, 0], barbR: 2.2, segs: 10, hoseR: VAC_HOSE_R };
@@ -987,72 +1055,88 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     // Four 10-sided barbs, r 2.2, each the port the matching hose slides onto.
     def('egr-tee', () => {
       const p = new Part();
-      // Upper and aft leave the centre on the hose axis. The two outboard ports
-      // turn, so each has a straight 12 mm barb: the clamp sits on that barrel,
-      // not on the diagonal run back to the junction.
-      p.add(cylBetween(EGR_TEE_CTR, EGR_TEE_PORTS.upper.point, 2.2, 10), 'blackPlastic');
-      p.add(cylBetween(EGR_TEE_CTR, EGR_TEE_PORTS.aft.point, 2.2, 10), 'blackPlastic');
-      for (const port of [EGR_TEE_PORTS.lower, EGR_TEE_PORTS.outboard]) {
-        const root = vadd(port.point, vmul(vnorm(port.axis), -12));
+      // Straight barrel on each port so the clamp sits on a coaxial run.
+      // Upper is #15. Valve and return are the parallel #16 and valve-#17 barrels.
+      // Diverter is the fourth barb (the catalogue T has three); the cap closes it.
+      const barrel = (port: { point: V3; axis: V3 }, len: number) => {
+        const root = vadd(port.point, vmul(vnorm(port.axis), -len));
         p.add(cylBetween(root, port.point, 2.2, 10), 'blackPlastic');
         p.add(cylBetween(EGR_TEE_CTR, root, 2.2, 10), 'blackPlastic');
+      };
+      p.add(cylBetween(EGR_TEE_CTR, EGR_TEE_PORTS.upper.point, 2.2, 10), 'blackPlastic');
+      barrel(EGR_TEE_PORTS.valve, 14);
+      // The straight spoke to the return root crosses the #15 sleeve. Bow it aft
+      // of the upper barb, then up into the root, so the hose and its clamp stay clear.
+      {
+        const root = vadd(EGR_TEE_PORTS.return.point, vmul(vnorm(EGR_TEE_PORTS.return.axis), -14));
+        p.add(cylBetween(root, EGR_TEE_PORTS.return.point, 2.2, 10), 'blackPlastic');
+        // Forward of the upper barb and of the air-injection nipple, then up into the root.
+        p.add(tube([EGR_TEE_CTR, [-70, 200, 105], [-60, 216, 108], root], 2.2, 8, 20), 'blackPlastic');
       }
+      barrel(EGR_TEE_PORTS.diverter, 16);
       return p;
     }, () => [new THREE.Matrix4()]);
-    const vacSeat = (end: { point: V3; axis: V3 }, segs = 10, barbR = 2.2): PushSeat => ({
-      ...end, barbR, segs, hoseR: VAC_HOSE_R,
+    const vacSeat = (end: { point: V3; axis: V3 }, segs = 10, barbR = 2.2, slideOff = false): PushSeat => ({
+      ...end, barbR, segs, hoseR: VAC_HOSE_R, slideOff,
     });
-    // 202-05 #15, about 40 mm. Tips are 33 mm apart on one axis; 7 mm on each barb.
-    // Leads stay short of each other so the run is one straight line.
+    // 202-05 #15. Tips are 33 mm apart. Two 7 mm sleeves make the cut 47 mm.
+    // Closing the gap to the printed 40 mm would put the tee in the 30 mm ray.
     const up = EGR_TEE_PORTS.upper;
     const shortCtrl = seated(THROTTLE_PORTED_VAC, up, [], 16, 12, HOSE_PUSH);
-    const shortSeats = [vacSeat(THROTTLE_PORTED_VAC, 12, 3.2), vacSeat(up)];
+    const shortSeats = [vacSeat(THROTTLE_PORTED_VAC, 12, 3.2, true), vacSeat(up)];
     def('egr-hose-short', () => pushHose(shortCtrl, VAC_HOSE_R, 24, shortSeats, false), () => [new THREE.Matrix4()]);
-    // 202-05 #16, 770 mm. Outboard port, then the left-side corridor down to the
-    // valve's −Z barb. The straight 465 mm chord from the throttle tee to that
-    // barb passes through the crankcase, so this is the clear run.
-    const ob = EGR_TEE_PORTS.outboard;
-    const longCtrl = seated(ob, EGR_BARB_2, [
-      [-150, 198, 100],
-      [-188, 150, 120],
-      [-170, 110, 150],
-      [-162, 20, 158],
-      [-162, -85, 160],
-      [-90, -145, 115],
-      [40, -175, 40],
-    ], 22, 200, HOSE_PUSH);
-    const longSeats = [vacSeat(ob), vacSeat(EGR_BARB_2, 8)];
+    // 202-05 #16, catalogue 770 mm. Over the distributor, down the left side,
+    // then onto the valve's +Z barb from the pulley side.
+    const valvePort = EGR_TEE_PORTS.valve;
+    // Aft of cylinder 4, outboard of the distributor, then a jog inboard
+    // under the heat-exchanger shell before the run to the +Z barb.
+    const longCtrl = seated(valvePort, EGR_BARB_2, [
+      [-182, 242, 168],
+      [-232, 155, 192],
+      [-232, -100, 192],
+      [-162, -100, 188],
+      [-162, -225, 168],
+      [-76, -256, 150],
+    ], 44, 50, HOSE_PUSH);
+    const longSeats = [vacSeat(valvePort), vacSeat(EGR_BARB_2, 8)];
     def('egr-hose-long', () => pushHose(longCtrl, VAC_HOSE_R, 24, longSeats, false), () => [new THREE.Matrix4()]);
-    // One 202-05 #17. The printed 465 mm is the straight cut; the clear run has
-    // to stay outboard of the case, so it is longer. It parallels #16, 14 mm above it.
-    const lo = EGR_TEE_PORTS.lower;
-    const backCtrl = seated(lo, EGR_BARB_UP, [
-      [-150, 210, 95],
-      [-200, 160, 115],
-      [-182, 112, 172],
-      [-174, 22, 180],
-      [-166, -68, 184],
-      [-150, -108, 172],
-      [-96, -148, 142],
-      [-20, -155, 150],
-      [-12, -210, 40],
-    ], 52, 36, HOSE_PUSH);
-    const returnSeats = [vacSeat(lo), vacSeat(EGR_BARB_UP)];
+    // One 202-05 #17, catalogue 465 mm. The straight chord crosses the crankcase.
+    // This leg drops on the flywheel side of #16 and comes in under the cover plate.
+    const retPort = EGR_TEE_PORTS.return;
+    // Above the cam housing, then aft of #16 so the two drops stay apart.
+    // The inboard jog is below #16's jog. The last line meets the +Y barb at
+    // about 84° so the 40 mm lead still bends at 3× OD, and it crosses the
+    // cover-plate edge where that edge is only a kiss.
+    const backCtrl = seated(retPort, EGR_BARB_UP, [
+      [-150, 258, 155],
+      [-245, 250, 175],
+      [-245, 175, 208],
+      [-242, 95, 203],
+      [-242, -122, 203],
+      [-158, -122, 155],
+      [-142, -208, 20],
+    ], 46, 40, HOSE_PUSH);
+    const returnSeats = [vacSeat(retPort), vacSeat(EGR_BARB_UP)];
     def('egr-hose-return', () => pushHose(backCtrl, VAC_HOSE_R, 24, returnSeats, false), () => [new THREE.Matrix4()]);
     // The other 202-05 #17, to the diverter. Hidden with air injection;
-    // egr-tee-cap closes this port while it is off. The 465 mm chord crosses the
-    // fan and the chain housing, so the hose goes over them.
-    const aft = EGR_TEE_PORTS.aft;
-    // First corner is further along the port axis, so the lead stays straight.
-    const divCtrl = seated(aft, { point: DIVERTER_VAC_EGR, axis: [1, 0, 0] }, [
-      vadd(aft.point, vmul(aft.axis, 100)),
-      [-250, 290, 175],
-      [-265, 270, 260],
-      [-265, 180, 400],
-      [-190, 150, 460],
-      [-25, 140, 432],
-    ], 55, 84, HOSE_PUSH);
-    const divSeats = [vacSeat(aft), vacSeat({ point: DIVERTER_VAC_EGR, axis: [1, 0, 0] })];
+    // egr-tee-cap closes this port while it is off. It stays left of the fan
+    // instead of climbing over the drum.
+    const divPort = EGR_TEE_PORTS.diverter;
+    // The barb axis meets the alternator at 26 mm out. A straight drop crosses
+    // the fan-mouth horn, and the belt plane crosses the pump pulley. The lead
+    // turns off the axis at 18 mm, climbs over the horn, drops forward of the
+    // belt, and crosses above the pump bracket before the diverter.
+    const divCtrl = seated(divPort, { point: DIVERTER_VAC_EGR, axis: [1, 0, 0] }, [
+      [-120, 245, 200],
+      [-210, 250, 190],
+      [-230, 150, 240],
+      [-230, 82, 260],
+      [-170, 108, 290],
+      [-120, 108, 400],
+      [35, 68, 432],
+      [35, 12, 432],
+    ], 18, 52, HOSE_PUSH);
+    const divSeats = [vacSeat(divPort), vacSeat({ point: DIVERTER_VAC_EGR, axis: [1, 0, 0] })];
     def('egr-hose-diverter', () => pushHose(divCtrl, VAC_HOSE_R, 24, divSeats, false), () => [new THREE.Matrix4()]);
     const band = sleeveOuter(VAC_HOSE_R, 2.2);
     def('egr-clamp-diverter', () => {
@@ -1062,6 +1146,8 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     }, () => [new THREE.Matrix4()]);
     def('egr-clamp-vac', () => {
       const p = new Part();
+      // Six rings: #15 at the throttle nipple and the tee, #16, and the valve
+      // leg of #17. The throttle ring used to sit on the housing.
       for (const s of [...shortSeats, ...longSeats, ...returnSeats]) {
         placeClamp(p, sleeveOuter(VAC_HOSE_R, s.barbR), s);
       }
@@ -1124,32 +1210,57 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
   const hoseR = 15;
   const heaterBend = 58;
   const socketTip: V3 = [245, hb.y, 340];
-  const link: V3[] = [
-    [socketTip[0] - HOSE_PUSH, hb.y, 340],
-    socketTip,
-    [280, hb.y, 352],
-    [hb.x, hb.y, hb.z - 34],
-  ];
-  const onStub = (stub: ReturnType<typeof heaterStub>, z: number): V3 => [stub.tip[0], stub.tip[1], z];
+  const blowerTip = HEATER_BLOWER_INLET.point;
+  // Socket axis +X, blower inlet axis −Z. The run drops so each 90° keeps a
+  // bend of 1.5× the 18 mm OD, then climbs onto the spigot.
+  const link: V3[] = seated(
+    { point: socketTip, axis: [1, 0, 0] },
+    { point: blowerTip, axis: HEATER_BLOWER_INLET.axis },
+    [
+      [395, hb.y, 340],
+      [395, hb.y - 70, 340],
+      [hb.x, hb.y - 70, 286],
+    ],
+    80,
+    blowerTip[2] - 286,
+    HOSE_PUSH,
+  );
   const rightMouth: V3 = [hb.x + 26, 64, hb.z];
   const leftMouth: V3 = [hb.x - 26, 64, hb.z];
-  // The spigot points +Z at the silencer. The hose stays above the drum, then
-  // drops on a diagonal that clears the superellipse, and runs coaxial to z 236
-  // (short of the bead at z 226). That leg is what keeps the bend at 1.5× OD.
+  // Quarter-circle onto the spigot, in the pocket in front of the muffler.
+  // Radius 50 keeps the 1.5×OD floor after filleting. The last point is the tip,
+  // so the end disk is square to the barb and the bore stays on the axis.
+  const stubArc = (stub: ReturnType<typeof heaterStub>, side: 1 | -1): V3[] => {
+    const R = 50;
+    const tip = stub.tip;
+    const pts: V3[] = [];
+    for (let deg = 90; deg > 0; deg -= 10) {
+      const th = (deg * Math.PI) / 180;
+      pts.push([tip[0] + side * R * (1 - Math.cos(th)), tip[1], tip[2] + R * Math.sin(th)]);
+    }
+    pts.push(tip);
+    return pts;
+  };
+  const rightArc = stubArc(rightStub, 1);
+  const leftArc = stubArc(leftStub, -1);
+  // Lead out of each mouth along its axis before turning. The right hose drops
+  // outboard of the muffler and arcs onto the spigot. The left hose crosses
+  // above the crown, drops outboard of the left end cap (the horizontal leg
+  // has to be long enough for the 1.5×OD bend), and takes the same arc.
   const rightH: V3[] = [
     rightMouth,
-    [300, -20, 400],
-    [rightStub.tip[0], -70, 355],
-    onStub(rightStub, 300),
-    onStub(rightStub, 236),
+    [466, 64, 410],
+    [466, -167, 400],
+    [400, -167, rightArc[0][2]],
+    ...rightArc,
   ];
   const leftH: V3[] = [
     leftMouth,
-    [40, -25, 400],
-    [-120, -55, 400],
-    [leftStub.tip[0], -70, 370],
-    onStub(leftStub, 290),
-    onStub(leftStub, 236),
+    [214, 64, 410],
+    [210, -68, 340],
+    [-390, -68, 330],
+    [-390, -167, leftArc[0][2]],
+    ...leftArc,
   ];
   const big = (end: { point: V3; axis: V3 }, segs = 12, barbR = 12): PushSeat => ({ ...end, barbR, segs, hoseR });
   const rightSeats = [
@@ -1161,6 +1272,9 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     big({ point: leftStub.tip, axis: [0, 0, 1] }),
   ];
   const linkSeat: PushSeat = { point: socketTip, axis: [1, 0, 0], barbR: 11, segs: 14, hoseR: 9 };
+  const blowerSeat: PushSeat = {
+    point: blowerTip, axis: HEATER_BLOWER_INLET.axis, barbR: HEATER_BLOWER_INLET.barbR, segs: 12, hoseR: 9,
+  };
   const withEnds = (pts: V3[], r: number, bend: number, seats: PushSeat[], ring = false) => {
     const p = new Part();
     p.add(corrugatedHose(pts, r, bend), 'rubber');
@@ -1179,7 +1293,7 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     return p;
   }, () => [M([hb.x, 64, hb.z] as V3)]);
   def('heater-socket', () => new Part().add(yToX(cyl(11, 18, 14)), 'castAlu').add(boxMM([-6, 18, -6], [6, 28, 6]), 'castAlu'), () => [M([236, hb.y, 340] as V3)]);
-  def('heater-hose-link', () => withEnds(link, 9, 27, [linkSeat]), () => [new THREE.Matrix4()]);
+  def('heater-hose-link', () => withEnds(link, 9, 27, [linkSeat, blowerSeat]), () => [new THREE.Matrix4()]);
   def('heater-hose-right', () => withEnds(rightH, hoseR, heaterBend, rightSeats), () => [new THREE.Matrix4()]);
   def('heater-hose-left', () => withEnds(leftH, hoseR, heaterBend, leftSeats), () => [new THREE.Matrix4()]);
   def('heater-hose-supports', () => wormBand(15), () => [
@@ -1187,11 +1301,17 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     M(at(leftH[1], leftH[2], 0.22), along(leftH[1], leftH[2])),
   ]);
   const half = (seat: PushSeat) => M(vadd(seat.point, vmul(vnorm(seat.axis), -HOSE_PUSH / 2)), V(...vnorm(seat.axis)));
-  // Socket end: the sleeve is wider than the free run, so this band is sized to that OD.
-  def('heater-clamp-sp', () => wireClamp(sleeveOuter(9, 11)), () => [half(linkSeat)]);
+  // Both end bands live in this one part. Count stays 1. The socket sleeve is
+  // wider than the blower sleeve, so each ring is sized to its own OD.
+  def('heater-clamp-sp', () => {
+    const p = new Part();
+    placeClamp(p, sleeveOuter(9, 11), linkSeat);
+    placeClamp(p, sleeveOuter(9, HEATER_BLOWER_INLET.barbR), blowerSeat);
+    return p;
+  }, () => [new THREE.Matrix4()]);
   def('heater-clamp-band', () => wormBand(9), () => [
-    M(at(link[2], link[3], 0.35), along(link[2], link[3])),
-    M(at(link[1], link[2], 0.55), along(link[1], link[2])),
+    M(at(link[3], link[4], 0.45), along(link[3], link[4])),
+    M(at(link[4], link[5], 0.5), along(link[4], link[5])),
   ]);
   def('heater-clamps', () => wormBand(15), () => {
     const band = (h: V3[], i: number, t: number) => M(at(h[i], h[i + 1], t), along(h[i], h[i + 1]));
