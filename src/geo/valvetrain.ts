@@ -2008,13 +2008,22 @@ function flipCoverHoleNormals(root: THREE.Object3D, s: 1 | -1) {
     }
   });
 }
+/**
+ * Valve in head axes, origin on the seated face, stem along the real stem
+ * direction. Lift and the bank pose are applied by the caller. One blank per
+ * side is enough for a mesh-to-mesh sweep.
+ */
+export function valveHeadBlank(side: 1 | -1): THREE.BufferGeometry {
+  const g = lathe(valveProfile(side > 0 ? 49 : 41.5, side < 0), 24);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), stemDirLocal(side)));
+  return g;
+}
 /** Valve head in engine space at `crank`, for the piston-clearance sweep. */
 export function valveHeadEngine(cyl: number, side: 1 | -1, crank: number): THREE.BufferGeometry {
   const pose = trainPose(cyl, side, crank);
   const dir = stemDirLocal(side);
   const face = stemPointLocal(side, 0).addScaledVector(dir, -pose.lift);
-  const g = lathe(valveProfile(side > 0 ? 49 : 41.5, side < 0), 24);
-  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), dir));
+  const g = valveHeadBlank(side);
   g.translate(face.x, face.y, face.z);
   const s = bankSign(cyl);
   g.applyMatrix4(new THREE.Matrix4().compose(

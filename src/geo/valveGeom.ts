@@ -6,7 +6,8 @@
  * with the real head diameters. The tips stagger by `LOBE_DZ` so the two lobes
  * on one cylinder do not occupy the same cam station. Crown pockets are eyebrows
  * in the dome height field: deep enough for 1.74 mm of valve-to-piston clearance
- * at overlap, and the shell under them stays at least 4.49 mm thick.
+ * at overlap, and the shell under them stays at least 4.49 mm thick. The intake
+ * eyebrow is cut deeper and wider at the rim, where the 49 mm valve is closest.
  */
 import * as THREE from 'three';
 import { SPEC, CYL_TOP_X, CYL_Z } from '../data/layout';
@@ -35,10 +36,11 @@ export const VALVE_FACE = { in: { x: 8.7, y: 22, z: 0 }, ex: { x: 8.9, y: -23, z
 export const PISTON_DECK = CYL_TOP_X - (SPEC.crankRadius + SPEC.rodLength);
 /**
  * How far the eyebrow plane sits off the valve face, toward the piston.
- * Exhaust is deeper: a 1° mesh sweep bottoms out 4–5° before overlap TDC, and
- * the dome facets sit proud of this field. Intake only needs a small extra cut.
+ * Exhaust sits further off the face through the middle of the crescent. Intake
+ * is cut wider, out through the squish lip, because the 49 mm rim is the closest
+ * point on that valve. The dome facets sit proud of this field.
  */
-const POCKET_CLEAR = { in: 3.15, ex: 3.85 } as const;
+const POCKET_CLEAR = { in: 3.55, ex: 3.85 } as const;
 /** Crescent depth limit, measured down from the uncut dome. Exhaust can use more of it. */
 const POCKET_DEPTH = { in: 6.4, ex: 7.6 } as const;
 /** Minimum crown thickness under a pocket. The mesh test requires at least 4.49 mm. */
@@ -123,11 +125,11 @@ export function crownSurfaceX(y: number, z: number): number | null {
 
 /**
  * Eyebrow pocket. `crownX` is the uncut height at (y, z). The plane sits off the
- * valve face toward the piston. The outer lip of the squish is left full height.
+ * valve face toward the piston. The outer squish lip stays full height except
+ * where the intake eyebrow reaches it: that rim is what the 49 mm valve meets.
  */
 export function domeReliefX(y: number, z: number, crownX: number, r: number): number {
   const R = BORE_R;
-  if (r > R - 0.5) return crownX;
   let x = crownX;
   for (const side of [1, -1] as const) {
     const clear = side > 0 ? POCKET_CLEAR.in : POCKET_CLEAR.ex;
@@ -143,20 +145,25 @@ export function domeReliefX(y: number, z: number, crownX: number, r: number): nu
     const axial = dx * d.x + dy * d.y + dz * d.z;
     const perp2 = dx * dx + dy * dy + dz * dz - axial * axial;
     // Flat under the head, then a short blend outside the rim so the crescent closes.
-    const pocketR = headR + 1.6;
+    // Intake runs out to the bore lip. The 24.5 mm rim lands past the old pocket.
+    const pocketR = headR + (side > 0 ? 4.2 : 1.6);
     // The head is several millimetres thick toward the tip, so the crown under that
     // thickness is part of the crescent. Past the fillet there is nothing to clear.
     if (perp2 > pocketR * pocketR || axial > 18) continue;
+    // Exhaust keeps the outer 0.5 mm lip. Intake is cut through it.
+    if (side < 0 && r > R - 0.5) continue;
     const Fx = fx - clear * d.x;
     const Fy = face.y - clear * d.y;
     const Fz = face.z - clear * d.z;
     const planeX = Fx - ((y - Fy) * d.y + (z - Fz) * d.z) / d.x;
     const perp = Math.sqrt(Math.max(0, perp2));
-    const blend = 1.4;
     const inner = headR + 0.2;
+    // Feather from the flat floor out to the pocket edge. Clamped so a wider
+    // intake pocket cannot extrapolate the blend past the uncut crown.
+    const blend = Math.max(1.4, pocketR - inner);
     let pocket = planeX;
     if (perp > inner) {
-      const u = (perp - inner) / blend;
+      const u = Math.min(1, (perp - inner) / blend);
       const s = u * u * (3 - 2 * u);
       pocket = planeX + (crownX - planeX) * s;
     }

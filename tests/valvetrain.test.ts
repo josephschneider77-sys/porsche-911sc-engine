@@ -9,6 +9,7 @@ import { CAM_X, SPARK_TIP, SPARK_Z, SPARK_AXIS, SPARK_HOLE_R, SPARK_FLANGE_T, sp
 import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1, coverMatrix } from '../src/geo/core';
 import { crownSurfaceX, PISTON_DECK, VALVE_DIA, VALVE_FACE, STEM_R, stemDirLocal } from '../src/geo/valveGeom';
 import { ASSET_BUILDERS, partPose } from '../src/geo/assets';
+import { SMALL_GEOM } from '../src/geo/smallParts';
 import { rayHit } from './hw';
 import { clearance } from './collide';
 
@@ -684,5 +685,79 @@ describe('top-end batch 1', () => {
         expect(miss, `${id} ${upper ? 'upper' : 'lower'} escaping rays`).toBe(0);
       }
     }
+  });
+});
+
+describe('valve-cover gasket windows', () => {
+  /** Enclosed openings in the gasket sheet. The outside of the frame is the one region that touches the raster border. */
+  function enclosed(id: string) {
+    const root = SMALL_GEOM[id].proto().g;
+    root.updateMatrixWorld(true);
+    const pos: number[] = [];
+    const v = new THREE.Vector3();
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+      const P = g.attributes.position;
+      for (let i = 0; i < P.count; i++) {
+        v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+        pos.push(v.x, v.y, v.z);
+      }
+    });
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const bvh = new MeshBVH(geom);
+    const x0 = -60, x1 = 60, y0 = -210, y1 = 210, step = 1;
+    const nx = Math.round((x1 - x0) / step);
+    const ny = Math.round((y1 - y0) / step);
+    const metal = new Uint8Array(nx * ny);
+    const origin = new THREE.Vector3();
+    const dir = new THREE.Vector3(0, 0, 1);
+    for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+      origin.set(x0 + (ix + 0.5) * step, y0 + (iy + 0.5) * step, -3);
+      const hits = bvh.raycast(new THREE.Ray(origin, dir), THREE.DoubleSide) as { distance: number }[];
+      if (hits.length) metal[iy * nx + ix] = 1;
+    }
+    const seen = new Uint8Array(nx * ny);
+    const out: { w: number; h: number }[] = [];
+    const stack: number[] = [];
+    for (let i = 0; i < metal.length; i++) {
+      if (metal[i] || seen[i]) continue;
+      seen[i] = 1;
+      stack.push(i);
+      let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity, edge = false;
+      while (stack.length) {
+        const k = stack.pop()!;
+        const ix = k % nx, iy = (k - ix) / nx;
+        minx = Math.min(minx, ix); maxx = Math.max(maxx, ix);
+        miny = Math.min(miny, iy); maxy = Math.max(maxy, iy);
+        if (ix === 0 || iy === 0 || ix === nx - 1 || iy === ny - 1) edge = true;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const jx = ix + dx, jy = iy + dy;
+          if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+          const j = jy * nx + jx;
+          if (metal[j] || seen[j]) continue;
+          seen[j] = 1;
+          stack.push(j);
+        }
+      }
+      if (!edge) out.push({ w: maxx - minx + 1, h: maxy - miny + 1 });
+    }
+    return out;
+  }
+
+  it('counts the same enclosed windows on the left as on the right', () => {
+    const upper = (id: string) => enclosed(id).filter((w) => w.w >= 45 && w.h >= 40).length;
+    const lower = (id: string) => enclosed(id).filter((w) => w.w >= 50 && w.h >= 18 && w.h <= 40).length;
+    const ur = upper('valve-cover-gasket-upper-right');
+    const ul = upper('valve-cover-gasket-upper-left');
+    const lr = lower('valve-cover-gasket-lower-right');
+    const ll = lower('valve-cover-gasket-lower-left');
+    console.log(`gasket windows upper R/L ${ur}/${ul}  upright lower R/L ${lr}/${ll}`);
+    expect(ul, 'upper large windows').toBe(ur);
+    expect(ll, 'lower upright windows').toBe(lr);
+    expect(ur, 'upper right large windows').toBe(3);
+    expect(lr, 'lower right upright windows').toBe(3);
   });
 });

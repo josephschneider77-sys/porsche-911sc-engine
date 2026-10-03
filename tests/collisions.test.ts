@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { MeshBVH } from 'three-mesh-bvh';
+import { MeshBVH, ExtendedTriangle } from 'three-mesh-bvh';
 import { findCollisions, findIntraPartHits, erodedSolidsClash, allowedClash, isMating, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
 import { rayHit } from './hw';
 import { OIL_COOLER, oilCooler, DIST, DIST_AXIS, distW } from '../src/geo/aux';
 import { cylinder, conrod, piston } from '../src/geo/core';
 import { SMALL_GEOM } from '../src/geo/smallParts';
-import { valveHeadEngine, trainPose, FIRE_CRANK } from '../src/geo/valvetrain';
+import { valveHeadBlank, trainPose, FIRE_CRANK } from '../src/geo/valvetrain';
 import { crownSurfaceX, crownUndersideX, stemPointLocal, stemDirLocal } from '../src/geo/valveGeom';
 import { bankOf, CYL_Z, CYL_TOP_X, DECK_X, pinX } from '../src/data/layout';
 
@@ -287,7 +287,7 @@ describe('conrod swing versus the cylinder skirt', () => {
   });
 });
 
-describe('valve to piston around overlap TDC', () => {
+describe('valve to piston over a full cycle', () => {
   function pistonBVH() {
     const root = piston();
     root.updateMatrixWorld(true);
@@ -307,53 +307,91 @@ describe('valve to piston around overlap TDC', () => {
     geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     return new MeshBVH(geom);
   }
-  function oddHits(bvh: MeshBVH, p: THREE.Vector3) {
-    const hits = bvh.raycast(new THREE.Ray(p, new THREE.Vector3(1, 0.137, 0.051).normalize()), THREE.DoubleSide) as { distance: number }[];
-    return hits.filter((h) => h.distance > 1e-4).length % 2 === 1;
-  }
-  /** True mesh distance from the valve head to the piston. Positive is outside the solid. */
-  function meshGap(bvh: MeshBVH, cyl: number, side: 1 | -1, crank: number) {
-    const s = bankOf(cyl);
-    const { pinX: px } = pinX(cyl, crank);
-    const inv = new THREE.Matrix4().compose(
-      new THREE.Vector3(px, 0, CYL_Z[cyl]),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s === 1 ? 0 : Math.PI, 0)),
-      new THREE.Vector3(1, 1, 1),
-    ).invert();
-    const pose = trainPose(cyl, side, crank);
-    const face = stemPointLocal(side, 0).addScaledVector(stemDirLocal(side), -pose.lift);
-    const faceP = new THREE.Vector3(s * (CYL_TOP_X + face.x), face.y, CYL_Z[cyl] + s * face.z).applyMatrix4(inv);
-    const head = valveHeadEngine(cyl, side, crank);
-    const g = head.index ? head.toNonIndexed() : head;
-    const P = g.attributes.position;
-    const target = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
-    const p = new THREE.Vector3();
-    let min = Infinity;
-    for (let i = 0; i < P.count; i++) {
-      p.fromBufferAttribute(P, i).applyMatrix4(inv);
-      if (p.distanceTo(faceP) > 22) continue;
-      bvh.closestPointToPoint(p, target as never);
-      const signed = oddHits(bvh, p) ? -target.distance : target.distance;
-      if (signed < min) min = signed;
+  /**
+   * Triangle-to-triangle distance from the whole valve to the piston.
+   * A gap above `limit` is reported as `limit`: those poses are clear.
+   */
+  function meshGap(bvh: MeshBVH, blank: THREE.BufferGeometry, matrix: THREE.Matrix4, limit = 8) {
+    const src = bvh.geometry;
+    const pos = src.attributes.position as THREE.BufferAttribute;
+    const index = src.index!;
+    const P = blank.attributes.position as THREE.BufferAttribute;
+    const tri = new ExtendedTriangle();
+    const other = new ExtendedTriangle();
+    const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
+    const box = new THREE.Box3();
+    const reach = new THREE.Box3();
+    let best = limit;
+    for (let i = 0; i < P.count; i += 3) {
+      A.fromBufferAttribute(P, i).applyMatrix4(matrix);
+      B.fromBufferAttribute(P, i + 1).applyMatrix4(matrix);
+      C.fromBufferAttribute(P, i + 2).applyMatrix4(matrix);
+      box.setFromPoints([A, B, C]);
+      reach.copy(box).expandByScalar(best);
+      tri.a.copy(A); tri.b.copy(B); tri.c.copy(C); tri.needsUpdate = true;
+      bvh.shapecast({
+        intersectsBounds: (node) => node.intersectsBox(reach),
+        intersectsRange(offset, count) {
+          for (let j = offset; j < offset + count; j++) {
+            other.a.fromBufferAttribute(pos, index.getX(j * 3));
+            other.b.fromBufferAttribute(pos, index.getX(j * 3 + 1));
+            other.c.fromBufferAttribute(pos, index.getX(j * 3 + 2));
+            other.needsUpdate = true;
+            const d = tri.distanceToTriangle(other);
+            if (d < best) {
+              best = d;
+              reach.copy(box).expandByScalar(best);
+              if (best === 0) return true;
+            }
+          }
+          return false;
+        },
+      });
+      if (best === 0) return 0;
     }
-    return min;
+    return best;
   }
 
-  it('keeps at least 1.74 mm at 1° steps across ±30° of overlap TDC', () => {
+  it('keeps at least 1.74 mm, whole valve, mesh to mesh, every degree on both banks', () => {
     const bvh = pistonBVH();
-    let min = Infinity, where = '';
+    const blanks = ([1, -1] as const).map((side) => {
+      const g = valveHeadBlank(side);
+      return g.index ? g.toNonIndexed() : g;
+    });
+    let minIn = Infinity, minEx = Infinity, whereIn = '', whereEx = '';
     for (const cyl of [1, 2, 3, 4, 5, 6]) {
-      const overlap = FIRE_CRANK[cyl] + 360;
-      for (let crank = overlap - 30; crank <= overlap + 30; crank += 1) {
-        for (const side of [1, -1] as const) {
-          const g = meshGap(bvh, cyl, side, crank);
-          expect(g, `cyl ${cyl} side ${side} crank ${crank}`).toBeGreaterThanOrEqual(1.74);
-          if (g < min) { min = g; where = `cyl ${cyl} side ${side} ${crank - overlap}° from overlap`; }
+      const s = bankOf(cyl);
+      const bank = new THREE.Matrix4().compose(
+        new THREE.Vector3(s * CYL_TOP_X, 0, CYL_Z[cyl]),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s === 1 ? 0 : Math.PI, 0)),
+        new THREE.Vector3(1, 1, 1),
+      );
+      for (const side of [1, -1] as const) {
+        const blank = blanks[side > 0 ? 0 : 1];
+        const dir = stemDirLocal(side);
+        const seated = stemPointLocal(side, 0);
+        for (let crank = 0; crank < 720; crank += 1) {
+          const { pinX: px } = pinX(cyl, crank);
+          const pistonInv = new THREE.Matrix4().compose(
+            new THREE.Vector3(px, 0, CYL_Z[cyl]),
+            new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s === 1 ? 0 : Math.PI, 0)),
+            new THREE.Vector3(1, 1, 1),
+          ).invert();
+          const pose = trainPose(cyl, side, crank);
+          const face = seated.clone().addScaledVector(dir, -pose.lift);
+          const toPiston = pistonInv.multiply(bank).multiply(new THREE.Matrix4().makeTranslation(face.x, face.y, face.z));
+          const gap = meshGap(bvh, blank, toPiston);
+          const tag = `cyl ${cyl} side ${side} crank ${crank}`;
+          expect(gap, tag).toBeGreaterThanOrEqual(1.74);
+          if (side > 0 && gap < minIn) { minIn = gap; whereIn = tag; }
+          if (side < 0 && gap < minEx) { minEx = gap; whereEx = tag; }
         }
       }
     }
-    console.log(`valve-to-piston minimum ${min.toFixed(3)} mm at ${where}`);
-    expect(min).toBeGreaterThanOrEqual(1.74);
+    console.log(`intake valve-to-piston minimum ${minIn.toFixed(3)} mm at ${whereIn}`);
+    console.log(`exhaust valve-to-piston minimum ${minEx.toFixed(3)} mm at ${whereEx}`);
+    expect(minIn).toBeGreaterThanOrEqual(1.74);
+    expect(minEx).toBeGreaterThanOrEqual(1.74);
     let thick = Infinity;
     for (let y = -46; y <= 46; y += 1) for (let z = -46; z <= 46; z += 1) {
       const sx = crownSurfaceX(y, z);
@@ -363,7 +401,7 @@ describe('valve to piston around overlap TDC', () => {
     // The crown floor is 4.49. The sample lands on that floor; a binary float
     // prints just under it (4.49 − 2e−15) and must still pass.
     expect(thick + 1e-9, 'crown under the eyebrows').toBeGreaterThanOrEqual(4.49);
-  });
+  }, 300000);
 });
 
 describe('ancillary clearance at 0 and 0.5 mm', () => {

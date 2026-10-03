@@ -297,6 +297,24 @@ function coverGasket(s: 1 | -1, up: boolean) {
       const cy = (j.y0 + j.y1) / 2;
       for (const y of [j.y0 - 8, cy, j.y1 + 8]) extra.push([outer, clampY(y)]);
     }
+    // The flywheel slot is the right slot mirrored about engine z = 0, and that
+    // mirror hangs past this cover. An ear carries an 8 mm strip outside the
+    // slot — the same strip the right windows leave in front of a notch — so
+    // the ring stays closed instead of the slot running out through the end.
+    const STRIP = 8;
+    for (const poly of rightLowerWindows().slots) {
+      let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+      for (const p of poly) {
+        const [x, y] = mirrorLocal(p.x, p.y);
+        minx = Math.min(minx, x); maxx = Math.max(maxx, x);
+        miny = Math.min(miny, y); maxy = Math.max(maxy, y);
+      }
+      const yOut = miny < -halfL + STRIP ? miny - STRIP : maxy > halfL - STRIP ? maxy + STRIP : 0;
+      if (!yOut) continue;
+      const x0 = minx - STRIP, x1 = maxx + STRIP;
+      const ySide = Math.sign(yOut) * (halfL - 16);
+      extra.push([x0, ySide], [x1, ySide], [x0, yOut], [x1, yOut]);
+    }
     if (extra.length) {
       outline = hull2([...outline, ...extra]);
       if (ringArea(outline) < 0) outline.reverse();
@@ -317,30 +335,46 @@ function coverGasket(s: 1 | -1, up: boolean) {
     const notch = plugEndNotch(1, halfL);
     if (notch) bites.push(notch);
   } else if (up) {
-    // Right windows, mirrored about engine z = 0. The flywheel window is clipped
-    // where that mirror runs off the cover (the cover is centred at z = 22).
+    // Right windows, mirrored about engine z = 0. The flywheel window is held
+    // 8 mm short of the end notch: on the right that strip is what keeps the
+    // scallop from joining the last window. Cylinder 6's plug is past the rail,
+    // so the notch only breaks the end edge.
     const plugs = [4, 5, 6]
       .map((c) => plugCoverLocal(c, 0))
       .filter((p) => Math.abs(p.y) < halfL - SPARK_HOLE_R - 4);
+    const tubeClear = SPARK_TUBE_R + 4.2;
+    const endLoc = plugCoverLocal(6, 0);
+    const STRIP = 8;
+    // Intake rocker on cylinder 6 reaches local y −173, the valve −169.
+    // The window clears both before the strip starts.
+    const windowOut = -(halfL - 9);
+    const notchIn = windowOut - STRIP;
     const yLim = halfL - 8;
     for (const w of bankUpperWindows(1, halfL)) {
       const [cx, cy0] = mirrorLocal(w.cx, w.cy);
-      const ya = Math.max(-yLim, cy0 - w.h / 2);
+      const ya = Math.max(-yLim, windowOut, cy0 - w.h / 2);
       const yb = Math.min(yLim, cy0 + w.h / 2);
       if (yb - ya < 8) continue;
       shape.holes.push(rectHole(cx, (ya + yb) / 2, w.w, yb - ya, 3));
     }
     for (const p of plugs) shape.holes.push(circlePath(SPARK_HOLE_R + 2.4, p.x, p.y) as THREE.Path);
-    const notch = plugEndNotch(-1, halfL);
-    if (notch) bites.push(notch);
+    const yTip = -(halfL + 8);
+    bites.push(boxMM(
+      [endLoc.x - tubeClear, Math.min(notchIn, yTip), -4],
+      [endLoc.x + tubeClear, Math.max(notchIn, yTip), 4],
+    ));
   } else if (s < 0) {
     // Three upright slots and three diagonals, the right pattern mirrored about
-    // engine z = 0. Clipped inside the cover so the flywheel end stays a closed ring.
+    // engine z = 0. Slots that stay on the sheet are clipped. The flywheel slot
+    // is left whole: the ear above wraps it, so clipping it would open the end.
     const yLim = halfL - 4;
     const src = rightLowerWindows();
     for (const poly of src.slots) {
       const moved = poly.map((p) => { const [x, y] = mirrorLocal(p.x, p.y); return new THREE.Vector2(x, y); });
-      const clipped = clipWindow(moved, -46, -yLim, 46, yLim);
+      const ys = moved.map((p) => p.y);
+      const miny = Math.min(...ys), maxy = Math.max(...ys);
+      const held = miny < -yLim || maxy > yLim;
+      const clipped = held ? moved : clipWindow(moved, -46, -yLim, 46, yLim);
       if (clipped.length >= 3) shape.holes.push(new THREE.Path(clipped));
     }
     for (const poly of src.diagonals) {
@@ -350,9 +384,6 @@ function coverGasket(s: 1 | -1, up: boolean) {
       const clipped = clipWindow(leanedDiagonal(cx, cy, -0.72), -28, -yLim, 28, yLim);
       if (clipped.length >= 3) shape.holes.push(new THREE.Path(clipped));
     }
-    // Cylinder 6's exhaust head sits on the flywheel land, past the clipped slot.
-    // Open that corner through the end wall. The outline stays at ±halfL.
-    bites.push(boxMM([14, -halfL - 8, -4], [42, -168, 4]));
   } else {
     // Diagonal webs, the same lean as the lower-cover ribs. Each window stays
     // inside the frame, including the flywheel end of the left bank.
