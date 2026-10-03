@@ -130,8 +130,8 @@ describe('ancillary hose ends', () => {
 
   const solid = [1.2, 4, 8, 14];
   const ends: { hose: string; point: THREE.Vector3; axis: THREE.Vector3; fitting: string; radii?: number[] }[] = [
-    // TEE_AIR_INJ moved onto the manifold tee. air-hose-vacuum still ends on the old
-    // hardcoded run in bottomAnc.ts, so this seat is a pending handoff, not a failure here.
+    // TEE_AIR_INJ is the cast nipple on the throttle housing. air-hose-vacuum still
+    // ends on the hardcoded run in bottomAnc.ts, so this seat is a pending handoff.
     { hose: 'air-hose-vacuum', point: new THREE.Vector3(...DIVERTER_VAC), axis: new THREE.Vector3(1, 0, 0), fitting: 'air-diverter' },
     { hose: 'egr-hose-long', point: new THREE.Vector3(...THROTTLE_PORTED_VAC.point), axis: new THREE.Vector3(...THROTTLE_PORTED_VAC.axis), fitting: 'throttle-housing' },
     { hose: 'air-hose-valve', point: new THREE.Vector3(...checkValveInlet()), axis: new THREE.Vector3(0, 1, 0), fitting: 'air-check-valve' },

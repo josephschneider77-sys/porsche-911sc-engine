@@ -334,11 +334,37 @@ describe('induction and fuel barbs', () => {
   }
 });
 
-describe('diverter barb lead-in', () => {
-  it('a ray of at least 30 mm from TEE_AIR_INJ along its axis misses every part that is present with emissions on', () => {
+describe('paired throttle nipples', () => {
+  const seats = [
+    { name: 'TEE_AIR_INJ', seat: TEE_AIR_INJ },
+    { name: 'THROTTLE_PORTED_VAC', seat: THROTTLE_PORTED_VAC },
+  ];
+
+  it('each nipple has at least 5 mm of push-on brass', () => {
+    const root = ASSET_BUILDERS[PART_BY_ID['throttle-housing'].asset]();
+    root.updateMatrixWorld(true);
+    const short: string[] = [];
+    for (const { name, seat } of seats) {
+      const tip = new THREE.Vector3(...seat.point);
+      let length = 0;
+      root.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const height = params(mesh.geometry)?.height as number | undefined;
+        if (height == null) return;
+        const box = new THREE.Box3().setFromObject(mesh);
+        if (box.distanceToPoint(tip) > 0.8) return;
+        if (height > length) length = height;
+      });
+      if (length < 5) short.push(`${name} push-on ${length.toFixed(1)} mm`);
+    }
+    expect(short).toEqual([]);
+  });
+
+  it.each(seats)('a ray of at least 30 mm from $name along its axis misses every part that is present with emissions on', ({ seat }) => {
     const hidden = emissionsHidden(true);
-    const point = new THREE.Vector3(...TEE_AIR_INJ.point);
-    const axis = new THREE.Vector3(...TEE_AIR_INJ.axis).normalize();
+    const point = new THREE.Vector3(...seat.point);
+    const axis = new THREE.Vector3(...seat.axis).normalize();
     const origin = point.clone().addScaledVector(axis, 0.5);
     let best = Infinity;
     let who = '';
