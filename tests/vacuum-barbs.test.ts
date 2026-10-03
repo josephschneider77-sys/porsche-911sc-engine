@@ -4,7 +4,8 @@ import { MeshBVH } from 'three-mesh-bvh';
 import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PARTS, PART_BY_ID } from '../src/data/parts';
 import { SMALL_SPECS } from '../src/data/smallSpec';
-import { TEE_AIR_INJ } from '../src/geo/induction';
+import { TEE_AIR_INJ, serviceHoses } from '../src/geo/induction';
+import { cylBetween } from '../src/geo/util';
 import { emissionsHidden } from '../src/data/teardown';
 
 const BRASS = 0xc9a54a;
@@ -503,51 +504,184 @@ describe('vacuum clamp rings', () => {
   });
 });
 
-describe('tee clearance to vacuum hoses', () => {
-  it('the tee and its barbs stay at least 2 mm off every vacuum hose except the seated lead', () => {
-    const root = ASSET_BUILDERS[PART_BY_ID['vacuum-fittings'].asset]();
-    root.updateMatrixWorld(true);
-    const teePts: number[] = [];
-    const hoses = new Map<string, THREE.Vector3[]>();
-    const v = new THREE.Vector3();
-    root.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
-      const P = g.attributes.position;
-      if (mesh.parent?.name === 'fitting:vac-t') {
+/** Surface gap between two triangle soups. Faceted cylinders read a few tenths under the true radii. */
+function surfaceGap(a: THREE.BufferGeometry, b: THREE.BufferGeometry): number {
+  const ga = a.index ? a.toNonIndexed() : a;
+  const gb = b.index ? b.toNonIndexed() : b;
+  const bvh = new MeshBVH(gb);
+  const hit: { distance?: number } = {};
+  bvh.closestPointToGeometry(ga, new THREE.Matrix4(), hit, {});
+  return hit.distance ?? Infinity;
+}
+
+type Lead = { point: THREE.Vector3; axis: THREE.Vector3; reach: number; radial: number };
+
+/**
+ * Drop triangles that touch this hose's own straight lead.
+ * The lead is the capsule along the outward axis from the fitting tip.
+ * A mid-run contact is not a lead, even when the surfaces touch.
+ */
+function withoutLeads(geom: THREE.BufferGeometry, leads: Lead[]): THREE.BufferGeometry {
+  const g = geom.index ? geom.toNonIndexed() : geom;
+  const P = g.attributes.position;
+  const keep: number[] = [];
+  const rel = new THREE.Vector3();
+  for (let i = 0; i < P.count; i += 3) {
+    let seated = false;
+    for (let k = 0; k < 3 && !seated; k++) {
+      const vert = new THREE.Vector3().fromBufferAttribute(P, i + k);
+      seated = leads.some((lead) => {
+        rel.copy(vert).sub(lead.point);
+        const along = rel.dot(lead.axis);
+        if (along < -1.5 || along > lead.reach) return false;
+        return rel.addScaledVector(lead.axis, -along).length() < lead.radial;
+      });
+    }
+    if (seated) continue;
+    for (let k = 0; k < 3; k++) {
+      const v = new THREE.Vector3().fromBufferAttribute(P, i + k);
+      keep.push(v.x, v.y, v.z);
+    }
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
+  return out;
+}
+
+describe('hose to fitting clearance', () => {
+  it('a 6 mm centreline offset between an r 1.5 rod and an r 4.5 hose fails the 2 mm rule', () => {
+    // 6.0 = 1.5 + 4.5, so the surfaces touch. Centreline distance would report 6 mm and pass.
+    const rod = cylBetween([0, 0, 0], [0, 40, 0], 1.5, 24);
+    const hose = cylBetween([6, 0, 0], [6, 40, 0], 4.5, 24);
+    const gap = surfaceGap(rod, hose);
+    expect(gap, `surface gap ${gap.toFixed(2)} mm`).toBeLessThan(2);
+    expect(gap).toBeLessThan(0.5);
+  });
+
+  it('every barb and fitting body stays at least 2 mm off every hose except that hose\'s own lead', () => {
+    // The old check called any vertex within 1.2 mm a seated contact, then ignored
+    // every sample within 16 mm of those vertices. The wire arm kissed vac-thermo
+    // mid-run (6.0 mm between centrelines, r 1.5 + r 4.5) and those samples were
+    // dropped, so the table reported about 15.9 mm. A tangent also is not a triangle
+    // clash: trianglesClash wants a segment that crosses a face. This is the
+    // surface distance, and the only samples removed are each hose's own lead.
+    const leadsOf = new Map<string, Lead[]>();
+    for (const h of serviceHoses()) {
+      const list = leadsOf.get(`${h.part}:${h.id}`) ?? [];
+      for (const end of [h.a, h.b]) {
+        list.push({
+          point: new THREE.Vector3(...end.point),
+          axis: new THREE.Vector3(...end.axis).normalize(),
+          reach: 4,
+          radial: 4,
+        });
+      }
+      leadsOf.set(`${h.part}:${h.id}`, list);
+    }
+    type Soup = { id: string; geom: THREE.BufferGeometry; box: THREE.Box3; radial: number };
+    const fittings: Soup[] = [];
+    const hoses: Soup[] = [];
+    const bake = (mesh: THREE.Mesh, world: THREE.Matrix4) => {
+      const src = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
+      const baked = src.clone();
+      baked.applyMatrix4(world);
+      baked.computeBoundingBox();
+      const p = params(mesh.geometry);
+      const radial = Math.max(p?.radius ?? 0, p?.radiusTop ?? 0, p?.radiusBottom ?? 0);
+      return { geom: baked, box: baked.boundingBox!, radial };
+    };
+    // Emissions on is the larger set: the cap is not a hose, and every vacuum hose is present.
+    const hidden = emissionsHidden(true);
+    const wanted = new Set([
+      'vacuum-fittings', 'aux-air-plumbing',
+      'air-hose-vacuum', 'air-hose-pump', 'air-hose-valve', 'air-hose-dump',
+      'egr-hose-long', 'egr-hose-short', 'egr-hose-return', 'egr-hose-diverter',
+    ]);
+    for (const part of PARTS) {
+      if (hidden.has(part.id) || !wanted.has(part.id)) continue;
+      const root = ASSET_BUILDERS[part.asset]();
+      root.updateMatrixWorld(true);
+      const pose = poseOf(part.id);
+      root.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const hex = (mesh.material as THREE.MeshStandardMaterial)?.color?.getHex?.();
+        const named = typeof mesh.name === 'string' ? mesh.name : '';
+        const tubular = params(mesh.geometry)?.tubularSegments != null;
+        const hose = named.startsWith('line:') || (tubular && hex === RUBBER);
+        let fitting: string | null = null;
+        let p: THREE.Object3D | null = mesh.parent;
+        while (p) {
+          if (typeof p.name === 'string' && p.name.startsWith('fitting:')) { fitting = p.name; break; }
+          p = p.parent;
+        }
+        for (const inst of instancesOf(mesh)) {
+          const world = worldOf(pose, mesh, inst);
+          const baked = bake(mesh, world);
+          if (hose) {
+            const id = named.startsWith('line:') ? `${part.id}:${named.slice(5)}` : part.id;
+            hoses.push({ id, ...baked });
+          } else if (fitting && part.id === 'vacuum-fittings') {
+            fittings.push({ id: fitting, ...baked });
+          }
+        }
+      });
+    }
+    const fitById = new Map<string, Soup[]>();
+    for (const f of fittings) {
+      const list = fitById.get(f.id) ?? [];
+      list.push(f);
+      fitById.set(f.id, list);
+    }
+    const fitPacked = [...fitById.entries()].map(([id, parts]) => {
+      const pts: number[] = [];
+      const box = new THREE.Box3();
+      for (const part of parts) {
+        box.union(part.box);
+        const P = part.geom.attributes.position;
         for (let i = 0; i < P.count; i++) {
-          v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
-          teePts.push(v.x, v.y, v.z);
+          pts.push(P.getX(i), P.getY(i), P.getZ(i));
         }
       }
-      if (typeof mesh.name === 'string' && mesh.name.startsWith('line:vac-')) {
-        const id = mesh.name.slice(5);
-        const list = hoses.get(id) ?? [];
-        for (let i = 0; i < P.count; i++) list.push(new THREE.Vector3().fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld));
-        hoses.set(id, list);
-      }
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      return { id, geom, box };
     });
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.Float32BufferAttribute(teePts, 3));
-    const bvh = new MeshBVH(geom);
-    const hitInfo = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
+    const byHose = new Map<string, Soup[]>();
+    for (const h of hoses) {
+      const list = byHose.get(h.id) ?? [];
+      list.push(h);
+      byHose.set(h.id, list);
+    }
     const report: string[] = [];
     const bad: string[] = [];
-    for (const [id, pts] of hoses) {
-      const gaps: { d: number; p: THREE.Vector3 }[] = [];
-      for (let i = 0; i < pts.length; i += 2) {
-        const hit = bvh.closestPointToPoint(pts[i], hitInfo);
-        if (hit) gaps.push({ d: hit.distance, p: pts[i] });
-      }
-      const contact = gaps.filter((g) => g.d < 1.2).map((g) => g.p);
-      const passing = gaps.filter((g) => contact.every((c) => g.p.distanceTo(c) > 16));
-      const pool = passing.length ? passing : gaps;
+    for (const [id, geoms] of byHose) {
+      const leads = (leadsOf.get(id) ?? []).map((lead) => ({ ...lead, radial: Math.max(lead.radial, ...geoms.map((g) => g.radial + 1.5)) }));
       let min = Infinity;
-      for (const g of pool) if (g.d < min) min = g.d;
+      for (const geom of geoms) {
+        const stripped = withoutLeads(geom.geom, leads);
+        const count = stripped.attributes.position?.count ?? 0;
+        if (count < 3) continue;
+        stripped.computeBoundingBox();
+        const hoseBox = stripped.boundingBox!;
+        for (const fit of fitPacked) {
+          const dx = Math.max(0, hoseBox.min.x - fit.box.max.x, fit.box.min.x - hoseBox.max.x);
+          const dy = Math.max(0, hoseBox.min.y - fit.box.max.y, fit.box.min.y - hoseBox.max.y);
+          const dz = Math.max(0, hoseBox.min.z - fit.box.max.z, fit.box.min.z - hoseBox.max.z);
+          const boxGap = Math.hypot(dx, dy, dz);
+          if (boxGap >= 2 && !id.startsWith('vacuum-fittings:')) {
+            if (boxGap < min) min = boxGap;
+            continue;
+          }
+          const d = surfaceGap(stripped, fit.geom);
+          if (d < min) min = d;
+        }
+      }
+      if (!Number.isFinite(min)) continue;
       report.push(`${id} ${min.toFixed(2)}`);
       if (min < 2) bad.push(`${id} ${min.toFixed(2)} mm`);
     }
+    report.sort();
     expect(bad, report.join('; ')).toEqual([]);
   });
 });

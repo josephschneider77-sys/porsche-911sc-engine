@@ -14,7 +14,7 @@ import { LIP_Z } from './stations';
 import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
 import { VARIANT } from '../data/variant';
 import { catalyticConverterPart, registerAncillarySmall } from './bottomAnc';
-import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, TEE_AIR_INJ, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
+import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, AIR_TEE, mouldedTee, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const X = V(1, 0, 0), Y = V(0, 1, 0), Z = V(0, 0, 1);
@@ -458,39 +458,15 @@ def('vacuum-limiter', () => { const p = new Part(); p.add(lathe([[0.1, 0], [16, 
 def('vacuum-fittings', () => {
   const p = new Part();
   // Identity pose so the named vacuum hoses survive export (instancing drops mesh names).
-  const [ox, oy, oz] = VAC_T.origin;
-  // The T body is one fitting. Its primitives cross on purpose; they are not separate parts.
-  const t = new THREE.Group();
+  // 107-10 #14. Plain moulded T: manifold, limiter, and the leg up to thermo valve 17A.
+  const t = mouldedTee(VAC_T.origin, [0, 1, 0]);
   t.name = 'fitting:vac-t';
-  t.add(mesh(cylBetween([ox - 14, oy, oz], [ox + 14, oy, oz], 3.6, 10), 'blackPlastic'));
-  t.add(mesh(cylBetween([ox, oy, oz], [ox, oy, oz + 16], 3.6, 10), 'blackPlastic'));
-  // Elbow up. The hose seat is vacTPorts().plusZ; a straight leg would meet the throttle flange.
-  t.add(mesh(cylBetween([ox, oy, oz + 16], [ox, oy, oz + 22], 2.8, 10), 'brass'));
-  t.add(mesh(cylBetween([ox, oy, oz + 20], [10, 274, 76], 2.8, 8), 'brass'));
-  // Last 8 mm is along +Y so the hose seat is a flat face on vacTPorts().plusZ.
-  t.add(mesh(cylBetween([10, 274, 76], [10, 282, 76], 2.8, 8), 'brass'));
-  // Rings on the manifold and limiter barbs, inboard of each tip.
-  // Fig 107-10 #14 is a three-port T. There is no flywheel (−Z) leg, and no
-  // clamp ring standing beside the elbow with an empty hole.
-  const xRing = torus(4.2, 0.7, 6, 14).rotateY(Math.PI / 2);
-  t.add(mesh(xRing, 'zincPlate', [ox - 4, oy, oz]));
-  t.add(mesh(xRing.clone(), 'zincPlate', [ox + 10, oy, oz]));
-  // 108-00 #31 is a short barb on this body. The plastic cross sits on the plenum
-  // lid, so a nipple on the cross points into the lid, and one directly above
-  // the cross meets the cross on the way down. The branch rises just far enough
-  // for 30 mm of air below the tip and stands off the cross so that ray misses
-  // it. Last 8 mm is cylBetween(root, tip, 2.8, 10) on −Y, which is the barb the
-  // emissions-off cap is built against. Ring centre is 6 mm above the tip
-  // (tube r 0.7), so 5.3 mm of free barb sits below the ring.
-  const [ix, iy, iz] = TEE_AIR_INJ.point;
-  const root: [number, number, number] = [ix, iy + 8, iz];
-  const stemX = ox - 2;
-  const joinY = iy + 9.2;
-  t.add(mesh(cylBetween([stemX, oy, iz], [stemX, joinY, iz], 2, 8), 'brass'));
-  t.add(mesh(cylBetween([stemX, joinY, iz], [ix, joinY, iz], 1.5, 8), 'brass'));
-  t.add(mesh(cylBetween(root, [ix, iy, iz], 2.8, 10), 'brass'));
-  t.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ix, iy + 6, iz]));
   p.g.add(t);
+  // Second 999 137 004 40 spliced into the manifold hose. Stays in this part so the
+  // emissions-off cap still has a barb when the air-injection group is hidden.
+  const air = mouldedTee(AIR_TEE.origin, [0, -1, 0]);
+  air.name = 'fitting:vac-air-t';
+  p.g.add(air);
   p.g.add(vacuumCluster().g);
   p.g.add(vacuumHosesPart().g);
   return p;
