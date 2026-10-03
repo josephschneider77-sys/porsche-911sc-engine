@@ -1084,7 +1084,106 @@ function axisZ(r: number, z0: number, z1: number, segs = 16): THREE.BufferGeomet
   g.computeVertexNormals();
   return g;
 }
+/**
+ * Cover lip on the left flywheel end. The right housing, turned 180° about Y,
+ * parks its chain nose past this plane. The cut keeps that nose inside the lid.
+ */
+const LEFT_COVER_END_Z = -207.5;
+
+function bakeSpinY(root: THREE.Object3D) {
+  const R = new THREE.Matrix4().makeRotationY(Math.PI);
+  root.updateMatrixWorld(true);
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld).applyMatrix4(R);
+    mesh.position.set(0, 0, 0);
+    mesh.rotation.set(0, 0, 0);
+    mesh.scale.set(1, 1, 1);
+    mesh.updateMatrix();
+  });
+  root.traverse((o) => {
+    o.position.set(0, 0, 0);
+    o.rotation.set(0, 0, 0);
+    o.scale.set(1, 1, 1);
+    o.updateMatrix();
+  });
+  root.updateMatrixWorld(true);
+}
+
+function dropEmptyMeshes(root: THREE.Object3D) {
+  const dead: THREE.Object3D[] = [];
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const n = m.geometry.index ? m.geometry.index.count : (m.geometry.attributes.position?.count ?? 0);
+    if (n < 3) dead.push(m);
+  });
+  for (const m of dead) m.parent?.remove(m);
+}
+
+/**
+ * Left cam housing: the right-hand casting turned 180° about Y, so the plug
+ * bores, studs and cover lands land on cylinders 4–6. The chain tower that
+ * rotation parks on the flywheel is cut off inside the cover lip. The cap
+ * that lands on the pulley is bored through, and the chain seat is grafted
+ * back on at the left gasket plane (z 212). Cylinder 4 is on overlap, so the
+ * pockets cut for seated cylinder 3 are opened out to the left rockers.
+ */
+function leftCamHousing() {
+  const g = camHousing(1);
+  bakeSpinY(g);
+  const skip = cutClosed as { skipBroken?: boolean };
+  skip.skipBroken = true;
+  try {
+    cutClosed(g, boxMM([-500, -300, -500], [500, 300, LEFT_COVER_END_Z]));
+  } finally {
+    skip.skipBroken = false;
+  }
+  dropEmptyMeshes(g);
+  skip.skipBroken = true;
+  try {
+    cutClosed(g, ...exhaustStemCuts(-1), ...rockerPocketCutters(-1), ...armClearance(-1));
+  } finally {
+    skip.skipBroken = false;
+  }
+  dropEmptyMeshes(g);
+
+  const cx = -CAM_X;
+  // The flywheel cap of the right housing now blocks the pulley. Open the line
+  // bore through it and out past the left gasket face.
+  const bore = yToZ(cyl(CAM.boreR, 70, 32));
+  bore.translate(cx, 0, 200);
+  skip.skipBroken = true;
+  try { cutClosed(g, bore); }
+  finally { skip.skipBroken = false; }
+
+  const host = new Part();
+  // Close the cylinder-6 bore. The outer face sits inside the cover lip; the
+  // inboard face stops short of the journal at z −196 (that journal spans −204..−188).
+  host.add(boxMM([-CAM_HOUSING_OUT_X + 2, -72, -204.5], [-HEAD_OUT_X, 74, LEFT_COVER_END_Z]), 'castAlu');
+  host.add(yToZ(lathe([
+    [CAM.boreR, -1.2], [30, -1.2], [30, 1.2], [CAM.boreR, 1.2], [CAM.boreR, -1.2],
+  ], 28)).translate(cx, 0, (LEFT_COVER_END_Z - 204.5) / 2), 'machinedAlu');
+  // Chain pad from the mirrored body (~186) to the housing end, plus a web
+  // for the chain journal the cam still carries at z 196.
+  let pad: THREE.BufferGeometry = boxMM([-(CAM_HOUSING_OUT_X + 10), 40, 184], [-(HEAD_OUT_X + 0.8), 78, CH_Z1]);
+  pad = manifoldSub(pad, yToZ(cyl(CAM_COVER.rimR + 8, 36, 48)).translate(cx, 0, CH_Z1 - 10));
+  host.add(pad, 'castAlu');
+  host.add(extrude(tunnelBand(-1, 11), 24, 0.9, 8).translate(0, 0, CH_Z1 - 16 - 12), 'castAlu');
+  host.add(yToZ(lathe([
+    [CAM.boreR, -7.6], [CAM.boreR + 1.2, -7.6], [CAM.boreR + 1.2, 7.6], [CAM.boreR, 7.6], [CAM.boreR, -7.6],
+  ], 28)).translate(cx, 0, CH_Z1 - 16), 'machinedAlu');
+  g.add(host.g);
+  clipHousingUnderCovers(g, -1);
+  const seat = new Part();
+  camChainSeat(seat, -1);
+  g.add(seat.g);
+  return g;
+}
+
 export function camHousing(s: 1 | -1) {
+  if (s < 0) return leftCamHousing();
   const p = new Part();
   const X = (x: number) => x * s;
   const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];

@@ -77,7 +77,8 @@ export function pinX(cyl: number, crankDeg = 0): { pinX: number; throwXY: [numbe
  * Path length from the datum to the cover face (local z 24) is 144 mm. Cylinders
  * 1–3 lean rearward and 4–6 forward. The left covers are the right-bank parts
  * turned 180° about Y, so cylinder 6 seals in the hole that cylinder 1 uses
- * on the right-hand lid. The left cam housing is built on those stations.
+ * on the right-hand lid. The left cam housing is that casting turned 180° about Y,
+ * with the chain nose cut inside the cover lip and the chain seat grafted at the pulley.
  *
  * partPose: position is this datum, 0.75 mm piston-side of the centre electrode.
  * The quaternion maps plug-local (0, −1, 0) onto the engine axis (s·dx, dy, s·dz).
