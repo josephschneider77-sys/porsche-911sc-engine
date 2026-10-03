@@ -856,4 +856,128 @@ describe('valve-cover gasket windows', () => {
     }
     console.log(percents.join('  '));
   }, 300000);
+
+  it('is one closed ring at least 4 mm wide all the way round', () => {
+    const ids = [
+      'valve-cover-gasket-upper-right',
+      'valve-cover-gasket-upper-left',
+      'valve-cover-gasket-lower-right',
+      'valve-cover-gasket-lower-left',
+    ];
+    const step = 0.5;
+    const x0 = -70, y0 = -210, x1 = 70, y1 = 210;
+    const nx = Math.round((x1 - x0) / step) + 1;
+    const ny = Math.round((y1 - y0) / step) + 1;
+    const widths: string[] = [];
+    for (const id of ids) {
+      const gasket = bakeGasket(id);
+      const metal = new Uint8Array(nx * ny);
+      const origin = new THREE.Vector3();
+      const dir = new THREE.Vector3(0, 0, 1);
+      for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+        origin.set(x0 + ix * step, y0 + iy * step, -3);
+        if (gasket.raycastFirst(new THREE.Ray(origin, dir), THREE.DoubleSide)) metal[iy * nx + ix] = 1;
+      }
+      const seen = new Uint8Array(metal.length);
+      let comps = 0;
+      const stack: number[] = [];
+      for (let i = 0; i < metal.length; i++) {
+        if (!metal[i] || seen[i]) continue;
+        comps++;
+        seen[i] = 1;
+        stack.push(i);
+        while (stack.length) {
+          const k = stack.pop()!;
+          const ix = k % nx, iy = (k - ix) / nx;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            const jx = ix + dx, jy = iy + dy;
+            if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+            const j = jy * nx + jx;
+            if (!metal[j] || seen[j]) continue;
+            seen[j] = 1;
+            stack.push(j);
+          }
+        }
+      }
+      const dist = new Float32Array(metal.length).fill(99);
+      for (let i = 0; i < metal.length; i++) if (!metal[i]) dist[i] = 0;
+      for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+        const i = iy * nx + ix;
+        if (!metal[i]) continue;
+        let d = dist[i];
+        if (ix > 0) d = Math.min(d, dist[i - 1] + step);
+        if (iy > 0) d = Math.min(d, dist[i - nx] + step);
+        if (ix > 0 && iy > 0) d = Math.min(d, dist[i - nx - 1] + step * Math.SQRT2);
+        if (ix + 1 < nx && iy > 0) d = Math.min(d, dist[i - nx + 1] + step * Math.SQRT2);
+        dist[i] = d;
+      }
+      for (let iy = ny - 1; iy >= 0; iy--) for (let ix = nx - 1; ix >= 0; ix--) {
+        const i = iy * nx + ix;
+        if (!metal[i]) continue;
+        let d = dist[i];
+        if (ix + 1 < nx) d = Math.min(d, dist[i + 1] + step);
+        if (iy + 1 < ny) d = Math.min(d, dist[i + nx] + step);
+        if (ix + 1 < nx && iy + 1 < ny) d = Math.min(d, dist[i + nx + 1] + step * Math.SQRT2);
+        if (ix > 0 && iy + 1 < ny) d = Math.min(d, dist[i + nx - 1] + step * Math.SQRT2);
+        dist[i] = d;
+      }
+      const cix = Math.round((0 - x0) / step);
+      const ciy = Math.round((0 - y0) / step);
+      const holds = (half: number) => {
+        const wall = new Uint8Array(metal.length);
+        for (let i = 0; i < metal.length; i++) if (metal[i] && dist[i] >= half) wall[i] = 1;
+        const out = new Uint8Array(metal.length);
+        const q: number[] = [];
+        for (let ix = 0; ix < nx; ix++) { q.push(ix, (ny - 1) * nx + ix); }
+        for (let iy = 0; iy < ny; iy++) { q.push(iy * nx, iy * nx + nx - 1); }
+        for (const k of q) if (!wall[k]) out[k] = 1;
+        let n = 0;
+        while (n < q.length) {
+          const k = q[n++];
+          if (wall[k]) continue;
+          const ix = k % nx, iy = (k - ix) / nx;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            const jx = ix + dx, jy = iy + dy;
+            if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+            const j = jy * nx + jx;
+            if (wall[j] || out[j]) continue;
+            out[j] = 1;
+            q.push(j);
+          }
+        }
+        return out[ciy * nx + cix] === 0;
+      };
+      let width = 0;
+      for (let w = 4; w <= 12; w += 0.5) {
+        if (!holds(w / 2)) break;
+        width = w;
+      }
+      console.log(`${id} components ${comps}  minimum ring width ${width.toFixed(1)} mm`);
+      widths.push(`${id} ${width.toFixed(1)} mm`);
+      expect(comps, id).toBe(1);
+      expect(holds(2), `${id} closed 4 mm ring`).toBe(true);
+      expect(width, id).toBeGreaterThanOrEqual(4);
+    }
+    console.log(widths.join('  '));
+  }, 300000);
 });
+
+function bakeGasket(id: string) {
+  const root = SMALL_GEOM[id].proto().g;
+  root.updateMatrixWorld(true);
+  const pos: number[] = [];
+  const v = new THREE.Vector3();
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+    const P = g.attributes.position;
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+      pos.push(v.x, v.y, v.z);
+    }
+  });
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return new MeshBVH(geom);
+}

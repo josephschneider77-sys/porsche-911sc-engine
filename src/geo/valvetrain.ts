@@ -9,10 +9,11 @@
  */
 import * as THREE from 'three';
 import {
-  Part, V3, DEG, lathe, closedLathe, boxMM, cyl, cylBetween, yToZ, yToX, circlePath, polyShape,
+  Part, V3, DEG, lathe, closedLathe, boxMM, cyl, cylBetween, yToZ, yToX, circlePath, polyShape, mesh,
   extrude, extrudeC, hexNut, tube, csgSub, csgUnion, woodruffGeom, roundRect,
 } from './util';
 import { cutClosed, manifoldAdd, manifoldSub } from './manifoldCut';
+import { sealPatchGeometry, sealHousingPatch } from './sealRing';
 import { CAM_X, CAM_HOUSING_OUT_X, CYL_Z, CYL_TOP_X, HEAD_OUT_X, SPARK_HOLE_R, SPARK_BEND_R, SPARK_FLANGE_T, SPARK_MOUTH, SPARK_TUBE_R, plugTipEngine, plugAxisEngine, sparkRoll } from '../data/layout';
 import { HEAD_HW } from './hwLayout';
 import { CH_Z0, CH_Z1, vcStuds, CAM_NOSE, CHAIN_Z, bankZ, coverMatrix, CAM_COVER, camCoverAngles, camCoverBolt, camNoseStack } from './core';
@@ -1441,6 +1442,14 @@ export function camHousing(s: 1 | -1) {
     }
   }
   cutClosed(p.g, ...plugAir, ...exhaustStemCuts(s));
+  addWindowFrameLands(p, s);
+  // Seal land under the cover lip, including the jog around a rail the stem crosses.
+  // Top face at local z −0.55, the same gap the straight land keeps.
+  for (const upper of [true, false]) {
+    const frame = coverMatrix(s, upper);
+    const patch = sealHousingPatch(p.g, frame, s, upper);
+    if (patch) p.add(patch.applyMatrix4(frame), 'machinedAlu');
+  }
   return p.g;
 }
 /**
@@ -1563,6 +1572,51 @@ function orientLandOutward(g: THREE.BufferGeometry, frame: THREE.Matrix4) {
   }
   g.computeVertexNormals();
   pointLandUp(g, frame);
+}
+/**
+ * The lower gasket frames sit over open bays. A land just under each frame
+ * clamps that metal. The opening itself stays clear, and the strip stops
+ * short of the annular cover land so the two housings do not occupy one face.
+ */
+function addWindowFrameLands(p: Part, s: 1 | -1) {
+  const wins = s > 0
+    ? [[-8, -154], [-8, -76], [-8, 42]]
+    : [[-6, -148], [-8, -30], [-2, 88]];
+  const frame = coverMatrix(s, false);
+  const holeW = 54, holeH = 22, margin = 3;
+  const boxes: THREE.BufferGeometry[] = [];
+  const push = (xa: number, ya: number, xb: number, yb: number) => {
+    // Existing annular land occupies |x| 21..25. Stay 2.5 mm clear of it.
+    const spans: [number, number][] = [];
+    const lo = Math.min(xa, xb), hi = Math.max(xa, xb);
+    const cuts = [-27.5, -18.5, 18.5, 27.5].filter((c) => c > lo && c < hi);
+    const pts = [lo, ...cuts, hi];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const mid = (a + b) / 2;
+      if (Math.abs(mid) >= 18.5 && Math.abs(mid) <= 27.5) continue;
+      if (b - a >= 0.4) spans.push([a, b]);
+    }
+    for (const [a, b] of spans) {
+      const box = boxMM([a, Math.min(ya, yb), -1.85], [b, Math.max(ya, yb), -0.55]);
+      box.applyMatrix4(frame);
+      boxes.push(box);
+    }
+  };
+  for (const [cx, cy] of wins) {
+    const x0 = cx - holeW / 2 - margin, x1 = cx + holeW / 2 + margin;
+    const y0 = cy - holeH / 2 - margin, y1 = cy + holeH / 2 + margin;
+    const ix0 = cx - holeW / 2, ix1 = cx + holeW / 2;
+    const iy0 = cy - holeH / 2, iy1 = cy + holeH / 2;
+    push(x0, y0, x1, iy0);
+    push(x0, iy1, x1, y1);
+    push(x0, iy0, ix0, iy1);
+    push(ix1, iy0, x1, iy1);
+  }
+  if (!boxes.length) return;
+  let g = boxes[0];
+  if (boxes.length > 1) g = manifoldAdd(g, ...boxes.slice(1));
+  p.add(g, 'machinedAlu');
 }
 function addCoverLands(p: Part, s: 1 | -1) {
   const L = CH_Z1 - CH_Z0 - 8;
@@ -1886,6 +1940,10 @@ export function pocketValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean
   } else if (!upper) cuts.push(...exhaustStemCuts(s));
   if (cuts.length) cutClosed(root, ...cuts);
   if (upper) addPlugOpenings(root, s);
+  // Close the lip where a rail jog or the flywheel-end pocket broke it. The patch
+  // sits on the seal band, outboard of the stem, so the gasket ring stays clamped.
+  const lip = sealPatchGeometry(root, frame, s, upper, true);
+  if (lip) root.add(mesh(lip.applyMatrix4(frame), 'castAlu'));
   // The underside cap from the seat trim sometimes points up. Erosion then
   // walks that face down into the gasket. Point it out of the metal.
   fixUndersideNormals(root, s, upper);

@@ -14,6 +14,7 @@ import { vcStuds, valveCover, chainCoverBolts, CAM_NOSE, CAM_WEB, CAM_COVER, CAM
 import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf, SPARK_HOLE_R, SPARK_TUBE_R } from '../data/layout';
 import { LIP_Z } from './stations';
 import { plugCoverLocal, railJogs, camHousing, pocketValveCover, valveSet, rockers } from './valvetrain';
+import { paintSealRing } from './sealRing';
 import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R, sparkPlug, sparkPlugConnector } from './aux';
 import { VARIANT } from '../data/variant';
 import { PARTS } from '../data/parts';
@@ -682,6 +683,124 @@ function frameBlocked(blocked: Uint8Array, nx: number, ny: number, x0: number, y
   }
   return false;
 }
+/**
+ * A bay with no housing face is an extra enclosed hole once the seal ring
+ * closes. Open a short channel from that hole into the nearest punched
+ * window so the sheet still has three openings, and leave the seal band
+ * itself in place.
+ */
+function joinSpareHoles(
+  mask: Uint8Array, nx: number, ny: number,
+  windows: { cx: number; cy: number }[],
+  band: Uint8Array,
+) {
+  const idOf = new Int32Array(mask.length).fill(-1);
+  const comps: number[][] = [];
+  const stack: number[] = [];
+  for (let i = 0; i < mask.length; i++) {
+    if (mask[i] || idOf[i] >= 0) continue;
+    const id = comps.length;
+    const cells: number[] = [];
+    idOf[i] = id;
+    stack.push(i);
+    let edge = false;
+    let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+    while (stack.length) {
+      const k = stack.pop()!;
+      cells.push(k);
+      const ix = k % nx, iy = (k - ix) / nx;
+      minx = Math.min(minx, ix); maxx = Math.max(maxx, ix);
+      miny = Math.min(miny, iy); maxy = Math.max(maxy, iy);
+      if (ix === 0 || iy === 0 || ix === nx - 1 || iy === ny - 1) edge = true;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const jx = ix + dx, jy = iy + dy;
+        if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+        const j = jy * nx + jx;
+        if (mask[j] || idOf[j] >= 0) continue;
+        idOf[j] = id;
+        stack.push(j);
+      }
+    }
+    const w = (maxx - minx + 1) * FLANGE_STEP, h = (maxy - miny + 1) * FLANGE_STEP;
+    comps.push(edge || w < 45 || h < 40 ? [] : cells);
+  }
+  const windowIds = new Set<number>();
+  for (const win of windows) {
+    const ix = Math.round((win.cx - FLANGE_X0) / FLANGE_STEP - 0.5);
+    const iy = Math.round((win.cy - FLANGE_Y0) / FLANGE_STEP - 0.5);
+    const id = idOf[iy * nx + ix];
+    if (id >= 0) windowIds.add(id);
+  }
+  const targets: number[] = [];
+  for (const id of windowIds) for (let i = 0; i < idOf.length; i++) if (idOf[i] === id) targets.push(i);
+  if (!targets.length) return;
+  const isTarget = new Uint8Array(mask.length);
+  for (const t of targets) isTarget[t] = 1;
+  for (let id = 0; id < comps.length; id++) {
+    if (windowIds.has(id) || !comps[id].length) continue;
+    const seen = new Uint8Array(mask.length);
+    const prev = new Int32Array(mask.length).fill(-1);
+    const q: number[] = [];
+    for (const c of comps[id]) { seen[c] = 1; q.push(c); }
+    let found = -1;
+    let qi = 0;
+    while (qi < q.length && found < 0) {
+      const k = q[qi++];
+      const ix = k % nx, iy = (k - ix) / nx;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const jx = ix + dx, jy = iy + dy;
+        if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+        const j = jy * nx + jx;
+        if (seen[j]) continue;
+        if (isTarget[j]) { prev[j] = k; found = j; break; }
+        if (band[j]) continue;
+        if (!mask[j] && idOf[j] !== id) continue;
+        seen[j] = 1;
+        prev[j] = k;
+        q.push(j);
+      }
+    }
+    if (found < 0) continue;
+    const clear = new Set<number>();
+    let c = prev[found];
+    while (c >= 0 && idOf[c] !== id) {
+      clear.add(c);
+      c = prev[c];
+    }
+    for (const k of clear) {
+      const ix = k % nx, iy = (k - ix) / nx;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        if (dx * dx + dy * dy > 10) continue;
+        const jx = ix + dx, jy = iy + dy;
+        if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+        const j = jy * nx + jx;
+        if (!band[j]) mask[j] = 0;
+      }
+    }
+  }
+}
+/** Cells the cover and the housing do not both meet, apart from the seal band. */
+function dropUnclamped(
+  mask: Uint8Array, nx: number, ny: number, s: 1 | -1, up: boolean, band: Uint8Array,
+) {
+  const frame = coverMatrix(s, up);
+  const normal = new THREE.Vector3().setFromMatrixColumn(frame, 2).normalize();
+  const neg = normal.clone().negate();
+  const cover = bvhCache.get(`cover:${s}:${up ? 1 : 0}`);
+  const house = bvhCache.get(`house:${s}`);
+  if (!cover || !house) return;
+  const world = new THREE.Vector3();
+  const sees = (bvh: MeshBVH, dir: THREE.Vector3) => {
+    const h = bvh.raycastFirst(new THREE.Ray(world.clone(), dir.clone()), THREE.DoubleSide) as { distance: number } | null;
+    return !!(h && h.distance > 0.05 && h.distance <= 40);
+  };
+  for (let i = 0; i < mask.length; i++) {
+    if (!mask[i] || band[i]) continue;
+    const ix = i % nx, iy = (i - ix) / nx;
+    world.set(FLANGE_X0 + (ix + 0.5) * FLANGE_STEP, FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP, -0.25).applyMatrix4(frame);
+    if (!((sees(cover, normal) && sees(house, neg)) || (sees(cover, neg) && sees(house, normal)))) mask[i] = 0;
+  }
+}
 function coverGasket(s: 1 | -1, up: boolean) {
   const key = `${s}:${up ? 1 : 0}`;
   let cached = gasketCache.get(key);
@@ -719,31 +838,53 @@ function coverGasket(s: 1 | -1, up: boolean) {
     const blocked = hardwareCells(s, up, mask, nx, ny);
     const holeW = up ? 48 : 54;
     const holeH = up ? 44 : 22;
-    const margin = 0.5;
-    const cands: { cx: number; cy: number; gap: number }[] = [];
-    let globalBest = Infinity;
-    for (let cy = -165 + holeH / 2; cy <= 165 - holeH / 2; cy += 2) {
-      let best = Infinity, bestCx = 0;
-      for (let cx = -20; cx <= 20; cx += 2) {
-        const x0 = cx - holeW / 2, y0 = cy - holeH / 2, x1 = cx + holeW / 2, y1 = cy + holeH / 2;
-        if (frameBlocked(blocked, nx, ny, x0, y0, x1, y1, 6)) continue;
-        const gap = frameGap(mask, nx, ny, x0, y0, x1, y1, margin);
-        if (gap < best) { best = gap; bestCx = cx; }
+    // Lower bays run into the openings. A thicker frame keeps each one a
+    // separate upright hole after the seal ring closes.
+    const margin = up ? 0.5 : 3;
+    // Lower centers sit on the housing frame lands. The upper sheet still
+    // picks the three openings whose frames are already closed.
+    const chosen: { cx: number; cy: number; gap: number }[] = !up
+      ? (s > 0
+        ? [{ cx: -8, cy: -154, gap: 0 }, { cx: -8, cy: -76, gap: 0 }, { cx: -8, cy: 42, gap: 0 }]
+        : [{ cx: -6, cy: -148, gap: 0 }, { cx: -8, cy: -30, gap: 0 }, { cx: -2, cy: 88, gap: 0 }])
+      : [];
+    if (up) {
+      const cands: { cx: number; cy: number; gap: number }[] = [];
+      let globalBest = Infinity;
+      for (let cy = -165 + holeH / 2; cy <= 165 - holeH / 2; cy += 2) {
+        let best = Infinity, bestCx = 0;
+        for (let cx = -10; cx <= 10; cx += 2) {
+          const x0 = cx - holeW / 2, y0 = cy - holeH / 2, x1 = cx + holeW / 2, y1 = cy + holeH / 2;
+          if (frameBlocked(blocked, nx, ny, x0, y0, x1, y1, 6)) continue;
+          const gap = frameGap(mask, nx, ny, x0, y0, x1, y1, margin);
+          if (gap < best) { best = gap; bestCx = cx; }
+        }
+        if (best < globalBest) globalBest = best;
+        if (best <= 22) cands.push({ cx: bestCx, cy, gap: best });
       }
-      if (best < globalBest) globalBest = best;
-      if (best <= 22) cands.push({ cx: bestCx, cy, gap: best });
+      if (cands.length < 3) throw new Error(`valve-cover gasket ${key} candidates ${cands.length} best gap ${globalBest.toFixed(1)}`);
+      cands.sort((a, b) => a.gap - b.gap);
+      for (const c of cands) {
+        if (chosen.some((k) => Math.abs(k.cy - c.cy) < holeH + 8)) continue;
+        chosen.push(c);
+        if (chosen.length === 3) break;
+      }
+      if (chosen.length < 3) throw new Error(`valve-cover gasket ${key} placed ${chosen.length} windows`);
     }
-    if (cands.length < 3) throw new Error(`valve-cover gasket ${key} candidates ${cands.length} best gap ${globalBest.toFixed(1)}`);
-    cands.sort((a, b) => a.gap - b.gap);
-    const chosen: { cx: number; cy: number; gap: number }[] = [];
-    for (const c of cands) {
-      if (chosen.some((k) => Math.abs(k.cy - c.cy) < holeH + 8)) continue;
-      chosen.push(c);
-      if (chosen.length === 3) break;
-    }
-    if (chosen.length < 3) throw new Error(`valve-cover gasket ${key} placed ${chosen.length} windows`);
     for (const c of chosen) punchWindow(mask, nx, ny, c.cx, c.cy, holeW, holeH, margin, blocked);
     for (let i = 0; i < mask.length; i++) if (blocked[i]) mask[i] = 0;
+    // The outer band is one closed loop, jogged past a stem or a stud. Paint it
+    // back over any window edge that crossed the lip.
+    const band = new Uint8Array(mask.length);
+    paintSealRing(s, up, band, nx, ny, FLANGE_X0, FLANGE_Y0, FLANGE_STEP);
+    for (let i = 0; i < mask.length; i++) if (band[i]) mask[i] = 1;
+    // The seal band stays outside the openings. Clear them again so a jog that
+    // clips a corner cannot split one window into two.
+    for (const c of chosen) clearRect(mask, nx, ny, c.cx - holeW / 2, c.cy - holeH / 2, c.cx + holeW / 2, c.cy + holeH / 2);
+    for (const st of vcStuds(up, s)) clearCircle(mask, nx, ny, st.x, st.y, 6.6);
+    for (let i = 0; i < mask.length; i++) if (blocked[i]) mask[i] = 0;
+    if (up) joinSpareHoles(mask, nx, ny, chosen, band);
+    if (!up) dropUnclamped(mask, nx, ny, s, up, band);
     const g = flangeGeometry(mask, nx, ny, blocked);
     g.translate(0, 0, -0.25);
     if (!g.attributes.normal) g.computeVertexNormals();
