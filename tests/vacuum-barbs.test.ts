@@ -11,6 +11,7 @@ const BRASS = 0xc9a54a;
 const PLASTIC = 0x151515;
 const CAST = 0x96989a;
 const RUBBER = 0x0e0e0e;
+const ZINC = 0xb4b6ae;
 
 const INDUCTION_HW = new Set(
   SMALL_SPECS.filter((s) => s.step === 'intake' || s.step === 'cis').map((s) => s.id),
@@ -368,6 +369,186 @@ describe('diverter barb lead-in', () => {
       if (hit && hit.distance < best) { best = hit.distance; who = p.id; }
     }
     expect(best + 0.5, `first hit ${who}`).toBeGreaterThanOrEqual(30);
+  });
+});
+
+type Ring = { part: string; center: THREE.Vector3; axis: THREE.Vector3; tube: number };
+
+/** Hole axis of a torus. Vertices stay in generator order after a baked rotation. */
+function torusFrame(geom: THREE.BufferGeometry, world: THREE.Matrix4): { center: THREE.Vector3; axis: THREE.Vector3 } | null {
+  const radial = params(geom)?.radialSegments;
+  const tubular = params(geom)?.tubularSegments;
+  if (radial == null || tubular == null) return null;
+  const stride = tubular + 1;
+  const P = geom.attributes.position;
+  const centers: THREE.Vector3[] = [];
+  for (let i = 0; i < tubular; i++) {
+    const c = new THREE.Vector3();
+    let n = 0;
+    for (let j = 0; j < radial; j++) {
+      c.add(new THREE.Vector3().fromBufferAttribute(P, j * stride + i));
+      n++;
+    }
+    if (n) centers.push(c.multiplyScalar(1 / n).applyMatrix4(world));
+  }
+  if (centers.length < 3) return null;
+  const center = new THREE.Vector3();
+  for (const c of centers) center.add(c);
+  center.multiplyScalar(1 / centers.length);
+  const axis = new THREE.Vector3();
+  for (let i = 0; i < centers.length; i++) {
+    const a = centers[i], b = centers[(i + 1) % centers.length];
+    axis.x += (a.y - center.y) * (b.z - center.z) - (a.z - center.z) * (b.y - center.y);
+    axis.y += (a.z - center.z) * (b.x - center.x) - (a.x - center.x) * (b.z - center.z);
+    axis.z += (a.x - center.x) * (b.y - center.y) - (a.y - center.y) * (b.x - center.x);
+  }
+  if (axis.lengthSq() < 1e-8) return null;
+  return { center, axis: axis.normalize() };
+}
+
+function clampRings(): Ring[] {
+  const rings: Ring[] = [];
+  for (const part of PARTS) {
+    if (!inScope(part.id)) continue;
+    const root = ASSET_BUILDERS[part.asset]();
+    root.updateMatrixWorld(true);
+    const pose = poseOf(part.id);
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const hex = (mesh.material as THREE.MeshStandardMaterial)?.color?.getHex?.();
+      if (hex !== ZINC) return;
+      const tube = params(mesh.geometry)?.tube;
+      const radius = params(mesh.geometry)?.radius;
+      // Wire clamps on a barb or a small hose. Boot bands and ring terminals are larger.
+      if (tube == null || radius == null || tube < 0.55 || tube > 0.85 || radius < 3 || radius > 8) return;
+      for (const inst of instancesOf(mesh)) {
+        const frame = torusFrame(mesh.geometry, worldOf(pose, mesh, inst));
+        if (frame) rings.push({ part: part.id, ...frame, tube });
+      }
+    });
+  }
+  return rings;
+}
+
+type AxisSeg = { a: THREE.Vector3; b: THREE.Vector3; axis: THREE.Vector3 };
+
+/** Brass, plastic and rubber cylinders, plus tubular hose centrelines, in scope. */
+function clampHosts(): AxisSeg[] {
+  const segs: AxisSeg[] = [];
+  for (const part of PARTS) {
+    if (!inScope(part.id)) continue;
+    const root = ASSET_BUILDERS[part.asset]();
+    root.updateMatrixWorld(true);
+    const pose = poseOf(part.id);
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const hex = (mesh.material as THREE.MeshStandardMaterial)?.color?.getHex?.();
+      const named = typeof mesh.name === 'string' && mesh.name.startsWith('line:');
+      const tubular = params(mesh.geometry)?.tubularSegments;
+      for (const inst of instancesOf(mesh)) {
+        const world = worldOf(pose, mesh, inst);
+        if ((hex === BRASS || hex === PLASTIC || hex === RUBBER) && params(mesh.geometry)?.height != null) {
+          const caps = cylinderCaps(mesh.geometry, world);
+          if (caps.length === 2) {
+            segs.push({ a: caps[0].point, b: caps[1].point, axis: caps[1].point.clone().sub(caps[0].point).normalize() });
+          }
+        }
+        const line = (named || (tubular != null && hex === RUBBER)) ? tubeCenterline(mesh.geometry, world) : null;
+        if (line && line.length >= 2) {
+          for (let i = 0; i < line.length - 1; i++) {
+            const axis = line[i + 1].clone().sub(line[i]);
+            if (axis.lengthSq() < 1e-6) continue;
+            segs.push({ a: line[i], b: line[i + 1], axis: axis.normalize() });
+          }
+        }
+      }
+    });
+  }
+  return segs;
+}
+
+function onAxis(ring: Ring, seg: AxisSeg) {
+  if (Math.abs(ring.axis.dot(seg.axis)) < 0.85) return false;
+  const ab = seg.b.clone().sub(seg.a);
+  const len = ab.length();
+  if (len < 1e-6) return false;
+  const t = ring.center.clone().sub(seg.a).dot(seg.axis);
+  if (t < -2 || t > len + 2) return false;
+  const radial = ring.center.clone().sub(seg.a).addScaledVector(seg.axis, -t).length();
+  return radial < 1.6;
+}
+
+describe('vacuum clamp rings', () => {
+  const rings = clampRings();
+  const hosts = clampHosts();
+
+  it('every clamp ring is coaxial with a barb or a hose', () => {
+    const bare = rings.filter((ring) => !hosts.some((seg) => onAxis(ring, seg)));
+    expect(bare.map((r) => `${r.part} @ ${r.center.toArray().map((n) => n.toFixed(0)).join(',')}`)).toEqual([]);
+  });
+
+  it('the diverter barb keeps at least 5 mm of free brass below its clamp ring', () => {
+    const tip = new THREE.Vector3(...TEE_AIR_INJ.point);
+    const axis = new THREE.Vector3(...TEE_AIR_INJ.axis).normalize();
+    const ring = rings
+      .filter((r) => Math.abs(r.axis.dot(axis)) > 0.9 && r.center.distanceTo(tip) < 12)
+      .sort((a, b) => a.center.distanceTo(tip) - b.center.distanceTo(tip))[0];
+    expect(ring, 'clamp ring on TEE_AIR_INJ').toBeTruthy();
+    const along = ring.center.clone().sub(tip).dot(axis);
+    // The ring sits toward the root. Free brass is from its near edge to the tip.
+    const free = Math.abs(along) - ring.tube;
+    expect(free, `free barb ${free.toFixed(2)} mm`).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe('tee clearance to vacuum hoses', () => {
+  it('the tee and its barbs stay at least 2 mm off every vacuum hose except the seated lead', () => {
+    const root = ASSET_BUILDERS[PART_BY_ID['vacuum-fittings'].asset]();
+    root.updateMatrixWorld(true);
+    const teePts: number[] = [];
+    const hoses = new Map<string, THREE.Vector3[]>();
+    const v = new THREE.Vector3();
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
+      const P = g.attributes.position;
+      if (mesh.parent?.name === 'fitting:vac-t') {
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
+          teePts.push(v.x, v.y, v.z);
+        }
+      }
+      if (typeof mesh.name === 'string' && mesh.name.startsWith('line:vac-')) {
+        const id = mesh.name.slice(5);
+        const list = hoses.get(id) ?? [];
+        for (let i = 0; i < P.count; i++) list.push(new THREE.Vector3().fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld));
+        hoses.set(id, list);
+      }
+    });
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(teePts, 3));
+    const bvh = new MeshBVH(geom);
+    const target = new THREE.Vector3();
+    const report: string[] = [];
+    const bad: string[] = [];
+    for (const [id, pts] of hoses) {
+      const gaps: { d: number; p: THREE.Vector3 }[] = [];
+      for (let i = 0; i < pts.length; i += 2) {
+        const hit = bvh.closestPointToPoint(pts[i], target) as { distance: number } | null;
+        if (hit) gaps.push({ d: hit.distance, p: pts[i] });
+      }
+      const contact = gaps.filter((g) => g.d < 1.2).map((g) => g.p);
+      const passing = gaps.filter((g) => contact.every((c) => g.p.distanceTo(c) > 16));
+      const pool = passing.length ? passing : gaps;
+      let min = Infinity;
+      for (const g of pool) if (g.d < min) min = g.d;
+      report.push(`${id} ${min.toFixed(2)}`);
+      if (min < 2) bad.push(`${id} ${min.toFixed(2)} mm`);
+    }
+    expect(bad, report.join('; ')).toEqual([]);
   });
 });
 

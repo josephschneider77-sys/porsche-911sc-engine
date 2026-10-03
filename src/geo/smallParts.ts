@@ -469,20 +469,25 @@ def('vacuum-fittings', () => {
   t.add(mesh(cylBetween([ox, oy, oz + 20], [10, 274, 76], 2.8, 8), 'brass'));
   // Last 8 mm is along +Y so the hose seat is a flat face on vacTPorts().plusZ.
   t.add(mesh(cylBetween([10, 274, 76], [10, 282, 76], 2.8, 8), 'brass'));
-  // Rings around the three catalogue barbs, inboard of each tip.
-  // Fig 107-10 #14 is a three-port T. There is no flywheel (−Z) leg to cap.
+  // Rings on the manifold and limiter barbs, inboard of each tip.
+  // Fig 107-10 #14 is a three-port T. There is no flywheel (−Z) leg, and no
+  // clamp ring standing beside the elbow with an empty hole.
   const xRing = torus(4.2, 0.7, 6, 14).rotateY(Math.PI / 2);
   t.add(mesh(xRing, 'zincPlate', [ox - 4, oy, oz]));
   t.add(mesh(xRing.clone(), 'zincPlate', [ox + 10, oy, oz]));
-  t.add(mesh(torus(4.2, 0.7, 6, 14), 'zincPlate', [ox, 276, 78]));
-  // 108-00 #31 branches off this tee. The run is one piece with the T body.
-  // Last 8 mm is cylBetween(root, tip, 2.8, 10) on −Y, which is the barb the
+  // 108-00 #31 is a short barb on this body. The plastic cross sits on the plenum
+  // lid, so a nipple on the cross points into the lid, and one directly above
+  // the cross meets the cross on the way down. The branch rises just far enough
+  // for 30 mm of air below the tip and stands off the cross so that ray misses
+  // it. Last 8 mm is cylBetween(root, tip, 2.8, 10) on −Y, which is the barb the
   // emissions-off cap is built against. Ring centre is 6 mm above the tip
   // (tube r 0.7), so 5.3 mm of free barb sits below the ring.
   const [ix, iy, iz] = TEE_AIR_INJ.point;
   const root: [number, number, number] = [ix, iy + 8, iz];
-  t.add(mesh(cylBetween([ox, oy, oz], [ox, root[1], oz], 2.2, 8), 'brass'));
-  t.add(mesh(cylBetween([ox, root[1], oz], root, 2.2, 8), 'brass'));
+  const stemX = ox - 2;
+  const joinY = iy + 9.2;
+  t.add(mesh(cylBetween([stemX, oy, iz], [stemX, joinY, iz], 2, 8), 'brass'));
+  t.add(mesh(cylBetween([stemX, joinY, iz], [ix, joinY, iz], 1.5, 8), 'brass'));
   t.add(mesh(cylBetween(root, [ix, iy, iz], 2.8, 10), 'brass'));
   t.add(mesh(torus(4.2, 0.7, 6, 14).rotateX(Math.PI / 2), 'zincPlate', [ix, iy + 6, iz]));
   p.g.add(t);

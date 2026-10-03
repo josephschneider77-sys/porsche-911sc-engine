@@ -68,14 +68,17 @@ export const MANIFOLD_VAC = { tip: [-30, 268, 40] as V3, axis: [0, 1, 0] as V3 }
  * Diverter-vacuum barb on the manifold tee (107-10 #14, 999 137 004 40).
  * Seat for 108-00 #31 (999 239 003 40, 3.2×7, 750 mm). That hose is the air-injection
  * diverter's manifold-vacuum signal. Fig 107-10 draws #14 as a three-port T: the
- * manifold hose, the limiter hose, and the elbow up to thermo valve 17A. #31 does
- * not get a fourth port aimed at the flywheel, and it does not float above the tee.
- * The branch leaves the tee body, and the last 8 mm hangs on −Y so the emissions-off
- * cap, which is built from this constant, still fits. Bottom End's air-hose-vacuum
- * is a hardcoded run and still ends on the previous point.
+ * manifold hose, the limiter hose, and the elbow up to thermo valve 17A. #31 is not
+ * a fourth port aimed at the flywheel. The nipple is the last 8 mm, on −Y, so the
+ * emissions-off cap built from this constant still fits, with 5.3 mm of free brass
+ * below the clamp ring. The plastic cross lies on the plenum lid, so this nipple
+ * stands just off the cross: high enough for 30 mm of air under the tip, and clear
+ * of the cross so the ray does not meet it. The 750 mm hose leaves straight down
+ * that axis. Bottom End's air-hose-vacuum is a hardcoded run and still ends on the
+ * previous point.
  */
 export const TEE_AIR_INJ = {
-  point: [40, 300, 40] as V3,
+  point: [22, 286, 70] as V3,
   axis: [0, -1, 0] as V3,
 };
 /**
@@ -1109,7 +1112,7 @@ export function serviceHoses(): FuelLineDef[] {
     { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis) },
     { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
     // Three small hoses (3.2×7): manifold, limiter, distributor.
-    // 108-00 #31 is not one of them. It seats on TEE_AIR_INJ, the downward branch of this tee.
+    // 108-00 #31 is not one of them. It seats on TEE_AIR_INJ, the short barb above this tee.
     { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: on(t.minusX.tip, t.minusX.axis) },
     { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
     { id: 'vac-distributor', part: 'vacuum-fittings', a: on(VAC_THERMO.dist.tip, VAC_THERMO.dist.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
