@@ -223,7 +223,7 @@ export const CLAIMS: Claim[] = [
   // 107-00 #1 and #2 are tagged 930.03/09 in Kat 502, so they are excluded for 930/04. The CIS meshes stay.
   C('107-10#7', 'vacuum-limiter'), C('107-10#8', 'vacuum-limiter', 'sleeve'), C('107-10#9', 'vacuum-limiter', 'bolt'), C('107-10#10', 'vacuum-limiter', 'spring'),
   C('107-10#12', 'vacuum-fittings', 'clamp', 4),
-  C('107-10#14', 'vacuum-fittings', 'item', undefined, 'The only 107-10 T. The manifold splice beside it is not a catalogue line and is not 202-05 #18.'),
+  C('107-10#14', 'vacuum-fittings', 'item', undefined, 'The only 107-10 T. The manifold hose runs to it in one piece. There is no splice, and this is not 202-05 #18.'),
   C('107-10#15', 'vacuum-fittings', 'clamp', 1), C('107-10#17', 'vacuum-fittings', 'socket'),
   C('107-10#1#900 067 089 02', 'afm-screws'), C('107-10#2', 'afm-screws', 'spring'), C('107-10#3', 'afm-screws', 'washer'),
   C('107-10#4#930 110 248 02', 'throttle-housing'), C('107-10#5', 'throttle-housing', 'spring'), C('107-10#6', 'throttle-housing', 'oring'),
@@ -291,7 +291,7 @@ export const CLAIMS: Claim[] = [
   C('202-05#15', 'egr-hose-short'), C('202-05#16', 'egr-hose-long'),
   C('202-05#17', 'egr-hose-return', 'item', 1, 'Return leg. The printed 465 mm is the diverter piece; these two ends are a short arc.'),
   C('202-05#17', 'egr-hose-diverter', 'item', 1, 'Diverter leg. 465 mm does not clear the left case; the modelled run is the short clear route.'),
-  C('202-05#18', 'egr-tee', 'item', 1, '999 137 004 40, qty 1, modelled as egr-tee. The manifold splice is not this T.'),
+  C('202-05#18', 'egr-tee', 'item', 1, '999 137 004 40, qty 1, modelled as egr-tee. The manifold hose has no splice.'),
   C('202-05#19', 'egr-buffer'),
 ];
 
