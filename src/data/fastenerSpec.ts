@@ -35,8 +35,8 @@ export const FASTENER_SPECS: FastenerSpec[] = [
     description: 'Four M8 nuts per head on studs from the head through the cam-housing base plate. The cam housing lifts off with the heads still attached; these come off on the bench to separate them.',
   })),
   ...(['upper', 'lower'] as const).flatMap((u) => b2((b) => ({
-    id: `valve-cover-nuts-${u}-${b}`, name: `Valve-cover nuts, ${u} ${b}`, count: u === 'upper' ? 6 : 11, step: 'valve-covers', follows: `valve-cover-${u}-${b}`, size: 'M8 hex nut + spring washer',
-    catalog: [{ ill: '103-05', pos: '25', pn: '900 076 025 02', qty: 34, note: 'M8 nut: 6 per upper cover (3 per edge) and 11 per lower cover (34). The 3 raised lugs on each lower cover take the special nuts #24' },
+    id: `valve-cover-nuts-${u}-${b}`, name: `Valve-cover nuts, ${u} ${b}`, count: u === 'upper' ? 6 : 11, step: 'valve-covers', follows: `valve-cover-${u}-${b}`, size: 'M8 hex nut + washer',
+    catalog: [{ ill: '103-05', pos: '25', pn: '900 076 025 02', qty: 34, note: 'M8 hex nut: 6 per upper cover and 11 per lower cover (34). Flat washer under the nut. Spring washer N 012 241 8 is #23, the cam-chain pool, not these studs. The 3 raised lugs on each lower cover take the special nuts #24' },
       { ill: '103-05', pos: '14/15', pn: '999 062 009 02 / 999 062 010 02', qty: 34, note: 'Studs BM8x28 x12 on the upper covers / BM8x35 x22 on the lower covers' }],
     description: `Nuts on the ${u} valve cover ear studs (studs in the cam-housing rails), axis normal to the cover seat flange.`,
   }))),

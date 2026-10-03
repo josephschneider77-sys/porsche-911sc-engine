@@ -1240,8 +1240,12 @@ export function cylinderHead() {
 // The housing, camshaft and rocker meshes live in valvetrain.ts. These stations stay here because the
 // valve covers, chain housings and the keyed cam-nose hardware are built from them.
 export const CH_Z0 = -168, CH_Z1 = CASE_Z.pulley;
-/** Lower-cover ear offset (cover-local x). The upper lid uses `UPPER_STUD_X`. */
-export const VC_EDGE = 31;
+/**
+ * Lower-cover stud axis, cover-local |x|. On the flange, outboard of the pan
+ * wall (outer |x| 38), so the bore is a clean hole through the ear and not
+ * buried under the crown. The upper lid uses `UPPER_STUD_X`.
+ */
+export const VC_EDGE = 46;
 /**
  * Upper-lid stud axis, cover-local |x|. Outboard of the sealing flange so the
  * gasket ring stays on the land and each ear carries its own washer.
@@ -1330,6 +1334,49 @@ export function upperCrownZ(x: number) {
   const dx = Math.min(Math.abs(x), outerX - 0.4);
   return peak - R + Math.sqrt(R * R - dx * dx);
 }
+/**
+ * Lower lid 930 105 116 00, cover-local. Same closed-shell construction as the
+ * upper lid: 4 mm walls, an 8 mm flange, a shallow crown. Kat 502 p.66 ill.
+ * 103-05 #19 draws this pan with rounded ends, diagonal ribs and three lugs,
+ * and no plug holes. The lip (inner + wall + flange = 46) covers the cam-side
+ * rail (about local x −46..−39). The pan (inner half-width 34) clears the
+ * exhaust rockers (|x| about 31, local z about 17).
+ */
+const LOWER_CAST = {
+  wall: 4,
+  flangeW: 8,
+  flangeT: 4.5,
+  innerX: 34,
+  shoulder: 21,
+  crown: 1.2,
+  ceil: 18,
+};
+function castLowerShell(studHoles: THREE.BufferGeometry[], notch: THREE.BufferGeometry) {
+  const len = CH_Z1 - CH_Z0 - 8;
+  const halfL = len / 2;
+  const C = LOWER_CAST;
+  const outerX = C.innerX + C.wall;
+  const lipX = outerX + C.flangeW;
+  const innerY = halfL - C.flangeW - C.wall;
+  const outerY = innerY + C.wall;
+  // Rounded ends on 103-05 #19, long enough that the end studs still land on the flange.
+  const endR = 18;
+  const flange = extrude(roundRect(lipX * 2, halfL * 2, endR), C.flangeT, 0, 12);
+  const walls = extrude(roundRect(outerX * 2, outerY * 2, 12), C.shoulder - C.flangeT + 1.2, 0, 10);
+  walls.translate(0, 0, C.flangeT - 0.6);
+  const rise = C.crown;
+  const R = (outerX * outerX) / (2 * rise) + rise / 2;
+  const peak = C.shoulder + rise;
+  const cap = new THREE.CylinderGeometry(R, R, outerY * 2 + 8, 40);
+  cap.translate(0, 0, peak - R);
+  const keep = extrude(roundRect(outerX * 2 + 0.6, outerY * 2 + 0.6, 8), rise + 2.2, 0, 10);
+  keep.translate(0, 0, C.shoulder - 0.5);
+  const dome = manifoldIntersect(cap, keep);
+  const cavity = extrude(roundRect(C.innerX * 2, innerY * 2, 8), C.ceil + 2, 0, 8);
+  cavity.translate(0, 0, -2);
+  const shell = manifoldAdd(flange, walls, dome);
+  return manifoldSub(shell, cavity, notch, ...studHoles);
+}
 function castUpperShell(studHoles: THREE.BufferGeometry[], notch: THREE.BufferGeometry) {
   const len = CH_Z1 - CH_Z0 - 8;
   const halfL = len / 2;
@@ -1374,30 +1421,18 @@ export const VC_CAV = { w0: 18 }, VC_RAISE = 8.5;
 export const VC_EXT = (_s: 1 | -1) => 0;
 export function valveCover(s: 1 | -1, upper: boolean) {
   const loc = new Part();
-  const len = CH_Z1 - CH_Z0 - 8, w = 58;
+  const len = CH_Z1 - CH_Z0 - 8;
   const ext = VC_EXT(s), cy = -ext / 2;
   // M8 cover studs (r 3.84) are part of the cam-housing asset. The hole is 6.4
   // so the shank clears the lip by more than 2 mm; the washer still has a face.
   const studs = vcStuds(upper, s);
-  const studHoles = studs.map((st) => yToZ(cyl(6.4, 28, 16)).translate(st.x, st.y, -2));
+  // Tall enough to pierce the lower pan wall where an ear overlaps it.
+  const studHoles = studs.map((st) => yToZ(cyl(6.4, 42, 16)).translate(st.x, st.y, 5));
   // Sprocket-end notch (pulley / chain end, local +y). On the upper lid it stops
   // under the crown so the top skin stays closed.
   const notch = boxMM([-15, len / 2 - 16 + cy, -1], [15, len / 2 + 4 + cy, upper ? 12 : 16]);
-  if (upper) {
-    loc.add(castUpperShell(studHoles, notch), 'castAlu');
-  } else {
-    // Lower lid: bevelled pan on a thin seat flange. Same shell as before.
-    const endR = 7;
-    const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
-    cavity.translate(0, cy, -20);
-    const below = boxMM([-w, -len, -40], [w, len, 0.01]);
-    const lip = extrude(roundRect(w, len + ext, endR), 1.15, 0.25, 6).translate(0, cy, 0);
-    const step = extrude(roundRect(w - 7, len - 6 + ext, Math.max(5, endR - 4)), 2.15, 0.4, 6).translate(0, cy, 1.15);
-    loc.add(manifoldSub(lip, cavity, notch, ...studHoles), 'castAlu');
-    loc.add(manifoldSub(step, cavity, notch, ...studHoles), 'castAlu');
-    const pan = new THREE.ExtrudeGeometry(roundRect(w - 17, len - 22 + ext, 6), { depth: 12, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
-    loc.add(manifoldSub(pan.translate(0, cy, 0), cavity, below, notch), 'castAlu');
-  }
+  if (upper) loc.add(castUpperShell(studHoles, notch), 'castAlu');
+  else loc.add(castLowerShell(studHoles, notch), 'castAlu');
   // Stud towers blended into the pan wall. The nut face stays a flat disc at z = 7.
   // The cavity runs through the ear centres. Keep the nut face (z = 7, out to r 8.8)
   // so an M8 washer probe at r 6.8 still lands on the disc.
@@ -1411,7 +1446,7 @@ export function valveCover(s: 1 | -1, upper: boolean) {
   // Upper ears are wide enough that the seal jog around the stud lands on the boss.
   const earBoss = yToZ(lathe(upper
     ? [[12.4, 0], [11.2, 1.6], [10.0, 3.4], [8.8, 5.4], [8.8, 7], [0.4, 7], [12.4, 0]]
-    : [[16.4, 0], [14.8, 1.4], [12.4, 3.0], [10.2, 4.8], [8.8, 6.3], [8.8, 7], [0.4, 7], [16.4, 0]],
+    : [[13.2, 0], [12.0, 1.6], [10.4, 3.2], [9.2, 5.0], [8.8, 6.3], [8.8, 7], [0.4, 7], [13.2, 0]],
   24));
   studs.forEach((st, i) => {
     const studHole = studHoles[i];

@@ -85,6 +85,9 @@ function blockedCells(s: 1 | -1, upper: boolean) {
   const halfL = (CH_Z1 - CH_Z0 - 8) / 2;
   for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
     const [x, y] = cellCenter(ix, iy);
+    // The lower flange ends at |y| 186. A path whose 6 mm band hangs past that
+    // end makes the left flywheel patch longer than the right cover.
+    if (!upper && Math.abs(y) > 182.5) { blocked[iy * nx + ix] = 1; continue; }
     // Upper studs sit in the flange. The band jogs just outside the hole and stays
     // on the ear. A wider disk pushes that jog off the casting.
     const studR = upper ? 7.0 : 8.2;
@@ -217,8 +220,10 @@ function sealLoop(s: 1 | -1, upper: boolean): Loop {
   // them or the opening cuts the ring.
   // Upper band sits on the cast flange (wall at |x| 40, lip at 48).
   // Lower band stays outboard of the upright windows.
-  const rail = upper ? 43 : 42;
-  const keep = upper ? 38 : 36;
+  // Lower studs sit on the flange at |x| 46. The band stays inboard of those
+  // holes so the stud clearance does not pinch the ring.
+  const rail = upper ? 43 : 32;
+  const keep = upper ? 38 : 26;
   const side = (sign: 1 | -1, y0: number, y1: number) => {
     const a = nearest(walk, nx, ny, sign * rail, y0);
     const b = nearest(walk, nx, ny, sign * rail, y1);
@@ -228,6 +233,9 @@ function sealLoop(s: 1 | -1, upper: boolean): Loop {
       if (sign < 0 && x > -keep) c += 40;
       if (sign > 0 && x < keep) c += 40;
       if (Math.abs(y) > 184) c += 8;
+      // The flange ends at |y| 186. The 6 mm band around a path past |y| 182
+      // hangs off that end, and the left flywheel patch then outruns the right cover.
+      if (!upper && Math.abs(y) > 182) c += 50;
       return c;
     });
   };
@@ -242,6 +250,9 @@ function sealLoop(s: 1 | -1, upper: boolean): Loop {
       // Upper lip is |x| 48. Past that the path is off the casting and onto an ear.
       let c = Math.abs(y - ySign * 181) * 0.35 + (Math.abs(x) > 46 ? 6 : 0);
       if (upper && Math.abs(x) > 48) c += 25;
+      // Keep the lower end on the flange. A jog past |y| 182 paints the band
+      // past the flywheel face and the left cover no longer matches the right.
+      if (!upper && Math.abs(y) > 182) c += 50;
       return c;
     });
   };

@@ -6,7 +6,7 @@ import {
   rockerStations, plugCoverLocal, valveHeadEngine,
 } from '../src/geo/valvetrain';
 import { CAM_X, SPARK_TIP, SPARK_Z, SPARK_AXIS, SPARK_HOLE_R, SPARK_FLANGE_T, sparkDirHead, sparkRoll, plugTipEngine, plugAxisEngine } from '../src/data/layout';
-import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1, coverMatrix, vcStuds } from '../src/geo/core';
+import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1, coverMatrix, vcLugs, vcStuds } from '../src/geo/core';
 import { DIM, fastenerSets } from '../src/geo/fasteners';
 import { crownSurfaceX, PISTON_DECK, VALVE_DIA, VALVE_FACE, STEM_R, stemDirLocal } from '../src/geo/valveGeom';
 import { ASSET_BUILDERS, partPose } from '../src/geo/assets';
@@ -234,6 +234,90 @@ describe('top-end batch 1', () => {
         const loc = nut!.p.clone().applyMatrix4(inv);
         expect(Math.hypot(loc.x - hole.x, loc.y - hole.y), `${bank} nut axis`).toBeLessThanOrEqual(0.2);
         expect(loc.z, `${bank} nut face`).toBeCloseTo(7, 1);
+      }
+    }
+  });
+
+  it('seats each lower-cover nut and special nut on its stud', () => {
+    const washerR = DIM[8].wr;
+    for (const s of [1, -1] as const) {
+      const bank = s > 0 ? 'right' : 'left';
+      const frame = coverMatrix(s, false);
+      const inv = frame.clone().invert();
+      const normal = new THREE.Vector3(0, 0, 1).transformDirection(frame).normalize();
+      const down = normal.clone().negate();
+      const coverId = `valve-cover-lower-${bank}`;
+      const house = ASSET_BUILDERS[`cam-housing-${bank}`]();
+      house.updateMatrixWorld(true);
+      const hv: THREE.Vector3[] = [];
+      const tmp = new THREE.Vector3();
+      house.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const P = mesh.geometry.attributes.position;
+        for (let i = 0; i < P.count; i++) hv.push(tmp.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld).clone());
+      });
+      const nuts = fastenerSets().find((f) => f.id === `valve-cover-nuts-lower-${bank}`)!;
+      expect(nuts.items.length, bank).toBe(11);
+      for (const st of vcStuds(false, s)) {
+        const open: THREE.Vector2[] = [];
+        for (let y = st.y - 5; y <= st.y + 5; y += 0.5) for (let x = st.x - 5; x <= st.x + 5; x += 0.5) {
+          const origin = new THREE.Vector3(x, y, 18).applyMatrix4(frame);
+          const hit = rayHit(coverId, origin, down, 30);
+          if (!hit) open.push(new THREE.Vector2(x, y));
+        }
+        expect(open.length, `${bank} hole ${st.x},${st.y}`).toBeGreaterThan(20);
+        const hole = open.reduce((a, p) => a.add(p), new THREE.Vector2()).multiplyScalar(1 / open.length);
+        const near: THREE.Vector3[] = [];
+        for (const p of hv) {
+          const loc = p.clone().applyMatrix4(inv);
+          // The shank under the gasket (local z about −14..−8). The rail
+          // beside a lower stud is not the stud.
+          if (loc.z > -6 || loc.z < -14) continue;
+          if (Math.hypot(loc.x - hole.x, loc.y - hole.y) > 5) continue;
+          near.push(loc);
+        }
+        expect(near.length, `${bank} stud under ${st.x},${st.y}`).toBeGreaterThan(12);
+        const stud = near.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / near.length);
+        expect(Math.hypot(stud.x - hole.x, stud.y - hole.y), `${bank} stud axis`).toBeLessThanOrEqual(0.2);
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const x = hole.x + Math.cos(a) * washerR * 0.85;
+          const y = hole.y + Math.sin(a) * washerR * 0.85;
+          const origin = new THREE.Vector3(x, y, 16).applyMatrix4(frame);
+          const hit = rayHit(coverId, origin, down, 20);
+          expect(hit, `${bank} washer ${k}`).not.toBeNull();
+          const at = origin.clone().addScaledVector(down, hit!.distance).applyMatrix4(inv);
+          expect(at.z, `${bank} washer seat`).toBeGreaterThan(6.5);
+          expect(at.z, `${bank} washer seat`).toBeLessThan(7.4);
+        }
+        const nut = nuts.items.find((it) => Math.hypot(it.p.clone().applyMatrix4(inv).x - hole.x, it.p.clone().applyMatrix4(inv).y - hole.y) < 2);
+        expect(nut, `${bank} nut`).toBeTruthy();
+        const loc = nut!.p.clone().applyMatrix4(inv);
+        expect(Math.hypot(loc.x - hole.x, loc.y - hole.y), `${bank} nut axis`).toBeLessThanOrEqual(0.2);
+        expect(loc.z, `${bank} nut face`).toBeCloseTo(7, 1);
+        // Hex nut and cap nut both point out along the cover normal.
+        expect(nut!.n.dot(normal), `${bank} nut axis`).toBeGreaterThan(0.99);
+      }
+      const caps = fastenerSets().find((f) => f.id === `valve-cover-special-${bank}`)!;
+      expect(caps.items.length, `${bank} special`).toBe(3);
+      expect(caps.washer, `${bank} special washer`).toBe(washerR);
+      for (const st of vcLugs(s)) {
+        const cap = caps.items.find((it) => Math.hypot(it.p.clone().applyMatrix4(inv).x - st.x, it.p.clone().applyMatrix4(inv).y - st.y) < 2);
+        expect(cap, `${bank} cap ${st.y}`).toBeTruthy();
+        const loc = cap!.p.clone().applyMatrix4(inv);
+        expect(Math.hypot(loc.x - st.x, loc.y - st.y), `${bank} cap axis`).toBeLessThanOrEqual(0.2);
+        expect(loc.z, `${bank} cap face`).toBeCloseTo(7, 1);
+        expect(cap!.n.dot(normal), `${bank} cap outward`).toBeGreaterThan(0.99);
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const origin = new THREE.Vector3(st.x + Math.cos(a) * washerR * 0.85, st.y + Math.sin(a) * washerR * 0.85, 16).applyMatrix4(frame);
+          const hit = rayHit(coverId, origin, down, 20);
+          expect(hit, `${bank} cap washer ${k}`).not.toBeNull();
+          const at = origin.clone().addScaledVector(down, hit!.distance).applyMatrix4(inv);
+          expect(at.z, `${bank} cap washer seat`).toBeGreaterThan(6.5);
+          expect(at.z, `${bank} cap washer seat`).toBeLessThan(7.4);
+        }
       }
     }
   });

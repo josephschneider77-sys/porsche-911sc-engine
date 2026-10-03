@@ -1255,10 +1255,7 @@ export function camHousing(s: 1 | -1) {
       }
     }
   }
-  // cover-seat rails and lower stud bosses. Upper studs are placed after the
-  // cover clip, on the cover-stud axis. The old upper bosses treated local
-  // x < 0 as the head edge; on the right bank that is the cam edge.
-  const zc = (CH_Z0 + CH_Z1) / 2;
+  // Cover-seat rails. Studs are placed after the cover clip, on the cover-stud axis.
   // Exhaust stems pass through the head-side lower rail. Leave a gap there; the
   // jogged cover land is the continuous seal. A full-length bar left a sliver the
   // spring bore did not clear, and another boolean would blow the open-edge budget.
@@ -1301,12 +1298,8 @@ export function camHousing(s: 1 | -1) {
       p.add(boxMM([X(HEAD_OUT_X + 25), sg > 0 ? 70 : -74, a], [X(HEAD_OUT_X + 33), sg > 0 ? 75 : -69, b]), 'machinedAlu');
     }
   }
-  for (const upper of [true, false]) for (const st of vcStuds(upper, s)) {
-    if (upper) continue;
-    const z = zc + st.y;
-    const headSide = st.x < 0;
-    p.add(yToX(cyl(6.5, 12, 14)), 'castAlu', [X(headSide ? HEAD_OUT_X + 29 : CAM_HOUSING_OUT_X - 10), upper ? (headSide ? 69 : 32) : (headSide ? -69 : -32), z]);
-  }
+  // Lower stud bosses are added with the thread pads, on the cover-stud axis.
+  // The old cylinders sat at a fixed engine Y, about 0.6 mm off that axis.
   // end faces: flywheel end (cover, stoppers, banjo and temp-switch probes) and pulley end (chain-housing studs)
   // Flywheel-end cap, outboard of the rearmost rocker-shaft nut so that nut stays reachable.
   const cap1 = CH_Z0 - (s < 0 ? 28 : 6);
@@ -1369,17 +1362,16 @@ export function camHousing(s: 1 | -1) {
       g.translate(st.x, st.y, -9.2);
       g.applyMatrix4(frame);
       p.add(g, 'castAlu');
-      if (!upper) continue;
-      // Shank on the cover-hole axis. The early rail boss was on the wrong rail.
+      // Shank and face on the cover-hole axis, under the gasket.
       const shank = yToZ(cyl(4.6, 12, 14));
       shank.translate(st.x, st.y, -14);
       shank.applyMatrix4(frame);
       p.add(shank, 'castAlu');
-      // Face under the ear, wide enough for the M8 washer, clear of the cover.
-      const face = yToZ(cyl(14, 2.2, 20));
+      const face = yToZ(cyl(upper ? 14 : 10, 2.2, 20));
       face.translate(st.x, st.y, -3.9);
       face.applyMatrix4(frame);
       p.add(face, 'castAlu');
+      if (!upper) continue;
       const sign = Math.sign(st.x) || 1;
       const bridge = boxMM(
         [Math.min(sign * 44, st.x - sign * 6), st.y - 5, -8.2],

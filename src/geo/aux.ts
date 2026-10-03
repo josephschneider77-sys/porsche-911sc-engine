@@ -1469,6 +1469,10 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
   // The boot is the top-entry plug. Lifting this lane up to it runs the wire through
   // the crankcase, the heads and the cooler, so the rise stays outboard of the covers.
   const yUnder = -98 - lane * 6;
+  // Left pulley-end cross. The lower cover lip (103-05 #19, local |x| 46) now
+  // reaches the old chord at y ≈ −98, z ≈ 192. Drop that cross under the lip.
+  // The heat exchanger stays about 20 mm below.
+  const yCross = s < 0 ? -116 - lane * 3 : yUnder;
   const yHigh = Math.max(yLoom, wingTop(xLoom) + 8, wingTop(s * 180) + 8);
   const ribs = s > 0 ? [-150, -30, 90] : [-185, -90, 30];
   // On the plug axis, past the cover, so the last run is the bore rather than a chord across the lid.
@@ -1503,9 +1507,9 @@ function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: num
     ...(s > 0 ? rightOut : [[xRail, yHigh, zRail] as V3]),
     ...alongEdge(xRail, yHigh, zRail, zRailEnd, ribs, s > 0 ? 16 : 8),
     ...outStep,
-    ...(s > 0 ? [] : [[xUnder, yUnder, 172] as V3]),
-    [xUnder, yUnder, zLow],
-    [xFar, yUnder, zLow],
+    ...(s > 0 ? [] : [[xUnder, yUnder, 172] as V3, [xUnder, yCross, zLow] as V3]),
+    ...(s > 0 ? [[xUnder, yUnder, zLow] as V3] : []),
+    [xFar, yCross, zLow],
     [xFar, clear.y, clear.z],
   ];
 }
