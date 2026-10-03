@@ -28,9 +28,10 @@ export function closedLathe(pts: [number, number][], segs = 48) {
 }
 
 export function box(w: number, h: number, d: number) { return new THREE.BoxGeometry(w, h, d); }
-/** Box spanning explicit min/max corners. */
+/** Box spanning explicit min/max corners. A swapped corner used to come out inside-out (negative BoxGeometry width), so the left-bank rails and cover lands faced inward. */
 export function boxMM(min: V3, max: V3) {
-  const g = new THREE.BoxGeometry(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
+  const dx = max[0] - min[0], dy = max[1] - min[1], dz = max[2] - min[2];
+  const g = new THREE.BoxGeometry(Math.abs(dx), Math.abs(dy), Math.abs(dz));
   g.translate((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
   return g;
 }
@@ -497,7 +498,7 @@ export function cutGroup(root: THREE.Object3D, ...cutters: THREE.BufferGeometry[
     const g: THREE.BufferGeometry = o.geometry.clone().applyMatrix4(o.matrixWorld); g.computeBoundingBox();
     const hit = cutters.filter((_, i) => boxes[i].intersectsBox(g.boundingBox!));
     if (!hit.length) return;
-    o.geometry = csgSub(g, ...hit); o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); o.updateMatrix();
+    o.geometry = dropDegenerate(csgSub(g, ...hit)); o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); o.updateMatrix();
   });
   return root;
 }
@@ -563,7 +564,8 @@ export function gusset(a: [number, number], b: [number, number], c: [number, num
 }
 
 // ---------------------------------------------------------------- CSG (asset-build time only)
-import { Brush, Evaluator, ADDITION, SUBTRACTION } from 'three-bvh-csg';
+import { Brush, Evaluator, ADDITION, SUBTRACTION, INTERSECTION } from 'three-bvh-csg';
+const csgEval = new Evaluator(); csgEval.attributes = ['position', 'normal'];
 const cleanCsg = (g: THREE.BufferGeometry) => {
   const q = g.index ? g.toNonIndexed() : g.clone();
   for (const k of Object.keys(q.attributes)) if (k !== 'position' && k !== 'normal') q.deleteAttribute(k);
@@ -603,6 +605,37 @@ export function csgUnion(geoms: THREE.BufferGeometry[]): THREE.BufferGeometry {
   });
 }
 /** base minus cutters (geometries already in the same frame). Returns position/normal geometry. */
+/** Drop zero-area triangles. Boolean meshes leave slivers that the collision test treats as hits. */
+export function dropDegenerate(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  const geo = g.index ? g.toNonIndexed() : g;
+  const pos = geo.attributes.position;
+  const keep: number[] = [];
+  let dropped = 0;
+  for (let i = 0; i < pos.count; i += 3) {
+    const ax = pos.getX(i), ay = pos.getY(i), az = pos.getZ(i);
+    const bx = pos.getX(i + 1), by = pos.getY(i + 1), bz = pos.getZ(i + 1);
+    const cx = pos.getX(i + 2), cy = pos.getY(i + 2), cz = pos.getZ(i + 2);
+    const abx = bx - ax, aby = by - ay, abz = bz - az;
+    const acx = cx - ax, acy = cy - ay, acz = cz - az;
+    const bcx = cx - bx, bcy = cy - by, bcz = cz - bz;
+    const nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx;
+    const area2 = nx * nx + ny * ny + nz * nz;
+    // Exact zero-area triangles only. A sliver cull opens holes in an otherwise closed shell.
+    if (area2 < 1e-6) { dropped++; continue; }
+    keep.push(ax, ay, az, bx, by, bz, cx, cy, cz);
+  }
+  if (!dropped) return g;
+  const ng = new THREE.BufferGeometry();
+  ng.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
+  ng.computeVertexNormals();
+  return ng;
+}
+/** Intersection of two closed solids in the same frame. */
+export function csgIntersect(a: THREE.BufferGeometry, b: THREE.BufferGeometry): THREE.BufferGeometry {
+  const A = new Brush(cleanCsg(a)); A.updateMatrixWorld();
+  const B = new Brush(cleanCsg(b)); B.updateMatrixWorld();
+  return (csgEval.evaluate(A, B, INTERSECTION) as Brush).geometry;
+}
 export function csgSub(base: THREE.BufferGeometry, ...cutters: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return withSeededRandom(() => {
     const ev = csgEvaluator();

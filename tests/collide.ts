@@ -9,7 +9,10 @@ import { ASSET_BUILDERS } from '../src/geo/assets';
 import { PARTS } from '../src/data/parts';
 import { fastenerSets } from '../src/geo/fasteners';
 import { SMALL_SPECS } from '../src/data/smallSpec';
-import { HOUSING_Z0, tensionerLayout } from '../src/geo/core';
+import { SHAFT, rockerStations } from '../src/geo/valvetrain';
+import { coverMatrix, HOUSING_Z0, tensionerLayout } from '../src/geo/core';
+import { SPARK_MINOR_D, SPARK_PROJ, SPARK_REACH, SPARK_SEAT_Y, SPARK_HOLE_R, SPARK_FLANGE_T, CYL_TOP_X, HEAD_OUT_X } from '../src/data/layout';
+import { HEAD_HW } from '../src/geo/hwLayout';
 
 export interface Hit { a: string; b: string; tris: number; box: THREE.Box3; samples: THREE.Vector3[] }
 interface Solid { id: string; geom: THREE.BufferGeometry; bvh: MeshBVH; box: THREE.Box3 }
@@ -54,8 +57,8 @@ function bothOnSameEdge(
  * overlap sends the segment across a triangle, which is what a 1 mm block overlap does.
  */
 export function trianglesClash(
-  t1: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; getNormal: (n: THREE.Vector3) => THREE.Vector3; intersectsTriangle: (t: unknown, seg: THREE.Line3) => boolean },
-  t2: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; getNormal: (n: THREE.Vector3) => THREE.Vector3 },
+  t1: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; getNormal: (n: THREE.Vector3) => THREE.Vector3; intersectsTriangle: (t: unknown, seg: THREE.Line3) => boolean; closestPointToPoint: (p: THREE.Vector3, target: THREE.Vector3) => THREE.Vector3 },
+  t2: { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; getNormal: (n: THREE.Vector3) => THREE.Vector3; closestPointToPoint: (p: THREE.Vector3, target: THREE.Vector3) => THREE.Vector3 },
   n1: THREE.Vector3, n2: THREE.Vector3, v0: THREE.Vector3, seg: THREE.Line3,
 ): boolean {
   t1.getNormal(n1); t2.getNormal(n2);
@@ -68,6 +71,12 @@ export function trianglesClash(
   // A T-junction (a sheet edge lying on a face) puts every vertex of one triangle on or outside
   // the other's plane. Real overlap puts each triangle through the other's plane.
   if (planeReach(n1, t1.a, t2) > -0.05 || planeReach(n2, t2.a, t1) > -0.05) return false;
+  // Nearly coplanar faces can report a segment that does not lie on either triangle.
+  const onTri = (tri: { closestPointToPoint: (p: THREE.Vector3, target: THREE.Vector3) => THREE.Vector3 }, p: THREE.Vector3) => {
+    tri.closestPointToPoint(p, v0);
+    return v0.distanceToSquared(p) < 0.04;
+  };
+  if (!onTri(t1, seg.start) || !onTri(t1, seg.end) || !onTri(t2, seg.start) || !onTri(t2, seg.end)) return false;
   return true;
 }
 
@@ -120,6 +129,124 @@ function solid(id: string, asset: string, pos: number[] | undefined, rot: number
   return { id, geom, bvh, box: geom.boundingBox!.clone() };
 }
 
+/**
+ * Seats that are not whole-part pairs. Each window is under 0.5 mm (the plug
+ * thread and washer under 0.3 mm). Anything outside the window still clashes.
+ *   rocker shaft × cam-housing bore — cylinder of the shaft, radial allowance 0.45 mm
+ *   valve-cover gasket × cam-housing land — cover-local |z| under 0.45 mm
+ *   spark plug × head — M14 minor bore along the 19 mm reach, and the washer spot-face
+ *   spark plug connector × upper cover — seal flange in the machined hole.
+ *     The tube and the elbow stay clear of the hole edge; only this flange seats.
+ *   The cap-nut lug sits 0.02 mm above its housing boss. That gap is not an overlap,
+ *   so the lug needs no window here.
+ */
+const SHAFT_SEAT_R = 0.45;
+const GASKET_SEAT_Z = 0.45;
+const PLUG_SEAT_TOL = 0.3;
+const SHAFTS = [1, -1].flatMap((s) => rockerStations(s as 1 | -1).map((st) => ({ ...st, bank: s as 1 | -1 })));
+const GASKET_INV = new Map<string, THREE.Matrix4>();
+for (const s of [1, -1] as const) for (const up of [true, false]) {
+  const id = `valve-cover-gasket-${up ? 'upper' : 'lower'}-${s > 0 ? 'right' : 'left'}`;
+  GASKET_INV.set(id, coverMatrix(s, up).clone().invert());
+}
+const PLUG_AXIS = new Map<string, { tip: THREE.Vector3; axis: THREE.Vector3 }>();
+function plugAxis(id: string) {
+  let f = PLUG_AXIS.get(id);
+  if (!f) {
+    const def = PARTS.find((p) => p.id === id);
+    if (!def?.position || !def.rotation) return null;
+    const tip = new THREE.Vector3(...(def.position as [number, number, number]));
+    const axis = new THREE.Vector3(0, -1, 0).applyEuler(new THREE.Euler(...(def.rotation as [number, number, number]))).normalize();
+    f = { tip, axis };
+    PLUG_AXIS.set(id, f);
+  }
+  return f;
+}
+const _seat = new THREE.Vector3();
+function narrowSeat(a: string, b: string, p: THREE.Vector3): boolean {
+  const rocker = /^rockers-(left|right)$/.test(a) ? a : /^rockers-(left|right)$/.test(b) ? b : '';
+  const house = /^cam-housing-(left|right)$/.test(a) ? a : /^cam-housing-(left|right)$/.test(b) ? b : '';
+  if (rocker && house && rocker.endsWith(house.split('-').pop()!)) {
+    const bank = rocker.endsWith('left') ? -1 : 1;
+    return SHAFTS.some((st) => st.bank === bank
+      && Math.hypot(p.x - st.x, p.y - st.y) <= SHAFT.r + SHAFT_SEAT_R
+      && Math.abs(p.z - st.z) <= st.half + SHAFT_SEAT_R);
+  }
+  const gasket = /^valve-cover-gasket-(upper|lower)-(left|right)$/.test(a) ? a
+    : /^valve-cover-gasket-(upper|lower)-(left|right)$/.test(b) ? b : '';
+  if (gasket && house && gasket.endsWith(house.split('-').pop()!)) {
+    const inv = GASKET_INV.get(gasket);
+    if (!inv) return false;
+    _seat.copy(p).applyMatrix4(inv);
+    return Math.abs(_seat.z) <= GASKET_SEAT_Z;
+  }
+  const plug = /^spark-plug-(\d)$/.exec(a)?.[1] ? a : /^spark-plug-(\d)$/.exec(b)?.[1] ? b : '';
+  const head = /^head-(\d)$/.exec(a)?.[1] ? a : /^head-(\d)$/.exec(b)?.[1] ? b : '';
+  if (plug && head && plug.slice(-1) === head.slice(-1)) {
+    const fr = plugAxis(plug);
+    if (!fr) return false;
+    _seat.copy(p).sub(fr.tip);
+    const t = _seat.dot(fr.axis);
+    const radial = Math.hypot(
+      _seat.x - t * fr.axis.x, _seat.y - t * fr.axis.y, _seat.z - t * fr.axis.z,
+    );
+    const minorR = SPARK_MINOR_D / 2;
+    const t0 = SPARK_PROJ - PLUG_SEAT_TOL;
+    const tThread = SPARK_PROJ + SPARK_REACH + PLUG_SEAT_TOL;
+    if (t >= t0 && t <= tThread && radial <= minorR + PLUG_SEAT_TOL) return true;
+    const tSeat = -SPARK_SEAT_Y;
+    if (Math.abs(t - tSeat) <= PLUG_SEAT_TOL && radial <= 11.2 + PLUG_SEAT_TOL && radial >= minorR - PLUG_SEAT_TOL) return true;
+  }
+  const cover = /^valve-cover-upper-(left|right)$/.test(a) ? a : /^valve-cover-upper-(left|right)$/.test(b) ? b : '';
+  const conn = /^spark-plug-connector-(\d)$/.exec(a)?.[1] ? a : /^spark-plug-connector-(\d)$/.exec(b)?.[1] ? b : '';
+  if (conn && cover) {
+    const n = Number(conn.slice(-1));
+    const right = cover.endsWith('right');
+    if ((n <= 3) !== right) return false;
+    const fr = plugAxis(conn);
+    if (!fr) return false;
+    _seat.copy(p).sub(fr.tip);
+    const t = _seat.dot(fr.axis);
+    const radial = Math.hypot(
+      _seat.x - t * fr.axis.x, _seat.y - t * fr.axis.y, _seat.z - t * fr.axis.z,
+    );
+    // Seal flange of 911 602 315 00 in the cover hole. The window is the
+    // cylindrical wall only: 0.35 mm along the bore and 0.35 mm radially.
+    if (Math.abs(t - SPARK_FLANGE_T) <= 0.35 && Math.abs(radial - SPARK_HOLE_R) <= 0.35) return true;
+  }
+  const camHouse = /^cam-housing-(left|right)$/.test(a) ? a : /^cam-housing-(left|right)$/.test(b) ? b : '';
+  const camHead = /^head-(\d)$/.exec(a)?.[1] ? a : /^head-(\d)$/.exec(b)?.[1] ? b : '';
+  if (camHouse && camHead) {
+    const cyl = Number(camHead.slice(-1));
+    const bank = cyl <= 3 ? 'right' : 'left';
+    if (!camHouse.endsWith(bank)) return false;
+    const inv = headLocal(camHead);
+    if (!inv) return false;
+    _seat.copy(p).applyMatrix4(inv);
+    const face = HEAD_OUT_X - CYL_TOP_X;
+    if (Math.abs(_seat.x - face) <= 0.6) return true;
+    const { y: sy, z: sz } = HEAD_HW.camStud;
+    for (const yy of [sy, -sy]) for (const zz of [sz, -sz]) {
+      if (Math.hypot(_seat.y - yy, _seat.z - zz) <= 6.5 && _seat.x > -1 && _seat.x < face + 1.2) return true;
+    }
+  }
+  return false;
+}
+const HEAD_LOCAL = new Map<string, THREE.Matrix4>();
+function headLocal(id: string) {
+  let m = HEAD_LOCAL.get(id);
+  if (m) return m;
+  const def = PARTS.find((p) => p.id === id);
+  if (!def?.position || !def.rotation) return null;
+  m = new THREE.Matrix4().compose(
+    new THREE.Vector3(...(def.position as [number, number, number])),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...(def.rotation as [number, number, number]))),
+    new THREE.Vector3(1, 1, 1),
+  ).invert();
+  HEAD_LOCAL.set(id, m);
+  return m;
+}
+
 export function findCollisions(tol = 1, only?: (id: string) => boolean): Hit[] {
   const solids = PARTS.filter((p) => !only || only(p.id)).map((p) => solid(p.id, p.asset, p.position, p.rotation, tol));
   const hits: Hit[] = [];
@@ -133,6 +260,7 @@ export function findCollisions(tol = 1, only?: (id: string) => boolean): Hit[] {
       A.bvh.bvhcast(B.bvh, I, {
         intersectsTriangles(t1: any, t2: any) {
           if (!trianglesClash(t1, t2, n1, n2, v0, seg)) return false;
+          if (narrowSeat(A.id, B.id, seg.start) && narrowSeat(A.id, B.id, seg.end)) return false;
           tris++; box.expandByPoint(seg.start).expandByPoint(seg.end);
           if (samples.length < 400) samples.push(seg.start.clone().add(seg.end).multiplyScalar(0.5));
           return tris >= 400;
@@ -291,7 +419,6 @@ const id = (base: string) => new RegExp(`^(${base})(-[1-6]|-left|-right)?$`);
 const pair = (a: string, b: string, why: string): [RegExp, RegExp, string] => [id(a), id(b), why];
 const sameSide = (a: string, b: string, why: string): [RegExp, RegExp, string][] =>
   ['right', 'left'].map((sd) => [new RegExp(`^(${a})-${sd}$`), new RegExp(`^(${b})-${sd}$`), why] as [RegExp, RegExp, string]);
-
 /**
  * Allowlist of pairs whose interpenetration (beyond the erosion tolerance) is expected.
  * Bottom end and ancillaries stay only when the overlap is a real joint, and the comment names it
@@ -331,18 +458,20 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('air-pump-belt', 'air-pump-pulley|fan-pulley', 'seated: air-injection belt in the outer pulley grooves'),
   pair('air-hose-vacuum', 'air-diverter', 'seated: air-injection vacuum hose on the diverter vacuum nipple'),
   pair('fan-hub', 'fan-impeller|alternator', 'pressed: fan hub on the alternator shaft and the impeller on the hub'),
-  pair('warm-up-regulator', 'crankcase-left', 'JOINT regulator flange on the case pad'),
+  pair('warm-up-regulator', 'crankcase-left', 'seated: regulator flange on the case pad'),
   pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),
-  pair('ignition-leads', 'spark-plug', 'seated: lead boot on the plug terminal'),
+  pair('ignition-leads', 'spark-plug-connector', 'seated: lead boot in the connector elbow'),
   pair('ignition-leads', 'ignition-lead-holders', 'seated: lead clipped in the shroud holder'),
   pair('oil-cooler-cap', 'shroud-speed-nuts', 'seated: speed nut on the cooler-cap lip (the 1 mm nut inverts under the 1 mm erosion; clean at 0 and 0.5 mm)'),
   // ---- top end (heads, cylinders, cams, valvetrain, covers, chain drive) — not rewritten here
 
   pair('piston', 'cylinder', 'JOINT piston in bore'),
   pair('cylinder', 'head', 'JOINT cylinder/head sealing joint'),
-  pair('head', 'valves|spark-plug', 'JOINT guides/seats, plug thread'),
-  pair('cam-housing', 'head|camshaft|rockers|valves|valve-cover-upper|valve-cover-lower', 'JOINT cam housing on heads, bearings, rocker shafts, cover flanges'),
-  pair('camshaft', 'rockers', 'JOINT lobes on rocker pads'), pair('rockers', 'valves', 'JOINT rocker tips on stems'),
+  pair('head', 'valves', 'seated: valve guide and seat in the head'),
+  // cam-housing × head is not a blanket pair. narrowSeat allows the face plane and the stud bores only.
+  // Pad-on-lobe and ball-on-stem are a 0–0.10 mm seat. They are not a blanket pair:
+  // an arm through a lobe, or a tip buried in a stem, still fails. A true 0–0.05 mm
+  // pad seat is inside the 1 mm erosion and does not need a line.
   ...sameSide('cam-housing', 'chain-housing', 'JOINT cam-housing end face gasketed into the chain box'),
   ...sameSide('camshaft', 'cam-sprocket', 'JOINT sprocket on cam nose'),
   // Chain × tensioner is not a blanket pair. allowedClash permits only the idler wrap;
@@ -354,40 +483,21 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('intermediate-shaft', 'timing-chain', 'JOINT chain seated on the intermediate sprockets'),
   pair('heat-exchanger', 'head', 'JOINT primaries in the exhaust ports'),
   ...sameSide('cam-flange', 'camshaft|cam-sprocket', 'JOINT keyed flange on the cam nose, dowel into the sprocket'),
-  pair('conrod', 'cylinder', 'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)'),
-  pair('piston', 'head|valves', 'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut'),
-  pair('cylinder', 'valves', 'SIMPLIFIED valve heads at the barrel top'),
-  pair('valve-cover-upper|valve-cover-lower', 'rockers|valves', 'SIMPLIFIED hollow covers (v5): rocker-arm tips / valve-spring retainers cross the seat line at the long edges (modelled rocker gear ~5 mm wider than the cover seat)'),
   pair('cam-housing-plug', 'cam-splash-tube', 'JOINT gallery screw plug shank reaches the splash-tube bore it closes (E position)'),
-  pair('valve-cover-upper|valve-cover-lower', 'rocker-shaft-screws|rocker-shaft-nuts', 'SIMPLIFIED a few rocker-shaft screw/nut heads tuck under the inner edge of an ear boss (bosses kept full so the cover-nut seats stay solid)'),
-  pair('valve-cover-gasket-upper|valve-cover-gasket-lower', 'rockers|valves', 'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)'),
-  pair('rockers', 'valve-cover-nuts-upper|valve-cover-nuts-lower', 'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear'),
 ];
 
 /** Why-strings owned by the top-end / chain-drive work. Bottom-end entries are not in this set. */
 export const TOP_END_WHY = new Set<string>([
   'JOINT piston in bore',
   'JOINT cylinder/head sealing joint',
-  'JOINT guides/seats, plug thread',
-  'JOINT cam housing on heads, bearings, rocker shafts, cover flanges',
-  'JOINT lobes on rocker pads',
-  'JOINT rocker tips on stems',
+  'seated: valve guide and seat in the head',
   'JOINT cam-housing end face gasketed into the chain box',
   'JOINT sprocket on cam nose',
   'JOINT chain seated on the cam sprocket',
   'JOINT cover on housing studs',
   'JOINT primaries in the exhaust ports',
   'JOINT keyed flange on the cam nose, dowel into the sprocket',
-  'seated: O-ring 999 701 468 40 and gasket 930 105 197 05 in the chain-end cover seat',
-  'JOINT regulator flange on the case pad',
-  'SIMPLIFIED rod enters the cylinder skirt (skirt notches not modelled)',
-  'SIMPLIFIED dome at TDC: chamber/valve reliefs not cut',
-  'SIMPLIFIED valve heads at the barrel top',
-  'SIMPLIFIED hollow covers (v5): rocker-arm tips / valve-spring retainers cross the seat line at the long edges (modelled rocker gear ~5 mm wider than the cover seat)',
   'JOINT gallery screw plug shank reaches the splash-tube bore it closes (E position)',
-  'SIMPLIFIED a few rocker-shaft screw/nut heads tuck under the inner edge of an ear boss (bosses kept full so the cover-nut seats stay solid)',
-  'SIMPLIFIED same seat-line crossing as the covers (rocker-arm tips / spring retainers at the long edges)',
-  'SIMPLIFIED rocker pivot bosses poke through the solid cover shell under an ear',
 ]);
 /**
  * Fastener joints (JOINT, generated): each hardware set may overlap the part it seats on and the part it threads
@@ -400,7 +510,12 @@ for (const f of fastenerSets()) for (const it of f.items) {
   // thread in the cam housing is a joint. The seat pair would hide a head in the rim.
   if (!f.id.startsWith('cam-flange-cover-screws')) FASTENER_JOINTS.add(`${f.id}|${it.seat}`);
   FASTENER_JOINTS.add(`${f.id}|${it.into}`);
-  if (it.stud) FASTENER_JOINTS.add(`${it.into}|${it.seat}`);
+  // A stud may pass through the part it clamps. That does not excuse the cover and the
+  // housing occupying each other: the cover sits on the land, and a wall through the
+  // housing is still a clash. Shaft-in-bore is handled in findCollisions.
+  if (it.stud && !(/^cam-housing-(left|right)$/.test(it.into) && /^valve-cover-(upper|lower)-(left|right)$/.test(it.seat))) {
+    FASTENER_JOINTS.add(`${it.into}|${it.seat}`);
+  }
 }
 // screw + nut pairs (thread engagement)
 for (const sp of SMALL_SPECS) for (const h of sp.hosts) FASTENER_JOINTS.add(`${sp.id}|${h}`);

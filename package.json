@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "manifold-3d": "^3.5.4",
     "three": "^0.170.0"
   },
   "devDependencies": {

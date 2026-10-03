@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { MeshBVH, ExtendedTriangle } from 'three-mesh-bvh';
 import { findCollisions, findIntraPartHits, erodedSolidsClash, allowedClash, isMating, clearance, geometriesClash, MATING, TOP_END_WHY } from './collide';
 import { rayHit } from './hw';
 import { OIL_COOLER, oilCooler, DIST, DIST_AXIS, distW } from '../src/geo/aux';
+import { cylinder, conrod, piston } from '../src/geo/core';
 import { SMALL_GEOM } from '../src/geo/smallParts';
+import { valveHeadBlank, trainPose, FIRE_CRANK } from '../src/geo/valvetrain';
+import { crownSurfaceX, crownUndersideX, stemPointLocal, stemDirLocal } from '../src/geo/valveGeom';
+import { bankOf, CYL_Z, CYL_TOP_X, DECK_X, pinX } from '../src/data/layout';
 import { activeFilter } from '../src/data/teardown';
 
 const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|timing-chain|cam-sprocket)-(left|right)$/;
@@ -186,6 +191,219 @@ describe.each([false, true])('assembled-pose interference (emissions %s)', (emis
     expect(hit!.distance).toBeCloseTo(6, 0);
     expect(hit!.normal.dot(axis)).toBeGreaterThan(0.9);
   });
+});
+
+describe('conrod swing versus the cylinder skirt', () => {
+  // Same predicate as findCollisions, at crank angles the assembled pose does not sample.
+  // Explode fractions follow the viewer (EXPLODE_SCALE 0.85): the barrel slides out along its
+  // axis faster than the rod, so the assembled pose is the tight one.
+  const EXPLODE_SCALE = 0.85;
+  function bake(root: THREE.Object3D) {
+    root.updateMatrixWorld(true);
+    const out: number[] = [];
+    const v = new THREE.Vector3();
+    root.traverse((o: any) => {
+      if (!o.isMesh) return;
+      const g: THREE.BufferGeometry = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      const P = g.attributes.position;
+      for (let i = 0; i < P.count; i++) {
+        v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld);
+        out.push(v.x, v.y, v.z);
+      }
+    });
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+    const bvh = new MeshBVH(geom);
+    geom.boundsTree = bvh as any;
+    return geom;
+  }
+  const cylG = bake(cylinder());
+  const rodG = bake(conrod());
+  const cylBVH = cylG.boundsTree as MeshBVH;
+
+  /** Rod `rodCyl` placed at `crank` degrees, expressed in the local frame of cylinder `barrelCyl`. */
+  function rodToBarrel(rodCyl: number, barrelCyl: number, crank: number, explode: number) {
+    const s = bankOf(rodCyl);
+    const { throwXY, rodAngle } = pinX(rodCyl, crank);
+    const rodM = new THREE.Matrix4().compose(
+      new THREE.Vector3(throwXY[0] + s * 70 * explode * EXPLODE_SCALE, throwXY[1], CYL_Z[rodCyl]),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, rodAngle)),
+      new THREE.Vector3(1, 1, 1),
+    );
+    const bs = bankOf(barrelCyl);
+    const cylM = new THREE.Matrix4().compose(
+      new THREE.Vector3(DECK_X * bs + bs * 290 * explode * EXPLODE_SCALE, 0, CYL_Z[barrelCyl]),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, bs === 1 ? 0 : Math.PI, 0)),
+      new THREE.Vector3(1, 1, 1),
+    );
+    return cylM.invert().multiply(rodM);
+  }
+
+  function poseRod(m: THREE.Matrix4) {
+    const src = rodG.attributes.position;
+    const arr = new Float32Array(src.count * 3);
+    const v = new THREE.Vector3();
+    let min = Infinity;
+    const target: { distance: number } = { distance: Infinity };
+    for (let i = 0; i < src.count; i++) {
+      v.fromBufferAttribute(src, i).applyMatrix4(m);
+      arr[i * 3] = v.x; arr[i * 3 + 1] = v.y; arr[i * 3 + 2] = v.z;
+      cylBVH.closestPointToPoint(v, target as any);
+      if (target.distance < min) min = target.distance;
+    }
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    const bvh = new MeshBVH(geom);
+    geom.boundsTree = bvh as any;
+    let tris = 0;
+    const seg = new THREE.Line3();
+    cylBVH.bvhcast(bvh, new THREE.Matrix4(), {
+      intersectsTriangles(t1: any, t2: any) {
+        if (!t1.intersectsTriangle(t2, seg)) return false;
+        tris++;
+        return true;
+      },
+    } as any);
+    return { min, tris };
+  }
+
+  it('keeps at least 1 mm to its own barrel and the opposite-bank neighbour through a full turn', () => {
+    let own = Infinity, opp = Infinity;
+    for (const explode of [0, 0.5]) {
+      for (let crank = 0; crank < 360; crank += 15) {
+        for (const cyl of [1, 4] as const) {
+          const a = poseRod(rodToBarrel(cyl, cyl, crank, explode));
+          expect(a.tris, `cyl ${cyl} crank ${crank} explode ${explode}`).toBe(0);
+          own = Math.min(own, a.min);
+          const other = cyl === 1 ? 4 : 1;
+          const b = poseRod(rodToBarrel(cyl, other, crank, explode));
+          expect(b.tris, `rod ${cyl} vs cyl ${other} crank ${crank} explode ${explode}`).toBe(0);
+          opp = Math.min(opp, b.min);
+        }
+      }
+    }
+    // Envelope plus the measured gap. Own-barrel minimum is the spigot corner; the opposite-bank
+    // minimum is the neighbouring fin, still clear of a rod notch.
+    expect(own).toBeGreaterThanOrEqual(1);
+    expect(opp).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('valve to piston over a full cycle', () => {
+  function pistonBVH() {
+    const root = piston();
+    root.updateMatrixWorld(true);
+    const pos: number[] = [];
+    const v = new THREE.Vector3();
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+      const P = g.attributes.position;
+      for (let i = 0; i < P.count; i++) {
+        v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+        pos.push(v.x, v.y, v.z);
+      }
+    });
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    return new MeshBVH(geom);
+  }
+  /**
+   * Triangle-to-triangle distance from the whole valve to the piston.
+   * A gap above `limit` is reported as `limit`: those poses are clear.
+   */
+  function meshGap(bvh: MeshBVH, blank: THREE.BufferGeometry, matrix: THREE.Matrix4, limit = 8) {
+    const src = bvh.geometry;
+    const pos = src.attributes.position as THREE.BufferAttribute;
+    const index = src.index!;
+    const P = blank.attributes.position as THREE.BufferAttribute;
+    const tri = new ExtendedTriangle();
+    const other = new ExtendedTriangle();
+    const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
+    const box = new THREE.Box3();
+    const reach = new THREE.Box3();
+    let best = limit;
+    for (let i = 0; i < P.count; i += 3) {
+      A.fromBufferAttribute(P, i).applyMatrix4(matrix);
+      B.fromBufferAttribute(P, i + 1).applyMatrix4(matrix);
+      C.fromBufferAttribute(P, i + 2).applyMatrix4(matrix);
+      box.setFromPoints([A, B, C]);
+      reach.copy(box).expandByScalar(best);
+      tri.a.copy(A); tri.b.copy(B); tri.c.copy(C); tri.needsUpdate = true;
+      bvh.shapecast({
+        intersectsBounds: (node) => node.intersectsBox(reach),
+        intersectsRange(offset, count) {
+          for (let j = offset; j < offset + count; j++) {
+            other.a.fromBufferAttribute(pos, index.getX(j * 3));
+            other.b.fromBufferAttribute(pos, index.getX(j * 3 + 1));
+            other.c.fromBufferAttribute(pos, index.getX(j * 3 + 2));
+            other.needsUpdate = true;
+            const d = tri.distanceToTriangle(other);
+            if (d < best) {
+              best = d;
+              reach.copy(box).expandByScalar(best);
+              if (best === 0) return true;
+            }
+          }
+          return false;
+        },
+      });
+      if (best === 0) return 0;
+    }
+    return best;
+  }
+
+  it('keeps at least 1.74 mm, whole valve, mesh to mesh, every degree on both banks', () => {
+    const bvh = pistonBVH();
+    const blanks = ([1, -1] as const).map((side) => {
+      const g = valveHeadBlank(side);
+      return g.index ? g.toNonIndexed() : g;
+    });
+    let minIn = Infinity, minEx = Infinity, whereIn = '', whereEx = '';
+    for (const cyl of [1, 2, 3, 4, 5, 6]) {
+      const s = bankOf(cyl);
+      const bank = new THREE.Matrix4().compose(
+        new THREE.Vector3(s * CYL_TOP_X, 0, CYL_Z[cyl]),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s === 1 ? 0 : Math.PI, 0)),
+        new THREE.Vector3(1, 1, 1),
+      );
+      for (const side of [1, -1] as const) {
+        const blank = blanks[side > 0 ? 0 : 1];
+        const dir = stemDirLocal(side);
+        const seated = stemPointLocal(side, 0);
+        for (let crank = 0; crank < 720; crank += 1) {
+          const { pinX: px } = pinX(cyl, crank);
+          const pistonInv = new THREE.Matrix4().compose(
+            new THREE.Vector3(px, 0, CYL_Z[cyl]),
+            new THREE.Quaternion().setFromEuler(new THREE.Euler(0, s === 1 ? 0 : Math.PI, 0)),
+            new THREE.Vector3(1, 1, 1),
+          ).invert();
+          const pose = trainPose(cyl, side, crank);
+          const face = seated.clone().addScaledVector(dir, -pose.lift);
+          const toPiston = pistonInv.multiply(bank).multiply(new THREE.Matrix4().makeTranslation(face.x, face.y, face.z));
+          const gap = meshGap(bvh, blank, toPiston);
+          const tag = `cyl ${cyl} side ${side} crank ${crank}`;
+          expect(gap, tag).toBeGreaterThanOrEqual(1.74);
+          if (side > 0 && gap < minIn) { minIn = gap; whereIn = tag; }
+          if (side < 0 && gap < minEx) { minEx = gap; whereEx = tag; }
+        }
+      }
+    }
+    console.log(`intake valve-to-piston minimum ${minIn.toFixed(3)} mm at ${whereIn}`);
+    console.log(`exhaust valve-to-piston minimum ${minEx.toFixed(3)} mm at ${whereEx}`);
+    expect(minIn).toBeGreaterThanOrEqual(1.74);
+    expect(minEx).toBeGreaterThanOrEqual(1.74);
+    let thick = Infinity;
+    for (let y = -46; y <= 46; y += 1) for (let z = -46; z <= 46; z += 1) {
+      const sx = crownSurfaceX(y, z);
+      if (sx == null) continue;
+      thick = Math.min(thick, sx - crownUndersideX(Math.hypot(y, z)));
+    }
+    // The crown floor is 4.49. The sample lands on that floor; a binary float
+    // prints just under it (4.49 − 2e−15) and must still pass.
+    expect(thick + 1e-9, 'crown under the eyebrows').toBeGreaterThanOrEqual(4.49);
+  }, 300000);
 });
 
 describe.each([false, true])('ancillary clearance at 0 and 0.5 mm (emissions %s)', (emissions) => {

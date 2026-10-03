@@ -11,8 +11,6 @@ import type { FItem, Kind } from './fasteners';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const bname = (s: number) => (s > 0 ? 'right' : 'left');
-/** Lower valve-cover ear stations (outboard edge) that take the special stud-nuts. */
-export const VC_SPECIAL = [0, 2, 4];
 
 function clearOfDrive(s: 1 | -1, x: number, y: number, pinClear: number, camClear = 52) {
   const { pins } = chainPins(s); const T = tensionerLayout(s);

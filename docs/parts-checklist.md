@@ -18,10 +18,10 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 |---|---|
 | modelled | 519 |
 | N/A (with reason) | 139 |
-| alternative rows | 228 |
-| excluded (not this engine) | 201 |
+| alternative rows | 229 |
+| excluded (not this engine) | 204 |
 | **MISSING** | 0 |
-| countable lines (all but excluded) | 886 |
+| countable lines (all but excluded) | 887 |
 
 ## 101-05: Crankcase, left
 
@@ -34,8 +34,8 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 1 | 930 101 918 00 | Crankcase | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 999 062 090 02 | Stud | 1 | modelled | `pool:case-left-studs` stud |
 | 2 | 999 062 207 02 | Stud | 1 | excluded | other model (Turbo / Carrera / Sportomatic) |
-| 3 | 911 101 172 00 | Stud | 12 | modelled | `head-nuts-right` stud × 12 (upper steel head studs, right bank) |
-| 3 | 930 101 170 00 | Stud | 12 | modelled | `head-nuts-left` stud × 12 (lower Dilavar head studs, left bank) |
+| 3 | 911 101 172 00 | Stud | 12 | modelled | `head-nuts-*` upperStud × 12 (upper head studs, two per cylinder) |
+| 3 | 930 101 170 00 | Stud | 12 | modelled | `head-nuts-*` lowerStud × 12 (lower Dilavar head studs, two per cylinder) |
 | 3 | 993 101 170 51 | Stud | 12 | alt | alternative to 101-05 #3 |
 | 3 | 930 101 170 00 | Stud | 24 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 3 | 993 101 170 51 | Stud | 24 | excluded | other model (Turbo / Carrera / Sportomatic) |
@@ -324,7 +324,8 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 
 | pos | part no. | description | qty | status | source / reason |
 |---|---|---|---|---|---|
-| 1 | 930 104 029 08 | Cylinder head | 6 | modelled | `^head-\d$` |
+| 1 | 930 104 019 05 | Cylinder head | 6 | modelled | `^head-\d$` |
+| 1 | 930 104 029 08 | Cylinder head | 6 | excluded | model years 79: not a 1978 engine |
 | 1 | 930 104 043 09 | Cylinder head | 6 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 2 | 930 104 321 50 | Valve guide | 12 | excluded | repair oversize |
 | 3 | 930 104 331 50 | Valve seat ring | 6 | excluded | repair oversize |
@@ -418,7 +419,7 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 21 | 900 031 014 30 | Washer | 40 | modelled | `pool:cam-chain-nuts` washer |
 | 22 | 900 084 004 03 | Hexagon nut | 40 | modelled | `pool:cam-chain-nuts` |
 | 22 | 900 084 004 02 | Hexagon nut | 40 | alt | alternative to 103-05 #22 |
-| 23 | N 012 241 8 | Spring washer | 40 | modelled | `pool:cam-chain-nuts` spring |
+| 23 | N 012 241 8 | Spring washer | 40 | modelled | `valve-cover-nuts-*` spring × 34 + `valve-cover-special-*` spring × 6 |
 | 24 | 901 111 271 00 | Nut | 6 | modelled | `valve-cover-special-*` |
 | 25 | 900 076 025 02 | Hexagon nut | 34 | modelled | `valve-cover-nuts-*` |
 | 25 | 900 076 064 02 | Hexagon nut | 34 | alt | alternative to 103-05 #25 |
@@ -1182,7 +1183,10 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 14 | N 012 241 8 | Spring washer | 2 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 15 | 900 076 025 02 | Hexagon nut | 2 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
 | 15 | 900 076 064 02 | Hexagon nut | 2 | alt | alternative to 901-00 #15 |
-| 16 | 999 170 162 90 | Spark plug | 6 | modelled | `spark-plug-*` |
+| 16 | 999 170 055 90 | Spark plug | 6 | excluded | model years 80-: not a 1978 engine |
+| 16 | 999 170 165 90 | Spark plug | 6 | excluded | model years 80-: not a 1978 engine |
+| 16 | 999 170 170 90 | Spark plug | 6 | modelled | `^spark-plug-\d$` |
+| 16 | 999 170 136 90 | Spark plug | 6 | alt | alternative to 901-00 #16 |
 | 16 | 999 170 128 90 | Spark plug | 6 | excluded | other model (Turbo / Carrera / Sportomatic) |
 | 17 | 911 609 011 07 | Set of ignition cables | 1 | modelled | `ignition-leads` |
 | 17A | 911 609 010 07 | Set of ignition cables | 1 | modelled | `ignition-leads` right |
@@ -1190,7 +1194,7 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 19 | 911 609 510 00 | Cable plug | 1 | modelled | `ignition-leads` plug |
 | 19 | PCG 609 510 00 | Cable plug | 1 | alt | alternative to 901-00 #19 |
 | 20 | 999 659 001 40 | Water protection cap | 1 | N/A | ignition coil and its mounting / tower cap: body-mounted, not part of the engine assembly (left rear wing) |
-| 21 | 911 602 315 00 | Spark plug connector | 6 | modelled | `spark-plug-*` connector |
+| 21 | 911 602 315 00 | Spark plug connector | 6 | modelled | `^spark-plug-connector-\d$` |
 | 22 | 901 609 591 00 | Cable holder | 4 | modelled | `ignition-lead-holders` |
 | 23 | 122 035 281 | Suppression connector | 7 | modelled | `distributor` connector |
 | 24 | 930 602 702 00 | Switch unit | 1 | N/A | capacitive-discharge switch unit and its screws: body-mounted, not part of the engine assembly |
@@ -1243,17 +1247,17 @@ These are the sizes the cam housings, camshafts, rockers and valves are built to
 |---|---|---|---|
 | Lash, cold, in and ex | 0.10 mm at the adjuster ball; pad on the base circle | Wayne Dempsey, “911 Valve Adjustment” | verified |
 | Intake / exhaust head | Ø49 mm / Ø41.5 mm | Catalogue 930.105.409 / 930.105.419; previous model | not re-measured |
-| Valve angle | 28° in / 32° ex | Previous model | unverified |
-| Valve length | 112 mm | Previous model | unverified |
+| Valve angle | 25.5° in / 30.25° ex (55.75° included) | Pelican forum 851122 | unverified |
+| Valve length | 110.1 mm intake / 108.4 mm exhaust | Design911 and KS 3051 | unverified |
 | Stem | Ø9 mm, three keeper grooves | Stem size is the common 911 figure; three beads are the 901.105.417.00 photo | unverified |
 | Installed spring height | 34.5 mm | Bentley 911 SC spec 34.5 ± 0.3 mm (DDK quotation). Not Dempsey | unverified |
 | Spring diameters | outer centre Ø20.4 mm, inner Ø14.2 mm | Scaled to clear the cam-housing stud nuts. The spring photo shows a larger outer coil | unverified |
 | Cam journal / housing bore | Ø46.7 mm / Ø47.1 mm, four webs | Audit photos read about Ø47. Peak lobe radius 22.4 mm is under the journal so the cam slides in from the chain end | unverified |
-| Lobe | base radius 16 mm, lift 6.4 mm | Built as base circle, flank and nose. Peak timing is conventional, not a measured cam card | unverified |
+| Lobe | base radius 14.7 mm, lift 7.75 mm intake / 6.90 mm exhaust | FVD 930 105 147 17 / Cat Cams. Peaks stay under 22.85 mm | unverified |
 | Cam shank | Ø28 mm | About 0.6 × the journal on the FVD photo | unverified |
 | Cam nose | r 11 mm, Woodruff key, external M22 | Key, washer and nut still use `CAM_NOSE`. Flange OD 62 mm so the dowel holes clear the hub | key / nut unchanged |
 | Cam dowel | Ø6 × 14 mm, 2 mm proud of the sprocket, tail in the flange hole | 900 243 001 00, Stoddard 6 × 14. Existing `cam-pin-*`, circle radius 24 mm | parts listing |
 | Valve covers | both banks match the cam-housing seat | Left cover no longer overhangs the flywheel end by 30 mm. Nuts stay on the ear bosses | — |
 | Rocker shaft | Ø18 × 50 mm, hollow, two grooves, slotted | Photo of 901.105.342.04 | unverified |
-| Shaft screw / nut | M6 socket head 999.067.008.00; conical nut 901.105.376.02 | Photos. Same fastener sets, reshaped (the catalogue calls the screw a pan head) | shape from photos |
-| Rocker ratio | ~1.13 in / ~1.21 ex at this layout | Follows from the pad-on-base-circle placement. Not taken from a published ratio | unverified |
+| Shaft screw / nut | M6 pan head 999.067.008.00; nut 901.105.376.02 | Kat 502 illustration 103-10 positions 45 and 47 | catalogue |
+| Rocker ratio | about 1.47 average; about 1.64 in / 1.58 ex at the nose | Pelican forum 1054198 is the published band (about 1.2–1.3 closed, about 1.45 at the nose). This forging is higher because the lift targets fix the average | measured |

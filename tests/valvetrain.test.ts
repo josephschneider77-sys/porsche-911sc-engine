@@ -1,15 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { MeshBVH } from 'three-mesh-bvh';
 import {
-  CAM, PEAK_R, LASH, PAD_LEN, EYE_LEN, FIRE_CRANK, ASSEMBLED_CRANK, trainPose, camshaft, camWebZ, lobeRadius,
-  rockerStations,
+  CAM, PEAK_R, PEAK_CRANK, LASH, PAD_W, FIRE_CRANK, ASSEMBLED_CRANK, trainPose, camshaft, camWebZ, lobeRadius,
+  rockerStations, plugCoverLocal, valveHeadEngine,
 } from '../src/geo/valvetrain';
-import { CAM_X } from '../src/data/layout';
-import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1 } from '../src/geo/core';
-import { ASSET_BUILDERS } from '../src/geo/assets';
+import { CAM_X, SPARK_TIP, SPARK_Z, SPARK_AXIS, SPARK_HOLE_R, SPARK_FLANGE_T, sparkDirHead, sparkRoll, plugTipEngine, plugAxisEngine } from '../src/data/layout';
+import { CAM_NOSE, CAM_WEB, CHAIN_Z, CH_Z0, CH_Z1, coverMatrix, vcLugs, vcStuds } from '../src/geo/core';
+import { DIM, fastenerSets } from '../src/geo/fasteners';
+import { crownSurfaceX, PISTON_DECK, VALVE_DIA, VALVE_FACE, STEM_R, stemDirLocal } from '../src/geo/valveGeom';
+import { ASSET_BUILDERS, partPose } from '../src/geo/assets';
+import { SMALL_GEOM } from '../src/geo/smallParts';
 import { rayHit } from './hw';
+import { clearance } from './collide';
 
-const PEAK_AT = { in: 450, ex: 270 } as const;
+const PEAK_AT = PEAK_CRANK;
 
 function worldVerts(obj: THREE.Object3D): THREE.Vector3[] {
   const out: THREE.Vector3[] = [];
@@ -32,12 +37,59 @@ function worldVerts(obj: THREE.Object3D): THREE.Vector3[] {
   return out;
 }
 
+/** Triangle islands in one mesh. Welded at 0.001 mm, same key as the watertight edge test. */
+function meshComponents(mesh: THREE.Mesh): number {
+  const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
+  const P = g.attributes.position as THREE.BufferAttribute;
+  const parent = new Map<string, string>();
+  const find = (k: string): string => {
+    let p = parent.get(k) ?? k;
+    if (p !== k) { p = find(p); parent.set(k, p); }
+    return p;
+  };
+  const unite = (a: string, b: string) => {
+    const pa = find(a), pb = find(b);
+    if (pa !== pb) parent.set(pa, pb);
+  };
+  const q = (n: number) => {
+    const r = Math.round(n * 1000);
+    return Object.is(r, -0) ? 0 : r;
+  };
+  const v = new THREE.Vector3();
+  const key = (i: number) => {
+    v.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld);
+    return `${q(v.x)}_${q(v.y)}_${q(v.z)}`;
+  };
+  const seen = new Set<string>();
+  let n = 0;
+  for (let i = 0; i < P.count; i += 3) {
+    const ks = [key(i), key(i + 1), key(i + 2)];
+    for (const k of ks) if (!parent.has(k)) parent.set(k, k);
+    unite(ks[0], ks[1]);
+    unite(ks[1], ks[2]);
+  }
+  for (let i = 0; i < P.count; i += 3) {
+    const r = find(key(i));
+    if (!seen.has(r)) { seen.add(r); n++; }
+  }
+  return n;
+}
+
 describe('top-end batch 1', () => {
   it('keeps every lobe peak under the journal so the cam can slide through the bore', () => {
+    expect(CAM.boreR).toBeCloseTo(23.55, 2);
+    expect(CAM.journalR).toBeCloseTo(23.35, 2);
+    expect(CAM.boreR - CAM.journalR).toBeGreaterThan(0.15);
+    expect(CAM.boreR - CAM.journalR).toBeLessThan(0.35);
+    expect(CAM.baseR).toBeCloseTo(14.7, 2);
     expect(PEAK_R).toBeLessThan(CAM.journalR - 0.5);
     expect(PEAK_R).toBeLessThan(CAM.boreR - 0.5);
-    expect(lobeRadius(0)).toBeCloseTo(CAM.baseR + CAM.lift, 5);
-    expect(lobeRadius(Math.PI)).toBeCloseTo(CAM.baseR, 5);
+    expect(lobeRadius(0, 1)).toBeCloseTo(CAM.baseR + CAM.lift.in, 5);
+    expect(lobeRadius(0, -1)).toBeCloseTo(CAM.baseR + CAM.lift.ex, 5);
+    expect(lobeRadius(0, 1)).toBeLessThan(22.85);
+    expect(lobeRadius(0, -1)).toBeLessThan(22.85);
+    expect(lobeRadius(Math.PI, 1)).toBeCloseTo(CAM.baseR, 5);
+    expect(lobeRadius(Math.PI, -1)).toBeCloseTo(CAM.baseR, 5);
   });
 
   it('gives 0.10 mm lash on the base circle at firing TDC and opens the valve on the nose', () => {
@@ -49,12 +101,227 @@ describe('top-end batch 1', () => {
       expect(closed.lift, tag).toBeLessThan(0.05);
       expect(closed.gap, tag).toBeCloseTo(LASH, 2);
       const peak = trainPose(cyl, side, FIRE_CRANK[cyl] + PEAK_AT[which]);
-      expect(peak.lobeR, tag).toBeCloseTo(PEAK_R, 2);
-      expect(peak.lift, `${tag} lift`).toBeGreaterThan(4);
+      expect(peak.lobeR, tag).toBeCloseTo(side > 0 ? lobeRadius(0, 1) : lobeRadius(0, -1), 2);
+      // FVD 930 105 147 17 / Cat Cams, with 0.10 mm lash: 11.3 intake, 9.9 exhaust.
+      const want = side > 0 ? 11.3 : 9.9;
+      expect(Math.abs(peak.lift - want), `${tag} lift`).toBeLessThanOrEqual(0.3);
+      const overlap = trainPose(cyl, side, FIRE_CRANK[cyl] + 360);
+      const wantTdc = side > 0 ? 1.15 : 1.35;
+      expect(Math.abs(overlap.lift - wantTdc), `${tag} overlap TDC`).toBeLessThanOrEqual(0.15);
+      const b = peak.lay.ball.clone().sub(peak.lay.P).rotateAround(new THREE.Vector2(0, 0), peak.beta).add(peak.lay.P);
+      const dx = b.x - peak.lay.tip.x, dy = b.y - peak.lay.tip.y;
+      const along = dx * peak.lay.stem.x + dy * peak.lay.stem.y;
+      const off = Math.hypot(dx - peak.lay.stem.x * along, dy - peak.lay.stem.y * along);
+      expect(off, `${tag} ball on the stem`).toBeLessThanOrEqual(3);
+      const s = cyl <= 3 ? 1 : -1;
+      const cam = new THREE.Vector2(s * CAM_X, 0);
+      expect(Math.abs(closed.lay.K.distanceTo(cam) - CAM.baseR), `${tag} pad on base circle`).toBeLessThanOrEqual(0.05);
       expect(peak.gap, tag).toBeLessThan(0.02);
-      // Photo proportions: a long pad arm and a distinct shorter eye arm, not a stub on the boss.
-      expect(closed.lay.P.distanceTo(closed.lay.K), `${tag} pad arm`).toBeGreaterThan(PAD_LEN - 1);
-      expect(closed.lay.P.distanceTo(closed.lay.ball), `${tag} eye arm`).toBeGreaterThan(EYE_LEN - 1);
+      const pad = closed.lay.P.distanceTo(closed.lay.K);
+      const eye = closed.lay.P.distanceTo(closed.lay.ball);
+      expect(pad, `${tag} pad arm`).toBeGreaterThanOrEqual(31);
+      expect(pad, `${tag} pad arm`).toBeLessThanOrEqual(35);
+      expect(eye, `${tag} eye arm`).toBeGreaterThanOrEqual(33);
+      expect(eye, `${tag} eye arm`).toBeLessThanOrEqual(40);
+      expect(closed.lay.P.distanceTo(closed.lay.C), `${tag} shaft to cam`).toBeGreaterThanOrEqual(40);
+      expect(closed.lay.P.distanceTo(closed.lay.C), `${tag} shaft to cam`).toBeLessThanOrEqual(42);
+      expect(PAD_W, 'pad shoe width').toBe(19);
+    }
+  });
+
+  it('seats the pad shoe on the base circle and keeps main pan heights', () => {
+    const root = ASSET_BUILDERS['rockers-right']();
+    root.updateMatrixWorld(true);
+    const v = new THREE.Vector3();
+    for (const side of [1, -1] as const) {
+      const pose = trainPose(1, side, 0);
+      let gap = Infinity;
+      root.traverse((o: any) => {
+        if (!o.isMesh || o.material?.name !== 'polishedSteel') return;
+        const P = o.geometry.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld);
+          // The shoe is 19 mm wide and has no mid-plane vertices, so the crown
+          // sits on the flat faces, up to 9.5 mm off the lobe centre.
+          if (Math.abs(v.z - pose.lay.z) > 12) continue;
+          gap = Math.min(gap, Math.hypot(v.x - pose.lay.C.x, v.y - pose.lay.C.y) - CAM.baseR);
+        }
+      });
+      expect(Math.abs(gap), side > 0 ? 'intake shoe' : 'exhaust shoe').toBeLessThan(0.02);
+    }
+    const span = (id: string, s: 1 | -1, upper: boolean) => {
+      const inv = coverMatrix(s, upper).clone().invert();
+      const part = ASSET_BUILDERS[id]();
+      part.updateMatrixWorld(true);
+      let max = -Infinity;
+      part.traverse((o: any) => {
+        if (!o.isMesh) return;
+        const P = o.geometry.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld).applyMatrix4(inv);
+          if (v.z > max) max = v.z;
+        }
+      });
+      return max;
+    };
+    // Main's upper bosses reached 27.9 mm and the lower ribs 24.0 mm. The pans
+    // stay at that envelope: collars under 27.9, ribs at 24. No clearance box.
+    expect(span('valve-cover-upper-right', 1, true)).toBeLessThanOrEqual(27.9);
+    expect(span('valve-cover-upper-left', -1, true)).toBeLessThanOrEqual(27.9);
+    expect(span('valve-cover-lower-right', 1, false)).toBeCloseTo(24, 1);
+    expect(span('valve-cover-lower-left', -1, false)).toBeCloseTo(24, 1);
+  });
+
+  it('seats each upper-cover ear on its cam-housing stud', () => {
+    const washerR = DIM[8].wr;
+    for (const s of [1, -1] as const) {
+      const bank = s > 0 ? 'right' : 'left';
+      const frame = coverMatrix(s, true);
+      const inv = frame.clone().invert();
+      const normal = new THREE.Vector3(0, 0, 1).transformDirection(frame).normalize();
+      const down = normal.clone().negate();
+      const coverId = `valve-cover-upper-${bank}`;
+      const houseId = `cam-housing-${bank}`;
+      const house = ASSET_BUILDERS[houseId]();
+      house.updateMatrixWorld(true);
+      const hv: THREE.Vector3[] = [];
+      const tmp = new THREE.Vector3();
+      house.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const P = mesh.geometry.attributes.position;
+        for (let i = 0; i < P.count; i++) hv.push(tmp.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld).clone());
+      });
+      const nuts = fastenerSets().find((f) => f.id === `valve-cover-nuts-upper-${bank}`)!;
+      expect(nuts.items.length, bank).toBe(6);
+      for (const st of vcStuds(true, s)) {
+        // Open bore: rays that miss the cover. The centroid is the hole axis.
+        const open: THREE.Vector2[] = [];
+        for (let y = st.y - 5; y <= st.y + 5; y += 0.5) for (let x = st.x - 5; x <= st.x + 5; x += 0.5) {
+          const origin = new THREE.Vector3(x, y, 18).applyMatrix4(frame);
+          const hit = rayHit(coverId, origin, down, 30);
+          if (!hit) open.push(new THREE.Vector2(x, y));
+        }
+        expect(open.length, `${bank} hole ${st.x},${st.y}`).toBeGreaterThan(20);
+        const hole = open.reduce((a, p) => a.add(p), new THREE.Vector2()).multiplyScalar(1 / open.length);
+        const near: THREE.Vector3[] = [];
+        for (const p of hv) {
+          const loc = p.clone().applyMatrix4(inv);
+          if (loc.z > -2 || loc.z < -20) continue;
+          if (Math.hypot(loc.x - hole.x, loc.y - hole.y) > 5) continue;
+          near.push(loc);
+        }
+        expect(near.length, `${bank} stud under ${st.x},${st.y}`).toBeGreaterThan(12);
+        const stud = near.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / near.length);
+        expect(Math.hypot(stud.x - hole.x, stud.y - hole.y), `${bank} stud axis`).toBeLessThanOrEqual(0.2);
+        // Washer bearing ring on the ear face (the nut's seat plane, local z = 7).
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const x = hole.x + Math.cos(a) * washerR * 0.85;
+          const y = hole.y + Math.sin(a) * washerR * 0.85;
+          const origin = new THREE.Vector3(x, y, 16).applyMatrix4(frame);
+          const hit = rayHit(coverId, origin, down, 20);
+          expect(hit, `${bank} washer ${k}`).not.toBeNull();
+          const at = origin.clone().addScaledVector(down, hit!.distance).applyMatrix4(inv);
+          expect(at.z, `${bank} washer seat`).toBeGreaterThan(6.5);
+          expect(at.z, `${bank} washer seat`).toBeLessThan(7.4);
+        }
+        const nut = nuts.items.find((it) => {
+          const loc = it.p.clone().applyMatrix4(inv);
+          return Math.hypot(loc.x - hole.x, loc.y - hole.y) < 2;
+        });
+        expect(nut, `${bank} nut`).toBeTruthy();
+        const loc = nut!.p.clone().applyMatrix4(inv);
+        expect(Math.hypot(loc.x - hole.x, loc.y - hole.y), `${bank} nut axis`).toBeLessThanOrEqual(0.2);
+        expect(loc.z, `${bank} nut face`).toBeCloseTo(7, 1);
+      }
+    }
+  });
+
+  it('seats each lower-cover nut and special nut on its stud', () => {
+    const washerR = DIM[8].wr;
+    for (const s of [1, -1] as const) {
+      const bank = s > 0 ? 'right' : 'left';
+      const frame = coverMatrix(s, false);
+      const inv = frame.clone().invert();
+      const normal = new THREE.Vector3(0, 0, 1).transformDirection(frame).normalize();
+      const down = normal.clone().negate();
+      const coverId = `valve-cover-lower-${bank}`;
+      const house = ASSET_BUILDERS[`cam-housing-${bank}`]();
+      house.updateMatrixWorld(true);
+      const hv: THREE.Vector3[] = [];
+      const tmp = new THREE.Vector3();
+      house.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const P = mesh.geometry.attributes.position;
+        for (let i = 0; i < P.count; i++) hv.push(tmp.fromBufferAttribute(P, i).applyMatrix4(mesh.matrixWorld).clone());
+      });
+      const nuts = fastenerSets().find((f) => f.id === `valve-cover-nuts-lower-${bank}`)!;
+      expect(nuts.items.length, bank).toBe(11);
+      for (const st of vcStuds(false, s)) {
+        const open: THREE.Vector2[] = [];
+        for (let y = st.y - 5; y <= st.y + 5; y += 0.5) for (let x = st.x - 5; x <= st.x + 5; x += 0.5) {
+          const origin = new THREE.Vector3(x, y, 18).applyMatrix4(frame);
+          const hit = rayHit(coverId, origin, down, 30);
+          if (!hit) open.push(new THREE.Vector2(x, y));
+        }
+        expect(open.length, `${bank} hole ${st.x},${st.y}`).toBeGreaterThan(20);
+        const hole = open.reduce((a, p) => a.add(p), new THREE.Vector2()).multiplyScalar(1 / open.length);
+        const near: THREE.Vector3[] = [];
+        for (const p of hv) {
+          const loc = p.clone().applyMatrix4(inv);
+          // The shank under the gasket (local z about −14..−8). The rail
+          // beside a lower stud is not the stud.
+          if (loc.z > -6 || loc.z < -14) continue;
+          if (Math.hypot(loc.x - hole.x, loc.y - hole.y) > 5) continue;
+          near.push(loc);
+        }
+        expect(near.length, `${bank} stud under ${st.x},${st.y}`).toBeGreaterThan(12);
+        const stud = near.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / near.length);
+        expect(Math.hypot(stud.x - hole.x, stud.y - hole.y), `${bank} stud axis`).toBeLessThanOrEqual(0.2);
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const x = hole.x + Math.cos(a) * washerR * 0.85;
+          const y = hole.y + Math.sin(a) * washerR * 0.85;
+          const origin = new THREE.Vector3(x, y, 16).applyMatrix4(frame);
+          const hit = rayHit(coverId, origin, down, 20);
+          expect(hit, `${bank} washer ${k}`).not.toBeNull();
+          const at = origin.clone().addScaledVector(down, hit!.distance).applyMatrix4(inv);
+          expect(at.z, `${bank} washer seat`).toBeGreaterThan(6.5);
+          expect(at.z, `${bank} washer seat`).toBeLessThan(7.4);
+        }
+        const nut = nuts.items.find((it) => Math.hypot(it.p.clone().applyMatrix4(inv).x - hole.x, it.p.clone().applyMatrix4(inv).y - hole.y) < 2);
+        expect(nut, `${bank} nut`).toBeTruthy();
+        const loc = nut!.p.clone().applyMatrix4(inv);
+        expect(Math.hypot(loc.x - hole.x, loc.y - hole.y), `${bank} nut axis`).toBeLessThanOrEqual(0.2);
+        expect(loc.z, `${bank} nut face`).toBeCloseTo(7, 1);
+        // Hex nut and cap nut both point out along the cover normal.
+        expect(nut!.n.dot(normal), `${bank} nut axis`).toBeGreaterThan(0.99);
+      }
+      const caps = fastenerSets().find((f) => f.id === `valve-cover-special-${bank}`)!;
+      expect(caps.items.length, `${bank} special`).toBe(3);
+      expect(caps.washer, `${bank} special washer`).toBe(0);
+      expect(caps.spring, `${bank} special spring`).toBe(true);
+      expect(nuts.spring, `${bank} hex spring`).toBe(true);
+      expect(nuts.washer, `${bank} hex washer`).toBe(0);
+      for (const st of vcLugs(s)) {
+        const cap = caps.items.find((it) => Math.hypot(it.p.clone().applyMatrix4(inv).x - st.x, it.p.clone().applyMatrix4(inv).y - st.y) < 2);
+        expect(cap, `${bank} cap ${st.y}`).toBeTruthy();
+        const loc = cap!.p.clone().applyMatrix4(inv);
+        expect(Math.hypot(loc.x - st.x, loc.y - st.y), `${bank} cap axis`).toBeLessThanOrEqual(0.2);
+        expect(loc.z, `${bank} cap face`).toBeCloseTo(7, 1);
+        expect(cap!.n.dot(normal), `${bank} cap outward`).toBeGreaterThan(0.99);
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const origin = new THREE.Vector3(st.x + Math.cos(a) * washerR * 0.85, st.y + Math.sin(a) * washerR * 0.85, 16).applyMatrix4(frame);
+          const hit = rayHit(coverId, origin, down, 20);
+          expect(hit, `${bank} cap washer ${k}`).not.toBeNull();
+          const at = origin.clone().addScaledVector(down, hit!.distance).applyMatrix4(inv);
+          expect(at.z, `${bank} cap washer seat`).toBeGreaterThan(6.5);
+          expect(at.z, `${bank} cap washer seat`).toBeLessThan(7.4);
+        }
+      }
     }
   });
 
@@ -98,16 +365,20 @@ describe('top-end batch 1', () => {
     expect(leftEx.z).toBeCloseTo(-rightEx.z, 2);
   });
 
-  it('trims the left valve cover to the cam-housing seat, matching the right cover', () => {
+  it('places the left valve cover over the left cylinders, the same shell mirrored', () => {
     const box = (id: string) => new THREE.Box3().setFromObject(ASSET_BUILDERS[id]());
-    for (const u of ['upper', 'lower'] as const) {
-      const L = box(`valve-cover-${u}-left`), R = box(`valve-cover-${u}-right`);
-      expect(L.min.z, `${u} flywheel end`).toBeCloseTo(R.min.z, 0);
-      expect(L.max.z, `${u} pulley end`).toBeCloseTo(R.max.z, 0);
-      expect(L.min.z, u).toBeGreaterThan(CH_Z0 - 1);
-      expect(L.max.z, u).toBeLessThan(CH_Z1 + 1);
-      expect(L.max.z - L.min.z, `${u} length`).toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
-    }
+    const lowerL = box('valve-cover-lower-left'), lowerR = box('valve-cover-lower-right');
+    expect(lowerL.min.z, 'lower flywheel end').toBeCloseTo(-lowerR.max.z, 0);
+    expect(lowerL.max.z, 'lower pulley end').toBeCloseTo(-lowerR.min.z, 0);
+    expect(lowerL.min.z, 'covers cylinder 6').toBeLessThan(-200);
+    expect(lowerR.max.z - lowerR.min.z, 'lower right length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
+    expect(lowerL.max.z - lowerL.min.z, 'lower left length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
+    const upperL = box('valve-cover-upper-left'), upperR = box('valve-cover-upper-right');
+    expect(upperL.min.z, 'upper flywheel end').toBeCloseTo(-upperR.max.z, 0);
+    expect(upperL.max.z, 'upper pulley end').toBeCloseTo(-upperR.min.z, 0);
+    expect(upperL.min.z, 'covers cylinder 6').toBeLessThan(-200);
+    expect(upperR.max.z - upperR.min.z, 'upper right length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
+    expect(upperL.max.z - upperL.min.z, 'upper left length').toBeGreaterThan(CH_Z1 - CH_Z0 - 20);
   });
 
   it('keeps every rocker sub-mesh in one connected piece per station', () => {
@@ -139,7 +410,7 @@ describe('top-end batch 1', () => {
         const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3());
         let best = 0, bestD = Infinity;
         stations.forEach((st, i) => {
-          const d = Math.hypot(c.x - st.x, c.y - st.y, c.z - st.z);
+          const d = Math.hypot(c.x - st.x, c.y - st.y, (c.z - st.z) * 4);
           if (d < bestD) { bestD = d; best = i; }
         });
         expect(bestD, `${id} floating fragment`).toBeLessThan(56);
@@ -149,9 +420,63 @@ describe('top-end batch 1', () => {
         const tag = `${id} cyl ${stations[i].cyl} side ${stations[i].side}`;
         expect(g.length, tag).toBeGreaterThan(4);
         expect(count(g), `${tag} components`).toBe(1);
+        for (const m of g) expect(meshComponents(m), `${tag} mesh`).toBe(1);
       });
     }
   });
+
+  it('keeps every rebuilt part one solid, apart from assemblies', () => {
+    // A rocker bank is six stations, and a station is a shaft plus a bush plus a
+    // forging. Each of those meshes is one solid; the station test checks they meet.
+    // Rocker banks are six stations. Cam housings are an existing multi-mesh
+    // casting; the rocker pockets do not join those scraps into one body.
+    const assemblies = new Set(['rockers-right', 'rockers-left', 'cam-housing-right', 'cam-housing-left']);
+    const touched = [
+      'cylinder-head',
+      'valve-cover-upper-right', 'valve-cover-lower-right',
+      'valve-cover-upper-left', 'valve-cover-lower-left',
+      'valve-cover-gasket-upper-right', 'valve-cover-gasket-upper-left',
+      'valve-cover-gasket-lower-right', 'valve-cover-gasket-lower-left',
+      'spark-plug', 'spark-plug-connector',
+      'rockers-right', 'rockers-left',
+    ];
+    const touch = (a: THREE.Box3, b: THREE.Box3) => a.clone().expandByScalar(0.2).intersectsBox(b);
+    for (const id of touched) {
+      const root = ASSET_BUILDERS[id]();
+      root.updateMatrixWorld(true);
+      const meshes: THREE.Mesh[] = [];
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) meshes.push(m);
+      });
+      const solid = meshes.filter((m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) > 0);
+      expect(solid.length, id).toBeGreaterThan(0);
+      const cover = id.startsWith('valve-cover-') && !id.includes('gasket');
+      if (cover) {
+        // The pan shell is one solid the length of the cover. The lip boolean
+        // also leaves closed scraps in another mesh; those are not a second pan.
+        const long = solid.some((m) => {
+          if (meshComponents(m) !== 1) return false;
+          const size = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
+          return size.length() > 300;
+        });
+        expect(long, `${id} pan`).toBe(true);
+        continue;
+      }
+      solid.forEach((m, i) => expect(meshComponents(m), `${id} mesh ${i}`).toBe(1));
+      if (assemblies.has(id)) continue;
+      const boxes = solid.map((m) => new THREE.Box3().setFromObject(m));
+      const parent = solid.map((_, i) => i);
+      const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+      for (let i = 0; i < solid.length; i++) for (let j = i + 1; j < solid.length; j++) {
+        if (touch(boxes[i], boxes[j])) {
+          const a = find(i), b = find(j);
+          if (a !== b) parent[a] = b;
+        }
+      }
+      expect(new Set(solid.map((_, i) => find(i))).size, `${id} body`).toBe(1);
+    }
+  }, 300000);
 
   it('seats the cam dowel in the flange hole and stands it proud of the sprocket', () => {
     const lip = CAM_WEB.depth / 2 + CAM_WEB.bevel;
@@ -169,4 +494,901 @@ describe('top-end batch 1', () => {
       expect((Math.min(...rad) + Math.max(...rad)) / 2, `${b} circle`).toBeCloseTo(CAM_NOSE.pin.rad, 0);
     }
   });
+
+  it('is watertight apart from coincident seams, and rays from inside the metal hit a wall', () => {
+    // Weld vertices that share a position (lathe phi seam, indexed copies). A remaining
+    // boundary edge is a hole. Main's head / right housing / upper / lower covers were
+    // 144 / 1192 / 670 / 871; the parts this branch rebuilds have to close completely.
+    const openEdges = (id: string) => {
+      const root = ASSET_BUILDERS[id]();
+      root.updateMatrixWorld(true);
+      const count = new Map<string, number>();
+      const v = new THREE.Vector3();
+      const keyOf = (i: number, P: THREE.BufferAttribute, m: THREE.Matrix4) => {
+        v.fromBufferAttribute(P, i).applyMatrix4(m);
+        // toFixed(-0) is the string "-0.000", which splits a lathe seam in half.
+        const q = (n: number) => {
+          const r = Math.round(n * 1000);
+          return Object.is(r, -0) ? 0 : r;
+        };
+        return `${q(v.x)}_${q(v.y)}_${q(v.z)}`;
+      };
+      root.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
+        const P = g.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < P.count; i += 3) {
+          const k = [keyOf(i, P, mesh.matrixWorld), keyOf(i + 1, P, mesh.matrixWorld), keyOf(i + 2, P, mesh.matrixWorld)];
+          for (let e = 0; e < 3; e++) {
+            const a = k[e], b = k[(e + 1) % 3];
+            if (a === b) continue;
+            const edge = a < b ? `${a}|${b}` : `${b}|${a}`;
+            count.set(edge, (count.get(edge) ?? 0) + 1);
+          }
+        }
+      });
+      let open = 0;
+      for (const n of count.values()) if (n === 1) open++;
+      return open;
+    };
+    const closed = [
+      'cylinder-head',
+      'cam-housing-right', 'cam-housing-left',
+      'valve-cover-upper-right', 'valve-cover-lower-right',
+      'valve-cover-upper-left', 'valve-cover-lower-left',
+      'valve-cover-gasket-upper-right', 'valve-cover-gasket-upper-left',
+      'valve-cover-gasket-lower-right', 'valve-cover-gasket-lower-left',
+      'spark-plug', 'spark-plug-connector',
+      'rockers-right', 'rockers-left',
+    ];
+    for (const id of closed) expect(openEdges(id), id).toBe(0);
+    const miss = (id: string, origin: THREE.Vector3) => {
+      let n = 0;
+      const dirs = 24;
+      for (let i = 0; i < dirs; i++) {
+        const y = 1 - (i / (dirs - 1)) * 2;
+        const rr = Math.sqrt(Math.max(0, 1 - y * y));
+        const phi = i * Math.PI * (3 - Math.sqrt(5));
+        const dir = new THREE.Vector3(Math.cos(phi) * rr, y, Math.sin(phi) * rr);
+        if (!rayHit(id, origin, dir, 120)) n++;
+      }
+      return n;
+    };
+    const headPose = partPose('head-1');
+    const samples: [string, string, THREE.Vector3][] = [
+      ['head-1', 'head web', new THREE.Vector3(30, 0, 0).applyMatrix4(headPose)],
+      ['head-1', 'head roof', new THREE.Vector3(42, -8, 6).applyMatrix4(headPose)],
+      ['valve-cover-lower-right', 'lower roof', new THREE.Vector3(0, 40, 20.6).applyMatrix4(coverMatrix(1, false))],
+      ['valve-cover-lower-right', 'lower rib', new THREE.Vector3(0, 0, 22.4).applyMatrix4(coverMatrix(1, false))],
+      ['valve-cover-upper-right', 'upper roof', new THREE.Vector3(0, 20, 20.6).applyMatrix4(coverMatrix(1, true))],
+      ['valve-cover-upper-right', 'upper roof b', new THREE.Vector3(0, 20, 21.3).applyMatrix4(coverMatrix(1, true))],
+      ['spark-plug-1', 'plug hex', new THREE.Vector3(0, -20, 0).applyMatrix4(partPose('spark-plug-1'))],
+      ['spark-plug-1', 'plug shell', new THREE.Vector3(0, -8, 0).applyMatrix4(partPose('spark-plug-1'))],
+      ['spark-plug-1', 'plug insulator', new THREE.Vector3(0, -48, 0).applyMatrix4(partPose('spark-plug-1'))],
+      ['cam-housing-right', 'housing wall', new THREE.Vector3(CAM_X + 28, 0, 40)],
+      ['cam-housing-left', 'housing wall', new THREE.Vector3(-CAM_X - 28, 0, -40)],
+    ];
+    for (const [id, tag, origin] of samples) expect(miss(id, origin), tag).toBe(0);
+  }, 300000);
+
+  it('opens the upper cover only on the plug holes', () => {
+    // Rays from inside the pan toward the roof. The lower lid is closed.
+    // An upper-lid ray may miss only when it passes through a plug hole.
+    const holeAt = (s: 1 | -1) => (s > 0 ? [1, 2, 3] : [4, 5, 6]).map((c) => plugCoverLocal(c, 22));
+    for (const s of [1, -1] as const) for (const upper of [true, false]) {
+      const id = `valve-cover-${upper ? 'upper' : 'lower'}-${s > 0 ? 'right' : 'left'}`;
+      const frame = coverMatrix(s, upper);
+      const origin = new THREE.Vector3(0, 0, 8).applyMatrix4(frame);
+      const holes = upper ? holeAt(s) : [];
+      let missed = 0;
+      for (let ix = -2; ix <= 2; ix++) for (let iy = -3; iy <= 3; iy++) {
+        const local = new THREE.Vector3(ix * 6, iy * 40, 22);
+        const throughHole = holes.some((h) => Math.hypot(local.x - h.x, local.y - h.y) < SPARK_HOLE_R + 4);
+        if (throughHole) continue;
+        const target = new THREE.Vector3(ix * 6, iy * 40, 30).applyMatrix4(frame);
+        const dir = target.clone().sub(origin).normalize();
+        if (!rayHit(id, origin, dir, 200)) missed++;
+      }
+      expect(missed, id).toBe(0);
+      if (upper) {
+        const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+        for (const c of cyls) {
+          const tip = new THREE.Vector3(...plugTipEngine(c));
+          const axis = new THREE.Vector3(...plugAxisEngine(c));
+          const start = tip.clone().addScaledVector(axis, SPARK_FLANGE_T - 18);
+          expect(rayHit(id, start, axis, 36), `${id} plug bore cyl ${c}`).toBeNull();
+        }
+      }
+    }
+  });
+
+  it('stops outside rays at the upper cover except through the plug wells', () => {
+    // Above, both ends, and both sides. A ray may reach the cam chamber only
+    // by passing through a plug well (the round holes or the end scallop).
+    const bake = (root: THREE.Object3D, inv: THREE.Matrix4) => {
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    // Closest distance between two segments. Eberly's clamped solution.
+    const segDist = (p0: THREE.Vector3, p1: THREE.Vector3, q0: THREE.Vector3, q1: THREE.Vector3) => {
+      const u = p1.clone().sub(p0);
+      const v = q1.clone().sub(q0);
+      const w = p0.clone().sub(q0);
+      const a = u.dot(u), b = u.dot(v), c = v.dot(v), d = u.dot(w), e = v.dot(w);
+      const D = a * c - b * b;
+      let sN: number, sD = D, tN: number, tD = D;
+      if (D < 1e-8) { sN = 0; sD = 1; tN = e; tD = c; }
+      else {
+        sN = b * e - c * d; tN = a * e - b * d;
+        if (sN < 0) { sN = 0; tN = e; tD = c; }
+        else if (sN > sD) { sN = sD; tN = e + b; tD = c; }
+      }
+      if (tN < 0) {
+        tN = 0;
+        if (-d < 0) sN = 0;
+        else if (-d > a) sN = sD;
+        else { sN = -d; sD = a; }
+      } else if (tN > tD) {
+        tN = tD;
+        if (-d + b < 0) sN = 0;
+        else if (-d + b > a) sN = sD;
+        else { sN = -d + b; sD = a; }
+      }
+      const sc = Math.abs(sN) < 1e-8 ? 0 : sN / sD;
+      const tc = Math.abs(tN) < 1e-8 ? 0 : tN / tD;
+      return w.addScaledVector(u, sc).addScaledVector(v, -tc).length();
+    };
+    const targets = [
+      new THREE.Vector3(0, 0, 10),
+      new THREE.Vector3(0, 140, 8),
+      new THREE.Vector3(0, -140, 8),
+      new THREE.Vector3(22, 80, 12),
+      new THREE.Vector3(-22, -80, 6),
+    ];
+    const origins: THREE.Vector3[] = [];
+    for (let x = -36; x <= 36; x += 3) for (let z = 0.6; z <= 21; z += 2) {
+      origins.push(new THREE.Vector3(x, -210, z), new THREE.Vector3(x, 210, z));
+    }
+    for (let y = -170; y <= 170; y += 5) for (let z = 1; z <= 21; z += 2.5) {
+      origins.push(new THREE.Vector3(-92, y, z), new THREE.Vector3(92, y, z));
+    }
+    for (let x = -32; x <= 32; x += 8) for (let y = -160; y <= 160; y += 8) {
+      origins.push(new THREE.Vector3(x, y, 46));
+    }
+    const ray = new THREE.Ray();
+    const dir = new THREE.Vector3();
+    for (const s of [1, -1] as const) {
+      const bank = s > 0 ? 'right' : 'left';
+      const inv = coverMatrix(s, true).invert();
+      const cover = bake(ASSET_BUILDERS[`valve-cover-upper-${bank}`](), inv);
+      const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+      const wells = cyls.map((c) => ({
+        a: plugCoverLocal(c, 8),
+        b: plugCoverLocal(c, 32),
+      }));
+      let leaks = 0;
+      let example = '';
+      for (const origin of origins) for (const target of targets) {
+        dir.copy(target).sub(origin);
+        const far = dir.length();
+        dir.multiplyScalar(1 / far);
+        ray.set(origin, dir);
+        const hit = cover.raycastFirst(ray, THREE.DoubleSide) as { distance: number } | null;
+        if (hit && hit.distance < far - 0.4) continue;
+        const throughWell = wells.some((w) => segDist(origin, target, w.a, w.b) <= SPARK_HOLE_R + 0.5);
+        if (throughWell) continue;
+        leaks++;
+        if (!example) example = `(${origin.x.toFixed(0)},${origin.y.toFixed(0)},${origin.z.toFixed(1)}) → (${target.x.toFixed(0)},${target.y.toFixed(0)},${target.z.toFixed(0)})`;
+      }
+      expect(leaks, `${bank} ${example}`).toBe(0);
+    }
+  }, 120000);
+
+  it('keeps the cam chamber off the outside on a 1 mm flood, connectors in place', () => {
+    // The ray test above allows any line that passes the plug-well radius, so it
+    // misses a slit beside the tube. This flood does not. Cover, housing and the
+    // three connectors are solid. A 6-connected walk from the chamber may not
+    // reach past the cover. The sealed wells are the connectors' own metal.
+    const bake = (root: THREE.Object3D, inv: THREE.Matrix4) => {
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return geom;
+    };
+    const x0 = -70, x1 = 80, y0 = -200, y1 = 210, z0 = 0, z1 = 30;
+    const nx = x1 - x0 + 1, ny = y1 - y0 + 1, nz = z1 - z0 + 1;
+    const voxelize = (geoms: THREE.BufferGeometry[]) => {
+      const blocked = new Uint8Array(nx * ny * nz);
+      const tri = new THREE.Triangle();
+      const box = new THREE.Box3();
+      const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+      for (const g of geoms) {
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i += 3) {
+          a.fromBufferAttribute(P, i);
+          b.fromBufferAttribute(P, i + 1);
+          c.fromBufferAttribute(P, i + 2);
+          tri.set(a, b, c);
+          const minx = Math.max(x0, Math.floor(Math.min(a.x, b.x, c.x)));
+          const maxx = Math.min(x1, Math.floor(Math.max(a.x, b.x, c.x)));
+          const miny = Math.max(y0, Math.floor(Math.min(a.y, b.y, c.y)));
+          const maxy = Math.min(y1, Math.floor(Math.max(a.y, b.y, c.y)));
+          const minz = Math.max(z0, Math.floor(Math.min(a.z, b.z, c.z)));
+          const maxz = Math.min(z1, Math.floor(Math.max(a.z, b.z, c.z)));
+          for (let x = minx; x <= maxx; x++) for (let y = miny; y <= maxy; y++) for (let z = minz; z <= maxz; z++) {
+            box.min.set(x, y, z);
+            box.max.set(x + 1, y + 1, z + 1);
+            if (!box.intersectsTriangle(tri)) continue;
+            blocked[(x - x0) + nx * ((y - y0) + ny * (z - z0))] = 1;
+          }
+        }
+      }
+      return blocked;
+    };
+    for (const s of [1, -1] as const) {
+      const bank = s > 0 ? 'right' : 'left';
+      const inv = coverMatrix(s, true).invert();
+      const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+      const solids = [
+        bake(ASSET_BUILDERS[`valve-cover-upper-${bank}`](), inv),
+        bake(ASSET_BUILDERS[`cam-housing-${bank}`](), inv),
+        ...cyls.map((c) => {
+          const conn = ASSET_BUILDERS['spark-plug-connector']();
+          conn.applyMatrix4(partPose(`spark-plug-connector-${c}`));
+          return bake(conn, inv);
+        }),
+      ];
+      const blocked = voxelize(solids);
+      const seen = new Uint8Array(nx * ny * nz);
+      const qx: number[] = [], qy: number[] = [], qz: number[] = [];
+      const push = (x: number, y: number, z: number) => {
+        if (x < x0 || x > x1 || y < y0 || y > y1 || z < z0 || z > z1) return;
+        const id = (x - x0) + nx * ((y - y0) + ny * (z - z0));
+        if (blocked[id] || seen[id]) return;
+        seen[id] = 1;
+        qx.push(x); qy.push(y); qz.push(z);
+      };
+      for (const [x, y, z] of [[0, 0, 10], [0, 140, 8], [0, -140, 8], [22, 80, 8], [-22, -80, 6]] as const) push(x, y, z);
+      let outside = 0;
+      let example = '';
+      for (let qi = 0; qi < qx.length; qi++) {
+        const x = qx[qi], y = qy[qi], z = qz[qi];
+        if (x <= -68 || x >= 78 || y <= -198 || y >= 208 || z >= 29) {
+          outside++;
+          if (!example) example = `(${x},${y},${z})`;
+          continue;
+        }
+        push(x + 1, y, z); push(x - 1, y, z);
+        push(x, y + 1, z); push(x, y - 1, z);
+        push(x, y, z + 1); push(x, y, z - 1);
+      }
+      expect(qx.length, `${bank} chamber seeds`).toBeGreaterThan(1000);
+      expect(outside, `${bank} ${example}`).toBe(0);
+    }
+  }, 120000);
+
+  it('seals every plug connector against the upper cover', () => {
+    // Cylinders 2 and 3 use the round holes; cylinder 1 uses the end scallop.
+    // The left lid is that casting turned about Y, so 5 and 4 use the holes and 6 the scallop.
+    const bake = (root: THREE.Object3D) => {
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    const right = bake(ASSET_BUILDERS['valve-cover-upper-right']());
+    const left = bake(ASSET_BUILDERS['valve-cover-upper-left']());
+    const target = { point: new THREE.Vector3(), distance: Infinity };
+    for (const c of [1, 2, 3, 4, 5, 6]) {
+      const conn = ASSET_BUILDERS['spark-plug-connector']();
+      conn.applyMatrix4(partPose(`spark-plug-connector-${c}`));
+      conn.updateMatrixWorld(true);
+      const bvh = c <= 3 ? right : left;
+      let min = Infinity;
+      const v = new THREE.Vector3();
+      conn.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const P = m.geometry.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          bvh.closestPointToPoint(v, target as never);
+          if (target.distance < min) min = target.distance;
+        }
+      });
+      console.log(`connector cyl ${c} gap ${min.toFixed(3)} mm`);
+      expect(min, `cyl ${c}`).toBeLessThanOrEqual(0.2);
+    }
+  }, 300000);
+
+  it('keeps at least 85% of the upper seat on the housing land', () => {
+    const bake = (root: THREE.Object3D) => {
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    for (const s of [1, -1] as const) {
+      const bank = s > 0 ? 'right' : 'left';
+      const frame = coverMatrix(s, true);
+      const inv = frame.clone().invert();
+      const normal = new THREE.Vector3().setFromMatrixColumn(frame, 2).normalize();
+      const neg = normal.clone().negate();
+      const cover = bake(ASSET_BUILDERS[`valve-cover-upper-${bank}`]());
+      const house = bake(ASSET_BUILDERS[`cam-housing-${bank}`]());
+      const world = new THREE.Vector3();
+      const at = new THREE.Vector3();
+      let under = 0, over = 0;
+      for (let y = -186; y <= 186; y += 2) for (let x = -74; x <= 74; x += 2) {
+        world.set(x, y, -2).applyMatrix4(frame);
+        const h = cover.raycastFirst(new THREE.Ray(world, normal), THREE.DoubleSide) as { distance: number; point: THREE.Vector3 } | null;
+        if (!h || h.distance > 3.2) continue;
+        at.copy(h.point).applyMatrix4(inv);
+        if (at.z > 1.2) continue;
+        under++;
+        world.set(x, y, 0.4).applyMatrix4(frame);
+        const hh = house.raycastFirst(new THREE.Ray(world, neg), THREE.DoubleSide) as { distance: number } | null;
+        if (hh && hh.distance > 0.02 && hh.distance <= 3.2) over++;
+      }
+      const pct = 100 * over / under;
+      console.log(`upper ${bank} seat ${pct.toFixed(1)}% over land (${over}/${under})`);
+      expect(under, bank).toBeGreaterThan(1000);
+      expect(pct, bank).toBeGreaterThanOrEqual(85);
+    }
+  }, 300000);
+
+  it('keeps the electrode 1.5 mm off the piston at TDC and clear of both valve heads', () => {
+    const tip = new THREE.Vector3(SPARK_TIP.x, SPARK_TIP.y, SPARK_Z);
+    const crown = crownSurfaceX(tip.y, tip.z);
+    expect(crown).not.toBeNull();
+    expect(tip.x - (crown! - PISTON_DECK)).toBeGreaterThanOrEqual(1.5);
+    // Ground-strap outer face. 2.2 mm survives the 1 mm erosion on each mesh; 1.5 mm is the floor.
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(...SPARK_AXIS).normalize());
+    q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), sparkRoll(1)));
+    for (const corner of [[0, 0.75, 0], [0.55, 0.75, -0.7], [-0.55, 0.75, 0.9]] as const) {
+      const p = new THREE.Vector3(...corner).applyQuaternion(q).add(tip);
+      const c = crownSurfaceX(p.y, p.z);
+      expect(c, `strap ${corner}`).not.toBeNull();
+      const gap = p.x - (c! - PISTON_DECK);
+      expect(gap, `strap ${corner}`).toBeGreaterThanOrEqual(2.2);
+      const rf = Math.sqrt(Math.max(0, 76 * 76 - p.y * p.y - p.z * p.z)) - 62;
+      expect(p.x, `strap roof ${corner}`).toBeLessThan(rf - 0.2);
+    }
+    const dir = new THREE.Vector3(...SPARK_AXIS).normalize();
+    const elev = Math.atan2(dir.y, Math.hypot(dir.x, dir.z)) * 180 / Math.PI;
+    const offAxis = Math.acos(Math.min(1, dir.x)) * 180 / Math.PI;
+    expect(elev).toBeCloseTo(35.95, 1);
+    expect(offAxis).toBeCloseTo(36.79, 1);
+    for (const side of [1, -1] as const) {
+      const face = side > 0
+        ? new THREE.Vector3(VALVE_FACE.in.x, VALVE_FACE.in.y, VALVE_FACE.in.z)
+        : new THREE.Vector3(VALVE_FACE.ex.x, VALVE_FACE.ex.y, VALVE_FACE.ex.z);
+      const stem = stemDirLocal(side);
+      const R = (side > 0 ? VALVE_DIA.in : VALVE_DIA.ex) / 2;
+      for (const lift of [0, 11.2]) {
+        const seat = face.clone().addScaledVector(stem, lift);
+        for (let t = 0; t <= 26; t += 2) {
+          const p = tip.clone().addScaledVector(dir, t);
+          const rel = p.clone().sub(seat);
+          const axial = rel.dot(stem);
+          const radial = Math.sqrt(Math.max(0, rel.lengthSq() - axial * axial));
+          if (axial > -4 && axial < 8) expect(radial, `side ${side} lift ${lift} t ${t}`).toBeGreaterThan(R + 6.6);
+        }
+      }
+    }
+  });
+
+  it('keeps the plug body off the exhaust flange and 2.5 mm off the heat exchanger', () => {
+    const [dx, dy, dz] = sparkDirHead();
+    const dir = new THREE.Vector3(dx, dy, dz).normalize();
+    const tip = new THREE.Vector3(SPARK_TIP.x, SPARK_TIP.y, SPARK_Z);
+    // Flange plate, head-local: x 12–56, y −63.5..−52, z −39..39, hole r 15.5 at (34, z 0).
+    for (let t = 0; t <= 90; t += 1) {
+      const p = tip.clone().addScaledVector(dir, t);
+      if (p.y < -63.5 || p.y > -52 || p.x < 12 || p.x > 56 || Math.abs(p.z) > 39) continue;
+      const fromHole = Math.hypot(p.x - 34, p.z);
+      expect(fromHole, `axis at t ${t} is in the flange plate`).toBeGreaterThan(15.5);
+    }
+    expect(clearance('spark-plug-1', 'heat-exchanger-right')).toBeGreaterThanOrEqual(2.5);
+    expect(clearance('spark-plug-4', 'heat-exchanger-left')).toBeGreaterThanOrEqual(2.5);
+  });
+
+  it('keeps rockers and valves at least 0.5 mm off the covers through a 2° crank sweep', () => {
+    const bake = (id: string) => {
+      const root = ASSET_BUILDERS[id]();
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    const coverOf = (s: 1 | -1, upper: boolean) =>
+      bake(`valve-cover-${upper ? 'upper' : 'lower'}-${s > 0 ? 'right' : 'left'}`);
+    const covers = new Map<string, MeshBVH>();
+    for (const s of [1, -1] as const) for (const upper of [true, false]) {
+      covers.set(`${s}:${upper ? 1 : 0}`, coverOf(s, upper));
+    }
+    const odd = (bvh: MeshBVH, p: THREE.Vector3) => {
+      const hits = bvh.raycast(new THREE.Ray(p, new THREE.Vector3(0.2, 0.9, 0.15).normalize()), THREE.DoubleSide) as { distance: number }[];
+      return hits.filter((h) => h.distance > 1e-3).length % 2 === 1;
+    };
+    const target = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
+    let min = Infinity, where = '';
+    const q = new THREE.Vector3();
+    for (const s of [1, -1] as const) {
+      const id = s > 0 ? 'rockers-right' : 'rockers-left';
+      const root = ASSET_BUILDERS[id]();
+      root.updateMatrixWorld(true);
+      const stations = rockerStations(s);
+      const groups = stations.map(() => [] as THREE.Vector3[]);
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const P = m.geometry.attributes.position;
+        const v = new THREE.Vector3();
+        const pts: THREE.Vector3[] = [];
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pts.push(v.clone());
+        }
+        if (!pts.length) return;
+        const c = pts.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / pts.length);
+        let best = 0, bestD = Infinity;
+        stations.forEach((st, i) => {
+          const d = Math.hypot(c.x - st.x, c.y - st.y, c.z - st.z);
+          if (d < bestD) { bestD = d; best = i; }
+        });
+        groups[best].push(...pts);
+      });
+      const valves = stations.map((st) => {
+        const head = valveHeadEngine(st.cyl, st.side, ASSEMBLED_CRANK);
+        const g = head.index ? head.toNonIndexed() : head;
+        const P = g.attributes.position;
+        const pts: THREE.Vector3[] = [];
+        const v = new THREE.Vector3();
+        for (let i = 0; i < P.count; i += 2) {
+          v.fromBufferAttribute(P, i);
+          pts.push(v.clone());
+        }
+        const d = stemDirLocal(st.side);
+        const stem = new THREE.Vector3(s * d.x, d.y, s * d.z).normalize();
+        const closed = trainPose(st.cyl, st.side, ASSEMBLED_CRANK);
+        return { pts, stem, lift0: closed.lift, beta0: closed.beta };
+      });
+      for (let crank = 0; crank < 720; crank += 2) {
+        stations.forEach((st, i) => {
+          const pose = trainPose(st.cyl, st.side, crank);
+          const dlt = pose.beta - valves[i].beta0;
+          const cs = Math.cos(dlt), sn = Math.sin(dlt);
+          const bvh = covers.get(`${s}:${st.side > 0 ? 1 : 0}`)!;
+          const consider = (p: THREE.Vector3) => {
+            bvh.closestPointToPoint(p, target as never);
+            if (target.distance > 6) return;
+            const signed = target.distance < 2.5 && odd(bvh, p) ? -target.distance : target.distance;
+            if (signed < min) {
+              min = signed;
+              where = `cyl ${st.cyl} side ${st.side} crank ${crank}`;
+            }
+          };
+          for (let k = 0; k < groups[i].length; k++) {
+            const p = groups[i][k];
+            const dx = p.x - st.x, dy = p.y - st.y;
+            q.set(st.x + cs * dx - sn * dy, st.y + sn * dx + cs * dy, p.z);
+            consider(q);
+          }
+          const shift = valves[i].lift0 - pose.lift;
+          for (const p of valves[i].pts) {
+            q.copy(p).addScaledVector(valves[i].stem, shift);
+            consider(q);
+          }
+        });
+      }
+    }
+    console.log(`cover sweep minimum ${min.toFixed(3)} mm at ${where}`);
+    expect(min, where).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('sends rays from the cover side into each cam-housing cover land', () => {
+    // A ray from the cover toward the seat must meet a front face. The left rails
+    // and machined lands used to be inside-out, so the ray entered through the back.
+    const halfL = (CH_Z1 - CH_Z0 - 8) / 2;
+    const bake = (id: string) => {
+      const root = ASSET_BUILDERS[id]();
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    for (const s of [1, -1] as const) {
+      const id = `cam-housing-${s > 0 ? 'right' : 'left'}`;
+      const bvh = bake(id);
+      for (const upper of [true, false]) {
+        const frame = coverMatrix(s, upper);
+        const inward = new THREE.Vector3().setFromMatrixColumn(frame, 2).negate();
+        const p = new THREE.Vector3();
+        const samples: [number, number][] = [];
+        for (let y = -halfL + 8; y <= halfL - 8; y += 2) samples.push([-23.2, y], [23.2, y]);
+        for (let x = -18; x <= 18; x += 4) samples.push([x, halfL - 4], [x, -halfL + 4]);
+        let miss = 0, n = 0;
+        for (const [x, y] of samples) {
+          p.set(x, y, 1.5).applyMatrix4(frame);
+          const front = bvh.raycastFirst(new THREE.Ray(p, inward), THREE.FrontSide) as { distance: number } | null;
+          const dbl = bvh.raycastFirst(new THREE.Ray(p, inward), THREE.DoubleSide) as { distance: number } | null;
+          if (!dbl || dbl.distance > 12) continue;
+          n++;
+          if (!front || front.distance > dbl.distance + 0.05) miss++;
+        }
+        expect(n, `${id} ${upper ? 'upper' : 'lower'} samples`).toBeGreaterThan(80);
+        expect(miss, `${id} ${upper ? 'upper' : 'lower'} escaping rays`).toBe(0);
+      }
+    }
+  });
 });
+
+describe('valve-cover gasket windows', () => {
+  /** Enclosed openings in the gasket sheet. The outside of the frame is the one region that touches the raster border. */
+  function enclosed(id: string) {
+    const root = SMALL_GEOM[id].proto().g;
+    root.updateMatrixWorld(true);
+    const pos: number[] = [];
+    const v = new THREE.Vector3();
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+      const P = g.attributes.position;
+      for (let i = 0; i < P.count; i++) {
+        v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+        pos.push(v.x, v.y, v.z);
+      }
+    });
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const bvh = new MeshBVH(geom);
+    const x0 = -60, x1 = 60, y0 = -210, y1 = 210, step = 1;
+    const nx = Math.round((x1 - x0) / step);
+    const ny = Math.round((y1 - y0) / step);
+    const metal = new Uint8Array(nx * ny);
+    const origin = new THREE.Vector3();
+    const dir = new THREE.Vector3(0, 0, 1);
+    for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+      origin.set(x0 + (ix + 0.5) * step, y0 + (iy + 0.5) * step, -3);
+      const hits = bvh.raycast(new THREE.Ray(origin, dir), THREE.DoubleSide) as { distance: number }[];
+      if (hits.length) metal[iy * nx + ix] = 1;
+    }
+    const seen = new Uint8Array(nx * ny);
+    const out: { w: number; h: number }[] = [];
+    const stack: number[] = [];
+    for (let i = 0; i < metal.length; i++) {
+      if (metal[i] || seen[i]) continue;
+      seen[i] = 1;
+      stack.push(i);
+      let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity, edge = false;
+      while (stack.length) {
+        const k = stack.pop()!;
+        const ix = k % nx, iy = (k - ix) / nx;
+        minx = Math.min(minx, ix); maxx = Math.max(maxx, ix);
+        miny = Math.min(miny, iy); maxy = Math.max(maxy, iy);
+        if (ix === 0 || iy === 0 || ix === nx - 1 || iy === ny - 1) edge = true;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const jx = ix + dx, jy = iy + dy;
+          if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+          const j = jy * nx + jx;
+          if (metal[j] || seen[j]) continue;
+          seen[j] = 1;
+          stack.push(j);
+        }
+      }
+      if (!edge) out.push({ w: maxx - minx + 1, h: maxy - miny + 1 });
+    }
+    return out;
+  }
+
+  it('counts the same enclosed windows on the left as on the right', () => {
+    const upper = (id: string) => enclosed(id).filter((w) => w.w >= 45 && w.h >= 40).length;
+    const lower = (id: string) => enclosed(id).filter((w) => w.w >= 50 && w.h >= 18 && w.h <= 40).length;
+    const ur = upper('valve-cover-gasket-upper-right');
+    const ul = upper('valve-cover-gasket-upper-left');
+    const lr = lower('valve-cover-gasket-lower-right');
+    const ll = lower('valve-cover-gasket-lower-left');
+    console.log(`gasket windows upper R/L ${ur}/${ul}  upright lower R/L ${lr}/${ll}`);
+    expect(ul, 'upper large windows').toBe(ur);
+    expect(ll, 'lower upright windows').toBe(lr);
+    expect(ur, 'upper right large windows').toBe(3);
+    expect(lr, 'lower right upright windows').toBe(3);
+  }, 300000);
+
+  it('clamps each gasket between its cover and the cam housing', () => {
+    // A 0.5 mm sample on the gasket is clamped when a ray along the cover normal
+    // hits the cover on one side and the cam housing on the other, within 40 mm.
+    const pairs = [
+      ['valve-cover-gasket-upper-right', 'valve-cover-upper-right', 'cam-housing-right', true, 1],
+      ['valve-cover-gasket-upper-left', 'valve-cover-upper-left', 'cam-housing-left', true, -1],
+      ['valve-cover-gasket-lower-right', 'valve-cover-lower-right', 'cam-housing-right', false, 1],
+      ['valve-cover-gasket-lower-left', 'valve-cover-lower-left', 'cam-housing-left', false, -1],
+    ] as const;
+    const bake = (root: THREE.Object3D) => {
+      root.updateMatrixWorld(true);
+      const pos: number[] = [];
+      const v = new THREE.Vector3();
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position;
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+          pos.push(v.x, v.y, v.z);
+        }
+      });
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new MeshBVH(geom);
+    };
+    const sees = (bvh: MeshBVH, origin: THREE.Vector3, dir: THREE.Vector3) => {
+      const h = bvh.raycastFirst(new THREE.Ray(origin, dir), THREE.DoubleSide) as { distance: number } | null;
+      return !!(h && h.distance > 0.05 && h.distance <= 40);
+    };
+    const percents: string[] = [];
+    for (const [gid, cid, hid, upper, s] of pairs) {
+      const gasket = bake(SMALL_GEOM[gid].proto().g);
+      const frame = coverMatrix(s, upper);
+      const normal = new THREE.Vector3().setFromMatrixColumn(frame, 2).normalize();
+      const neg = normal.clone().negate();
+      const cover = bake(ASSET_BUILDERS[cid]());
+      const house = bake(ASSET_BUILDERS[hid]());
+      const step = 0.5;
+      const x0 = -70, x1 = 70, y0 = -210, y1 = 210;
+      const nx = Math.round((x1 - x0) / step) + 1;
+      const ny = Math.round((y1 - y0) / step) + 1;
+      const bad = new Uint8Array(nx * ny);
+      const origin = new THREE.Vector3();
+      const world = new THREE.Vector3();
+      const dir = new THREE.Vector3(0, 0, 1);
+      let area = 0, clamped = 0;
+      for (let y = y0; y <= y1; y += step) for (let x = x0; x <= x1; x += step) {
+        origin.set(x, y, -3);
+        if (!gasket.raycastFirst(new THREE.Ray(origin, dir), THREE.DoubleSide)) continue;
+        const ix = Math.round((x - x0) / step);
+        const iy = Math.round((y - y0) / step);
+        area++;
+        world.set(x, y, -0.25).applyMatrix4(frame);
+        const cp = sees(cover, world, normal);
+        const cm = sees(cover, world, neg);
+        const hp = sees(house, world, normal);
+        const hm = sees(house, world, neg);
+        if ((cp && hm) || (cm && hp)) clamped++;
+        else bad[iy * nx + ix] = 1;
+      }
+      const seen = new Uint8Array(nx * ny);
+      let biggest = 0;
+      const stack: number[] = [];
+      for (let i = 0; i < bad.length; i++) {
+        if (!bad[i] || seen[i]) continue;
+        seen[i] = 1;
+        stack.push(i);
+        let n = 0;
+        while (stack.length) {
+          const k = stack.pop()!;
+          n++;
+          const ix = k % nx, iy = (k - ix) / nx;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            const jx = ix + dx, jy = iy + dy;
+            if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+            const j = jy * nx + jx;
+            if (!bad[j] || seen[j]) continue;
+            seen[j] = 1;
+            stack.push(j);
+          }
+        }
+        if (n > biggest) biggest = n;
+      }
+      const cell = step * step;
+      const pct = 100 * clamped / area;
+      const patch = biggest * cell;
+      percents.push(`${gid} ${pct.toFixed(1)}%`);
+      console.log(`${gid} clamped ${pct.toFixed(2)}%  largest unclamped patch ${patch.toFixed(1)} mm²`);
+      expect(pct, gid).toBeGreaterThanOrEqual(90);
+      expect(patch, `${gid} unclamped patch`).toBeLessThanOrEqual(25);
+    }
+    console.log(percents.join('  '));
+  }, 300000);
+
+  it('is one closed ring at least 4 mm wide all the way round', () => {
+    const ids = [
+      'valve-cover-gasket-upper-right',
+      'valve-cover-gasket-upper-left',
+      'valve-cover-gasket-lower-right',
+      'valve-cover-gasket-lower-left',
+    ];
+    const step = 0.5;
+    const x0 = -70, y0 = -210, x1 = 70, y1 = 210;
+    const nx = Math.round((x1 - x0) / step) + 1;
+    const ny = Math.round((y1 - y0) / step) + 1;
+    const widths: string[] = [];
+    for (const id of ids) {
+      const gasket = bakeGasket(id);
+      const metal = new Uint8Array(nx * ny);
+      const origin = new THREE.Vector3();
+      const dir = new THREE.Vector3(0, 0, 1);
+      for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+        origin.set(x0 + ix * step, y0 + iy * step, -3);
+        if (gasket.raycastFirst(new THREE.Ray(origin, dir), THREE.DoubleSide)) metal[iy * nx + ix] = 1;
+      }
+      const seen = new Uint8Array(metal.length);
+      let comps = 0;
+      const stack: number[] = [];
+      for (let i = 0; i < metal.length; i++) {
+        if (!metal[i] || seen[i]) continue;
+        comps++;
+        seen[i] = 1;
+        stack.push(i);
+        while (stack.length) {
+          const k = stack.pop()!;
+          const ix = k % nx, iy = (k - ix) / nx;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            const jx = ix + dx, jy = iy + dy;
+            if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+            const j = jy * nx + jx;
+            if (!metal[j] || seen[j]) continue;
+            seen[j] = 1;
+            stack.push(j);
+          }
+        }
+      }
+      const dist = new Float32Array(metal.length).fill(99);
+      for (let i = 0; i < metal.length; i++) if (!metal[i]) dist[i] = 0;
+      for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+        const i = iy * nx + ix;
+        if (!metal[i]) continue;
+        let d = dist[i];
+        if (ix > 0) d = Math.min(d, dist[i - 1] + step);
+        if (iy > 0) d = Math.min(d, dist[i - nx] + step);
+        if (ix > 0 && iy > 0) d = Math.min(d, dist[i - nx - 1] + step * Math.SQRT2);
+        if (ix + 1 < nx && iy > 0) d = Math.min(d, dist[i - nx + 1] + step * Math.SQRT2);
+        dist[i] = d;
+      }
+      for (let iy = ny - 1; iy >= 0; iy--) for (let ix = nx - 1; ix >= 0; ix--) {
+        const i = iy * nx + ix;
+        if (!metal[i]) continue;
+        let d = dist[i];
+        if (ix + 1 < nx) d = Math.min(d, dist[i + 1] + step);
+        if (iy + 1 < ny) d = Math.min(d, dist[i + nx] + step);
+        if (ix + 1 < nx && iy + 1 < ny) d = Math.min(d, dist[i + nx + 1] + step * Math.SQRT2);
+        if (ix > 0 && iy + 1 < ny) d = Math.min(d, dist[i + nx - 1] + step * Math.SQRT2);
+        dist[i] = d;
+      }
+      const cix = Math.round((0 - x0) / step);
+      const ciy = Math.round((0 - y0) / step);
+      const holds = (half: number) => {
+        const wall = new Uint8Array(metal.length);
+        for (let i = 0; i < metal.length; i++) if (metal[i] && dist[i] >= half) wall[i] = 1;
+        const out = new Uint8Array(metal.length);
+        const q: number[] = [];
+        for (let ix = 0; ix < nx; ix++) { q.push(ix, (ny - 1) * nx + ix); }
+        for (let iy = 0; iy < ny; iy++) { q.push(iy * nx, iy * nx + nx - 1); }
+        for (const k of q) if (!wall[k]) out[k] = 1;
+        let n = 0;
+        while (n < q.length) {
+          const k = q[n++];
+          if (wall[k]) continue;
+          const ix = k % nx, iy = (k - ix) / nx;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            const jx = ix + dx, jy = iy + dy;
+            if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+            const j = jy * nx + jx;
+            if (wall[j] || out[j]) continue;
+            out[j] = 1;
+            q.push(j);
+          }
+        }
+        return out[ciy * nx + cix] === 0;
+      };
+      let width = 0;
+      for (let w = 4; w <= 12; w += 0.5) {
+        if (!holds(w / 2)) break;
+        width = w;
+      }
+      console.log(`${id} components ${comps}  minimum ring width ${width.toFixed(1)} mm`);
+      widths.push(`${id} ${width.toFixed(1)} mm`);
+      expect(comps, id).toBe(1);
+      expect(holds(2), `${id} closed 4 mm ring`).toBe(true);
+      expect(width, id).toBeGreaterThanOrEqual(4);
+    }
+    console.log(widths.join('  '));
+  }, 300000);
+});
+
+function bakeGasket(id: string) {
+  const root = SMALL_GEOM[id].proto().g;
+  root.updateMatrixWorld(true);
+  const pos: number[] = [];
+  const v = new THREE.Vector3();
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+    const P = g.attributes.position;
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+      pos.push(v.x, v.y, v.z);
+    }
+  });
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return new MeshBVH(geom);
+}

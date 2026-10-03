@@ -4,18 +4,996 @@
  * gives one world matrix per piece. Counts/steps/claims live in data/smallSpec.ts; tests/smallParts check both agree.
  */
 import * as THREE from 'three';
-import { Part, lathe, closedLathe, cyl, torus, box, boxMM, hexNut, tube, extrude, extrudeC, roundRect, circlePath, polyShape, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, type V3 } from './util';
+import { MeshBVH } from 'three-mesh-bvh';
+import { Part, lathe, closedLathe, cyl, torus, box, boxMM, hexNut, tube, extrudeC, roundRect, circlePath, polyShape, woodruffGeom, spring, yToZ, cylBetween, csgSub, mesh, type V3 } from './util';
+import { manifoldAdd, manifoldSub } from './manifoldCut';
 import { frame } from './instancing';
 import { fastenerSets } from './fasteners';
 import { partPose, seat, probe } from './probe';
-import { VC_EXT, chainCoverBolts, CAM_NOSE, CAM_WEB, CAM_COVER, CAM_COVER_BODY, camCoverAngles, camCoverBolt, camCoverSeatZ, camNoseStack, holedPlate, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, CH_Z0, CH_Z1 } from './core';
-import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf } from '../data/layout';
+import { vcStuds, valveCover, chainCoverBolts, CAM_NOSE, CAM_WEB, CAM_COVER, CAM_COVER_BODY, camCoverAngles, camCoverBolt, camCoverSeatZ, camNoseStack, holedPlate, CHAIN_Z, CRANK_NOSE, HOUSING_Z0, HOUSING_Z1, CHAIN_LID, CHAIN_BOX_INNER_X, chainOutline, chainCaseFace, coverMatrix, tensionerLayout, CH_Z0, CH_Z1 } from './core';
+import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, MAIN_Z, bankOf, SPARK_HOLE_R, SPARK_TUBE_R } from '../data/layout';
 import { LIP_Z } from './stations';
-import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R } from './aux';
+import { plugCoverLocal, railJogs, camHousing, pocketValveCover, valveSet, rockers } from './valvetrain';
+import { paintSealRing } from './sealRing';
+import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R, sparkPlug, sparkPlugConnector } from './aux';
 import { VARIANT } from '../data/variant';
+import { PARTS } from '../data/parts';
 import { catalyticConverterPart, registerAncillarySmall } from './bottomAnc';
 import { bootFrames, clampFrames, SLEEVE, banjoProto, injectorBanjoMatrices, sealRingFrames, csvPoseMatrix, csvPortLocalGeometry, wurLinesPart, LINE_CLIP, BOX, aavMatrix, auxAirPlumbingPart, vacuumHosesPart, vacuumCluster, ADD_AIR_VAC, VAC_T, VAC_LIMIT, mouldedTee, afmScrewMatrices, throttleHousingPart, airGuidePart, airGuideClampMatrices } from './induction';
 
+function hull2(pts: [number, number][]): [number, number][] {
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower: [number, number][] = [];
+  for (const pt of p) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], pt) <= 0) lower.pop();
+    lower.push(pt);
+  }
+  const upper: [number, number][] = [];
+  for (let i = p.length - 1; i >= 0; i--) {
+    const pt = p[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], pt) <= 0) upper.pop();
+    upper.push(pt);
+  }
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+}
+function ringArea(pts: [number, number][]) {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length];
+    a += p[0] * q[1] - q[0] * p[1];
+  }
+  return a;
+}
+function rectPts(w: number, h: number, r: number, n = 6): [number, number][] {
+  const hw = w / 2, hh = h / 2, pts: [number, number][] = [];
+  const corners: [number, number, number][] = [[hw - r, hh - r, 0], [-hw + r, hh - r, Math.PI / 2], [-hw + r, -hh + r, Math.PI], [hw - r, -hh + r, Math.PI * 1.5]];
+  for (const [cx, cy, a0] of corners) for (let i = 0; i < n; i++) {
+    const a = a0 + (Math.PI / 2) * (i / n);
+    pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+  }
+  return pts;
+}
+function earPts(cx: number, cy: number, r: number, n = 14): [number, number][] {
+  const o: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    o.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+  }
+  return o;
+}
+/**
+ * One hole around two overlapping circles. Winding is clockwise, opposite the
+ * gasket outline, so THREE.Shape treats it as a hole.
+ */
+function unionCircles(
+  a: { x: number; y: number; r: number },
+  b: { x: number; y: number; r: number },
+): THREE.Path {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const base = Math.atan2(dy, dx);
+  const clamp = (v: number) => Math.max(-1, Math.min(1, v));
+  const alpha = Math.acos(clamp((a.r * a.r + d * d - b.r * b.r) / (2 * a.r * d)));
+  const beta = Math.acos(clamp((b.r * b.r + d * d - a.r * a.r) / (2 * b.r * d)));
+  const pts: THREE.Vector2[] = [];
+  const arc = (cx: number, cy: number, r: number, a0: number, a1: number, n: number) => {
+    let sweep = a1 - a0;
+    while (sweep <= 0) sweep += Math.PI * 2;
+    for (let i = 0; i <= n; i++) {
+      const t = a0 + sweep * (i / n);
+      pts.push(new THREE.Vector2(cx + Math.cos(t) * r, cy + Math.sin(t) * r));
+    }
+  };
+  arc(a.x, a.y, a.r, base + alpha, base - alpha + Math.PI * 2, 12);
+  const bBase = base + Math.PI;
+  arc(b.x, b.y, b.r, bBase + beta, bBase - beta + Math.PI * 2, 16);
+  pts.reverse();
+  return new THREE.Path(pts);
+}
+function rectHole(cx: number, cy: number, w: number, h: number, r: number) {
+  const pts = roundRect(w, h, r, cx, cy).getPoints(6);
+  pts.reverse();
+  return new THREE.Path(pts);
+}
+function clipHalfPlane(pts: THREE.Vector2[], inside: (p: THREE.Vector2) => boolean, at: (a: THREE.Vector2, b: THREE.Vector2) => number) {
+  if (pts.length < 3) return pts;
+  const out: THREE.Vector2[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const ina = inside(a), inb = inside(b);
+    if (ina && inb) out.push(b.clone());
+    else if (ina !== inb) {
+      const t = at(a, b);
+      const hit = a.clone().lerp(b, Math.min(1, Math.max(0, t)));
+      out.push(hit);
+      if (inb) out.push(b.clone());
+    }
+  }
+  return out;
+}
+/** Keep a hole polygon inside the cover frame so it cannot run past the rail. */
+function clipWindow(pts: THREE.Vector2[], x0: number, y0: number, x1: number, y1: number) {
+  const div = (n: number) => (Math.abs(n) < 1e-9 ? 1e-9 : n);
+  let p = pts;
+  p = clipHalfPlane(p, (q) => q.x >= x0, (a, b) => (x0 - a.x) / div(b.x - a.x));
+  p = clipHalfPlane(p, (q) => q.x <= x1, (a, b) => (x1 - a.x) / div(b.x - a.x));
+  p = clipHalfPlane(p, (q) => q.y >= y0, (a, b) => (y0 - a.y) / div(b.y - a.y));
+  p = clipHalfPlane(p, (q) => q.y <= y1, (a, b) => (y1 - a.y) / div(b.y - a.y));
+  return p;
+}
+/**
+ * Cover-local image of an engine-space mirror about z = 0.
+ * Local y is engine z minus the cover origin, and that origin is
+ * (CH_Z0 + CH_Z1) / 2, not 0, so negating local y alone misses the left bank.
+ */
+function mirrorLocal(x: number, y: number): [number, number] {
+  const z0 = (CH_Z0 + CH_Z1) / 2;
+  return [-x, -y - 2 * z0];
+}
+/**
+ * Lower-right windows: three upright slots (the arm crossings) and the three
+ * diagonal webs that sit between them. The left bank is this set mirrored
+ * about engine z = 0, then clipped inside the cover.
+ */
+function rightLowerWindows(): { diagonals: THREE.Vector2[][]; slots: THREE.Vector2[][] } {
+  const slots: { x0: number; x1: number; y0: number; y1: number }[] = [];
+  for (const j of railJogs(1, false)) {
+    const head = j.sign * (j.reach - 1);
+    const cam = -j.sign * 24;
+    slots.push({
+      x0: Math.min(head, cam), x1: Math.max(head, cam),
+      y0: j.y0 - 3, y1: j.y1 + 3,
+    });
+  }
+  const diagonals: THREE.Vector2[][] = [];
+  const slotsOut: THREE.Vector2[][] = [];
+  const ang = 0.72;
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  const nx = -dy, ny = dx;
+  const along = 36, across = 24;
+  for (let k = -3; k <= 2; k++) {
+    const cy = (k + 0.5) * 58;
+    if (slots.some((h) => Math.abs((h.y0 + h.y1) / 2 - cy) < 36)) continue;
+    const corners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    diagonals.push(corners.reverse().map(([sx, sy]) => new THREE.Vector2(
+      dx * sx * along / 2 + nx * sy * across / 2,
+      cy + dy * sx * along / 2 + ny * sy * across / 2,
+    )));
+  }
+  for (const h of slots) {
+    slotsOut.push([
+      new THREE.Vector2(h.x0, h.y0), new THREE.Vector2(h.x0, h.y1),
+      new THREE.Vector2(h.x1, h.y1), new THREE.Vector2(h.x1, h.y0),
+    ]);
+  }
+  return { diagonals, slots: slotsOut };
+}
+/** Left diagonal at the mirrored centre, leaned with this bank's ribs (angle flips). */
+function leanedDiagonal(cx: number, cy: number, ang: number): THREE.Vector2[] {
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  const nx = -dy, ny = dx;
+  const along = 36, across = 24;
+  const corners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  return corners.reverse().map(([sx, sy]) => new THREE.Vector2(
+    cx + dx * sx * along / 2 + nx * sy * across / 2,
+    cy + dy * sx * along / 2 + ny * sy * across / 2,
+  ));
+}
+/**
+ * Upper windows for one bank. The left plug that is past the rail is pulled
+ * onto the end so the third window stays on the sheet, the same three sizes
+ * as the right (the cover is not centred on z = 0, so a pure mirror misses
+ * the left valves).
+ */
+function bankUpperWindows(s: 1 | -1, halfL: number): { cx: number; cy: number; w: number; h: number }[] {
+  const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+  const ys = cyls
+    .map((c) => plugCoverLocal(c, 0).y)
+    .filter((y) => Math.abs(y) < halfL - SPARK_HOLE_R - 4)
+    .sort((a, b) => a - b);
+  const yLo = -halfL + 16;
+  let yHi = halfL - 16;
+  const endLoc = plugCoverLocal(s > 0 ? 1 : 6, 0);
+  const inboard = halfL - Math.abs(endLoc.y);
+  const tubeClear = SPARK_TUBE_R + 4.2;
+  if (inboard > -tubeClear && inboard < halfL) {
+    const depth = Math.max(tubeClear, inboard + tubeClear);
+    yHi = halfL - depth - 8;
+  }
+  const bands = [yLo, ...ys.flatMap((y) => [y - 18, y + 18]), yHi];
+  const out: { cx: number; cy: number; w: number; h: number }[] = [];
+  for (let i = 0; i < bands.length; i += 2) {
+    const a = bands[i], b = bands[i + 1];
+    if (b - a > 8) out.push({ cx: 0, cy: (a + b) / 2, w: 52, h: b - a });
+  }
+  return out;
+}
+/** Half-round end notch at the plug that leaves the rail. Same bite on both banks. */
+function plugEndNotch(s: 1 | -1, halfL: number): THREE.BufferGeometry | null {
+  const endCyl = s > 0 ? 1 : 6;
+  const endLoc = plugCoverLocal(endCyl, 0);
+  const tubeClear = SPARK_TUBE_R + 4.2;
+  const end = Math.sign(endLoc.y) || 1;
+  const inboard = halfL - Math.abs(endLoc.y);
+  // On the rail, match the cover scallop (inboard + tube clearance). Past the
+  // rail, still bite the end wall at that plug's x so the left bank is notched.
+  const depth = inboard > -tubeClear && inboard < halfL
+    ? Math.max(tubeClear, inboard + tubeClear)
+    : tubeClear + 8;
+  const yTip = end * (halfL + 8);
+  const yIn = end * (halfL - depth);
+  return boxMM(
+    [endLoc.x - tubeClear, Math.min(yIn, yTip), -4],
+    [endLoc.x + tubeClear, Math.max(yIn, yTip), 4],
+  );
+}
+/**
+ * Closed sheet on the cover's real sealing flange. The outline is the lip and
+ * the boss pads where the cam housing actually meets them, not the bounding box
+ * of those pads and not the convex hull that bulged out between the studs.
+ * Three windows sit where that flange can frame them. A gap in a frame is filled
+ * only when it is under 25 mm², so the hole stays enclosed and still counts as clamped.
+ */
+const FLANGE_STEP = 0.5;
+// Cell centres sit on multiples of 0.5 mm, so a 0.5 mm clamp sample lands in the cell, not on its edge.
+// The upper rim follows the land at |x| 46 and the ear pads reach about |x| 69.
+// The lower lip is |x| 62. The grid covers both.
+const FLANGE_X0 = -74.25, FLANGE_X1 = 74.25, FLANGE_Y0 = -190.25, FLANGE_Y1 = 190.25;
+const gasketCache = new Map<string, THREE.BufferGeometry>();
+const bvhCache = new Map<string, MeshBVH>();
+
+function bakeWorld(root: THREE.Object3D): MeshBVH {
+  root.updateMatrixWorld(true);
+  const pos: number[] = [];
+  const v = new THREE.Vector3();
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+    const P = g.attributes.position;
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+      pos.push(v.x, v.y, v.z);
+    }
+  });
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return new MeshBVH(geom);
+}
+function rayHits(bvh: MeshBVH, origin: THREE.Vector3, dir: THREE.Vector3, max: number) {
+  const h = bvh.raycastFirst(new THREE.Ray(origin, dir), THREE.DoubleSide) as { distance: number } | null;
+  return !!(h && h.distance <= max && h.distance > 0.05);
+}
+function flangeCells(s: 1 | -1, up: boolean) {
+  const cid = `cover:${s}:${up ? 1 : 0}`;
+  const hid = `house:${s}`;
+  const frame = coverMatrix(s, up);
+  const normal = new THREE.Vector3().setFromMatrixColumn(frame, 2).normalize();
+  const neg = normal.clone().negate();
+  let cover = bvhCache.get(cid);
+  if (!cover) { cover = bakeWorld(pocketValveCover(valveCover(s, up), s, up)); bvhCache.set(cid, cover); }
+  let house = bvhCache.get(hid);
+  if (!house) { house = bakeWorld(camHousing(s)); bvhCache.set(hid, house); }
+  const nx = Math.round((FLANGE_X1 - FLANGE_X0) / FLANGE_STEP);
+  const ny = Math.round((FLANGE_Y1 - FLANGE_Y0) / FLANGE_STEP);
+  const mask = new Uint8Array(nx * ny);
+  const world = new THREE.Vector3();
+  for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+    const x = FLANGE_X0 + (ix + 0.5) * FLANGE_STEP;
+    const y = FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP;
+    world.set(x, y, -0.25).applyMatrix4(frame);
+    const cp = rayHits(cover, world, normal, 40);
+    const cm = rayHits(cover, world, neg, 40);
+    const hp = rayHits(house, world, normal, 40);
+    const hm = rayHits(house, world, neg, 40);
+    if ((cp && hm) || (cm && hp)) mask[iy * nx + ix] = 1;
+  }
+  return { mask, nx, ny };
+}
+function clearRect(mask: Uint8Array, nx: number, ny: number, x0: number, y0: number, x1: number, y1: number) {
+  const loX = Math.min(x0, x1), hiX = Math.max(x0, x1);
+  const loY = Math.min(y0, y1), hiY = Math.max(y0, y1);
+  const ix0 = Math.max(0, Math.floor((loX - FLANGE_X0) / FLANGE_STEP));
+  const ix1 = Math.min(nx, Math.ceil((hiX - FLANGE_X0) / FLANGE_STEP));
+  const iy0 = Math.max(0, Math.floor((loY - FLANGE_Y0) / FLANGE_STEP));
+  const iy1 = Math.min(ny, Math.ceil((hiY - FLANGE_Y0) / FLANGE_STEP));
+  for (let iy = iy0; iy < iy1; iy++) {
+    const y = FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP;
+    if (y < loY || y > hiY) continue;
+    for (let ix = ix0; ix < ix1; ix++) {
+      const x = FLANGE_X0 + (ix + 0.5) * FLANGE_STEP;
+      if (x >= loX && x <= hiX) mask[iy * nx + ix] = 0;
+    }
+  }
+}
+function clearCircle(mask: Uint8Array, nx: number, ny: number, cx: number, cy: number, r: number) {
+  const r2 = r * r;
+  const ix0 = Math.max(0, Math.floor((cx - r - FLANGE_X0) / FLANGE_STEP));
+  const ix1 = Math.min(nx, Math.ceil((cx + r - FLANGE_X0) / FLANGE_STEP));
+  const iy0 = Math.max(0, Math.floor((cy - r - FLANGE_Y0) / FLANGE_STEP));
+  const iy1 = Math.min(ny, Math.ceil((cy + r - FLANGE_Y0) / FLANGE_STEP));
+  for (let iy = iy0; iy < iy1; iy++) {
+    const y = FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP;
+    for (let ix = ix0; ix < ix1; ix++) {
+      const x = FLANGE_X0 + (ix + 0.5) * FLANGE_STEP;
+      if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= r2) mask[iy * nx + ix] = 0;
+    }
+  }
+}
+/** Largest connected gap in the frame around a window, mm². Infinity if the rect leaves the grid. */
+function frameGap(mask: Uint8Array, nx: number, ny: number, x0: number, y0: number, x1: number, y1: number, margin: number) {
+  const ix0 = Math.floor((x0 - margin - FLANGE_X0) / FLANGE_STEP);
+  const ix1 = Math.ceil((x1 + margin - FLANGE_X0) / FLANGE_STEP);
+  const iy0 = Math.floor((y0 - margin - FLANGE_Y0) / FLANGE_STEP);
+  const iy1 = Math.ceil((y1 + margin - FLANGE_Y0) / FLANGE_STEP);
+  const inx0 = Math.floor((x0 - FLANGE_X0) / FLANGE_STEP);
+  const inx1 = Math.ceil((x1 - FLANGE_X0) / FLANGE_STEP);
+  const iny0 = Math.floor((y0 - FLANGE_Y0) / FLANGE_STEP);
+  const iny1 = Math.ceil((y1 - FLANGE_Y0) / FLANGE_STEP);
+  if (ix0 < 1 || iy0 < 1 || ix1 >= nx - 1 || iy1 >= ny - 1) return Infinity;
+  const miss: number[] = [];
+  const id = new Map<number, number>();
+  for (let iy = iy0; iy < iy1; iy++) for (let ix = ix0; ix < ix1; ix++) {
+    if (ix >= inx0 && ix < inx1 && iy >= iny0 && iy < iny1) continue;
+    if (!mask[iy * nx + ix]) {
+      const k = iy * nx + ix;
+      id.set(k, miss.length);
+      miss.push(k);
+    }
+  }
+  if (!miss.length) return 0;
+  const seen = new Uint8Array(miss.length);
+  let biggest = 0;
+  const stack: number[] = [];
+  for (let i = 0; i < miss.length; i++) {
+    if (seen[i]) continue;
+    seen[i] = 1;
+    stack.push(miss[i]);
+    let n = 0;
+    while (stack.length) {
+      const k = stack.pop()!;
+      n++;
+      const ix = k % nx, iy = (k - ix) / nx;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const j = (iy + dy) * nx + (ix + dx);
+        const m = id.get(j);
+        if (m === undefined || seen[m]) continue;
+        seen[m] = 1;
+        stack.push(j);
+      }
+    }
+    biggest = Math.max(biggest, n);
+  }
+  return biggest * FLANGE_STEP * FLANGE_STEP;
+}
+function punchWindow(mask: Uint8Array, nx: number, ny: number, cx: number, cy: number, w: number, h: number, margin: number, blocked?: Uint8Array) {
+  const x0 = cx - w / 2, x1 = cx + w / 2, y0 = cy - h / 2, y1 = cy + h / 2;
+  const ix0 = Math.floor((x0 - margin - FLANGE_X0) / FLANGE_STEP);
+  const ix1 = Math.ceil((x1 + margin - FLANGE_X0) / FLANGE_STEP);
+  const iy0 = Math.floor((y0 - margin - FLANGE_Y0) / FLANGE_STEP);
+  const iy1 = Math.ceil((y1 + margin - FLANGE_Y0) / FLANGE_STEP);
+  const inx0 = Math.floor((x0 - FLANGE_X0) / FLANGE_STEP);
+  const inx1 = Math.ceil((x1 - FLANGE_X0) / FLANGE_STEP);
+  const iny0 = Math.floor((y0 - FLANGE_Y0) / FLANGE_STEP);
+  const iny1 = Math.ceil((y1 - FLANGE_Y0) / FLANGE_STEP);
+  for (let iy = iy0; iy < iy1; iy++) for (let ix = ix0; ix < ix1; ix++) {
+    const i = iy * nx + ix;
+    if (ix >= inx0 && ix < inx1 && iy >= iny0 && iy < iny1) mask[i] = 0;
+    else if (!mask[i] && !blocked?.[i]) mask[i] = 1;
+  }
+}
+function slotBands(s: 1 | -1): [number, number][] {
+  return rightLowerWindows().slots.map((poly) => {
+    let y0 = Infinity, y1 = -Infinity;
+    for (const p of poly) {
+      const y = s > 0 ? p.y : mirrorLocal(p.x, p.y)[1];
+      y0 = Math.min(y0, y);
+      y1 = Math.max(y1, y);
+    }
+    return [y0 - 6, y1 + 6] as [number, number];
+  }).sort((a, b) => a[0] - b[0]);
+}
+/** Three y-bands clear of the rocker slots, each tall enough for one window. */
+function windowBands(s: 1 | -1, up: boolean, holeH: number): [number, number][] {
+  if (up) return [[-145, -55], [-35, 55], [65, 145]];
+  const blocked = slotBands(s);
+  const gaps: [number, number][] = [];
+  let cursor = -175;
+  for (const [a, b] of blocked) {
+    if (a - cursor >= holeH + 4) gaps.push([cursor, a]);
+    cursor = Math.max(cursor, b);
+  }
+  if (175 - cursor >= holeH + 4) gaps.push([cursor, 175]);
+  gaps.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
+  return gaps.slice(0, 3).sort((a, b) => a[0] - b[0]);
+}
+function simplifyLoop(loop: [number, number][]) {
+  const out: [number, number][] = [];
+  const n = loop.length;
+  for (let i = 0; i < n; i++) {
+    const a = loop[(i + n - 1) % n], b = loop[i], c = loop[(i + 1) % n];
+    const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    if (cross !== 0) out.push(b);
+  }
+  return out;
+}
+function pointInLoop(x: number, y: number, loop: [number, number][]) {
+  let c = false;
+  for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
+    const [xi, yi] = loop[i], [xj, yj] = loop[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+}
+/** Boundary loops of a mask. Outer rings are counter-clockwise, holes clockwise. */
+function traceLoops(mask: Uint8Array, nx: number, ny): [number, number][][] {
+  const adj = new Map<string, [number, number][]>();
+  const add = (x0: number, y0: number, x1: number, y1: number) => {
+    const k = `${x0},${y0}`;
+    const list = adj.get(k);
+    if (list) list.push([x1, y1]);
+    else adj.set(k, [[x1, y1]]);
+  };
+  const on = (ix: number, iy: number) => ix >= 0 && iy >= 0 && ix < nx && iy < ny && mask[iy * nx + ix] === 1;
+  for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+    if (!on(ix, iy)) continue;
+    if (!on(ix, iy + 1)) add(ix + 1, iy + 1, ix, iy + 1);
+    if (!on(ix + 1, iy)) add(ix + 1, iy, ix + 1, iy + 1);
+    if (!on(ix, iy - 1)) add(ix, iy, ix + 1, iy);
+    if (!on(ix - 1, iy)) add(ix, iy + 1, ix, iy);
+  }
+  const loops: [number, number][][] = [];
+  for (const key of [...adj.keys()]) {
+    const startList = adj.get(key);
+    if (!startList) continue;
+    while (startList.length) {
+      const [sx, sy] = key.split(',').map(Number) as [number, number];
+      const first = startList.shift()!;
+      const loop: [number, number][] = [[sx, sy]];
+      let px = sx, py = sy, cx = first[0], cy = first[1];
+      loop.push([cx, cy]);
+      let guard = 0;
+      while ((cx !== sx || cy !== sy) && guard++ < nx * ny * 8) {
+        const opts = adj.get(`${cx},${cy}`);
+        if (!opts || !opts.length) break;
+        const inx = cx - px, iny = cy - py;
+        let choice = 0, best = Infinity;
+        for (let i = 0; i < opts.length; i++) {
+          const vx = opts[i][0] - cx, vy = opts[i][1] - cy;
+          const cross = inx * vy - iny * vx;
+          const dot = inx * vx + iny * vy;
+          let ang = Math.atan2(-cross, dot);
+          if (ang <= 1e-9) ang += Math.PI * 2;
+          if (ang < best) { best = ang; choice = i; }
+        }
+        const nxt = opts.splice(choice, 1)[0];
+        px = cx; py = cy;
+        cx = nxt[0]; cy = nxt[1];
+        if (cx !== sx || cy !== sy) loop.push([cx, cy]);
+      }
+      const simple = simplifyLoop(loop);
+      if (simple.length >= 3) loops.push(simple);
+    }
+  }
+  return loops;
+}
+function loopArea(loop: [number, number][]) {
+  let a = 0;
+  for (let i = 0; i < loop.length; i++) {
+    const p = loop[i], q = loop[(i + 1) % loop.length];
+    a += p[0] * q[1] - q[0] * p[1];
+  }
+  return a / 2;
+}
+/** Join cells that meet only at a corner so the extruded sheet stays manifold. */
+function sealCorners(mask: Uint8Array, nx: number, ny: number, blocked?: Uint8Array) {
+  for (let pass = 0; pass < 4; pass++) {
+    const add: number[] = [];
+    for (let iy = 0; iy < ny - 1; iy++) for (let ix = 0; ix < nx - 1; ix++) {
+      const a = mask[iy * nx + ix], b = mask[iy * nx + ix + 1];
+      const c = mask[(iy + 1) * nx + ix], d = mask[(iy + 1) * nx + ix + 1];
+      const pick = a && d && !b && !c ? iy * nx + ix + 1 : b && c && !a && !d ? iy * nx + ix : -1;
+      if (pick >= 0 && !blocked?.[pick]) add.push(pick);
+    }
+    if (!add.length) break;
+    for (const i of add) mask[i] = 1;
+  }
+}
+function largestSheet(mask: Uint8Array, nx: number, ny: number, blocked?: Uint8Array) {
+  sealCorners(mask, nx, ny, blocked);
+  const seen = new Uint8Array(mask.length);
+  let best: number[] = [];
+  const stack: number[] = [];
+  for (let i = 0; i < mask.length; i++) {
+    if (!mask[i] || seen[i]) continue;
+    const comp: number[] = [];
+    seen[i] = 1;
+    stack.push(i);
+    while (stack.length) {
+      const k = stack.pop()!;
+      comp.push(k);
+      const ix = k % nx, iy = (k - ix) / nx;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const jx = ix + dx, jy = iy + dy;
+        if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+        const j = jy * nx + jx;
+        if (!mask[j] || seen[j]) continue;
+        seen[j] = 1;
+        stack.push(j);
+      }
+    }
+    if (comp.length > best.length) best = comp;
+  }
+  const out = new Uint8Array(mask.length);
+  for (const i of best) out[i] = 1;
+  return out;
+}
+/** One closed sheet. Each flange cell is a box; faces are shared, so the result is manifold. */
+function flangeGeometry(mask: Uint8Array, nx: number, ny: number, blocked?: Uint8Array) {
+  const sheet = largestSheet(mask, nx, ny, blocked);
+  const on = (ix: number, iy: number) => ix >= 0 && iy >= 0 && ix < nx && iy < ny && sheet[iy * nx + ix] === 1;
+  const verts = new Map<string, number>();
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const vid = (ix: number, iy: number, z: number) => {
+    const k = `${ix},${iy},${z}`;
+    let id = verts.get(k);
+    if (id === undefined) {
+      id = pos.length / 3;
+      pos.push(FLANGE_X0 + ix * FLANGE_STEP, FLANGE_Y0 + iy * FLANGE_STEP, z ? 0.2 : -0.2);
+      verts.set(k, id);
+    }
+    return id;
+  };
+  const quad = (a: number, b: number, c: number, d: number) => { idx.push(a, b, c, a, c, d); };
+  const fan = (ring: [number, number][], z: number, ccw: boolean) => {
+    const ids = ring.map(([x, y]) => vid(x, y, z));
+    const n = ids.length;
+    for (let i = 1; i < n - 1; i++) {
+      if (ccw) idx.push(ids[0], ids[i], ids[i + 1]);
+      else idx.push(ids[0], ids[i + 1], ids[i]);
+    }
+  };
+  const ringOf = (ix: number, iy: number, w: number, h: number): [number, number][] => {
+    const pts: [number, number][] = [];
+    const run = (x0: number, y0: number, x1: number, y1: number) => {
+      const steps = Math.abs(x1 - x0) + Math.abs(y1 - y0);
+      const sx = Math.sign(x1 - x0), sy = Math.sign(y1 - y0);
+      for (let s = 0; s < steps; s++) pts.push([x0 + sx * s, y0 + sy * s]);
+    };
+    run(ix, iy, ix + w, iy);
+    run(ix + w, iy, ix + w, iy + h);
+    run(ix + w, iy + h, ix, iy + h);
+    run(ix, iy + h, ix, iy);
+    return pts;
+  };
+  const used = new Uint8Array(nx * ny);
+  let cells = 0;
+  for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+    if (!on(ix, iy) || used[iy * nx + ix]) continue;
+    let w = 1;
+    while (ix + w < nx && on(ix + w, iy) && !used[iy * nx + ix + w]) w++;
+    let h = 1;
+    while (iy + h < ny) {
+      let row = true;
+      for (let k = 0; k < w; k++) if (!on(ix + k, iy + h) || used[(iy + h) * nx + ix + k]) row = false;
+      if (!row) break;
+      h++;
+    }
+    for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) { used[(iy + dy) * nx + ix + dx] = 1; cells++; }
+    const ring = ringOf(ix, iy, w, h);
+    fan(ring, 1, true);
+    fan(ring, 0, false);
+  }
+  for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+    if (!on(ix, iy)) continue;
+    if (!on(ix + 1, iy)) quad(vid(ix + 1, iy, 1), vid(ix + 1, iy, 0), vid(ix + 1, iy + 1, 0), vid(ix + 1, iy + 1, 1));
+    if (!on(ix - 1, iy)) quad(vid(ix, iy, 1), vid(ix, iy + 1, 1), vid(ix, iy + 1, 0), vid(ix, iy, 0));
+    if (!on(ix, iy + 1)) quad(vid(ix, iy + 1, 1), vid(ix + 1, iy + 1, 1), vid(ix + 1, iy + 1, 0), vid(ix, iy + 1, 0));
+    if (!on(ix, iy - 1)) quad(vid(ix, iy, 1), vid(ix, iy, 0), vid(ix + 1, iy, 0), vid(ix + 1, iy, 1));
+  }
+  if (cells < 100) throw new Error('valve-cover gasket flange is empty');
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+const hwBvhCache = new Map<string, MeshBVH>();
+/** Rockers, valves and plugs posed as in the assembly, one BVH per bank. */
+function hardwareBvh(s: 1 | -1): MeshBVH {
+  const key = `${s}`;
+  let bvh = hwBvhCache.get(key);
+  if (bvh) return bvh;
+  const poseOf = (id: string) => {
+    const def = PARTS.find((p) => p.id === id);
+    return new THREE.Matrix4().compose(
+      new THREE.Vector3(...(def?.position ?? [0, 0, 0])),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(...(def?.rotation ?? [0, 0, 0]))),
+      new THREE.Vector3(1, 1, 1),
+    );
+  };
+  const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+  const roots: { root: THREE.Object3D; pose: THREE.Matrix4 }[] = [
+    { root: rockers(s), pose: new THREE.Matrix4() },
+    ...cyls.flatMap((c) => [
+      { root: valveSet(c), pose: poseOf(`valves-${c}`) },
+      { root: sparkPlug(), pose: poseOf(`spark-plug-${c}`) },
+      { root: sparkPlugConnector(), pose: poseOf(`spark-plug-connector-${c}`) },
+    ]),
+  ];
+  const pos: number[] = [];
+  const v = new THREE.Vector3();
+  for (const { root, pose } of roots) {
+    root.updateMatrixWorld(true);
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+      const P = g.attributes.position;
+      const world = pose.clone().multiply(m.matrixWorld);
+      for (let i = 0; i < P.count; i++) {
+        v.fromBufferAttribute(P, i).applyMatrix4(world);
+        pos.push(v.x, v.y, v.z);
+      }
+    });
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  bvh = new MeshBVH(geom);
+  hwBvhCache.set(key, bvh);
+  return bvh;
+}
+/**
+ * Flange cells the rocker, valve or plug actually occupies. Filling them back in
+ * would be a clash, so a window frame may not rely on them.
+ */
+function hardwareCells(s: 1 | -1, up: boolean, mask: Uint8Array, nx: number, ny: number) {
+  const blocked = new Uint8Array(mask.length);
+  const bvh = hardwareBvh(s);
+  const frame = coverMatrix(s, up);
+  const world = new THREE.Vector3();
+  const info = { point: new THREE.Vector3(), distance: 0, faceIndex: 0 };
+  const reach = 1.6;
+  for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+    const x = FLANGE_X0 + (ix + 0.5) * FLANGE_STEP;
+    const y = FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP;
+    world.set(x, y, -0.25).applyMatrix4(frame);
+    const hit = bvh.closestPointToPoint(world, info, 0, reach);
+    if (hit && hit.distance <= reach) blocked[iy * nx + ix] = 1;
+  }
+  return blocked;
+}
+/** True when hardware sits in the frame or in the lip just outside the hole. */
+function frameBlocked(blocked: Uint8Array, nx: number, ny: number, x0: number, y0: number, x1: number, y1: number, band: number) {
+  const ix0 = Math.max(0, Math.floor((x0 - band - FLANGE_X0) / FLANGE_STEP));
+  const ix1 = Math.min(nx, Math.ceil((x1 + band - FLANGE_X0) / FLANGE_STEP));
+  const iy0 = Math.max(0, Math.floor((y0 - band - FLANGE_Y0) / FLANGE_STEP));
+  const iy1 = Math.min(ny, Math.ceil((y1 + band - FLANGE_Y0) / FLANGE_STEP));
+  for (let iy = iy0; iy < iy1; iy++) {
+    const y = FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP;
+    for (let ix = ix0; ix < ix1; ix++) {
+      if (!blocked[iy * nx + ix]) continue;
+      const x = FLANGE_X0 + (ix + 0.5) * FLANGE_STEP;
+      if (x >= x0 && x <= x1 && y >= y0 && y <= y1) continue;
+      return true;
+    }
+  }
+  return false;
+}
+/**
+ * A bay with no housing face is an extra enclosed hole once the seal ring
+ * closes. Open a short channel from that hole into the nearest punched
+ * window so the sheet still has three openings, and leave the seal band
+ * itself in place.
+ */
+function joinSpareHoles(
+  mask: Uint8Array, nx: number, ny: number,
+  windows: { cx: number; cy: number }[],
+  band: Uint8Array,
+) {
+  const idOf = new Int32Array(mask.length).fill(-1);
+  const comps: number[][] = [];
+  const stack: number[] = [];
+  for (let i = 0; i < mask.length; i++) {
+    if (mask[i] || idOf[i] >= 0) continue;
+    const id = comps.length;
+    const cells: number[] = [];
+    idOf[i] = id;
+    stack.push(i);
+    let edge = false;
+    let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+    while (stack.length) {
+      const k = stack.pop()!;
+      cells.push(k);
+      const ix = k % nx, iy = (k - ix) / nx;
+      minx = Math.min(minx, ix); maxx = Math.max(maxx, ix);
+      miny = Math.min(miny, iy); maxy = Math.max(maxy, iy);
+      if (ix === 0 || iy === 0 || ix === nx - 1 || iy === ny - 1) edge = true;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const jx = ix + dx, jy = iy + dy;
+        if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+        const j = jy * nx + jx;
+        if (mask[j] || idOf[j] >= 0) continue;
+        idOf[j] = id;
+        stack.push(j);
+      }
+    }
+    const w = (maxx - minx + 1) * FLANGE_STEP, h = (maxy - miny + 1) * FLANGE_STEP;
+    comps.push(edge || w < 45 || h < 40 ? [] : cells);
+  }
+  const windowIds = new Set<number>();
+  for (const win of windows) {
+    const ix = Math.round((win.cx - FLANGE_X0) / FLANGE_STEP - 0.5);
+    const iy = Math.round((win.cy - FLANGE_Y0) / FLANGE_STEP - 0.5);
+    const id = idOf[iy * nx + ix];
+    if (id >= 0) windowIds.add(id);
+  }
+  const targets: number[] = [];
+  for (const id of windowIds) for (let i = 0; i < idOf.length; i++) if (idOf[i] === id) targets.push(i);
+  if (!targets.length) return;
+  const isTarget = new Uint8Array(mask.length);
+  for (const t of targets) isTarget[t] = 1;
+  for (let id = 0; id < comps.length; id++) {
+    if (windowIds.has(id) || !comps[id].length) continue;
+    const seen = new Uint8Array(mask.length);
+    const prev = new Int32Array(mask.length).fill(-1);
+    const q: number[] = [];
+    for (const c of comps[id]) { seen[c] = 1; q.push(c); }
+    let found = -1;
+    let qi = 0;
+    while (qi < q.length && found < 0) {
+      const k = q[qi++];
+      const ix = k % nx, iy = (k - ix) / nx;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const jx = ix + dx, jy = iy + dy;
+        if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+        const j = jy * nx + jx;
+        if (seen[j]) continue;
+        if (isTarget[j]) { prev[j] = k; found = j; break; }
+        if (band[j]) continue;
+        if (!mask[j] && idOf[j] !== id) continue;
+        seen[j] = 1;
+        prev[j] = k;
+        q.push(j);
+      }
+    }
+    if (found < 0) continue;
+    const clear = new Set<number>();
+    let c = prev[found];
+    while (c >= 0 && idOf[c] !== id) {
+      clear.add(c);
+      c = prev[c];
+    }
+    for (const k of clear) {
+      const ix = k % nx, iy = (k - ix) / nx;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        if (dx * dx + dy * dy > 10) continue;
+        const jx = ix + dx, jy = iy + dy;
+        if (jx < 0 || jy < 0 || jx >= nx || jy >= ny) continue;
+        const j = jy * nx + jx;
+        if (!band[j]) mask[j] = 0;
+      }
+    }
+  }
+}
+/**
+ * The head-side rail stands in a slit between the lower windows. The cover
+ * cannot cross that wall, so the slit is not clamped, and the openings run
+ * together through it. One row of cells welds the sheet across the slit.
+ * Each strip is a few square millimetres, under the unclamped-patch limit.
+ */
+function bridgeHeadSlit(mask: Uint8Array, nx: number, ny: number, s: 1 | -1, blocked: Uint8Array) {
+  const rows = s > 0 ? [-89.5, 30.5] : [-41.5, 76.5];
+  const ixAt = (x: number) => Math.round((x - FLANGE_X0) / FLANGE_STEP - 0.5);
+  for (const y of rows) {
+    const iy = Math.round((y - FLANGE_Y0) / FLANGE_STEP - 0.5);
+    if (iy < 1 || iy >= ny - 1) continue;
+    let lo = ixAt(-39.5);
+    let hi = ixAt(-28.5);
+    for (let ix = lo; ix >= ixAt(-46) && !mask[iy * nx + ix]; ix--) lo = ix;
+    for (let ix = hi; ix <= ixAt(-18) && !mask[iy * nx + ix]; ix++) hi = ix;
+    for (let ix = lo; ix <= hi; ix++) {
+      const i = iy * nx + ix;
+      if (!blocked[i]) mask[i] = 1;
+    }
+  }
+}
+/** Cells the cover and the housing do not both meet, apart from the seal band. */
+function dropUnclamped(
+  mask: Uint8Array, nx: number, ny: number, s: 1 | -1, up: boolean, band: Uint8Array,
+) {
+  const frame = coverMatrix(s, up);
+  const normal = new THREE.Vector3().setFromMatrixColumn(frame, 2).normalize();
+  const neg = normal.clone().negate();
+  const cover = bvhCache.get(`cover:${s}:${up ? 1 : 0}`);
+  const house = bvhCache.get(`house:${s}`);
+  if (!cover || !house) return;
+  const world = new THREE.Vector3();
+  const sees = (bvh: MeshBVH, dir: THREE.Vector3) => {
+    const h = bvh.raycastFirst(new THREE.Ray(world.clone(), dir.clone()), THREE.DoubleSide) as { distance: number } | null;
+    return !!(h && h.distance > 0.05 && h.distance <= 40);
+  };
+  for (let i = 0; i < mask.length; i++) {
+    if (!mask[i] || band[i]) continue;
+    const ix = i % nx, iy = (i - ix) / nx;
+    world.set(FLANGE_X0 + (ix + 0.5) * FLANGE_STEP, FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP, -0.25).applyMatrix4(frame);
+    if (!((sees(cover, normal) && sees(house, neg)) || (sees(cover, neg) && sees(house, normal)))) mask[i] = 0;
+  }
+}
+function coverGasket(s: 1 | -1, up: boolean) {
+  // One gasket per lid. The left bank is that sheet placed by coverMatrix(-1).
+  if (s < 0) return coverGasket(1, up);
+  const key = `${s}:${up ? 1 : 0}`;
+  let cached = gasketCache.get(key);
+  if (!cached) {
+    const halfL = (CH_Z1 - CH_Z0 - 8) / 2;
+    const { mask, nx, ny } = flangeCells(s, up);
+    for (const st of vcStuds(up, s)) clearCircle(mask, nx, ny, st.x, st.y, 4.2);
+    if (!up) {
+      // Cylinder 6's exhaust head meets the lower-left end corner. The flange
+      // there is already open; this clears any cell the head still crosses.
+      if (s < 0) clearRect(mask, nx, ny, 14, -(halfL - 8), 30, -(halfL - 1.6));
+    } else {
+      const cyls = s > 0 ? [1, 2, 3] : [4, 5, 6];
+      for (const c of cyls) {
+        const p = plugCoverLocal(c, 0);
+        if (Math.abs(p.y) < halfL - SPARK_HOLE_R - 4) clearCircle(mask, nx, ny, p.x, p.y, SPARK_HOLE_R + 2.4);
+      }
+      if (s < 0) {
+        const endLoc = plugCoverLocal(6, 0);
+        const tubeClear = SPARK_TUBE_R + 4.2;
+        const notchIn = -175.5 - 8;
+        const yTip = -(halfL + 8);
+        clearRect(mask, nx, ny, endLoc.x - tubeClear, Math.min(notchIn, yTip), endLoc.x + tubeClear, Math.max(notchIn, yTip));
+      } else {
+        const endLoc = plugCoverLocal(1, 0);
+        const tubeClear = SPARK_TUBE_R + 4.2;
+        const end = Math.sign(endLoc.y) || 1;
+        const inboard = halfL - Math.abs(endLoc.y);
+        const depth = inboard > -tubeClear && inboard < halfL ? Math.max(tubeClear, inboard + tubeClear) : tubeClear + 8;
+        const yTip = end * (halfL + 8);
+        const yIn = end * (halfL - depth);
+        clearRect(mask, nx, ny, endLoc.x - tubeClear, Math.min(yIn, yTip), endLoc.x + tubeClear, Math.max(yIn, yTip));
+      }
+    }
+    const blocked = hardwareCells(s, up, mask, nx, ny);
+    const holeW = up ? 48 : 54;
+    const holeH = up ? 44 : 22;
+    // Lower bays run into the openings. A thicker frame keeps each one a
+    // separate upright hole after the seal ring closes.
+    const margin = up ? 0.5 : 3;
+    // Lower centers sit on the housing frame lands. The upper sheet still
+    // picks the three openings whose frames are already closed.
+    const chosen: { cx: number; cy: number; gap: number }[] = !up
+      ? (s > 0
+        ? [{ cx: -8, cy: -154, gap: 0 }, { cx: -8, cy: -76, gap: 0 }, { cx: -8, cy: 42, gap: 0 }]
+        : [{ cx: -6, cy: -148, gap: 0 }, { cx: -8, cy: -30, gap: 0 }, { cx: -2, cy: 88, gap: 0 }])
+      : [];
+    if (up) {
+      const cands: { cx: number; cy: number; gap: number }[] = [];
+      let globalBest = Infinity;
+      for (let cy = -165 + holeH / 2; cy <= 165 - holeH / 2; cy += 2) {
+        let best = Infinity, bestCx = 0;
+        // The 48 mm hole stays inside the pan. The seal band sits on the
+        // flange outside |x| ≈ 40, so a window that reaches the lip cuts the ring.
+        for (let cx = -4; cx <= 4; cx += 2) {
+          const x0 = cx - holeW / 2, y0 = cy - holeH / 2, x1 = cx + holeW / 2, y1 = cy + holeH / 2;
+          if (frameBlocked(blocked, nx, ny, x0, y0, x1, y1, 6)) continue;
+          const gap = frameGap(mask, nx, ny, x0, y0, x1, y1, margin);
+          if (gap < best) { best = gap; bestCx = cx; }
+        }
+        if (best < globalBest) globalBest = best;
+        if (best <= 22) cands.push({ cx: bestCx, cy, gap: best });
+      }
+      if (cands.length < 3) throw new Error(`valve-cover gasket ${key} candidates ${cands.length} best gap ${globalBest.toFixed(1)}`);
+      cands.sort((a, b) => a.gap - b.gap);
+      for (const c of cands) {
+        if (chosen.some((k) => Math.abs(k.cy - c.cy) < holeH + 8)) continue;
+        chosen.push(c);
+        if (chosen.length === 3) break;
+      }
+      if (chosen.length < 3) throw new Error(`valve-cover gasket ${key} placed ${chosen.length} windows`);
+    }
+    for (const c of chosen) punchWindow(mask, nx, ny, c.cx, c.cy, holeW, holeH, margin, blocked);
+    for (let i = 0; i < mask.length; i++) if (blocked[i]) mask[i] = 0;
+    // The outer band is one closed loop, jogged past a stem or a stud. Paint it
+    // back over any window edge that crossed the lip.
+    const band = new Uint8Array(mask.length);
+    paintSealRing(s, up, band, nx, ny, FLANGE_X0, FLANGE_Y0, FLANGE_STEP);
+    for (let i = 0; i < mask.length; i++) if (band[i]) mask[i] = 1;
+    // The seal band stays outside the openings. Clear them again so a jog that
+    // clips a corner cannot split one window into two.
+    for (const c of chosen) clearRect(mask, nx, ny, c.cx - holeW / 2, c.cy - holeH / 2, c.cx + holeW / 2, c.cy + holeH / 2);
+    for (const st of vcStuds(up, s)) clearCircle(mask, nx, ny, st.x, st.y, 6.6);
+    for (let i = 0; i < mask.length; i++) if (blocked[i]) mask[i] = 0;
+    if (up) joinSpareHoles(mask, nx, ny, chosen, band);
+    if (!up) {
+      dropUnclamped(mask, nx, ny, s, up, band);
+      bridgeHeadSlit(mask, nx, ny, s, blocked);
+    }
+    // Stem stations are the same cover-local points on both banks. Clear the sheet
+    // around the stem, but leave the seal band: a full circle cuts the ring.
+    const stems = up ? [[15.8, 119], [15.8, 1], [15.8, -117]] : [[-25, 132], [-25, 14], [-25, -104]];
+    for (const [x, y] of stems) {
+      // Lower radius reaches the open exhaust valve. Band cells stay, so the ring is not cut.
+      const r = up ? 12 : 16;
+      const r2 = r * r;
+      const ix0 = Math.max(0, Math.floor((x - r - FLANGE_X0) / FLANGE_STEP));
+      const ix1 = Math.min(nx, Math.ceil((x + r - FLANGE_X0) / FLANGE_STEP));
+      const iy0 = Math.max(0, Math.floor((y - r - FLANGE_Y0) / FLANGE_STEP));
+      const iy1 = Math.min(ny, Math.ceil((y + r - FLANGE_Y0) / FLANGE_STEP));
+      for (let iy = iy0; iy < iy1; iy++) {
+        const yy = FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP;
+        for (let ix = ix0; ix < ix1; ix++) {
+          const xx = FLANGE_X0 + (ix + 0.5) * FLANGE_STEP;
+          const i = iy * nx + ix;
+          if (band[i]) continue;
+          if ((xx - x) * (xx - x) + (yy - y) * (yy - y) <= r2) mask[i] = 0;
+        }
+      }
+    }
+    // One sheet on both banks. Field metal the left housing does not meet is
+    // dropped. The seal band stays, so the ring is the same part on both lids.
+    {
+      const left = coverMatrix(-1, up);
+      const ln = new THREE.Vector3().setFromMatrixColumn(left, 2).normalize();
+      const lneg = ln.clone().negate();
+      const ck = `cover:-1:${up ? 1 : 0}`;
+      let lcover = bvhCache.get(ck);
+      if (!lcover) {
+        lcover = bakeWorld(pocketValveCover(valveCover(-1, up), -1, up));
+        bvhCache.set(ck, lcover);
+      }
+      let lhouse = bvhCache.get('house:-1');
+      if (!lhouse) {
+        lhouse = bakeWorld(camHousing(-1));
+        bvhCache.set('house:-1', lhouse);
+      }
+      const world = new THREE.Vector3();
+      // The strips between the three windows stay. Dropping them joins the
+      // openings into one hole. They sit on the cover lands.
+      const bridgeY = chosen.map((c) => c.cy).sort((a, b) => a - b);
+      const onBridge = (x: number, y: number) => {
+        for (let k = 0; k < bridgeY.length - 1; k++) {
+          const y0 = bridgeY[k] + holeH / 2;
+          const y1 = bridgeY[k + 1] - holeH / 2;
+          if (y > y0 - 2 && y < y1 + 2 && Math.abs(x) < holeW / 2 + 8) return true;
+        }
+        return false;
+      };
+      for (let i = 0; i < mask.length; i++) {
+        if (!mask[i] || band[i]) continue;
+        const ix = i % nx, iy = (i - ix) / nx;
+        const xx = FLANGE_X0 + (ix + 0.5) * FLANGE_STEP;
+        const yy = FLANGE_Y0 + (iy + 0.5) * FLANGE_STEP;
+        if (onBridge(xx, yy)) continue;
+        world.set(xx, yy, -0.25).applyMatrix4(left);
+        const cp = rayHits(lcover, world, ln, 40);
+        const cm = rayHits(lcover, world, lneg, 40);
+        const hp = rayHits(lhouse, world, ln, 40);
+        const hm = rayHits(lhouse, world, lneg, 40);
+        if (!((cp && hm) || (cm && hp))) mask[i] = 0;
+      }
+    }
+    const g = flangeGeometry(mask, nx, ny, blocked);
+    g.translate(0, 0, -0.25);
+    if (!g.attributes.normal) g.computeVertexNormals();
+    const P = g.attributes.position, N = g.attributes.normal;
+    for (let i = 0; i < P.count; i++) {
+      const z = P.getZ(i), nz = N.getZ(i);
+      if ((z > -0.2 && nz < -0.3) || (z < -0.3 && nz > 0.3)) N.setXYZ(i, -N.getX(i), -N.getY(i), -nz);
+    }
+    N.needsUpdate = true;
+    gasketCache.set(key, g);
+    cached = g;
+  }
+  return new Part().add(cached.clone(), 'gasket');
+}
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const X = V(1, 0, 0), Y = V(0, 1, 0), Z = V(0, 0, 1);
 const BANKS = [1, -1] as const;
@@ -266,35 +1244,37 @@ for (const s of BANKS) {
   def(`chain-lid-gasket-${b}`, () => chainLidGasket(s), () => [M(V(0, 0, HOUSING_Z1), Z, X)]);
   def(`chain-lid-plug-${b}`, () => plug(17, 6, 8), () => [onSurf(`chain-housing-lid-${b}`, V(s * 232, -22, 400), V(0, 0, -1))]);
   def(`chain-lid-plug2-${b}`, () => plug(14, 5, 7, false), () => [onSurf(`chain-housing-lid-${b}`, V(s * 250, 30, 400), V(0, 0, -1))]);
-  def(`cam-housing-plug-${b}`, () => plug(14, 6, 7), () => [onSurf(`cam-housing-${b}`, V(s * 450, 0, -110), V(-s, 0, 0))]);
+  // Outer flank, in the gap between cam-edge cover ears (cover-local y −90).
+  // The same world z lands on an ear once the left lid is mirrored.
+  def(`cam-housing-plug-${b}`, () => plug(14, 6, 7), () => [onSurf(`cam-housing-${b}`, V(s * 450, 0, s > 0 ? -68 : 68), V(-s, 0, 0))]);
   def(`chain-case-plug-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [7.5, 0], [7.5, 0.6], [6, 1.6], [0.1, 1.6]], 24), 'steel'); return p; }, () => [onSurf(`chain-housing-${b}`, V(s * 230, 120, HOUSING_Z0 + 30), V(0, -1, 0))]);
   // cam housing: valve-cover gaskets (#18 upper, #20 lower), end lid (#16), splash tube, stoppers, banjo feed, temp switch
   for (const up of [true, false]) {
-    const L = CH_Z1 - CH_Z0 - 8, w = 58;
-    def(`valve-cover-gasket-${up ? 'upper' : 'lower'}-${b}`, () => {
-      const e = VC_EXT(s);
-      const sh = roundRect(w, L + e, 7);
-      sh.holes.push(new THREE.Path(roundRect(52, L - 14 + e, 4).getPoints(6)));
-      let g: THREE.BufferGeometry = extrudeC(sh, 0.8);
-      g.translate(0, -e / 2, -0.4);
-      // Left bank only: cylinder 6's rocker shafts sit so close to the flywheel end that the
-      // screw shank and the intake nut land on the end rail. Open the middle of that rail
-      // (the hardware is already inside the cavity in x) and leave the two corner seals.
-      if (s < 0) {
-        const yOut = -(L + e) / 2 - 1 - e / 2;
-        const yIn = -(L - 14 + e) / 2 + 2 - e / 2;
-        g = csgSub(g, boxMM([-27, yOut, -2], [27, yIn, 2]));
-      }
-      return new Part().add(g, 'gasket');
-    }, () => [coverMatrix(s, up).clone()]);
+    def(`valve-cover-gasket-${up ? 'upper' : 'lower'}-${b}`, () => coverGasket(s, up), () => [coverMatrix(s, up).clone()]);
   }
   def(`cam-end-cover-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, 0], [27, 0], [27, 1], [25, 3], [0.1, 3]], 36), 'castAlu'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc, 0, CH_Z0 - 60), Z)]);
   // Clear of the Ø46.7 journals (centre distance 30 mm). The old offset of 24 mm ran through the journals.
-  def(`cam-splash-tube-${b}`, () => new Part().add(cyl(3.5, CH_Z1 - CH_Z0 - 40, 14).translate(0, (CH_Z1 - CH_Z0 - 40) / 2, 0), 'steel'), () => [M(V((CAM_X + 18) * s, 24, CH_Z0 + 20), Z)]);
-  def(`cam-housing-stoppers-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, -4], [5, -4], [5, 0], [5.5, 0], [5.5, 1.2], [0.1, 1.2]], 18), 'steel'); return p; }, () => [-1, 1].map((k) => onSurf(`cam-housing-${b}`, V(Xc - 24 * s, 24 * k, CH_Z0 - 60), Z)));
+  // The plug axis crosses this x at about y 29. Break the tube there; the gaps are
+  // shorter than the perforated run, and y 26 stays clear of the valve stems.
+  def(`cam-splash-tube-${b}`, () => {
+    const p = new Part();
+    const z0 = CH_Z0 + 20;
+    const z1 = CH_Z1 - 20;
+    const gaps = (s > 0 ? [1, 2, 3] : [4, 5, 6]).map((c) => CYL_Z[c] + s * 44);
+    let cursor = z0;
+    for (const zc of gaps.sort((a, b) => a - b)) {
+      const a = zc - 18;
+      if (a > cursor + 6) p.add(cyl(3.5, a - cursor, 12).translate(0, (cursor - z0) + (a - cursor) / 2, 0), 'steel');
+      cursor = Math.max(cursor, zc + 18);
+    }
+    if (z1 > cursor + 6) p.add(cyl(3.5, z1 - cursor, 12).translate(0, (cursor - z0) + (z1 - cursor) / 2, 0), 'steel');
+    return p;
+  }, () => [M(V((CAM_X - 22) * s, 26, CH_Z0 + 20), Z)]);
+  // y ±56 stays on the end cap and off the cylinder-6 connector cup (the old ±24 crossed it).
+  def(`cam-housing-stoppers-${b}`, () => { const p = new Part(); p.add(lathe([[0.1, -4], [5, -4], [5, 0], [5.5, 0], [5.5, 1.2], [0.1, 1.2]], 18), 'steel'); return p; }, () => [-1, 1].map((k) => onSurf(`cam-housing-${b}`, V(Xc - 24 * s, 56 * k, CH_Z0 - 60), Z)));
   def(`cam-oil-banjo-${b}`, () => { const p = banjo(); p.add(lathe([[5, 21], [8, 21], [8, 22.5], [5, 22.5]], 20), 'brass'); p.add(lathe([[5, 22.5], [8, 22.5], [8, 24], [5, 24]], 20), 'brass'); p.add(lathe([[0.1, 24], [6, 24], [6, 32], [0.1, 32]], 16), 'zincPlate'); return p; }, () => [onSurf(`cam-housing-${b}`, V(Xc - 14 * s, -36, CH_Z0 - 80), Z, V(s, 0, 0))]);
 }
-def('cam-temp-switch', () => sender(9, 10, 19), () => [onSurf('cam-housing-left', V(-CAM_X + 14, 36, CH_Z0 - 80), Z)]);
+def('cam-temp-switch', () => sender(9, 10, 19), () => [onSurf('cam-housing-left', V(-CAM_X + 14, 58, CH_Z0 - 80), Z)]);
 
 // ===== crank nose / flywheel =====
 const CN = CRANK_NOSE;

@@ -42,7 +42,6 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'warm-up-regulator': { conn: 2, ring: 2 },
   'distributor': { cap: 1, pin: 1, connector: 7 },
   'ignition-leads': { coil: 1, plug: 1, line: 1, right: 1 },
-  'spark-plug': { connector: 1 },
   'flywheel': { ring: 1 },
   // small-part prototypes
   'case-connection-left': { ring: 1 },
@@ -92,14 +91,15 @@ export const POOLS: Record<string, { by: string; what: string }[]> = {
     { by: 'breather-nuts', what: 'stud' }, { by: 'case-m10-nut', what: 'stud' }, { by: 'oil-pump-nuts', what: 'stud' },
     { by: 'sump-nuts', what: 'stud' }, { by: 'crankcase-left', what: 'bellstud' },
   ],
-  // studs in the right half (101-10 #2-#16 except #11); the upper head studs are not a separate line in these groups
+  // studs in the right half (101-10 #2-#16 except #11). Head studs are also claimed on 101-05 as the upper and lower lines.
   'case-right-studs': [
     { by: 'case-perimeter-nuts', what: 'stud' }, { by: 'chain-housing-nuts-right', what: 'stud' }, { by: 'thermostat-nuts', what: 'stud' },
     { by: 'case-right-nut', what: 'stud' }, { by: 'case-through-stud-nut', what: 'stud' }, { by: 'crankcase-right', what: 'bellstud' },
     { by: 'ishaft-cover-nuts', what: 'stud' },
   ],
   'exhaust-studs': [{ by: 'exhaust-nuts-*', what: 'stud' }, { by: 'exhaust-socket-nuts-*', what: 'stud' }],
-  // 103-05 #21-#23: 40 x (washer, M8 nut, spring washer) = cam housing to heads 24 + chain housing 12 + chain-housing end studs 4
+  // 103-05 #21-#22: 40 x (washer, M8 nut) = cam housing to heads 24 + chain housing 12 + chain-housing end studs 4.
+  // #23 (spring washer B 8×15, qty 40) is the cover hardware: 34 hex nuts #25 + 6 cap nuts #24.
   'cam-chain-nuts': [{ by: 'cam-housing-nuts-*', what: '' }, { by: 'chain-housing-nuts-*', what: '' }, { by: 'chain-end-nuts-*', what: '' }],
 };
 
@@ -124,8 +124,8 @@ export const CLAIMS: Claim[] = [
   // ---- 101-05 crankcase, left half
   C('101-05#1', 'crankcase-left'),
   ...['2', '4', '5', '6', '7', '9', '10', '11', '12', '13', '14'].map((p) => C(`101-05#${p}`, 'pool:case-left-studs', 'stud')),
-  C('101-05#3#930 101 170 00', 'head-nuts-left', 'stud', 12, 'lower Dilavar head studs, left bank'),
-  C('101-05#3#911 101 172 00', 'head-nuts-right', 'stud', 12, 'upper steel head studs, right bank'),
+  C('101-05#3#911 101 172 00', 'head-nuts-*', 'upperStud', 12, 'upper head studs, two per cylinder'),
+  C('101-05#3#930 101 170 00', 'head-nuts-*', 'lowerStud', 12, 'lower Dilavar head studs, two per cylinder'),
   C('101-05#15', 'case-dowels', 'item', 2), C('101-05#16', 'oil-return-tubes'), C('101-05#17', 'oil-return-tubes', 'seal'),
   C('101-05#18', 'case-connection-left'), C('101-05#19', 'case-connection-left', 'ring'),
   C('101-05#-#911 101 011 01', 'spray-jets', 'item', 3),
@@ -187,7 +187,8 @@ export const CLAIMS: Claim[] = [
   C('103-05#-#930 105 362 00', 'cam-splash-tube-*'), C('103-05#-#901 105 379 00', 'cam-housing-stoppers-*'),
   C('103-05#16', 'cam-end-cover-*'), C('103-05#17', 'valve-cover-upper-*'), C('103-05#18', 'valve-cover-gasket-upper-*'),
   C('103-05#19', 'valve-cover-lower-*'), C('103-05#20', 'valve-cover-gasket-lower-*'),
-  C('103-05#21', 'pool:cam-chain-nuts', 'washer'), C('103-05#22', 'pool:cam-chain-nuts', 'item'), C('103-05#23', 'pool:cam-chain-nuts', 'spring'),
+  C('103-05#21', 'pool:cam-chain-nuts', 'washer'), C('103-05#22', 'pool:cam-chain-nuts', 'item'),
+  C('103-05#23', 'valve-cover-nuts-*', 'spring', 34), C('103-05#23', 'valve-cover-special-*', 'spring', 6),
   C('103-05#24', 'valve-cover-special-*'), C('103-05#25', 'valve-cover-nuts-*'), C('103-05#26', 'cam-housing-plug-*'),
   C('103-05#27', 'cam-oil-banjo-*', 'piece'), C('103-05#28', 'cam-oil-banjo-*', 'ring'), C('103-05#29', 'cam-oil-banjo-*'),
   C('103-05#30', 'cam-temp-switch'), C('103-05#31', 'cam-temp-switch', 'ring'),
@@ -259,9 +260,9 @@ export const CLAIMS: Claim[] = [
   C('301-00#1', 'pressure-plate'), C('301-00#2', 'clutch-disc'), C('301-00#3', 'clutch-bolts', 'spring'), C('301-00#4', 'clutch-bolts'), C('301-00#5', 'flywheel', 'ring'),
   // ---- 901-00 ignition
   C('901-00#4', 'distributor-oring'), C('901-00#5', 'distributor-nut', 'washer'), C('901-00#6', 'distributor-nut', 'spring'), C('901-00#7', 'distributor-nut'),
-  C('901-00#8', 'distributor', 'cap'), C('901-00#9', 'ignition-leads', 'line'), C('901-00#16', 'spark-plug-*'), C('901-00#17', 'ignition-leads'),
+  C('901-00#8', 'distributor', 'cap'), C('901-00#9', 'ignition-leads', 'line'), C('901-00#16', '^spark-plug-\\d$'), C('901-00#17', 'ignition-leads'),
   C('901-00#17A', 'ignition-leads', 'right'),
-  C('901-00#18', 'ignition-leads', 'coil'), C('901-00#19', 'ignition-leads', 'plug'), C('901-00#21', 'spark-plug-*', 'connector'), C('901-00#22', 'ignition-lead-holders'),
+  C('901-00#18', 'ignition-leads', 'coil'), C('901-00#19', 'ignition-leads', 'plug'), C('901-00#21', '^spark-plug-connector-\\d$'), C('901-00#22', 'ignition-lead-holders'),
   C('901-00#23', 'distributor', 'connector'), C('901-00#35', 'distributor', 'pin'),
   // ---- 105-10 cylinder baffles
   C('105-10#14', 'cyl-baffle-14'), C('105-10#15', 'cyl-baffle-15'), C('105-10#16', 'cyl-baffle-16'), C('105-10#17', 'cyl-baffle-spring'), C('105-10#18', 'cyl-cover-plate'),

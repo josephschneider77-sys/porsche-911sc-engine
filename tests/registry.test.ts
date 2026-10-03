@@ -13,8 +13,8 @@ describe('part registry', () => {
     for (const k of Object.keys(SYSTEMS)) expect(systems.has(k as any), k).toBe(true);
   });
   it('has six of every per-cylinder part', () => {
-    for (const pre of ['piston', 'conrod', 'cylinder', 'head', 'valves', 'spark-plug', 'intake-runner', 'injector']) {
-      expect(PARTS.filter((p) => p.id.startsWith(`${pre}-`) && /-\d$/.test(p.id)).length, pre).toBe(6);
+    for (const pre of ['piston', 'conrod', 'cylinder', 'head', 'valves', 'spark-plug', 'spark-plug-connector', 'intake-runner', 'injector']) {
+      expect(PARTS.filter((p) => new RegExp(`^${pre}-\\d$`).test(p.id)).length, pre).toBe(6);
     }
   });
   it('every part references a catalogue illustration with a Porsche-format part number', () => {

@@ -12,13 +12,13 @@ import { CYL_Z, CYL_TOP_X, INTAKE_PORT, CAM_X, CASE_Z } from '../data/layout';
 import { HEAD_HW, CASE_TB, CASE_LUG, caseLugY } from './hwLayout';
 export { HEAD_HW, CASE_TB, CASE_LUG };
 import { seat, probe } from './probe';
-import { END_PAD, railBolts, coverMatrix, VC_EARS, VC_EDGE, chainCoverBolts, chainHousingStuds, HOUSING_Z1, HOUSING_Z0, CHAIN_LID, CHAIN_Z, CAM_NOSE, RAIL, camCoverAngles, camCoverBolt, camCoverSeatZ } from './core';
+import { END_PAD, railBolts, coverMatrix, vcStuds, vcLugs, VC_LUG_Z, chainCoverBolts, chainHousingStuds, HOUSING_Z1, HOUSING_Z0, CHAIN_LID, CHAIN_Z, CAM_NOSE, RAIL, camCoverAngles, camCoverBolt, camCoverSeatZ } from './core';
 import { rockerStations, SHAFT } from './valvetrain';
-import { chainEndStations, chainLidStations, VC_SPECIAL, shroudScrews } from './stations';
+import { chainEndStations, chainLidStations, shroudScrews } from './stations';
 import { EXH_PORT, FAN, FLY_Z, SUMP, THERMO, BREATHER, OIL_PUMP, OIL_COOLER, DIST, DIST_AXIS, distW, AIRBOX_STRUTS, WUR, ISHAFT_COVER } from './aux';
 
 export type Kind = 'nut' | 'lock' | 'barrel' | 'cap' | 'bolt' | 'pan' | 'socket' | 'combi';
-export interface FItem { p: THREE.Vector3; n: THREE.Vector3; seat: string; into: string; stud?: boolean }
+export interface FItem { p: THREE.Vector3; n: THREE.Vector3; seat: string; into: string; stud?: boolean; studKind?: 'upper' | 'lower' }
 export interface FSet {
   id: string; kind: Kind; M: number; mat: MatKey;
   washer: number; // washer radius (0 = none)
@@ -54,24 +54,24 @@ export function fastenerSets(): FSet[] {
     // head barrel nuts on the case head studs
     const r45 = HEAD_HW.barrel.r * Math.SQRT1_2;
     set(`head-nuts-${b}`, 'barrel', 10, { washer: DIM[10].wr, grip: HEAD_HW.barrel.x + CYL_TOP_X - 104, embed: 8, mat: 'darkSteel' }, cyls.flatMap((c) => [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([a, d]) =>
-      ({ p: headW(c, HEAD_HW.barrel.x, a * r45, d * r45), n: headN(c, 1, 0, 0), seat: `head-${c}`, into: `crankcase-${b}`, stud: true }))));
+      ({ p: headW(c, HEAD_HW.barrel.x, a * r45, d * r45), n: headN(c, 1, 0, 0), seat: `head-${c}`, into: `crankcase-${b}`, stud: true, studKind: a > 0 ? 'upper' as const : 'lower' as const }))));
     // cam housing -> head
     const { y: cy, z: cz } = HEAD_HW.camStud;
-    set(`cam-housing-nuts-${b}`, 'nut', 8, { washer: 7, spring: true, grip: 10, embed: 14 }, cyls.flatMap((c) => [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([a, d]) =>
+    set(`cam-housing-nuts-${b}`, 'nut', 8, { washer: 7, grip: 10, embed: 14 }, cyls.flatMap((c) => [[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([a, d]) =>
       ({ p: headW(c, 71, a * cy, d * cz), n: headN(c, 1, 0, 0), seat: `cam-housing-${b}`, into: `head-${c}`, stud: true }))));
     // valve covers: nuts on the ear tops (cover-local z = 7), studs in the cam-housing rails
     for (const upper of [true, false]) {
       const m = coverMatrix(s, upper), nm = new THREE.Matrix3().getNormalMatrix(m), u = upper ? 'upper' : 'lower';
-      const items: FItem[] = [];
-      VC_EARS(upper).forEach((yy, i) => { for (const xx of [-VC_EDGE, VC_EDGE]) if (upper || xx < 0 || !VC_SPECIAL.includes(i))
-        items.push({ p: V(xx, yy, 7).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-${u}-${b}`, into: `cam-housing-${b}`, stud: true }); });
-      set(`valve-cover-nuts-${u}-${b}`, 'nut', 8, { washer: DIM[8].wr, grip: 7, embed: 10 }, items);
+      const items: FItem[] = vcStuds(upper, s).map((st) =>
+        ({ p: V(st.x, st.y, 7).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-${u}-${b}`, into: `cam-housing-${b}`, stud: true }));
+      // 103-05 #23 is the spring washer under #25 (and the cap nuts #24), not a flat washer.
+      set(`valve-cover-nuts-${u}-${b}`, 'nut', 8, { washer: 0, spring: true, grip: 7, embed: 10 }, items);
     }
     // chain-housing cover
     set(`chain-cover-nuts-${b}`, 'lock', 6, { washer: DIM[6].wr, grip: CHAIN_LID.top - HOUSING_Z1, embed: 12 },
       chainCoverBolts(s).map((q) => ({ p: V(q.x, q.y, CHAIN_LID.top), n: V(0, 0, 1), seat: `chain-housing-lid-${b}`, into: `chain-housing-${b}`, stud: true })));
     // chain housing -> crankcase (inside the box, on the inner-edge flange)
-    set(`chain-housing-nuts-${b}`, 'nut', 8, { washer: DIM[8].wr, spring: true, grip: 6, embed: 14 },
+    set(`chain-housing-nuts-${b}`, 'nut', 8, { washer: DIM[8].wr, grip: 6, embed: 14 },
       chainHousingStuds(s).map((q) => ({ p: V(q.x, q.y, q.z), n: V(s, 0, 0), seat: `chain-housing-${b}`, into: `crankcase-${b}`, stud: true })));
     // intake pipes: nuts on the runner flange top
     const { x: ix, z: iz } = HEAD_HW.intake;
@@ -125,10 +125,11 @@ export function fastenerSets(): FSet[] {
     // cam sprocket nut + spring washer (103-10/-15 #40/#41) on the cam nose thread, seated on the sprocket hub face
     set(`cam-nut-${b}`, 'nut', 22, { spring: true, mat: 'darkSteel' }, [{ p: V(CAM_X * s, 0, CHAIN_Z[s] + CAM_NOSE.hubFace), n: V(0, 0, 1), seat: `cam-sprocket-${b}`, into: `camshaft-${b}` }]);
     // chain-housing end studs from the cam-housing end face through the box back wall (nuts inside the box)
-    set(`chain-end-nuts-${b}`, 'nut', 8, { washer: 7, spring: true, grip: END_PAD.z1 - END_PAD.z0, embed: 12 }, chainEndStations(s).map((q) => ({ p: q, n: V(0, 0, 1), seat: `chain-housing-${b}`, into: `cam-housing-${b}`, stud: true })));
-    // valve-cover special nuts (103-05 #24): stud-nuts on 3 outboard lower-cover ears per bank
+    set(`chain-end-nuts-${b}`, 'nut', 8, { washer: 7, grip: END_PAD.z1 - END_PAD.z0, embed: 12 }, chainEndStations(s).map((q) => ({ p: q, n: V(0, 0, 1), seat: `chain-housing-${b}`, into: `cam-housing-${b}`, stud: true })));
+    // Cap nuts 901 111 271 00 sit on studs through the drilled lugs. The stud is
+    // the BM 8×35 family (103-05 #15); the qty-22 line stays the hex-stud count.
     const m = coverMatrix(s, false), nm = new THREE.Matrix3().getNormalMatrix(m);
-    set(`valve-cover-special-${b}`, 'cap', 8, { washer: DIM[8].wr, len: 14, mat: 'darkSteel' }, VC_SPECIAL.map((i) => ({ p: V(VC_EDGE, VC_EARS(false)[i], 7).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-lower-${b}`, into: `cam-housing-${b}` })));
+    set(`valve-cover-special-${b}`, 'cap', 8, { washer: 0, spring: true, len: 0, grip: 7, embed: 14, mat: 'darkSteel' }, vcLugs(s).map((st) => ({ p: V(st.x, st.y, VC_LUG_Z).applyMatrix4(m), n: V(0, 0, 1).applyMatrix3(nm).normalize(), seat: `valve-cover-lower-${b}`, into: `cam-housing-${b}`, stud: true })));
   }
   // chain-housing lid nuts (103-05 '-' 3 nuts + spring washers): long studs from the box back wall through the lid
   for (const s of sides) set(`chain-lid-nuts-${bname(s)}`, 'nut', 8, { spring: true, grip: CHAIN_LID.top - HOUSING_Z0, embed: 0 }, chainLidStations(s).map((q) => ({ p: V(q.x, q.y, CHAIN_LID.top), n: V(0, 0, 1), seat: `chain-housing-lid-${bname(s)}`, into: `chain-housing-${bname(s)}`, stud: true })));
@@ -193,7 +194,7 @@ export function headHeight(f: FSet) {
   if (f.id.startsWith('rocker-shaft-nuts')) return 5.5;
   const d = DIM[f.M]; const wt = (f.washer || f.tab ? d.wt : 0) + (f.spring ? springT(f) : 0);
   switch (f.kind) {
-    case 'barrel': return wt + 13;
+    case 'barrel': return wt + 2;
     case 'lock': return wt + d.h * 1.3;
     case 'cap': return wt + 0.7 * d.h + 0.22 * d.af;
     case 'bolt': return wt + (f.M === 10 ? 10 : 0.7 * f.M);
@@ -211,6 +212,9 @@ export function bearingR(f: FSet) {
   const d = DIM[f.M];
   if (f.washer) return f.washer;
   if (f.tab) return d.wr;
+  // The seat probe uses 0.72 × this radius. B 8×15 is r 7.5; 10 × 0.72 = 7.2,
+  // which lands on the ear annulus outside the r 6.4 stud hole.
+  if (f.spring && (f.id.startsWith('valve-cover-nuts') || f.id.startsWith('valve-cover-special'))) return 10;
   if (f.spring) return 0.5 * d.af * 0.85;
   if (f.kind === 'pan') return 0.95 * f.M;
   return 0.5 * d.af;
@@ -227,24 +231,30 @@ function prototype(f: FSet): Part {
   if (f.spring) {
     const t = springT(f);
     // Cam-nut washer stands proud of the M22 flats so it reads from the cover side.
-    const ro = f.id.startsWith('cam-nut') ? d.af / 2 + 3.2 : 0.5 * d.af * 0.85;
+    const coverWasher = f.id.startsWith('valve-cover-nuts') || f.id.startsWith('valve-cover-special');
+    // N 012 241 8 is B 8×15: outside radius 7.5, not the generic hex-flat radius.
+    const ro = f.id.startsWith('cam-nut') ? d.af / 2 + 3.2 : coverWasher ? 7.5 : 0.5 * d.af * 0.85;
     p.add(lathe([[M / 2 + 0.3, 0], [ro, 0], [ro, t], [M / 2 + 0.3, t]], 16, 0.15, Math.PI * 2 - 0.3), 'darkSteel', [0, y, 0]);
     y += t;
   }
   const hexAt = (h: number, y0: number, af = d.af) => { const g = hexNut(af, h); g.translate(0, y0 + h / 2, 0); return g; };
-  // Reshape the existing rocker-shaft sets to the photos. Other pan heads and nuts are unchanged.
+  // 103-10 #45 is a pan-head screw, #47 a nut. Other pan heads and nuts are unchanged.
   if (f.id.startsWith('rocker-shaft-screws')) {
-    const hh = 6, hr = 5;
-    // socket cap (photo 6): bearing face at y = 0, hex socket in the top
-    p.add(lathe([[0.2, 0], [hr, 0], [hr, hh - 0.35], [hr - 0.2, hh], [2.45, hh], [2.45, hh - 3.1], [0.2, hh - 3.1]], 20), f.mat, [0, y, 0]);
+    const hr = 5.6, hh = 3.8;
+    // Pan head: bearing face at y = 0, screwdriver slot in the crown. Not a hex socket.
+    p.add(lathe([
+      [0.2, 0], [hr, 0], [hr, hh - 1.15], [hr - 0.35, hh - 0.15], [hr - 1.1, hh],
+      [0.45, hh], [0.45, hh - 1.15], [0.2, hh - 1.15],
+    ], 24), f.mat, [0, y, 0]);
     if (f.len > 0) { const g = cyl(M / 2, f.len, 12); g.translate(0, -f.len / 2, 0); p.add(g, 'steel'); }
     return p;
   }
   if (f.id.startsWith('rocker-shaft-nuts')) {
     const fr = 7.2, hh = 5.5;
-    // conical flange nut (photo 7): flange on the seat, cone into the shaft, internal hex in the outer face
+    // Flange on the seat. The cone stays inside the spot-face hole (r 4.75) so the
+    // seat probe at r 5.2 still lands on the ring.
     p.add(lathe([
-      [2.2, -5.6], [5.4, -0.3], [fr, 0], [fr, 1.5],
+      [2.2, -5.6], [4.15, -0.35], [fr, 0], [fr, 1.5],
       [5.0, 1.7], [5.0, hh], [2.4, hh], [2.4, 2.2], [0.9, 2.2],
     ], 20), f.mat, [0, y, 0]);
     return p;
@@ -258,7 +268,9 @@ function prototype(f: FSet): Part {
       } else p.add(hexAt(d.h, y), f.mat);
       break;
     case 'lock': p.add(hexAt(d.h, y), f.mat); p.add(lathe([[d.af * 0.45, 0], [d.af * 0.45, d.h * 0.3], [M * 0.55, d.h * 0.3], [M * 0.55, 0]], 16), 'blackPlastic', [0, y + d.h, 0]); break;
-    case 'barrel': p.add(lathe([[0.1, 0], [d.af * 0.5, 0], [d.af * 0.5, 9], [d.af * 0.42, 13], [0.1, 13]], 12), f.mat, [0, y, 0]); break;
+    // Short collar. A 13 mm barrel on the Ø114 stud circle runs through the
+    // connector cup (r 12.4). The seat washer stays; the body ends 2 mm up.
+    case 'barrel': p.add(lathe([[0.1, 0], [d.af * 0.5, 0], [d.af * 0.5, 1.2], [d.af * 0.4, 2], [0.1, 2]], 12), f.mat, [0, y, 0]); break;
     case 'cap': p.add(hexAt(0.7 * d.h, y), f.mat); p.add(lathe([[0.1, d.af * 0.22], [d.af * 0.2, d.af * 0.19], [d.af * 0.38, d.af * 0.08], [d.af * 0.45, 0]], 14), f.mat, [0, y + 0.7 * d.h, 0]); break;
     case 'bolt': {
       // M10 case through-bolts: full hex head (AF 17) so the head reads as a bolt, not a plain rod
@@ -281,12 +293,48 @@ export function itemMatrix(it: FItem) {
 }
 /** Group asset for one set: InstancedMesh per prototype mesh. */
 export function fastenerGroup(f: FSet): THREE.Object3D { return instancedGroup(f.id, prototype(f), f.items.map(itemMatrix)); }
+/**
+ * Closed cylinder along +Y. Each ring is a regular polygon stored once, so the
+ * vertex centroid sits on the axis. CylinderGeometry repeats the seam vertex and
+ * that duplicate walks the centroid off the axis once the cover frame is mirrored.
+ */
+function axisCyl(r: number, y0: number, y1: number, segs = 16): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const ring = (y: number) => {
+    const base = pos.length / 3;
+    for (let i = 0; i < segs; i++) {
+      const a = (i / segs) * Math.PI * 2;
+      pos.push(Math.cos(a) * r, y, Math.sin(a) * r);
+    }
+    return base;
+  };
+  const b = ring(y0);
+  const t = ring(y1);
+  pos.push(0, y0, 0, 0, y1, 0);
+  const bc = pos.length / 3 - 2;
+  const tc = bc + 1;
+  for (let i = 0; i < segs; i++) {
+    const i1 = (i + 1) % segs;
+    idx.push(b + i, t + i, t + i1, b + i, t + i1, b + i1);
+    idx.push(bc, b + i1, b + i);
+    idx.push(tc, t + i, t + i1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
 /** Stud geometry (engine frame) for a set's stud items: from inside the threaded part up into/through the nut. */
 export function studGeometry(f: FSet, it: FItem): THREE.BufferGeometry {
   const d = DIM[f.M];
-  const top = headHeight(f) - (f.kind === 'barrel' ? 3 : f.kind === 'cap' ? d.h * 0.4 : -1.5);
+  // The barrel nut mesh is a 2 mm collar so it clears the plug connector. The stud
+  // still reaches the old 13 mm barrel height: that rod is part of the crankcase GLB.
+  const wt = (f.washer || f.tab ? d.wt : 0) + (f.spring ? springT(f) : 0);
+  const rise = f.kind === 'barrel' ? wt + 13 : headHeight(f);
+  const top = rise - (f.kind === 'barrel' ? 3 : f.kind === 'cap' ? d.h * 0.4 : -1.5);
   const bot = -(f.grip + f.embed);
-  const g = cyl(f.M / 2 * 0.96, top - bot, 10); g.translate(0, (top + bot) / 2, 0);
-  return g.applyMatrix4(itemMatrix(it));
+  return axisCyl(f.M / 2 * 0.96, bot, top).applyMatrix4(itemMatrix(it));
 }
 export { mesh, yToZ };
