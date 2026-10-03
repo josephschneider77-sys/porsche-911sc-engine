@@ -85,9 +85,14 @@ function blockedCells(s: 1 | -1, upper: boolean) {
   const halfL = (CH_Z1 - CH_Z0 - 8) / 2;
   for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
     const [x, y] = cellCenter(ix, iy);
-    if (studs.some((st) => (x - st.x) ** 2 + (y - st.y) ** 2 < 8.2 ** 2)) { blocked[iy * nx + ix] = 1; continue; }
-    // Sprocket-end notch. The stud there comes through the end wall.
-    if (upper && y > halfL - 20 && Math.abs(x) < 26) { blocked[iy * nx + ix] = 1; continue; }
+    // Upper studs sit in the flange. The band jogs just outside the hole and stays
+    // on the ear. A wider disk pushes that jog off the casting.
+    const studR = upper ? 7.0 : 8.2;
+    if (studs.some((st) => (x - st.x) ** 2 + (y - st.y) ** 2 < studR ** 2)) { blocked[iy * nx + ix] = 1; continue; }
+    // Sprocket-end notch. The stud there comes through the end wall. The upper
+    // band turns inboard of it on the end flange, so the block is the notch itself.
+    const notchX = upper ? 22 : 26;
+    if (upper && y > halfL - 20 && Math.abs(x) < notchX) { blocked[iy * nx + ix] = 1; continue; }
     let near = false;
     for (const z of [-1.6, -0.8, -0.3, 0.45]) {
       world.set(x, y, z).applyMatrix4(frame);
@@ -210,8 +215,10 @@ function sealLoop(s: 1 | -1, upper: boolean): Loop {
   const { walk, nx, ny } = blockedCells(s, upper);
   // Windows occupy the middle of the sheet. The leg has to stay outboard of
   // them or the opening cuts the ring.
-  const rail = upper ? 40 : 42;
-  const keep = upper ? 34 : 36;
+  // Upper band sits on the cast flange (wall at |x| 29, lip at 36.5).
+  // Lower band stays outboard of the upright windows.
+  const rail = upper ? 33 : 42;
+  const keep = upper ? 28 : 36;
   const side = (sign: 1 | -1, y0: number, y1: number) => {
     const a = nearest(walk, nx, ny, sign * rail, y0);
     const b = nearest(walk, nx, ny, sign * rail, y1);
@@ -231,7 +238,12 @@ function sealLoop(s: 1 | -1, upper: boolean): Loop {
     const a = nearest(walk, nx, ny, p[0], p[1]);
     const b = nearest(walk, nx, ny, q[0], q[1]);
     if (!a || !b) return [];
-    return route(walk, nx, ny, a, b, (x, y) => Math.abs(y - ySign * 181) * 0.35 + (Math.abs(x) > 46 ? 6 : 0));
+    return route(walk, nx, ny, a, b, (x, y) => {
+      // Upper flange ends at |x| 36.5. A detour outside it becomes a pad off the casting.
+      let c = Math.abs(y - ySign * 181) * 0.35 + (Math.abs(x) > 46 ? 6 : 0);
+      if (upper && Math.abs(x) > 36) c += 25;
+      return c;
+    });
   };
   const fly = end(left[0], right[0], -1);
   const pulley = end(left[left.length - 1], right[right.length - 1], 1);
@@ -471,7 +483,8 @@ export function sealPatchGeometry(
   for (let i = 0; i < grown.length; i++) if (grown[i]) n++;
   if (n < 4) return null;
   const z0 = coverSide ? 0 : -1.85;
-  const z1 = coverSide ? 0.7 : -0.55;
+  // Upper patches match the 5 mm flange. A 0.7 mm sheet read as folded metal.
+  const z1 = coverSide ? (upper ? 5 : 0.7) : -0.55;
   return voxelSheet(grown, nx, ny, x0, y0, step, z0, z1);
 }
 

@@ -87,6 +87,23 @@ export function manifoldAdd(base: THREE.BufferGeometry, ...extra: THREE.BufferGe
   return g;
 }
 
+/** Overlap of two closed solids. */
+export function manifoldIntersect(a: THREE.BufferGeometry, b: THREE.BufferGeometry): THREE.BufferGeometry {
+  const am = toM(a, 'a');
+  const bm = toM(b, 'b');
+  const result = am.intersect(bm);
+  am.delete();
+  bm.delete();
+  const status = String(result.status());
+  if (status !== 'NoError') {
+    result.delete();
+    throw new Error(`manifold intersect ${status}`);
+  }
+  const g = fromM(result);
+  result.delete();
+  return g;
+}
+
 /** `base` minus every cutter, as one closed solid. Inputs must already be closed. */
 export function manifoldSub(base: THREE.BufferGeometry, ...cutters: THREE.BufferGeometry[]): THREE.BufferGeometry {
   if (!cutters.length) return base;

@@ -10,7 +10,7 @@ import {
   Part, V3, DEG, lathe, closedLathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
   polyShape, hull, circlePts, gearShape, timingGearShape, sprocketRingShape, rollerChainShape, extrude, extrudeC, hexNut, tube, torus, spring, paramSurface, plate, gusset, csgSub, csgUnion, woodruffGeom, subtractSolids, cutGroup,
 } from './util';
-import { cutClosed, manifoldSub } from './manifoldCut';
+import { cutClosed, manifoldAdd, manifoldIntersect, manifoldSub } from './manifoldCut';
 import {
   SPEC, SPARK_Z, SPARK_TIP, SPARK_MINOR_D, SPARK_SEAT_Y, SPARK_WELL_T, sparkDirHead, CYL_Z, MAIN_Z, THROW_DEG, DECK_X, CYL_TOP_X, HEAD_OUT_X, CAM_X, CAM_HOUSING_OUT_X, INT_SHAFT_Y, CASE_Z, NOSE_BEARING_Z,
 } from '../data/layout';
@@ -1289,6 +1289,57 @@ function raisedText(p: Part, text: string, x0: number, yc: number, sc: number, z
 }
 
 /**
+ * Upper lid 901 105 115 03, cover-local. A closed cast shell: 4 mm walls, a 7.5 mm
+ * flange 5 mm thick, and a crowned roof. The sealing face stays at z = 0.
+ * Inner half-width 25 mm leaves the intake rockers (they reach about |x| 21) inside the pan.
+ */
+const UPPER_CAST = {
+  wall: 4,
+  flangeW: 7.5,
+  flangeT: 5,
+  innerX: 25,
+  shoulder: 23,
+  crown: 2.4,
+  ceil: 19,
+};
+/** Outer height of the crowned roof at cover-local x. Peak is shoulder + crown. */
+export function upperCrownZ(x: number) {
+  const outerX = UPPER_CAST.innerX + UPPER_CAST.wall;
+  const rise = UPPER_CAST.crown;
+  const R = (outerX * outerX) / (2 * rise) + rise / 2;
+  const peak = UPPER_CAST.shoulder + rise;
+  const dx = Math.min(Math.abs(x), outerX - 0.4);
+  return peak - R + Math.sqrt(R * R - dx * dx);
+}
+function castUpperShell(studHoles: THREE.BufferGeometry[], notch: THREE.BufferGeometry) {
+  const len = CH_Z1 - CH_Z0 - 8;
+  const halfL = len / 2;
+  const C = UPPER_CAST;
+  const outerX = C.innerX + C.wall;
+  const lipX = outerX + C.flangeW;
+  const innerY = halfL - C.flangeW - C.wall;
+  const outerY = innerY + C.wall;
+  const endR = 12;
+  const flange = extrude(roundRect(lipX * 2, halfL * 2, endR), C.flangeT, 0, 10);
+  const walls = extrude(roundRect(outerX * 2, outerY * 2, 8), C.shoulder - C.flangeT + 1.2, 0, 10);
+  walls.translate(0, 0, C.flangeT - 0.6);
+  const rise = C.crown;
+  const R = (outerX * outerX) / (2 * rise) + rise / 2;
+  const peak = C.shoulder + rise;
+  const cap = new THREE.CylinderGeometry(R, R, outerY * 2 + 8, 48);
+  cap.translate(0, 0, peak - R);
+  const keep = extrude(roundRect(outerX * 2 + 0.6, outerY * 2 + 0.6, 8), rise + 2.2, 0, 10);
+  keep.translate(0, 0, C.shoulder - 0.5);
+  const dome = manifoldIntersect(cap, keep);
+  // The pulley end (+y) stays solid back to the sprocket notch. The seal crosses
+  // that bulkhead, so the pan does not need a sheet laid across the opening.
+  const cavY1 = innerY - 22;
+  const cavity = extrude(roundRect(C.innerX * 2, innerY + cavY1, 6, 0, (cavY1 - innerY) / 2), C.ceil + 2, 0, 8);
+  cavity.translate(0, 0, -2);
+  const shell = manifoldAdd(flange, walls, dome);
+  return manifoldSub(shell, cavity, notch, ...studHoles);
+}
+/**
  * Upper / lower valve cover (103-05 positions 17 and 19), engine coords. Kat 502 draws the upper lid
  * (901 105 115 03) with two round plug holes one cylinder pitch apart and a half-round opening at one
  * end, each on a collar, and the lower lid (930 105 116) as a ribbed pan with no holes. The holes are
@@ -1304,29 +1355,29 @@ export const VC_EXT = (_s: 1 | -1) => 0;
 export function valveCover(s: 1 | -1, upper: boolean) {
   const loc = new Part();
   const len = CH_Z1 - CH_Z0 - 8, w = 58;
-  // hollow cast pan (v5): drafted outer shell 2.5-3 mm thick over a matching cavity that clears the rocker gear,
-  // on a seat flange ring; everything below the seat plane is trimmed off. Stud towers sit on vcStuds.
   const ext = VC_EXT(s), cy = -ext / 2;
-  // Same end radius on both banks so the seal lips stay the same length.
-  const endR = 7;
-  const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
-  cavity.translate(0, cy, -20);
-  const below = boxMM([-w, -len, -40], [w, len, 0.01]);
-  // Stepped seat flange: thin outer lip, then a raised land the pan walls leave from.
-  const lip = extrude(roundRect(w, len + ext, endR), 1.15, 0.25, 6).translate(0, cy, 0);
-  const step = extrude(roundRect(w - 7, len - 6 + ext, Math.max(5, endR - 4)), 2.15, 0.4, 6).translate(0, cy, 1.15);
   // M8 cover studs (r 3.84) are part of the cam-housing asset. The hole is 6.4
   // so the shank clears the lip by more than 2 mm; the washer still has a face.
   const studs = vcStuds(upper, s);
   const studHoles = studs.map((st) => yToZ(cyl(6.4, 28, 16)).translate(st.x, st.y, -2));
-  // Sprocket-end notch (pulley / chain end, local +y). Deep enough to read, clear of the ear pads.
-  const notch = boxMM([-15, len / 2 - 16 + cy, -1], [15, len / 2 + 4 + cy, 16]);
-  loc.add(manifoldSub(lip, cavity, notch, ...studHoles), 'castAlu');
-  loc.add(manifoldSub(step, cavity, notch, ...studHoles), 'castAlu');
-  // Main's shell: depth 12 + bevel 10, top at 22 mm. Upper bosses and lower ribs
-  // sit on that pan; nothing is added to clear a rocker.
-  const pan = new THREE.ExtrudeGeometry(roundRect(w - 17, len - 22 + ext, 6), { depth: 12, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
-  loc.add(manifoldSub(pan.translate(0, cy, 0), cavity, below, notch), 'castAlu');
+  // Sprocket-end notch (pulley / chain end, local +y). On the upper lid it stops
+  // under the crown so the top skin stays closed.
+  const notch = boxMM([-15, len / 2 - 16 + cy, -1], [15, len / 2 + 4 + cy, upper ? 12 : 16]);
+  if (upper) {
+    loc.add(castUpperShell(studHoles, notch), 'castAlu');
+  } else {
+    // Lower lid: bevelled pan on a thin seat flange. Same shell as before.
+    const endR = 7;
+    const cavity = new THREE.ExtrudeGeometry(roundRect(VC_CAV.w0 * 2, len - 30 + ext, 1), { depth: 29, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
+    cavity.translate(0, cy, -20);
+    const below = boxMM([-w, -len, -40], [w, len, 0.01]);
+    const lip = extrude(roundRect(w, len + ext, endR), 1.15, 0.25, 6).translate(0, cy, 0);
+    const step = extrude(roundRect(w - 7, len - 6 + ext, Math.max(5, endR - 4)), 2.15, 0.4, 6).translate(0, cy, 1.15);
+    loc.add(manifoldSub(lip, cavity, notch, ...studHoles), 'castAlu');
+    loc.add(manifoldSub(step, cavity, notch, ...studHoles), 'castAlu');
+    const pan = new THREE.ExtrudeGeometry(roundRect(w - 17, len - 22 + ext, 6), { depth: 12, bevelEnabled: true, bevelThickness: 10, bevelSize: 8, bevelSegments: 1, curveSegments: 6 });
+    loc.add(manifoldSub(pan.translate(0, cy, 0), cavity, below, notch), 'castAlu');
+  }
   // Stud towers blended into the pan wall. The nut face stays a flat disc at z = 7.
   // The cavity runs through the ear centres. Keep the nut face (z = 7, out to r 8.8)
   // so an M8 washer probe at r 6.8 still lands on the disc.
@@ -1337,9 +1388,11 @@ export function valveCover(s: 1 | -1, upper: boolean) {
     ...faceKeeps,
   );
   // Closed tower. The stud bore is the later cut, so the profile runs to the axis.
-  const earBoss = yToZ(lathe([
-    [16.4, 0], [14.8, 1.4], [12.4, 3.0], [10.2, 4.8], [8.8, 6.3], [8.8, 7], [0.4, 7], [16.4, 0],
-  ], 24));
+  // Upper ears are wide enough that the seal jog around the stud lands on the boss.
+  const earBoss = yToZ(lathe(upper
+    ? [[18.5, 0], [16.2, 1.6], [13.2, 3.2], [10.4, 5.0], [8.8, 6.3], [8.8, 7], [0.4, 7], [18.5, 0]]
+    : [[16.4, 0], [14.8, 1.4], [12.4, 3.0], [10.2, 4.8], [8.8, 6.3], [8.8, 7], [0.4, 7], [16.4, 0]],
+  24));
   studs.forEach((st, i) => {
     const studHole = studHoles[i];
     loc.add(manifoldSub(earBoss.clone().translate(st.x, st.y, 0), earCut, studHole), 'castAlu');
@@ -1356,8 +1409,9 @@ export function valveCover(s: 1 | -1, upper: boolean) {
     // Right holes sit near local Y −60 and +58; left holes sit near +16 and −102.
     // reads correctly from each bank's own side (letter-up toward +Y, advance toward the viewer's right)
     const letterY = s > 0 ? -4 : -44;
-    // Holes are centred at local x −8. The lettering sits on the head side of them.
-    raisedText(loc, 'PORSCHE', s > 0 ? 12 : 22, letterY, 1.65, 21.2, 1.3, 1.5, s, -s);
+    const letterX = s > 0 ? 12 : 22;
+    // Sit the letters on the crown, proud of the skin by about a millimetre.
+    raisedText(loc, 'PORSCHE', letterX, letterY, 1.65, upperCrownZ(letterX) - 0.35, 1.3, 1.5, s, -s);
   } else {
     // Lower lid: diagonal ribs across the pan, and three wedge lugs for the special nuts.
     for (const k of [-2, -1, 0, 1, 2]) {

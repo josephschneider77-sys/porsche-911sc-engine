@@ -2016,8 +2016,9 @@ function addPlugOpenings(root: THREE.Object3D, s: 1 | -1) {
       scallop.applyMatrix4(frame);
       cuts.push(scallop);
     } else {
-      const a = at(2.2);
-      const b = at(24);
+      // Boss stands proud of the crown (peak ≈ 25.4) and stays under the 27.9 mm envelope.
+      const a = at(18);
+      const b = at(24.6);
       extra.add(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], collarR, 36), 'castAlu');
     }
   }
