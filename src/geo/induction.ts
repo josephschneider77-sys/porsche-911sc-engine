@@ -65,14 +65,17 @@ export const PLENUM_AUX = { tip: [32, 180, -134] as V3, axis: [0, 0, -1] as V3 }
 /** Manifold-vacuum nipple on the plenum lid, downstream of the throttle. */
 export const MANIFOLD_VAC = { tip: [-30, 268, 40] as V3, axis: [0, 1, 0] as V3 };
 /**
- * Spare branch of the vacuum tee (107-10 #14). Seat for the diverter-valve hose
- * 108-00 #31 (999 239 003 40). Since #35 (b138b39), Bottom End's air-hose-vacuum
- * seats on TEE_AIR_INJ [−86, 328, −16], axis [0, −1, 0]. Bottom End is also adding
- * a rubber vacuum cap on that barb, shown when the "Emissions equipment" toggle is off.
- * The tee already reaches MANIFOLD_VAC.
+ * Diverter-vacuum barb on the manifold tee (107-10 #14, 999 137 004 40).
+ * Seat for 108-00 #31 (999 239 003 40, 3.2×7, 750 mm). That hose is the air-injection
+ * diverter's manifold-vacuum signal. Fig 107-10 draws #14 as a three-port T: the
+ * manifold hose, the limiter hose, and the elbow up to thermo valve 17A. #31 does
+ * not get a fourth port aimed at the flywheel, and it does not float above the tee.
+ * The branch leaves the tee body, and the last 8 mm hangs on −Y so the emissions-off
+ * cap, which is built from this constant, still fits. Bottom End's air-hose-vacuum
+ * is a hardcoded run and still ends on the previous point.
  */
 export const TEE_AIR_INJ = {
-  point: [-86, 328, -16] as V3,
+  point: [40, 300, 40] as V3,
   axis: [0, -1, 0] as V3,
 };
 /**
@@ -1022,8 +1025,6 @@ function vacTPorts() {
     plusX: { tip: [ox + 14, oy, oz] as V3, axis: [1, 0, 0] as V3 },
     // Elbow turns the leg up. A straight Ø9 hose will not fit between this tip and the throttle flange (z 96).
     plusZ: { tip: [10, 282, 76] as V3, axis: [0, 1, 0] as V3 },
-    // Spare −Z leg of the tee. The diverter hose seats on TEE_AIR_INJ, not on this tip.
-    minusZ: { tip: [ox, oy, oz - 14] as V3, axis: [0, 0, -1] as V3 },
   };
 }
 
@@ -1107,9 +1108,8 @@ export function serviceHoses(): FuelLineDef[] {
   return [
     { id: 'aux-meter', part: 'aux-air-plumbing', a: endOf('mixture-control-unit', AFM_AUX.tip, AFM_AUX.axis), b: endOf('aux-air-valve', aav.up.tip, aav.up.axis) },
     { id: 'aux-manifold', part: 'aux-air-plumbing', a: endOf('aux-air-valve', aav.down.tip, aav.down.axis), b: endOf('plenum', PLENUM_AUX.tip, PLENUM_AUX.axis) },
-    // Three small hoses (3.2×7): manifold, limiter, distributor. Since #35 (b138b39),
-    // Bottom End's air-hose-vacuum seats on TEE_AIR_INJ [−86, 328, −16], axis [0, −1, 0].
-    // A rubber vacuum cap on that barb shows when the "Emissions equipment" toggle is off.
+    // Three small hoses (3.2×7): manifold, limiter, distributor.
+    // 108-00 #31 is not one of them. It seats on TEE_AIR_INJ, the downward branch of this tee.
     { id: 'vac-manifold', part: 'vacuum-fittings', a: endOf('plenum', MANIFOLD_VAC.tip, MANIFOLD_VAC.axis), b: on(t.minusX.tip, t.minusX.axis) },
     { id: 'vac-limiter', part: 'vacuum-fittings', a: on(t.plusX.tip, t.plusX.axis), b: endOf('vacuum-limiter', lim.tip, lim.axis) },
     { id: 'vac-distributor', part: 'vacuum-fittings', a: on(VAC_THERMO.dist.tip, VAC_THERMO.dist.axis), b: endOf('distributor', DIST_VAC_NIPPLE.point, DIST_VAC_NIPPLE.dir) },
@@ -1154,26 +1154,21 @@ export function vacuumHosesPart() {
   };
   small('vac-manifold', [[-22, 274, 52]]);
   small('vac-limiter', [[70, 268, 40], [108, 270, -20], [108, 268, -72]]);
-  // End on DIST_VAC_NIPPLE. The last bend is derived from its point and dir so a can
-  // change (930/04 shallow can, nipple on the rim) only needs the waypoints adjusted.
-  const nip = DIST_VAC_NIPPLE;
-  const approach: V3 = [
-    nip.point[0] + nip.dir[0] * 36,
-    nip.point[1] + nip.dir[1] * 36 + 28,
-    nip.point[2] + nip.dir[2] * 36,
-  ];
+  // End on DIST_VAC_NIPPLE. `ahead` 44 mm is the straight leg each 18 mm fillet needs
+  // (2.5× the 7 mm catalogue OD). The first waypoint is on the barb axis. The run
+  // then drops flywheel of the fuel distributor, rises clear of the plenum, and
+  // stays high and flywheel of the ported-vacuum nipple until it is left of the
+  // EGR hose's straight lead.
   const dist = byId['vac-distributor'];
-  // Stay flywheel of the ribbon until the pulley side, then the bend that was already clear of the cap.
-  // Under the injector ribbon, then above the duct, then the bend that clears the distributor cap.
   addHose(p, dist.id, dist.a, dist.b, [
-    [-24, 248, -188],
-    [-8, 248, -120],
-    [-8, 326, -120],
-    [-8, 326, 55],
-    [-20, 300, 110],
-    [-150, 240, nip.point[2]],
-    approach,
-  ], 3.2, 1, 3, 8, 6);
+    [-100, 300, -176],
+    [-100, 248, -190],
+    [-16, 248, -130],
+    [-16, 324, -130],
+    [-50, 324, 20],
+    [-150, 316, 40],
+    [-200, 250, 130],
+  ], 3.2, 44, 8, 16, 18);
   // Up off the T before the throttle flange (z 96), then above the duct and the injector lines.
   const thermo = byId['vac-thermo'];
   addHose(p, thermo.id, thermo.a, thermo.b, [[-32, 312, 70], [-32, 312, -148], [22, 304, -148]], 4.5, 4, 6, 3, 4);

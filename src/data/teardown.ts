@@ -2,6 +2,7 @@ import { PARTS } from './parts';
 import { FASTENER_SPECS } from './fastenerSpec';
 import { SMALL_SPECS } from './smallSpec';
 import { VARIANT } from './variant';
+import { emissionsEnabled, hiddenPartIds } from './partGroups';
 
 /**
  * `carries`: parts that come off attached to one of this step's parts (carrier id -> carried ids) and are only
@@ -73,35 +74,63 @@ export const TEARDOWN: TeardownStep[] = [
 /** The part left on the stand after the final step. */
 export const BASE_PART = 'crankcase-right';
 
-export function stepIndexOf(partId: string): number {
-  return TEARDOWN.findIndex((s) => s.parts.includes(partId));
+/** Parts hidden for this emissions-equipment state. Off hides the air-injection group; on hides its inverse caps. */
+export function emissionsHidden(on: boolean): Set<string> {
+  return hiddenPartIds(PARTS, emissionsEnabled(on));
+}
+export function activeFilter(on: boolean): (id: string) => boolean {
+  const hidden = emissionsHidden(on);
+  return (id) => !hidden.has(id);
+}
+/**
+ * Teardown with the hidden group removed. Empty steps are dropped so the numbers stay contiguous.
+ * `on` is the emissions-equipment flag (`EMISSIONS_FLAG` in partGroups.ts).
+ */
+export function activeTeardown(on: boolean): TeardownStep[] {
+  const hidden = emissionsHidden(on);
+  return TEARDOWN.map((s) => {
+    const carries = s.carries && Object.fromEntries(
+      Object.entries(s.carries)
+        .map(([c, ps]) => [c, ps.filter((id) => !hidden.has(id))] as [string, string[]])
+        .filter(([, ps]) => ps.length > 0),
+    );
+    return {
+      ...s,
+      parts: s.parts.filter((id) => !hidden.has(id)),
+      carries: carries && Object.keys(carries).length ? carries : undefined,
+    };
+  }).filter((s) => s.parts.length > 0);
+}
+
+export function stepIndexOf(partId: string, steps: TeardownStep[] = TEARDOWN): number {
+  return steps.findIndex((s) => s.parts.includes(partId));
 }
 /** Parts removed after completing `n` steps. */
-export function removedAfter(n: number): Set<string> {
+export function removedAfter(n: number, steps: TeardownStep[] = TEARDOWN): Set<string> {
   const out = new Set<string>();
-  TEARDOWN.slice(0, n).forEach((s) => s.parts.forEach((p) => out.add(p)));
+  steps.slice(0, n).forEach((s) => s.parts.forEach((p) => out.add(p)));
   return out;
 }
 /** Parts lifted off the engine with a removed carrier but not yet dismantled from it, after `n` steps: part -> carrier. */
-export function carriedAfter(n: number): Map<string, string> {
-  const removed = removedAfter(n), out = new Map<string, string>();
-  TEARDOWN.slice(0, n).forEach((s) => Object.entries(s.carries ?? {}).forEach(([c, ps]) => ps.forEach((p) => { if (!removed.has(p)) out.set(p, c); })));
+export function carriedAfter(n: number, steps: TeardownStep[] = TEARDOWN): Map<string, string> {
+  const removed = removedAfter(n, steps), out = new Map<string, string>();
+  steps.slice(0, n).forEach((s) => Object.entries(s.carries ?? {}).forEach(([c, ps]) => ps.forEach((p) => { if (!removed.has(p)) out.set(p, c); })));
   return out;
 }
-export function validateTeardown(): string[] {
+export function validateTeardown(steps: TeardownStep[] = TEARDOWN, parts: { id: string }[] = PARTS): string[] {
   const errs: string[] = [];
-  const ids = new Set(PARTS.map((p) => p.id));
+  const ids = new Set(parts.map((p) => p.id));
   const seen = new Map<string, string>();
-  for (const s of TEARDOWN) for (const p of s.parts) {
+  for (const s of steps) for (const p of s.parts) {
     if (!ids.has(p)) errs.push(`step ${s.id}: unknown part ${p}`);
     if (seen.has(p)) errs.push(`part ${p} in both ${seen.get(p)} and ${s.id}`);
     seen.set(p, s.id);
   }
   for (const id of ids) if (!seen.has(id) && id !== BASE_PART) errs.push(`part ${id} never removed`);
   if (seen.has(BASE_PART)) errs.push('base part must stay on the stand');
-  TEARDOWN.forEach((s, i) => Object.entries(s.carries ?? {}).forEach(([c, ps]) => {
+  steps.forEach((s, i) => Object.entries(s.carries ?? {}).forEach(([c, ps]) => {
     if (!s.parts.includes(c)) errs.push(`step ${s.id}: carrier ${c} not removed in this step`);
-    for (const p of ps) if (!(stepIndexOf(p) > i)) errs.push(`step ${s.id}: carried ${p} must be dismantled in a later step`);
+    for (const p of ps) if (!(stepIndexOf(p, steps) > i)) errs.push(`step ${s.id}: carried ${p} must be dismantled in a later step`);
   }));
   return errs;
 }

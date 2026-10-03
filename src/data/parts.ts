@@ -4,6 +4,7 @@ import { CYL_Z, DECK_X, CYL_TOP_X, bankOf, pinX, INTAKE_PORT, INJ, SPARK_Z, SPAR
 import { FASTENER_SPECS } from './fastenerSpec';
 import { SMALL_SPECS, smallRef } from './smallSpec';
 import { VARIANT } from './variant';
+import { memberGroup } from './partGroups';
 
 export type Vec3 = [number, number, number];
 export interface CatalogRef {
@@ -24,6 +25,12 @@ export interface PartDef {
   catalog: CatalogRef[];
   description: string;
   specs: Record<string, string>;
+  /**
+   * Part-group id (see src/data/partGroups.ts, `PART_GROUPS`).
+   * `group: 'air-injection'` hides the part when Emissions equipment is off.
+   * Inverse parts (shown only when that group is off) are listed in the registry, not tagged here.
+   */
+  group?: string;
 }
 
 const R = Math.PI;
@@ -426,10 +433,13 @@ function hardware(): PartDef[] {
   const small = SMALL_SPECS.map((f) => {
     const e = ex(f.follows); const len = Math.hypot(...e) || 1;
     return { id: f.id, name: f.name, system: 'hardware' as SystemKey, asset: f.id, explode: e.map((v) => v * (1 + 40 / len)) as Vec3,
-      catalog: f.catalog?.length ? f.catalog : [{ ill: smallRef(f.id)[0], pos: smallRef(f.id)[1], pn: '—', qty: f.count }], description: f.description, specs: { Quantity: String(f.count), Size: f.size, 'Removed at step': f.step } };
+      catalog: f.catalog?.length ? f.catalog : [{ ill: smallRef(f.id)[0], pos: smallRef(f.id)[1], pn: '—', qty: f.count }], description: f.description, specs: { Quantity: String(f.count), Size: f.size, 'Removed at step': f.step }, group: f.group };
   });
   return [...hw, ...small];
 }
-export const PARTS: PartDef[] = [...base, ...hardware()];
+export const PARTS: PartDef[] = [...base, ...hardware()].map((p) => {
+  const group = p.group ?? memberGroup(p);
+  return group ? { ...p, group } : p;
+});
 export const PART_BY_ID: Record<string, PartDef> = Object.fromEntries(PARTS.map((p) => [p.id, p]));
 export { side };

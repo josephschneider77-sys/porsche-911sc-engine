@@ -1120,7 +1120,7 @@ The shipped engine is the 1978 US type 930/04. Air injection (108-00), the heate
 | 14 | — | Washer | 1 | modelled | `egr-fasteners` washer |
 | 15 | 999 239 003 40 | Hose | 1 | modelled | `egr-hose-short` |
 | 16 | 999 239 003 40 | Hose | 1 | modelled | `egr-hose-long` |
-| 17 | 999 239 003 40 | Hose | 2 | modelled | `egr-hose-pair` hose |
+| 17 | 999 239 003 40 | Hose | 2 | modelled | `egr-hose-return`, `egr-hose-diverter` |
 | 18 | — | T-piece | 1 | modelled | `egr-tee` |
 | 19 | — | Buffer | 1 | modelled | `egr-buffer` |
 

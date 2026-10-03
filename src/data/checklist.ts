@@ -75,7 +75,6 @@ export const FEATURES: Record<string, Record<string, number>> = {
   'air-pump-fasteners': { nut: 4, spring: 4, pivot: 1, bolt: 1, washer: 1 },
   'air-diverter-nuts': { nut: 2, spring: 2 },
   'heater-blower-hardware': { screw: 2, nut: 2, washer: 2, nut2: 2, washer2: 2 },
-  'egr-hose-pair': { hose: 2 },
   'egr-fasteners': { bolt: 2, spring: 3, nut: 1, bolt2: 2, spring2: 2, nut2: 2, screw: 1, washer: 1 },
   'cat-plug': { ring: 1 },
   'cat-cover-fasteners': { nut: 8, bolt: 8, washer: 8 },
@@ -287,7 +286,9 @@ export const CLAIMS: Claim[] = [
   C('202-05#4', 'egr-fasteners', 'bolt'), C('202-05#5', 'egr-fasteners', 'spring'), C('202-05#6', 'egr-fasteners', 'nut'),
   C('202-05#7', 'egr-valve'), C('202-05#8', 'egr-fasteners', 'bolt2'), C('202-05#9', 'egr-fasteners', 'spring2'), C('202-05#10', 'egr-fasteners', 'nut2'),
   C('202-05#11', 'egr-pipe-return'), C('202-05#12', 'egr-seal'), C('202-05#13', 'egr-fasteners', 'screw'), C('202-05#14', 'egr-fasteners', 'washer'),
-  C('202-05#15', 'egr-hose-short'), C('202-05#16', 'egr-hose-long'), C('202-05#17', 'egr-hose-pair', 'hose'),
+  C('202-05#15', 'egr-hose-short'), C('202-05#16', 'egr-hose-long'),
+  C('202-05#17', 'egr-hose-return', 'item', 1, 'Return leg. The printed 465 mm is the diverter piece; these two ends are a short arc.'),
+  C('202-05#17', 'egr-hose-diverter', 'item', 1, 'Diverter leg. 465 mm does not clear the left case; the modelled run is the short clear route.'),
   C('202-05#18', 'egr-tee'), C('202-05#19', 'egr-buffer'),
 ];
 
