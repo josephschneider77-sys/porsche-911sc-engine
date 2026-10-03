@@ -9,6 +9,7 @@ import { CYL_Z } from '../data/layout';
 import { FAN, AIR_CHECK_VALVE_OUTLET, CHECK_HEX_H, heaterStub, EGR_FEED_PORT } from './aux';
 import { TEE_AIR_INJ, THROTTLE_PORTED_VAC } from './induction';
 import { frame } from './instancing';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Part, cyl, cylBetween, lathe, box, boxMM, hexNut, tube, torus, yToZ, yToX, extrude, polyShape, circlePath, csgSub, type V3 } from './util';
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -647,12 +648,16 @@ function facePair(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE
   return fwd ? [tri(a, b, c), tri(a, c, d)] : [tri(a, d, c), tri(a, c, b)];
 }
 /**
- * Solid rubber cap on a CylinderGeometry barb.
+ * Rubber cap on a CylinderGeometry barb.
  * Local frame: origin at the tip, +Y along the outward axis (root → tip).
- * The bore is one inset quad per flat, on the chord, so a quad stays on its own
- * face. Vertex normals are the face normals and point out of the rubber: erosion
- * shrinks the cap off the barb instead of driving the bore through the next flat.
- * Do not recompute those normals.
+ *
+ * The outer wall is one cup: an open cylinder from the lip to past the tip, closed
+ * by a single end disc. That replaces the old per-flat panels, which left a slot
+ * at every corner of the 10-gon. The bore stays one inset quad per flat, on the
+ * chord, so each quad stays on its own face and touches the barb without crossing
+ * it. Bore normals are the face normals and point out of the rubber: erosion
+ * shrinks the cap off the barb. Do not recompute those normals. The cup vertices
+ * sit well outside the bore, so a later weld cannot average the two.
  */
 function gonCapLocal(r: number, segs: number, engage: number, outer: number, cup: number) {
   const tris: [THREE.Vector3, THREE.Vector3, THREE.Vector3][] = [];
@@ -669,21 +674,14 @@ function gonCapLocal(r: number, segs: number, engage: number, outer: number, cup
     const at = (radial: number, along: number, y: number) => P(N.x * radial + T.x * along, y, N.z * radial + T.z * along);
     const bore = [at(ap, -u, yRoot), at(ap, u, yRoot), at(ap, u, yTip), at(ap, -u, yTip)];
     tris.push(...facePair(bore[0], bore[3], bore[2], bore[1], N.clone().negate()));
-    // Wall vertices sit 0.08 mm off the bore so they cannot be welded onto it.
-    const lift = 0.08;
-    const inn = [at(ap + lift, -u, yRoot), at(ap + lift, u, yRoot), at(ap + lift, u, -lift), at(ap + lift, -u, -lift)];
-    const out = [at(outer, -u, yRoot), at(outer, u, yRoot), at(outer, u, -lift), at(outer, -u, -lift)];
-    tris.push(...facePair(out[0], out[1], out[2], out[3], N));
-    tris.push(...facePair(inn[0], out[0], out[3], inn[3], T.clone().negate()));
-    tris.push(...facePair(inn[1], inn[2], out[2], out[1], T));
-    tris.push(...facePair(inn[0], inn[1], out[1], out[0], new THREE.Vector3(0, -1, 0)));
-    tris.push(...facePair(inn[3], out[3], out[2], inn[2], new THREE.Vector3(0, 1, 0)));
   }
-  // Closed cup beyond the tip. Its end disk is the seat on the tip face.
-  const cupGeo = new THREE.CylinderGeometry(outer, outer, cup, 24);
-  cupGeo.translate(0, cup / 2, 0);
-  const seat = flatGeom(tris);
-  return { wall: seat, cup: cupGeo };
+  const length = engage + cup;
+  const side = new THREE.CylinderGeometry(outer, outer, length, 32, 1, true);
+  side.translate(0, (cup - engage) / 2, 0);
+  const disc = new THREE.CircleGeometry(outer, 32);
+  disc.rotateX(Math.PI / 2);
+  disc.translate(0, cup, 0);
+  return { wall: flatGeom(tris), cup: mergeGeometries([side, disc], false)! };
 }
 /** Bake a local cap (tip at the origin, +Y outward) onto a cylBetween barb. */
 function capOnCylBetween(root: V3, tip: V3, r: number, segs: number, engage: number, outer: number, cup: number) {
@@ -703,9 +701,9 @@ function capOnCylBetween(root: V3, tip: V3, r: number, segs: number, engage: num
  * with TEE_AIR_INJ at [-86, 328, -16]. The clamp ring is a torus of tube r 0.7
  * centred 6 mm above the tip, so its lower edge is 5.3 mm above the tip and
  * the brass root ends 8 mm above the tip. The cup covers 5 mm of that free
- * barb and stops 0.3 mm short of the ring. The bore follows the 10-gon flats
- * and the closed end sits on the tip, so the contact is seated rather than a
- * clash. No MATING entry and no allowlist entry.
+ * barb and stops 0.3 mm short of the ring. Its outer wall is one cylinder
+ * closed by an end disc; the bore quads sit on the 10-gon flats. No MATING
+ * entry and no allowlist entry.
  */
 export function airInjVacCap() {
   const p = new Part();
@@ -722,11 +720,8 @@ export function airInjVacCap() {
  */
 function egrTeeCapGeom() {
   const { wall, cup } = gonCapLocal(2.2, 10, 5, 3.15, 3.2);
-  // The cup disk sits 0.02 mm outboard of the tip. That is inside the 0.05 mm
-  // seated band against the barrel end, and clear of the side-face rim edges.
-  // A disk built on the tip plane cuts those edges: they lie in the disk.
-  cup.translate(0, 0.02, 0);
   // Standard +Y is outward. On this barrel, outward is local −Y and the tip is y −10.
+  // The end disc is past the tip, so it does not lie in the barrel's rim plane.
   for (const g of [wall, cup]) {
     g.scale(1, -1, 1);
     g.translate(0, -10, 0);
@@ -893,6 +888,8 @@ export function registerAncillarySmall(def: (id: string, proto: () => Part, item
     // below it, facing −Z. The cover plate is beside the port and the sump plate is
     // above y −140, so the reversal stays in the gap between them. About 270° is
     // that reversal; the old four-corner run was 450°.
+    // The open end is 2 mm onto EGR_BARB_2 (z −1). At 3 mm (z 0) the hose meets the
+    // diaphragm chamber: 3 triangles at 0 mm erosion, clear again at 0.5 mm.
     const backCtrl: V3[] = [
       [-46, -210, 20],
       [-46, -206, 20],

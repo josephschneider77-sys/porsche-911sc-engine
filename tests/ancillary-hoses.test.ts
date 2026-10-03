@@ -264,7 +264,7 @@ describe('vacuum and EGR hoses seat tangent, with a rubber bend', () => {
     for (const end of ends) {
       const { end: tip, t, line } = terminus(end.hose, end.seat.point, end.seat.axis);
       // Past the tip (t < 0) and only a few millimetres on. A root-side drape has the terminus off the end of the nipple (t > 0) or the centreline continuing to the root.
-      // The valve diaphragm meets the return hose, so that seat stops at 2 mm. Every other seat is about 4 mm.
+      // The return hose stops at 2 mm: 3 mm onto EGR_BARB_2 meets the diaphragm chamber. Every other seat is about 4 mm.
       if (t > -1.5 || t < -8) bad.push(`${end.hose}: terminus is ${t.toFixed(1)} mm along the axis (want about −4)`);
       const radial = tip.clone().sub(end.seat.point).addScaledVector(end.seat.axis, -t).length();
       if (radial > 0.6) bad.push(`${end.hose}: terminus is ${radial.toFixed(2)} mm off the axis`);
