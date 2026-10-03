@@ -775,7 +775,7 @@ describe('top-end batch 1', () => {
         seen[id] = 1;
         qx.push(x); qy.push(y); qz.push(z);
       };
-      for (const p of [[0, 0, 10], [0, 140, 8], [0, -140, 8], [22, 80, 8], [-22, -80, 6]] as const) push(...p);
+      for (const [x, y, z] of [[0, 0, 10], [0, 140, 8], [0, -140, 8], [22, 80, 8], [-22, -80, 6]] as const) push(x, y, z);
       let outside = 0;
       let example = '';
       for (let qi = 0; qi < qx.length; qi++) {
