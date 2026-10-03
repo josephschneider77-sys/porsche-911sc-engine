@@ -2218,9 +2218,10 @@ function addPlugOpenings(root: THREE.Object3D, s: 1 | -1) {
       // seal diameter, so the connector seats the way cylinders 2 and 3 do
       // in their round holes. A slot here left an 8.8 mm gap.
       // Start above the seat. A boss centred on z = 0 dips through the gasket.
+      // Stop at the seal. A longer boss clears the 27.9 mm cover envelope.
       const a = at(4);
-      const b = at(32);
-      extra.add(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], SPARK_HOLE_R + 4.5, 40), 'castAlu');
+      const b = at(25.25);
+      extra.add(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], SPARK_HOLE_R + 3.2, 40), 'castAlu');
     } else {
       // Boss stands proud of the crown (peak ≈ 25.4) and stays under the 27.9 mm envelope.
       const a = at(18);
