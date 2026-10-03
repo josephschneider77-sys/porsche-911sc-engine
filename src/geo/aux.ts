@@ -7,9 +7,9 @@ import { partPose } from './probe';
 import { frame } from './instancing';
 import {
   Part, V3, DEG, lathe, boxMM, cyl, cylBetween, yToZ, yToX, roundRect, circlePath, circleShape, ringShape,
-  polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup, subtractSolids,
+  polyShape, gearShape, extrude, extrudeC, hexNut, tube, torus, paramSurface, hull, circlePts, csgSub, cutGroup, subtractSolids, mesh,
 } from './util';
-import { CYL_Z, CASE_Z, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ, SPARK_MINOR_D, SPARK_PROJ, SPARK_SEAT_Y, SPARK_HEX_AF, SPARK_NIPPLE_Y, SPARK_FLANGE_T, SPARK_HOLE_R, SPARK_TUBE_R, SPARK_BEND_R, SPARK_MOUTH } from '../data/layout';
+import { CYL_Z, CASE_Z, CAM_X, CAM_HOUSING_OUT_X, HEAD_OUT_X, INT_SHAFT_Y, CYL_TOP_X, INTAKE_PORT, INJ, SPARK_MINOR_D, SPARK_PROJ, SPARK_SEAT_Y, SPARK_HEX_AF, SPARK_NIPPLE_Y, SPARK_FLANGE_T, SPARK_HOLE_R, SPARK_TUBE_R, SPARK_BEND_R, SPARK_MOUTH } from '../data/layout';
 import { buildPlenumBox, AIR_NECK, BOX, LID_Y, WUR_CONN, runnerTunnelCutters } from './induction';
 export { INTAKE_PORT, INJ };
 export { intakeRunner, injector, mixtureControlUnit, fuelLines } from './induction';
@@ -1389,8 +1389,8 @@ export function distributor() {
   return p.g;
 }
 const DIST_PINION_TIP = 12;
-/** Circular fillets so a Catmull-Rom tube stays on the polyline instead of bowing off it. */
-function filleted(corners: V3[], radius = 16): V3[] {
+/** Circular fillets so a tube stays on the polyline instead of bowing off it. `stepDeg` is the arc sample. */
+function filleted(corners: V3[], radius = 16, stepDeg = 14): V3[] {
   const P = corners.map((q) => new THREE.Vector3(...q));
   const out: V3[] = [];
   const push = (v: THREE.Vector3) => {
@@ -1420,256 +1420,375 @@ function filleted(corners: V3[], radius = 16): V3[] {
     if (axis.lengthSq() < 1e-10) { push(a); push(b); continue; }
     axis.normalize();
     const ang = va.angleTo(vb);
-    const steps = Math.max(2, Math.ceil(ang / (14 * DEG)));
+    const steps = Math.max(2, Math.ceil(ang / (stepDeg * DEG)));
     for (let k = 0; k <= steps; k++) push(center.clone().add(va.clone().applyAxisAngle(axis, ang * (k / steps))));
   }
   push(P[P.length - 1]);
   return out;
 }
-/** Top of a shroud wing at this |x| (left skin is thicker upward). */
-function wingTop(x: number) {
-  const { ax, ay, bx, by, t } = SHROUD;
-  const u = Math.max(0, Math.min(1, (Math.abs(x) - ax) / (bx - ax)));
-  return ay + (by - ay) * u + (x < 0 ? t : 0);
+/** 7 mm ignition wire (901-00 #17 / #17A). Centreline radius. */
+export const LEAD_OD = 7;
+export const LEAD_R = LEAD_OD / 2;
+/** Minimum real bend, and the radius the fillets are drawn at. */
+export const LEAD_MIN_BEND = 21;
+const LEAD_BEND = 28;
+/** How far the wire is pushed into a connector or tower bore. */
+const LEAD_INSERT = 6;
+/** Cover-local height of the three-lead run, above the crown. */
+const LEAD_ZL = 58;
+/** Straight run along the cap axis before the wire turns onto a tower radial. */
+const LEAD_ALONG = 72;
+/**
+ * Firing order 1-6-2-4-3-5, counted in the cap's rotation direction.
+ * Rotation is CCW looking down the cap (along −local Y), so successive towers
+ * step to a smaller local angle. Tower 0 is local +X, where the rotor points.
+ */
+export const LEAD_TOWER: Record<number, number> = { 1: 0, 6: 5, 2: 4, 4: 3, 3: 2, 5: 1 };
+/** Three lanes on the cover, 14 mm apart. Keyed by cylinder. */
+const LEAD_LANE: Record<number, number> = { 3: -38, 1: -24, 2: -10, 5: -38, 4: -24, 6: -10 };
+/** Middle lane. Holder origin sits on this wire. */
+const LEAD_LANE_MID = -24;
+const LEAD_CLIP_DX = [-14, 0, 14];
+/**
+ * Two holders per bank (901-00 #22, 901 609 591 00, qty 4), on the straight
+ * run after every lead of that bank has joined its lane. Right-bank stations
+ * sit over the pulley-end wall of the cover (the crown ends near local y 156).
+ * Left-bank stations sit on the crowned pan.
+ */
+const LEAD_HOLDER_Y: { bank: 1 | -1; y: number }[] = [
+  { bank: 1, y: 158 },
+  { bank: 1, y: 163 },
+  { bank: -1, y: -80 },
+  { bank: -1, y: -125 },
+];
+
+export interface LeadRun {
+  /** `lead:1` … `lead:6`, `lead:coil`, `lead:primary`. */
+  name: string;
+  cyl?: number;
+  /** Cap tower 0–5. The coil uses the centre tower and leaves this unset. */
+  tower?: number;
+  radius: number;
+  points: THREE.Vector3[];
+  /** Ring terminal the free end passes through. The wire is the only thing in the hole. */
+  ring?: { center: THREE.Vector3; dir: THREE.Vector3 };
 }
-/** Straight run along a shroud edge, hopping the wing ribs so the wire stays on the skin. */
-function alongEdge(x: number, y: number, z0: number, z1: number, ribs: number[], hop = 8): V3[] {
-  const dir = Math.sign(z1 - z0) || 1;
-  const pts: V3[] = [[x, y, z0]];
-  const reach = hop > 8 ? hop + 14 : 12;
-  for (const z of ribs.filter((z) => (z - z0) * dir > 6 && (z1 - z) * dir > 6).sort((p, q) => (p - q) * dir)) {
-    // A plateau, not a single peak, when the hop has to clear a rib the spline would otherwise flatten.
-    const arch: V3[] = hop > 8
-      ? [[x, y, z - dir * reach], [x, y + hop, z - dir * 8], [x, y + hop, z + dir * 8], [x, y, z + dir * reach]]
-      : [[x, y, z - dir * 12], [x, y + hop, z], [x, y, z + dir * 12]];
-    pts.push(...arch);
-  }
-  pts.push([x, y, z1]);
-  return pts;
+
+function v3(p: V3 | THREE.Vector3): THREE.Vector3 {
+  return p instanceof THREE.Vector3 ? p : new THREE.Vector3(...p);
 }
 /**
- * From the shroud above this head to the boot. The head, the fins and the cam housing close every
- * gap beside the cylinder, and the valve covers sit further out than the wire may stray. The open
- * drop is the end of the bank: flywheel end on the right (past cylinder 3), pulley end on the left
- * (past cylinder 4, ahead of the chain housing). The wire stays on the shroud to that end, drops
- * beside the head, and runs back under the head to the boot. Nothing goes below the boot.
+ * Upper valve-cover frame. Same construction as core.coverMatrix: aux cannot
+ * import core (core's module graph reads aux exports while aux is still loading).
+ * Local +X along the slope, local +Y = engine +Z on the right bank, local +Z outward.
  */
-function bootDrop(s: 1 | -1, c: number, xLoom: number, yLoom: number, zRail: number, boot: THREE.Vector3, axis: THREE.Vector3): V3[] {
-  const lane = [1, 2, 3, 4, 5, 6].indexOf(c) % 3;
-  // Right: the cooler pocket fills x 103–262, z −212..−146. The drop stays on the
-  // wing until z −140, crosses above the cap, then goes aft and outboard of the
-  // cam-oil banjo before joining the under-head run. Left: the wing ends at
-  // z 172 and the horn fills the corner, so the drop is at z 192, x −216.
-  const zDrop = s > 0 ? -140 : 192 + lane * 4;
-  const xOut = s * (214 + lane * 4); // left drop, inboard of the cam housing
-  // Right under-run stays inboard of the primary pipes (they reach x ≈ 217 at y −100).
-  const xUnder = s > 0 ? 184 + lane * 4 : s * (170 + lane * 10);
-  // The rail is the inboard shroud line. Out past |x| ≈ 160 the runners drop through the wing.
-  // Below the cooler return (centre y −73, radius 7) and above the heat-exchanger shell.
-  // The boot is the top-entry plug. Lifting this lane up to it runs the wire through
-  // the crankcase, the heads and the cooler, so the rise stays outboard of the covers.
-  const yUnder = -98 - lane * 6;
-  // Left pulley-end cross. The lower cover lip (103-05 #19, local |x| 46) now
-  // reaches the old chord at y ≈ −98, z ≈ 192. Drop that cross under the lip.
-  // The heat exchanger stays about 20 mm below.
-  const yCross = s < 0 ? -116 - lane * 3 : yUnder;
-  const yHigh = Math.max(yLoom, wingTop(xLoom) + 8, wingTop(s * 180) + 8);
-  const ribs = s > 0 ? [-150, -30, 90] : [-185, -90, 30];
-  // On the plug axis, past the cover, so the last run is the bore rather than a chord across the lid.
-  const clear = boot.clone().addScaledVector(axis, 110);
-  // Inboard shroud line, under the horizontal run of the intake runners (their centreline is y 206 until |x| 160).
-  const xRail = xLoom;
-  const zRailEnd = s > 0 ? zDrop : 162;
-  // Right bypass. The cam-oil banjo stands off the housing cap (about x 269–300,
-  // y −45..−27, z −218..−186) and the heat-exchanger seam reaches x ≈ 275.
-  // Cross above the cap (y 164), drop at x ≥ 308 and z ≤ −230, then come in
-  // under the cooler. A drop at x 274, z −200 runs through the banjo.
-  const zBy = -230 - lane * 5;
-  const xPeak = 308 + lane * 6;
-  const yOver = Math.max(yHigh, 164);
-  const outStep: V3[] = s > 0
-    ? [[xPeak, yOver, -142], [xPeak, yOver, zBy], [xPeak, yUnder, zBy], [xUnder, yUnder, zBy]]
-    : [
-        // Down on the inboard line first. The runners are overhead here; moving out at y 168 crosses them.
-        [xRail, yHigh, zRailEnd],
-        [xRail, 72, 180],
-        [xOut, 64, zDrop],
-        [s * 196, yUnder, 176],
-      ];
-  // Right: the bridge arrives at z −168. Run out to this cylinder (hopping the wing
-  // ribs — a straight run at yHigh cuts the rib at z 90), then back to the drop.
-  const rightOut = s > 0 ? alongEdge(xRail, yHigh, -160, zRail, ribs, 16) : [];
-  // Rise at |x| 380, outboard of the cooler (x 103–262) and the covers, then the
-  // caller follows the plug axis in to the boot.
-  const xFar = s * 380;
-  const zLow = s > 0 ? zBy : zDrop;
-  return [
-    ...(s > 0 ? rightOut : [[xRail, yHigh, zRail] as V3]),
-    ...alongEdge(xRail, yHigh, zRail, zRailEnd, ribs, s > 0 ? 16 : 8),
-    ...outStep,
-    ...(s > 0 ? [] : [[xUnder, yUnder, 172] as V3, [xUnder, yCross, zLow] as V3]),
-    ...(s > 0 ? [[xUnder, yUnder, zLow] as V3] : []),
-    [xFar, yCross, zLow],
-    [xFar, clear.y, clear.z],
-  ];
-}
-/**
- * One plug lead. Leaves its cap tower, rides the shroud edge over that head (through the holders),
- * then drops at the open end of the bank and comes back under the head. The under-lane stays
- * below the cooler return. The boot end follows `pose` (today's plug): an outboard rise, then the plug axis.
- */
-export function plugLeadPoints(c: number, i: number, pose = partPose(`spark-plug-${c}`)): V3[] {
-  const s: 1 | -1 = c <= 3 ? 1 : -1;
-  const lane = [1, 6, 2, 4, 3, 5].filter((n) => (n <= 3) === (c <= 3)).sort((a, b) => CYL_Z[b] - CYL_Z[a]).indexOf(c);
-  const a = (i / 6) * Math.PI * 2;
-  // Inboard of |x| 160, where the intake runners are still on the stub height (bottom y ≈ 192).
-  const xLoom = s * (124 + lane * 8);
-  const yLoom = wingTop(xLoom) + 9;
-  const zRail = CYL_Z[c] + s * 34;
-  const boot = new THREE.Vector3(0, -92, 0).applyMatrix4(pose);
-  const axis = new THREE.Vector3(0, -1, 0).transformDirection(pose).normalize();
-  // Tower 0 is local +X (outboard). The post sticks out along the rotor axis.
-  // Straight run past the flared tip, then a bend of at least 25 mm as the leads gather.
-  const ca = Math.cos(a), sa = Math.sin(a);
-  const yTip = DIST.towerY + DIST.towerH;
-  const tower = distW(DIST.towerR * ca, DIST.towerY + 4, DIST.towerR * sa);
-  const tip = distW(DIST.towerR * ca, yTip, DIST.towerR * sa);
-  // Bend inboard off the tip. A straight run along the axis would cross the vacuum hose.
-  const n = i - 2.5;
-  const away = distW(DIST.towerR * ca - 30, yTip + 2, DIST.towerR * sa);
-  const gather = distW(-16, yTip - 6, n * 5);
-  // Loose bundle over the left holders (x ≈ −132), spread by the firing index. Not a rail.
-  const xB = -132 + n * 8;
-  const yB = wingTop(xB) + 16;
-  const zJoin = Math.max(48, Math.min(150, away[2]));
-  const corners: V3[] = [
-    tower, tip, away, gather,
-    [xB, yB + 12, zJoin],
-    [xB, yB, 60],
-    [xB, yB, -60],
-  ];
-  if (s < 0) {
-    corners.push([xLoom, yLoom, zRail]);
-  } else {
-    // One bridge over the roof at the flywheel end, above the cooler opening, then the right-hand holders.
-    // Stop at the flywheel-end bridge. bootDrop runs out to the cylinder and back,
-    // hopping the wing ribs. A straight leg to zRail cut the rib at z 90.
-    corners.push(
-      [xB, yB, -168],
-      [n * 8, 172, -176],
-      [xLoom, yLoom + 6, -168],
-    );
+function coverMatrixLocal(s: 1 | -1) {
+  const a0 = new THREE.Vector3(HEAD_OUT_X + 13 + 17, 74, 0);
+  const a1 = new THREE.Vector3(CAM_HOUSING_OUT_X - 7, 32, 0);
+  const mid = a0.clone().add(a1).multiplyScalar(0.5);
+  let u = a1.clone().sub(a0).normalize();
+  const e = new THREE.Vector3(0, 0, 1);
+  let n = new THREE.Vector3().crossVectors(u, e);
+  if (n.dot(new THREE.Vector3(mid.x - CAM_X, mid.y, 0)) < 0) {
+    u = u.negate();
+    n = new THREE.Vector3().crossVectors(u, e);
   }
-  const drop = bootDrop(s, c, xLoom, yLoom, zRail, boot, axis);
-  // Cap end is filleted at 25 mm. The plug drop stays tighter so it misses the horn.
-  // Left drop repeats the last corner, so that duplicate is dropped. Right drop starts
-  // at the bridge (z −160), which is not in the corners.
-  const dropped = filleted(drop, s > 0 ? 16 : 8);
-  const pts = densify([...filleted(corners, 25), ...(s > 0 ? dropped : dropped.slice(1))], 12);
-  // Do not lift the under-lane up to the boot. That chord crosses the case and the cooler.
-  // From the outboard rise, come in to a point on the axis and follow the axis through the hole.
-  const clear = boot.clone().addScaledVector(axis, 110);
-  const last = new THREE.Vector3(...pts[pts.length - 1]);
-  const pushLine = (a: THREE.Vector3, b: THREE.Vector3, step: number) => {
-    const n = Math.max(1, Math.ceil(a.distanceTo(b) / step));
-    for (let k = 1; k <= n; k++) {
-      const p = a.clone().lerp(b, k / n);
-      pts.push([p.x, p.y, p.z]);
-    }
+  const m = new THREE.Matrix4().makeBasis(u, e, n);
+  // CH_Z0 is −168; the pulley face is CASE_Z.pulley. Mid-plane z is 22.
+  m.setPosition(mid.clone().add(n.clone().multiplyScalar(2)).setZ((-168 + CASE_Z.pulley) / 2));
+  if (s > 0) return m;
+  return new THREE.Matrix4().makeRotationY(Math.PI).multiply(m);
+}
+function coverFrame(s: 1 | -1) {
+  const m = coverMatrixLocal(s);
+  return {
+    o: new THREE.Vector3().setFromMatrixPosition(m),
+    u: new THREE.Vector3().setFromMatrixColumn(m, 0),
+    v: new THREE.Vector3().setFromMatrixColumn(m, 1),
+    n: new THREE.Vector3().setFromMatrixColumn(m, 2),
   };
-  pushLine(last, clear, 12);
-  pushLine(clear, boot, 8);
-  return pts;
 }
-/** Catmull-Rom bows off a long chord. Points every few centimetres keep the tube on the shroud line. */
-function densify(pts: V3[], step = 24): V3[] {
-  const out: V3[] = [];
-  for (let i = 0; i < pts.length; i++) {
-    if (i === 0) { out.push(pts[i]); continue; }
-    const a = new THREE.Vector3(...pts[i - 1]), b = new THREE.Vector3(...pts[i]);
-    const n = Math.floor(a.distanceTo(b) / step);
-    for (let k = 1; k <= n; k++) {
-      const p = a.clone().lerp(b, k / (n + 1));
-      out.push([p.x, p.y, p.z]);
-    }
-    out.push(pts[i]);
+function toWorld(fr: ReturnType<typeof coverFrame>, p: THREE.Vector3) {
+  return fr.o.clone().addScaledVector(fr.u, p.x).addScaledVector(fr.v, p.y).addScaledVector(fr.n, p.z);
+}
+/** Same mouth and outward axis as PLUG_CONNECTOR_TERMINAL, without importing assets (that imports this file). */
+function plugTerminal(cyl: number) {
+  const pose = partPose(`spark-plug-connector-${cyl}`);
+  const point = new THREE.Vector3(...SPARK_MOUTH).applyMatrix4(pose);
+  const direction = new THREE.Vector3(1, 0, 0).transformDirection(pose).normalize();
+  return { point, direction };
+}
+function mouthLocal(cyl: number, fr: ReturnType<typeof coverFrame>) {
+  const { point, direction } = plugTerminal(cyl);
+  const d = point.clone().sub(fr.o);
+  const local = new THREE.Vector3(d.dot(fr.u), d.dot(fr.v), d.dot(fr.n));
+  const D = new THREE.Vector3(direction.dot(fr.u), direction.dot(fr.v), direction.dot(fr.n)).normalize();
+  return { local, D };
+}
+function towerMouth(i: number) {
+  const a = (i / 6) * Math.PI * 2;
+  return v3(distW(DIST.towerR * Math.cos(a), DIST.towerY + 33, DIST.towerR * Math.sin(a)));
+}
+function towerSeat(i: number, axis: THREE.Vector3) {
+  return towerMouth(i).clone().addScaledVector(axis, -LEAD_INSERT);
+}
+function bendPoint(i: number, axis: THREE.Vector3) {
+  return towerMouth(i).clone().addScaledVector(axis, LEAD_ALONG);
+}
+function capCentre() {
+  return v3(distW(0, DIST.towerY + 33, 0));
+}
+function radialOf(i: number) {
+  return towerMouth(i).clone().sub(capCentre()).normalize();
+}
+/** Stay under the air-cleaner floor, and keep the last radial leg long enough for a 28 mm bend. */
+function radLen(i: number, axis: THREE.Vector3) {
+  const b = bendPoint(i, axis);
+  const r = radialOf(i);
+  // Long enough that the turn onto the tower still clears 21 mm, and under the air-cleaner floor.
+  let len = 150;
+  if (r.y > 0.02) len = Math.min(len, (312 - b.y) / r.y);
+  return Math.max(62, len);
+}
+function preOf(i: number, axis: THREE.Vector3) {
+  return bendPoint(i, axis).clone().addScaledVector(radialOf(i), radLen(i, axis));
+}
+function capEnd(i: number, axis: THREE.Vector3) {
+  return [preOf(i, axis), bendPoint(i, axis), towerSeat(i, axis)];
+}
+const W = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+
+function rightLocal(cyl: number, lane: number, m: THREE.Vector3, D: THREE.Vector3) {
+  const end = new THREE.Vector3(lane, 232, LEAD_ZL);
+  const stub = (len: number) => m.clone().addScaledVector(D, len);
+  const seat = m.clone().addScaledVector(D, -LEAD_INSERT);
+  if (cyl === 3) return [seat, stub(72), new THREE.Vector3(lane, 36, LEAD_ZL), end];
+  // Join the lane while the fillet still finishes on the cover, then run straight.
+  if (cyl === 2) return [seat, stub(42), new THREE.Vector3(lane, 148, LEAD_ZL), end];
+  // Cylinder 1 leaves past the cover end. Loop back, drop onto the lane, run forward.
+  const p1 = stub(82);
+  const p2 = p1.clone().add(new THREE.Vector3(0, -8, 92));
+  const p3 = p2.clone().add(new THREE.Vector3(-16, -100, 0));
+  const p4 = new THREE.Vector3(lane, p3.y - 68, p2.z);
+  const p5 = new THREE.Vector3(lane, p4.y, LEAD_ZL);
+  return [seat, p1, p2, p3, p4, p5, end];
+}
+function leftLocal(cyl: number, lane: number, m: THREE.Vector3, D: THREE.Vector3) {
+  const stub = (len: number) => m.clone().addScaledVector(D, len);
+  const seat = m.clone().addScaledVector(D, -LEAD_INSERT);
+  const p1 = stub(cyl === 4 ? 62 : 70);
+  const p2 = p1.clone().add(new THREE.Vector3(-8, 6, 66));
+  const p3 = new THREE.Vector3(lane, p2.y - 68, p2.z);
+  const land = cyl === 6 ? 30 : cyl === 5 ? -8 : -46;
+  const p4 = new THREE.Vector3(lane, land, LEAD_ZL);
+  const end = new THREE.Vector3(lane, -158, LEAD_ZL);
+  return [seat, p1, p2, p3, p4, end];
+}
+/**
+ * After the cam-cover loom. Each lead takes its own road to the tower: up in its own
+ * lane, across clear of the fan and the plenum, then a long straight into `pre`.
+ * The straight is aimed so the turn onto the tower radial stays at 24 mm or more.
+ */
+function plugTail(end: THREE.Vector3, cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
+  const pre = preOf(LEAD_TOWER[cyl], axis);
+  const cap = capEnd(LEAD_TOWER[cyl], axis);
+  let mid: THREE.Vector3[];
+  if (cyl === 1) {
+    const top = pre.y + 95;
+    mid = [W(end.x, top, end.z), W(end.x, top, 140), W(pre.x, top, 140), W(pre.x, top, pre.z)];
+  } else if (cyl === 2) {
+    // Tower 4's axis is crossed by the distributor vacuum hose about 50 mm out.
+    return shallowJoin(4, end, axis, 300);
+  } else if (cyl === 3) {
+    // The flywheel-side ribbon (fuel, warm-up, vacuum) fills z −145…−190 near y 250.
+    // Cross above the flywheel, outboard of both covers, and arrive along +Z.
+    const zBack = -230;
+    const xOut = -420;
+    const zNear = pre.z - 80;
+    mid = [
+      W(end.x, pre.y, end.z), W(end.x, pre.y, zBack), W(xOut, pre.y, zBack),
+      W(xOut, pre.y, zNear), W(pre.x, pre.y, zNear),
+    ];
+  } else if (cyl === 4) {
+    mid = [W(end.x, pre.y, end.z), W(end.x, pre.y, pre.z)];
+  } else if (cyl === 5) {
+    const x0 = pre.x - 80;
+    mid = [W(x0, pre.y, end.z), W(x0, pre.y, pre.z)];
+  } else {
+    // Tower 5's axis is crossed by the distributor vacuum hose about 36 mm out.
+    return shallowJoin(5, end, axis, 220);
+  }
+  return [...mid, ...cap];
+}
+/**
+ * Join a tower whose rotor-axis line is crossed by the distributor vacuum hose.
+ * A 90° entry along the tower radial stays on that line through the hose.
+ * Arrive 35° off the axis, on the side the hose leaves, and meet the axis
+ * 16 mm out, where the hose is already clear of it.
+ */
+function shallowJoin(tower: number, end: THREE.Vector3, axis: THREE.Vector3, yRoad: number): THREE.Vector3[] {
+  const mouth = towerMouth(tower);
+  const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
+  const bend = mouth.clone().addScaledVector(axis, 16);
+  const ax = axis.clone().normalize();
+  const u = new THREE.Vector3().crossVectors(ax, new THREE.Vector3(0, 1, 0)).normalize();
+  const beta = 35 * Math.PI / 180;
+  const dir = ax.clone().negate().multiplyScalar(Math.cos(beta)).addScaledVector(u, Math.sin(beta)).normalize();
+  const prev = bend.clone().addScaledVector(dir, -100);
+  // Past both the cover end and the approach, so every corner has a long straight.
+  const z1 = Math.max(end.z, prev.z) + 110;
+  return [
+    W(end.x, yRoad, end.z), W(end.x, yRoad, z1), W(prev.x, yRoad, z1),
+    prev, bend, seat,
+  ];
+}
+
+function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
+  const lane = LEAD_LANE[cyl];
+  const fr = coverFrame(cyl <= 3 ? 1 : -1);
+  const { local, D } = mouthLocal(cyl, fr);
+  const cover = cyl <= 3 ? rightLocal(cyl, lane, local, D) : leftLocal(cyl, lane, local, D);
+  const world = cover.map((p) => toWorld(fr, p));
+  return [...world, ...plugTail(world[world.length - 1], cyl, axis)];
+}
+
+/** Coil lead (#18) and primary (#9). Tuned once the plug runs exist; see ignitionLeadRuns. */
+function serviceCorners(axis: THREE.Vector3): {
+  coil: THREE.Vector3[]; primary: THREE.Vector3[];
+  coilDir: THREE.Vector3; priDir: THREE.Vector3;
+  coilRing: THREE.Vector3; priRing: THREE.Vector3;
+} {
+  const mouth = v3(distW(0, DIST.towerY + 30, 0));
+  const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
+  const far = mouth.clone().addScaledVector(axis, 110);
+  // Step off the cap axis, then climb outboard of the left-bank risers (x ≈ −362…−381).
+  const side = new THREE.Vector3(axis.z, 0, -axis.x).normalize();
+  if (side.x > 0) side.negate();
+  const elbow = far.clone().addScaledVector(side, 110);
+  const dir = new THREE.Vector3(1, 0, 0);
+  const ring = new THREE.Vector3(-460, 168, 30);
+  const past = ring.clone().add(new THREE.Vector3(-18, 0, 0));
+  const xRun = -390;
+  const next = new THREE.Vector3(xRun, ring.y, ring.z);
+  const zCorner = new THREE.Vector3(xRun, ring.y, elbow.z);
+  const high = new THREE.Vector3(xRun, elbow.y, elbow.z);
+  const coil = [past, ring, next, zCorner, high, elbow, far, seat];
+  const body = v3(distW(-24, 150, 18));
+  const outward = body.clone().sub(v3(distW(0, 150, 0))).normalize();
+  const clearPt = body.clone().addScaledVector(outward, 100);
+  const priDir = new THREE.Vector3(-1, 0, 0);
+  // Behind the flywheel and above it, so the run never crosses the left-bank intake runners.
+  const yHi = 180;
+  const zBack = -250;
+  const priRing = new THREE.Vector3(-500, yHi, zBack);
+  const priPast = priRing.clone().add(new THREE.Vector3(-18, 0, 0));
+  const priNext = priRing.clone().add(new THREE.Vector3(120, 0, 0));
+  const primary = [
+    body, clearPt,
+    new THREE.Vector3(clearPt.x, clearPt.y, -160),
+    new THREE.Vector3(clearPt.x, yHi, -160),
+    new THREE.Vector3(clearPt.x, yHi, zBack),
+    priNext, priRing, priPast,
+  ];
+  return { coil, primary, coilDir: dir, priDir: priDir, coilRing: ring, priRing };
+}
+
+let leadRunCache: LeadRun[] | null = null;
+/** Centre lines of the six plug leads, the coil lead and the primary. */
+export function ignitionLeadRuns(): LeadRun[] {
+  if (leadRunCache) return leadRunCache;
+  const axis = v3(DIST_AXIS);
+  const runs: LeadRun[] = [];
+  for (const cyl of [1, 2, 3, 4, 5, 6]) {
+    const pts = filleted(plugCorners(cyl, axis).map((p) => [p.x, p.y, p.z] as V3), LEAD_BEND, 6).map((q) => v3(q));
+    runs.push({ name: `lead:${cyl}`, cyl, tower: LEAD_TOWER[cyl], radius: LEAD_R, points: pts });
+  }
+  const svc = serviceCorners(axis);
+  runs.push({
+    name: 'lead:coil',
+    radius: LEAD_R,
+    points: filleted(svc.coil.map((p) => [p.x, p.y, p.z] as V3), LEAD_BEND, 6).map((q) => v3(q)),
+    ring: { center: svc.coilRing, dir: svc.coilDir },
+  });
+  runs.push({
+    name: 'lead:primary',
+    radius: 1.8,
+    points: filleted(svc.primary.map((p) => [p.x, p.y, p.z] as V3), LEAD_BEND, 6).map((q) => v3(q)),
+    ring: { center: svc.priRing, dir: svc.priDir },
+  });
+  leadRunCache = runs;
+  return runs;
+}
+
+/** World matrices for the four cable holders. Prototype +Y is the cover outward normal. */
+export function leadHolderFrames(): THREE.Matrix4[] {
+  return LEAD_HOLDER_Y.map(({ bank, y }) => {
+    const fr = coverFrame(bank);
+    const p = fr.o.clone().addScaledVector(fr.u, LEAD_LANE_MID).addScaledVector(fr.v, y).addScaledVector(fr.n, LEAD_ZL);
+    return frame(p, fr.n, fr.u);
+  });
+}
+/** Centre of each clip eye. The allowlist window is this point, not the foot. */
+export function leadClipCenters(): THREE.Vector3[] {
+  const out: THREE.Vector3[] = [];
+  for (const m of leadHolderFrames()) {
+    for (const x of LEAD_CLIP_DX) out.push(new THREE.Vector3(x, 0, 0).applyMatrix4(m));
   }
   return out;
 }
-/** Metallic braid: two opposite 4-strand helices, dense enough to read at a normal camera distance. */
-function braidedLead(pts: V3[], r = 3.6) {
-  const curve = new THREE.CatmullRomCurve3(pts.map((q) => new THREE.Vector3(...q)), false, 'centripetal');
-  const len = curve.getLength();
-  const radial = 28;
-  const tubular = Math.max(180, Math.ceil(len / 1.6));
-  const g = new THREE.TubeGeometry(curve, tubular, r, radial, false);
-  const pos = g.attributes.position;
-  const stride = radial + 1;
-  const turns = len / 4.5;
-  for (let i = 0; i <= tubular; i++) {
-    const u = i / tubular;
-    for (let j = 0; j <= radial; j++) {
-      const idx = i * stride + j;
-      const v = j / radial;
-      const h1 = Math.max(0, Math.cos((v * 4 - u * turns) * Math.PI * 2)) ** 4;
-      const h2 = Math.max(0, Math.cos((v * 4 + u * turns) * Math.PI * 2)) ** 4;
-      const lift = 0.75 * Math.max(h1, h2);
-      if (lift < 1e-4) continue;
-      // Radial direction is the vertex offset from the centreline sample.
-      const c = curve.getPointAt(u);
-      const vx = pos.getX(idx) - c.x, vy = pos.getY(idx) - c.y, vz = pos.getZ(idx) - c.z;
-      const mag = Math.hypot(vx, vy, vz) || 1;
-      pos.setXYZ(idx, pos.getX(idx) + vx / mag * lift, pos.getY(idx) + vy / mag * lift, pos.getZ(idx) + vz / mag * lift);
-    }
+
+/** Polyline already spaced by arc length. getPointAt must not re-parameterise it. */
+class LeadPoly extends THREE.Curve<THREE.Vector3> {
+  private cum: number[];
+  private total: number;
+  constructor(private pts: THREE.Vector3[]) {
+    super();
+    this.cum = [0];
+    for (let i = 1; i < pts.length; i++) this.cum.push(this.cum[i - 1] + pts[i].distanceTo(pts[i - 1]));
+    this.total = this.cum[this.cum.length - 1] || 1;
+    this.arcLengthDivisions = Math.max(pts.length * 2, 64);
   }
-  g.computeVertexNormals();
+  override getPoint(t: number) {
+    const d = Math.min(Math.max(t, 0), 1) * this.total;
+    let lo = 1;
+    while (lo < this.cum.length - 1 && this.cum[lo] < d) lo++;
+    const span = this.cum[lo] - this.cum[lo - 1] || 1;
+    return this.pts[lo - 1].clone().lerp(this.pts[lo], (d - this.cum[lo - 1]) / span);
+  }
+  override getPointAt(u: number) { return this.getPoint(u); }
+}
+function leadTube(points: THREE.Vector3[], radius: number) {
+  return new THREE.TubeGeometry(new LeadPoly(points), Math.max(points.length, 8), radius, 8, false);
+}
+/** Ring terminal. The torus hole follows `dir`; the inner radius clears the wire. */
+function leadRing(center: THREE.Vector3, dir: THREE.Vector3, major = 6, tubeR = 1.4) {
+  const z = dir.clone().normalize();
+  const ref = Math.abs(z.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+  const x = new THREE.Vector3().crossVectors(ref, z).normalize();
+  const y = new THREE.Vector3().crossVectors(z, x);
+  const g = torus(major, tubeR, 8, 20);
+  g.applyMatrix4(new THREE.Matrix4().makeBasis(x, y, z).setPosition(center));
   return g;
 }
-/** Ignition leads: left set 911 609 011 07 and right set 911 609 010 07, both braided. Plug ends stay on today's plug pose. */
+
+/**
+ * Ignition leads. Left set 911 609 011 07 (#17) and right set 911 609 010 07 (#17A),
+ * 7 mm wire gathered on the cam covers. Coil lead 911 609 061 07 (#18) and primary (#9)
+ * end in ring terminals; the CD coil is body-mounted and is not on the engine.
+ */
 export function ignitionLeads() {
   const p = new Part();
-  const order = [1, 6, 2, 4, 3, 5];
-  order.forEach((c, i) => {
-    const pts = plugLeadPoints(c, i);
-    p.add(braidedLead(pts), 'darkSteel');
-  });
-  // Band clip on each three-lead set, flat so it clears the runners overhead.
-  // Left trio sits together at z 40 (x −144…−112). Right trio sits together at z −90 (x 124…140).
-  const band = (cx: number, cy: number, cz: number, rx: number, ry: number) => {
-    const g = torus(rx, 1.15, 8, 22);
-    g.scale(1, ry / rx, 1);
-    g.translate(cx, cy, cz);
-    return g;
-  };
-  p.add(band(-128, 165, 40, 20, 8), 'darkSteel');
-  p.add(band(132, 158, -90, 14, 8), 'darkSteel');
-  // Two shield pigtails on the right set, ending in ring terminals.
-  for (const [x, y, z] of [[156, 172, -72], [156, 172, -108]] as [number, number, number][]) {
-    p.add(tube([[146, 164, -90], [x, y, z]], 1.4, 6, 10), 'darkSteel');
-    p.add(torus(4.2, 0.9, 6, 14).rotateY(Math.PI / 2), 'zincPlate', [x, y, z]);
+  const runs = ignitionLeadRuns();
+  for (const run of runs) {
+    const mat = run.radius < 3 ? 'blackPlastic' : 'rubber';
+    const me = mesh(leadTube(run.points, run.radius), mat);
+    me.name = run.name;
+    p.addObj(me);
   }
-  // Coil lead (#18). The coil is on the left inner wing (body), so the lead ends in the
-  // shroud clip at the pulley-end bay edge, not in mid-air.
-  const clipCoil: V3 = [-286, 168, 188];
-  const centre = distW(0, DIST.towerY + 6, 0);
-  const centreOut = distW(-24, DIST.towerY + DIST.towerH + 4, 0);
-  const cl = filleted([
-    centre, centreOut,
-    [-150, 160, 120],
-    [-286, 168, 162],
-    clipCoil,
-  ], 25);
-  p.add(braidedLead(cl), 'darkSteel');
-  // Primary (#9), under the coil lead, into the same clip.
-  const clipPri: V3 = [-286, 164, 188];
-  const body = distW(16, 140, 4);
-  const el = filleted([
-    body,
-    distW(-8, 150, 10),
-    [-286, 164, 150],
-    clipPri,
-  ], 25);
-  p.add(tube(el, 1.8, 6, Math.max(32, el.length * 2)), 'blackPlastic');
+  for (const run of runs) {
+    if (!run.ring) continue;
+    p.add(leadRing(run.ring.center, run.ring.dir), 'zincPlate');
+  }
   return p.g;
 }
 /** Crush washer: closed annulus, hard face normals so the seat does not erode onto the head. */

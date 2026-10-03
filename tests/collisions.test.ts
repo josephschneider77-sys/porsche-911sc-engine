@@ -173,7 +173,11 @@ describe.each([false, true])('assembled-pose interference (emissions %s)', (emis
   const COOLER_TOUCHED = ['oil-cooler', 'oil-cooler-nuts', 'oil-cooler-seals', 'oil-cooler-seal-riser', 'oil-cooler-cap', 'crankcase-right', 'upper-air-guide', 'ignition-leads', 'shroud-screws', 'shroud-end-screws', 'shroud-speed-nuts'];
   for (const tol of [0, 0.5]) it(`cooler parts the mount touches are clear at ${tol} mm`, () => {
     const touched = new Set(COOLER_TOUCHED);
-    const bad = findCollisions(tol, only).filter((h) => (touched.has(h.a) || touched.has(h.b)) && !isMating(h.a, h.b));
+    const bad = findCollisions(tol, only).filter((h) => {
+      if (!(touched.has(h.a) || touched.has(h.b))) return false;
+      if (h.a === 'ignition-leads' || h.b === 'ignition-leads') return !allowedClash(h);
+      return !isMating(h.a, h.b);
+    });
     expect(bad.map((h) => `${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
   });
 
@@ -414,7 +418,12 @@ describe.each([false, true])('ancillary clearance at 0 and 0.5 mm (emissions %s)
     it(`no unlisted clash on these parts at ${tol} mm erosion`, () => {
       const hits = findCollisions(tol, only);
       const bad = hits
-        .filter((h) => (OURS.test(h.a) || OURS.test(h.b)) && !isMating(h.a, h.b))
+        .filter((h) => {
+          if (!(OURS.test(h.a) || OURS.test(h.b))) return false;
+          // Lead seats are sample windows, not blanket mating pairs.
+          if (h.a === 'ignition-leads' || h.b === 'ignition-leads') return !allowedClash(h);
+          return !isMating(h.a, h.b);
+        })
         .map((h) => `${h.a} x ${h.b} (${h.tris} tri, box ${h.box.min.toArray().map((n) => n.toFixed(0)).join(',')})`);
       expect(bad).toEqual([]);
     });

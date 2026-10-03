@@ -5,7 +5,8 @@
  */
 import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
-import { ASSET_BUILDERS } from '../src/geo/assets';
+import { ASSET_BUILDERS, PLUG_CONNECTOR_TERMINAL } from '../src/geo/assets';
+import { DIST, DIST_AXIS, distW, leadClipCenters } from '../src/geo/aux';
 import { PARTS } from '../src/data/parts';
 import { fastenerSets } from '../src/geo/fasteners';
 import { SMALL_SPECS } from '../src/data/smallSpec';
@@ -459,9 +460,8 @@ export const MATING: [RegExp, RegExp, string][] = [
   pair('air-hose-vacuum', 'air-diverter', 'seated: air-injection vacuum hose on the diverter vacuum nipple'),
   pair('fan-hub', 'fan-impeller|alternator', 'pressed: fan hub on the alternator shaft and the impeller on the hub'),
   pair('warm-up-regulator', 'crankcase-left', 'seated: regulator flange on the case pad'),
-  pair('ignition-leads', 'distributor', 'seated: lead jacket in the cap tower'),
-  pair('ignition-leads', 'spark-plug-connector', 'seated: lead boot in the connector elbow'),
-  pair('ignition-leads', 'ignition-lead-holders', 'seated: lead clipped in the shroud holder'),
+  // Ignition-lead seats are not blanket pairs. allowedClash keeps only the tower bore,
+  // the connector bore, and the clip eye. A lead through a cover or a holder foot in the pan still fails.
   pair('oil-cooler-cap', 'shroud-speed-nuts', 'seated: speed nut on the cooler-cap lip (the 1 mm nut inverts under the 1 mm erosion; clean at 0 and 0.5 mm)'),
   // ---- top end (heads, cylinders, cams, valvetrain, covers, chain drive) — not rewritten here
 
@@ -551,15 +551,62 @@ function chainTensionerSide(h: Hit): 1 | -1 | 0 {
   if (!chain || !ten || chain.endsWith('left') !== ten.endsWith('left')) return 0;
   return chain.endsWith('left') ? -1 : 1;
 }
+const LEAD_AXIS = new THREE.Vector3(...DIST_AXIS);
+/** Sample lies in a short cylinder on `dir` through `origin`. `along` is measured along `dir`. */
+function onLeadSeat(p: THREE.Vector3, origin: THREE.Vector3, dir: THREE.Vector3, radial: number, along0: number, along1: number) {
+  const d = p.clone().sub(origin);
+  const along = d.dot(dir);
+  if (along < along0 || along > along1) return false;
+  return d.addScaledVector(dir, -along).length() <= radial;
+}
+function towerSeatAxes(): { origin: THREE.Vector3; dir: THREE.Vector3 }[] {
+  const out: { origin: THREE.Vector3; dir: THREE.Vector3 }[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    out.push({
+      origin: new THREE.Vector3(...distW(DIST.towerR * Math.cos(a), DIST.towerY + 33, DIST.towerR * Math.sin(a))),
+      dir: LEAD_AXIS,
+    });
+  }
+  out.push({ origin: new THREE.Vector3(...distW(0, DIST.towerY + 30, 0)), dir: LEAD_AXIS });
+  return out;
+}
+let towerAxesCache: { origin: THREE.Vector3; dir: THREE.Vector3 }[] | null = null;
+/**
+ * Genuine ignition-lead seats only. The jacket is pushed 6 mm into a tower or a plug
+ * connector, and each clip eye bites the 7 mm wire. Samples outside that zone fail,
+ * including a holder foot in the cover and a lead through the cap shell.
+ */
+function ignitionLeadSeat(h: Hit): boolean {
+  const ids = [h.a, h.b];
+  if (!ids.includes('ignition-leads') || h.samples.length === 0) return false;
+  const other = ids[0] === 'ignition-leads' ? ids[1] : ids[0];
+  if (/^spark-plug-connector-[1-6]$/.test(other)) {
+    const cyl = Number(other.slice(-1));
+    const t = PLUG_CONNECTOR_TERMINAL(cyl);
+    return h.samples.every((p) => onLeadSeat(p, t.point, t.direction, 8, -14, 10));
+  }
+  if (other === 'distributor') {
+    const axes = towerAxesCache ?? (towerAxesCache = towerSeatAxes());
+    return h.samples.every((p) => axes.some((ax) => onLeadSeat(p, ax.origin, ax.dir, 8, -14, 16)));
+  }
+  if (other === 'ignition-lead-holders') {
+    const clips = leadClipCenters();
+    return h.samples.every((p) => clips.some((c) => p.distanceTo(c) <= 8));
+  }
+  return false;
+}
 /**
  * A listed mating pair, or the idler-shaft / adjuster-stud seats only.
  * Rail bosses, the strap, the sleeve and the nut are not covered.
  * Chain × tensioner is only the idler wrap. Chain metal inside a guide rail still fails.
+ * Ignition leads are seated only in a cap tower, a plug connector, or a clip eye.
  */
 export function allowedClash(h: Hit): boolean {
   const s = tensionerHousingPair(h);
   if (s) return h.samples.length > 0 && h.samples.every((p) => tensionerSeatSample(s, p));
   const cs = chainTensionerSide(h);
   if (cs) return h.samples.length > 0 && h.samples.every((p) => chainOnIdlerSample(cs, p));
+  if (h.a === 'ignition-leads' || h.b === 'ignition-leads') return ignitionLeadSeat(h);
   return isMating(h.a, h.b);
 }

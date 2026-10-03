@@ -15,7 +15,7 @@ import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, 
 import { LIP_Z } from './stations';
 import { plugCoverLocal, railJogs, camHousing, pocketValveCover, valveSet, rockers } from './valvetrain';
 import { paintSealRing } from './sealRing';
-import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R, sparkPlug, sparkPlugConnector } from './aux';
+import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R, sparkPlug, sparkPlugConnector, leadHolderFrames } from './aux';
 import { VARIANT } from '../data/variant';
 import { PARTS } from '../data/parts';
 import { catalyticConverterPart, registerAncillarySmall } from './bottomAnc';
@@ -1368,7 +1368,18 @@ for (const [id, y, R] of [['injector-orings-a', 8, 7.4], ['injector-orings-b', 1
 
 // ===== ignition / cooling =====
 def('distributor-oring', () => oring(13.2, 1.55), () => [M(V(...distW(0, 63.1, 0)), V(...DIST_AXIS))]);
-def('ignition-lead-holders', () => { const p = new Part(); p.add(box(14, 10, 20).translate(0, 5, 0), 'blackPlastic'); return p; }, () => [-1, 1].flatMap((s) => [-60, 60].map((z) => onSurf('upper-air-guide', V(s * 132, 400, z), V(0, -1, 0)))));
+def('ignition-lead-holders', () => {
+  const p = new Part();
+  // 901 609 591 00. Three eyes, 14 mm apart, on the 7 mm leads. The eye bore is
+  // 4.7 mm, so the clip bites the jacket by about 1.2 mm and lets go under a 2 mm erosion.
+  // The foot stops short of the cover; it is not a buried seat.
+  for (const x of [-14, 0, 14]) {
+    p.add(torus(3.75, 1.4, 8, 20).translate(x, 0, 0), 'blackPlastic');
+    p.add(boxMM([x - 1.4, -32, -1.3], [x + 1.4, -5.6, 1.3]), 'blackPlastic');
+  }
+  p.add(boxMM([-16, 4.6, -1.2], [16, 6.4, 1.2]), 'blackPlastic');
+  return p;
+}, () => leadHolderFrames());
 def('shroud-speed-nuts', () => { const p = new Part(); p.add(box(18, 1, 22).translate(0, 0.5, 0), 'darkSteel'); return p; }, () => LIP_Z.right.map((z) => M(V(SHROUD.bx - SHROUD.lipW / 2, SHROUD.skirtY, z), V(0, -1, 0))));
 def('shroud-cover-plate', () => { const p = new Part(); const g = extrudeC(roundRect(60, 40, 5), 1.5); g.rotateX(Math.PI / 2); g.translate(0, 0.75, 0); p.add(g, 'satinBlack'); return p; }, () => [onSurf('upper-air-guide', V(50, 400, -120), V(0, -1, 0))]);
 def('shroud-stopper', () => { const p = new Part(); p.add(lathe([[0.1, -3], [9, -3], [9, 0], [11, 0], [11, 2], [0.1, 2]], 18), 'rubber'); return p; }, () => [onSurf('upper-air-guide', V(-50, 400, -125), V(0, -1, 0))]);
