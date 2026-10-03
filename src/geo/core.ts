@@ -687,8 +687,8 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
   if (s > 0) {
     // Oil-cooler deck pad. Face is exactly x = 103 (normal +X), centre near (103, 8, −180),
     // in the pocket between cyl 3 and the ring gear. Keep studs and ports in step with
-    // OIL_COOLER in aux.ts. Nothing of this pad crosses x = 103. Root stays outside the
-    // crank cheek (r ~70) so the pad is not hollowed with the bay.
+    // OIL_COOLER in aux.ts. Nothing of this pad crosses x = 103. The root is inside the
+    // cyl-6 rod swing, so relieveRodSwing notches it; the face and the stud taps stay.
     const face = 103, xRoot = 74;
     const y0 = -72, y1 = 88, z0 = -210, z1 = -150;
     const zMid = (z0 + z1) / 2, yMid = (y0 + y1) / 2;
@@ -720,6 +720,7 @@ function hollowCaseInterior(p: Part, s: 1 | -1) {
     cheek = csgSub(cheek, ...taps);
     skin = csgSub(skin, ...taps);
     p.add(cheek, CASE_CAST);
+    (p.g.children[p.g.children.length - 1] as THREE.Mesh).userData.bayWall = true;
     p.add(skin, 'machinedAlu');
     for (const [y, z] of studs) {
       const boss = cyl(8, 12, 20);

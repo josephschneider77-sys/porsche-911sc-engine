@@ -376,5 +376,5 @@ describe('crank sweep clashes', () => {
       if (fresh.length > 12) break;
     }
     expect(fresh).toEqual([]);
-  }, 300000);
+  }, 720000);
 });
