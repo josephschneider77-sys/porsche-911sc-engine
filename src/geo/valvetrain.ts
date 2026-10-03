@@ -140,11 +140,25 @@ export function clearValveCover(root: THREE.Object3D, s: 1 | -1, upper: boolean)
     for (let d = 0; d < 720; d += 2) maxL = Math.max(maxL, trainPose(cyl, side, d).lift);
     const dir = stemDirEngine(cyl, side);
     const tip = valveTipEngine(cyl, side, maxL);
+    // The retainer meets the stud tower in the last 2 mm before the tip (r ~3.5).
+    // Stop 0.8 mm past the tip so that land is open, and stay short of the pan roof.
     const a = tip.clone().addScaledVector(dir, -18);
-    const b = tip.clone().addScaledVector(dir, -2.5);
+    const b = tip.clone().addScaledVector(dir, 0.8);
     cuts.push(cylBetween([a.x, a.y, a.z], [b.x, b.y, b.z], 12.6, 14));
   }
-  subtractSolids(root, cuts);
+  // The pan is parented under coverMatrix. subtractSolids bakes world space and
+  // zeroes the mesh, so the meshes have to leave that parent first or the matrix
+  // is applied twice and the cover lands on the intake.
+  const meshes: THREE.Mesh[] = [];
+  root.updateMatrixWorld(true);
+  root.traverse((o: any) => { if (o.isMesh && !o.isInstancedMesh) meshes.push(o); });
+  const hold = new THREE.Group();
+  root.add(hold);
+  for (const m of meshes) hold.attach(m);
+  // No end caps: a disk across the stem would sit in the valve's travel.
+  subtractSolids(hold, cuts, () => false);
+  for (const m of [...hold.children]) root.attach(m);
+  root.remove(hold);
   return root;
 }
 
