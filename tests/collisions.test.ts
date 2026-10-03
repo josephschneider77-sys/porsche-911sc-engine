@@ -4,6 +4,7 @@ import { findCollisions, findIntraPartHits, erodedSolidsClash, allowedClash, isM
 import { rayHit } from './hw';
 import { OIL_COOLER, oilCooler, DIST, DIST_AXIS, distW } from '../src/geo/aux';
 import { SMALL_GEOM } from '../src/geo/smallParts';
+import { activeFilter } from '../src/data/teardown';
 
 const CAM_DRIVE = /^(chain-housing|chain-housing-lid|chain-tensioner|timing-chain|cam-sprocket)-(left|right)$/;
 const EXHAUST = /^(heat-exchanger-(left|right)|muffler)$/;
@@ -63,8 +64,9 @@ describe('intra-part fuel and induction solids', () => {
   });
 });
 
-describe('assembled-pose interference', () => {
-  const hits = findCollisions(1); // 1 mm erosion per part => >2 mm interpenetration counts
+describe.each([false, true])('assembled-pose interference (emissions %s)', (emissions) => {
+  const only = activeFilter(emissions);
+  const hits = findCollisions(1, only); // 1 mm erosion per part => >2 mm interpenetration counts
   it('bottom-end and ancillary allowlist entries name a threaded, pressed or seated joint', () => {
     const bare = MATING.filter(([, , why]) => !TOP_END_WHY.has(why) && !/\b(threaded|pressed|seated|PENDING-INTAKE)\b/i.test(why));
     expect(bare.map(([, , why]) => why)).toEqual([]);
@@ -166,7 +168,7 @@ describe('assembled-pose interference', () => {
   const COOLER_TOUCHED = ['oil-cooler', 'oil-cooler-nuts', 'oil-cooler-seals', 'oil-cooler-seal-riser', 'oil-cooler-cap', 'crankcase-right', 'upper-air-guide', 'ignition-leads', 'shroud-screws', 'shroud-end-screws', 'shroud-speed-nuts'];
   for (const tol of [0, 0.5]) it(`cooler parts the mount touches are clear at ${tol} mm`, () => {
     const touched = new Set(COOLER_TOUCHED);
-    const bad = findCollisions(tol).filter((h) => (touched.has(h.a) || touched.has(h.b)) && !isMating(h.a, h.b));
+    const bad = findCollisions(tol, only).filter((h) => (touched.has(h.a) || touched.has(h.b)) && !isMating(h.a, h.b));
     expect(bad.map((h) => `${h.a} x ${h.b} (${h.tris})`)).toEqual([]);
   });
 
@@ -174,8 +176,8 @@ describe('assembled-pose interference', () => {
     const pair = (list: { a: string; b: string }[]) => list.filter((h) =>
       (h.a === 'distributor' && h.b === 'crankcase-left') || (h.b === 'distributor' && h.a === 'crankcase-left'));
     expect(pair(hits)).toEqual([]);
-    expect(pair(findCollisions(0.5))).toEqual([]);
-    expect(pair(findCollisions(0))).toEqual([]);
+    expect(pair(findCollisions(0.5, only))).toEqual([]);
+    expect(pair(findCollisions(0, only))).toEqual([]);
     const seat = distW(DIST.stud[0], 97.5, DIST.stud[1]);
     const axis = new THREE.Vector3(...DIST_AXIS);
     const origin = new THREE.Vector3(...seat).addScaledVector(axis, 6);
@@ -186,12 +188,13 @@ describe('assembled-pose interference', () => {
   });
 });
 
-describe('ancillary clearance at 0 and 0.5 mm', () => {
+describe.each([false, true])('ancillary clearance at 0 and 0.5 mm (emissions %s)', (emissions) => {
+  const only = activeFilter(emissions);
   // Parts this branch owns. A seated joint may overlap; anything else may not, at either erosion.
-  const OURS = /^(air-(pump|hose|clamp|check|diverter|rubber|sleeve|buffer|sealing|retainer|bracket|pulley)|egr-|cat-|cyl-baffle|cyl-cover-plate|catalytic-converter|muffler-hardware|ignition-leads|heater-blower|heater-dist|heater-socket|heater-hose-link|heater-hose-left|heater-hose-right|heater-hose-supports|heater-clamp)/;
+  const OURS = /^(air-(pump|hose|clamp|check|diverter|rubber|sleeve|buffer|sealing|retainer|bracket|pulley|inj-)|egr-|cat-|cyl-baffle|cyl-cover-plate|catalytic-converter|muffler-hardware|ignition-leads|heater-blower|heater-dist|heater-socket|heater-hose-link|heater-hose-left|heater-hose-right|heater-hose-supports|heater-clamp)/;
   for (const tol of [0, 0.5]) {
     it(`no unlisted clash on these parts at ${tol} mm erosion`, () => {
-      const hits = findCollisions(tol);
+      const hits = findCollisions(tol, only);
       const bad = hits
         .filter((h) => (OURS.test(h.a) || OURS.test(h.b)) && !isMating(h.a, h.b))
         .map((h) => `${h.a} x ${h.b} (${h.tris} tri, box ${h.box.min.toArray().map((n) => n.toFixed(0)).join(',')})`);

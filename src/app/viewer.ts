@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { PARTS, PartDef } from '../data/parts';
-import { removedAfter, carriedAfter } from '../data/teardown';
+import { removedAfter, carriedAfter, activeTeardown, emissionsHidden } from '../data/teardown';
 
 interface PartNode {
   def: PartDef;
@@ -40,10 +40,13 @@ export class Viewer {
   engine = new THREE.Group();
   explode = 0;
   step = 0;
+  /** Emissions equipment (`EMISSIONS_FLAG`). Off hides the air-injection group. */
+  emissions = false;
   hidden = new Set<string>();
   isolated: string | null = null;
   selected: string | null = null;
   onPick: (id: string | null) => void = () => {};
+  private suppressed = emissionsHidden(false);
   private removed = new Set<string>();
   private carried = new Map<string, string>();
   private userMoved = false;
@@ -147,7 +150,21 @@ export class Viewer {
 
   kick(frames = 90) { this.needsFrames = Math.max(this.needsFrames, frames); }
 
-  setStep(n: number) { this.step = n; this.removed = removedAfter(n); this.carried = carriedAfter(n); this.kick(160); }
+  private steps() { return activeTeardown(this.emissions); }
+  setEmissions(on: boolean) {
+    this.emissions = on;
+    this.suppressed = emissionsHidden(on);
+    const n = this.steps().length;
+    if (this.step > n) this.step = n;
+    this.setStep(this.step);
+  }
+  setStep(n: number) {
+    const steps = this.steps();
+    this.step = Math.max(0, Math.min(n, steps.length));
+    this.removed = removedAfter(this.step, steps);
+    this.carried = carriedAfter(this.step, steps);
+    this.kick(160);
+  }
   setExplode(f: number) {
     this.explode = f;
     if (!this.userMoved && !this.urlPose) this.camGoal = this.explodedHome(f);
@@ -250,7 +267,9 @@ export class Viewer {
     return !!hit && hit.object.userData.partId !== id;
   }
   isRemoved(id: string) { return this.removed.has(id); }
+  isGroupHidden(id: string) { return this.suppressed.has(id); }
   visibleFlag(id: string) {
+    if (this.suppressed.has(id)) return false;
     if (this.hidden.has(id)) return false;
     if (this.isolated && this.isolated !== id) return false;
     if (this.isolated === id) return true;

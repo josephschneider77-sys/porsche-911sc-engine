@@ -3,7 +3,8 @@ import { ENGINE_VARIANT } from './data/variant';
 import { Viewer } from './app/viewer';
 import { cameraFromQuery, viewFromQuery } from './app/queryCamera';
 import { PARTS, PART_BY_ID } from './data/parts';
-import { TEARDOWN, stepIndexOf } from './data/teardown';
+import { stepIndexOf, activeTeardown } from './data/teardown';
+import { EMISSIONS_FLAG } from './data/partGroups';
 import { SYSTEMS, SystemKey, design911Url, ILLUSTRATIONS } from './data/catalog';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -18,20 +19,40 @@ const viewer = new Viewer($('view'));
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
 // ---------------------------------------------------------------- steps
-const N = TEARDOWN.length;
+const steps = () => activeTeardown(viewer.emissions);
 function renderStep() {
+  const list = steps();
+  const N = list.length;
   const s = viewer.step;
-  $('step-title').textContent = s === 0 ? 'Assembled engine' : `${s}/${N} · ${TEARDOWN[s - 1].title}`;
+  $('step-title').textContent = s === 0 ? 'Assembled engine' : `${s}/${N} · ${list[s - 1].title}`;
   $('step-note').textContent = s === 0
-    ? `Next: ${TEARDOWN[0].title}. Tap › to disassemble in factory order.`
-    : s === N ? 'Teardown complete — right case half on the stand.' : `${TEARDOWN[s - 1].note}  Next: ${TEARDOWN[s].title}.`;
+    ? `Next: ${list[0].title}. Tap › to disassemble in factory order.`
+    : s === N ? 'Teardown complete — right case half on the stand.' : `${list[s - 1].note}  Next: ${list[s].title}.`;
   ($('btn-back') as HTMLButtonElement).disabled = s === 0;
   ($('btn-next') as HTMLButtonElement).disabled = s === N;
   $('step-bar').style.width = `${(s / N) * 100}%`;
   renderList();
 }
-$('btn-next').onclick = () => { if (viewer.step < N) { viewer.setStep(viewer.step + 1); renderStep(); } };
+$('btn-next').onclick = () => { if (viewer.step < steps().length) { viewer.setStep(viewer.step + 1); renderStep(); } };
 $('btn-back').onclick = () => { if (viewer.step > 0) { viewer.setStep(viewer.step - 1); renderStep(); } };
+
+// ---------------------------------------------------------------- emissions equipment (off by default)
+function readEmissions(): boolean {
+  const q = new URLSearchParams(location.search).get(EMISSIONS_FLAG);
+  if (q === '1' || q === '0') return q === '1';
+  try { return localStorage.getItem(EMISSIONS_FLAG) === '1'; } catch { return false; }
+}
+function writeEmissions(on: boolean) {
+  try { localStorage.setItem(EMISSIONS_FLAG, on ? '1' : '0'); } catch { /* private mode */ }
+  const u = new URL(location.href);
+  if (on) u.searchParams.set(EMISSIONS_FLAG, '1');
+  else u.searchParams.delete(EMISSIONS_FLAG);
+  history.replaceState(null, '', `${u.pathname}${u.search}${u.hash}`);
+}
+const emissionsBox = $('emissions') as HTMLInputElement;
+emissionsBox.checked = readEmissions();
+viewer.setEmissions(emissionsBox.checked);
+emissionsBox.onchange = () => { writeEmissions(emissionsBox.checked); viewer.setEmissions(emissionsBox.checked); renderStep(); };
 
 // ---------------------------------------------------------------- explode
 const slider = $('explode') as HTMLInputElement;
@@ -46,7 +67,8 @@ function showInfo(id: string | null) {
   const cat = p.catalog.map((c) => `<tr><td class="mono">${esc(c.ill)} · #${esc(c.pos)}</td><td class="mono pn">${esc(c.pn)}</td></tr>${c.note ? `<tr class="note"><td colspan="2">${esc(c.note)}</td></tr>` : ''}`).join('');
   const specs = Object.entries(p.specs).map(([k, v]) => `<div class="spec"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
   const url = design911Url(p.catalog[0].ill);
-  const st = stepIndexOf(id);
+  const list = steps();
+  const st = stepIndexOf(id, list);
   el.innerHTML = `
     <div class="info-head">
       <div><div class="kicker">${esc(SYSTEMS[p.system].label)} · Ill. ${esc(p.catalog[0].ill)}</div><h2>${esc(p.name)}</h2></div>
@@ -56,7 +78,7 @@ function showInfo(id: string | null) {
       <p>${esc(p.description)}</p>
       ${specs ? `<div class="specs">${specs}</div>` : ''}
       <table class="cat"><tbody>${cat}</tbody></table>
-      <div class="meta">${st >= 0 ? `Removed at step ${st + 1}: ${esc(TEARDOWN[st].title)}` : 'Stays on the engine stand'}${url ? ` · <a href="${url}" target="_blank" rel="noopener">Catalogue ill. ${esc(p.catalog[0].ill)} ↗</a>` : ''}</div>
+      <div class="meta">${viewer.isGroupHidden(id) ? `Hidden while emissions equipment is ${viewer.emissions ? 'on' : 'off'}` : st >= 0 ? `Removed at step ${st + 1}: ${esc(list[st].title)}` : 'Stays on the engine stand'}${url ? ` · <a href="${url}" target="_blank" rel="noopener">Catalogue ill. ${esc(p.catalog[0].ill)} ↗</a>` : ''}</div>
     </div>
     <div class="info-actions">
       <button id="act-hide">${viewer.hidden.has(id) ? 'Show' : 'Hide'}</button>
@@ -77,9 +99,10 @@ const order: SystemKey[] = ['crankcase', 'crank', 'pistons', 'heads', 'valvetrai
 function renderList() {
   const list = $('parts-list');
   if ($('parts').classList.contains('hidden')) return;
-  $('parts-count').textContent = `${PARTS.length}`;
+  const shown = PARTS.filter((p) => !viewer.isGroupHidden(p.id));
+  $('parts-count').textContent = `${shown.length}`;
   list.innerHTML = order.map((sys) => {
-    const items = PARTS.filter((p) => p.system === sys);
+    const items = shown.filter((p) => p.system === sys);
     if (!items.length) return '';
     const groups = [...new Set(items.map((p) => p.catalog[0].ill))].map((i) => ILLUSTRATIONS[i]?.ill ?? i).join(', ');
     return `<div class="grp"><div class="grp-head"><span>${esc(SYSTEMS[sys].label)}</span><small>Ill. ${esc(groups)}</small></div>${items.map((p) => {
@@ -119,7 +142,7 @@ viewer.load(import.meta.env.BASE_URL, (f) => { $('load-text').textContent = `Loa
     renderStep();
     const q = new URLSearchParams(location.search);
     if (q.has('explode')) { const v = Math.max(0, Math.min(100, +q.get('explode')!)); slider.value = String(v); slider.dispatchEvent(new Event('input')); }
-    if (q.has('step')) { viewer.setStep(Math.max(0, Math.min(N, +q.get('step')!))); renderStep(); }
+    if (q.has('step')) { viewer.setStep(Math.max(0, Math.min(steps().length, +q.get('step')!))); renderStep(); }
     const named = viewFromQuery(q.get('view'));
     if (named) { viewer.setStep(named.step); renderStep(); }
     if (q.has('part')) showInfo(q.get('part'));
