@@ -1435,16 +1435,34 @@ const LEAD_BEND = 28;
 /** How far the wire is pushed into a connector or tower bore. */
 const LEAD_INSERT = 6;
 /**
- * Cover-local height of the loom. The upper cover skin is local z 21.6, so the
- * 3.5 mm jacket sits 5 mm above it (4–6 mm).
+ * Cover-local height of the loom. The jacket (radius 3.5) is 4.4–5.6 mm above the
+ * crown and 4.6 mm above the flat lip: lane x 4 sits on skin 21.94, x 18 on 21.60,
+ * x 32 on the longitudinal rib at 22.83, and the lip is 22.60.
  */
-const LEAD_ZL = 30.1;
-/** How far the foot reaches below the wire centre, 1.2 mm into that skin. */
-export const LEAD_FOOT = LEAD_ZL - 21.6 + 1.2;
+const LEAD_ZL = 30.7;
+/** How far a holder foot is pushed into the cover skin. Clears a 2 mm and a 3.5 mm erosion. */
+const LEAD_EMBED = 0.35;
+/**
+ * Skin the foot lands on. Right-bank holders stand on the crown (the rib at x 32
+ * runs to local y 142). Left-bank holders stand on the pulley lip, which is flat
+ * at 22.60 across all three lanes. One shared foot length cannot do both.
+ */
+function leadCoverSkin(_bank: 1 | -1, y: number, lane: number) {
+  // Pulley lip on the right casting, and the same lip after the left bank is turned about Y.
+  if (y >= 152 && y <= 160) return 22.6;
+  if (y <= -156 && y >= -180) return 22.6;
+  // Longitudinal rib on the crown, local |x| 32, between the rounded ends.
+  if (Math.abs(y) <= 142 && Math.abs(lane - 32) < 2) return 22.83;
+  if (Math.abs(lane - 4) < 2 || Math.abs(lane + 4) < 2) return 21.94;
+  return 21.6;
+}
+function leadFootLength(bank: 1 | -1, y: number, lane: number) {
+  return LEAD_ZL - (leadCoverSkin(bank, y, lane) - LEAD_EMBED);
+}
 /** Straight run along the cap axis, outside the mouth, before the wire leaves it. */
 const LEAD_AXIS = 40;
 /** Tower 5 meets the distributor vacuum hose past about 31 mm, so it turns off at 28 mm. */
-const LEAD_AXIS_T5 = 28;
+const LEAD_AXIS_T5 = 22;
 /**
  * Firing order 1-6-2-4-3-5, counted in the cap's rotation direction.
  * Rotation is CCW looking down the cap (along −local Y), so successive towers
@@ -1452,27 +1470,25 @@ const LEAD_AXIS_T5 = 28;
  */
 export const LEAD_TOWER: Record<number, number> = { 1: 0, 6: 5, 2: 4, 4: 3, 3: 2, 5: 1 };
 /**
- * Three lanes on the cover, 14 mm apart, in the same world-X order as the towers
- * so the split onto the cap does not cross. Right-bank local +X points outboard;
- * left-bank local +X points inboard.
+ * Clip lanes, 14 mm apart, one eye per lead. Local +X is inboard on both banks.
+ * Right bank, outboard to inboard: cylinder 1, 2, 3. Left bank, outboard to
+ * inboard: cylinder 5, 6, 4.
  */
-/**
- * Clip lanes, 14 mm apart, on cover that exists under the feet. Cylinder 1 and
- * cylinder 6 take the outboard clip; their plugs sit past the cover end.
- */
-const LEAD_LANE: Record<number, number> = { 1: 32, 2: 18, 3: 4, 4: 32, 5: 4, 6: 18 };
+const LEAD_LANE: Record<number, number> = { 1: 4, 2: 18, 3: 32, 4: 32, 5: 4, 6: 18 };
 const LEAD_LANE_MID: Record<1 | -1, number> = { 1: 18, '-1': 18 };
 const LEAD_CLIP_DX = [-14, 0, 14];
 /**
- * Two holders per bank (901-00 #22, 901 609 591 00, qty 4). Every foot is on
- * cover skin: the crown is local z 21.6, and the right-hand pulley station is
- * the end wall at 22.6. Lanes at |x|≤38 miss the cover studs.
+ * Two holders per bank (901-00 #22, 901 609 591 00, qty 4). Both sit on the
+ * pulley-end lip, where the outward face is flat at local z 22.6 across the
+ * three lanes. Lanes at |x|≤38 miss the cover studs.
  */
 const LEAD_HOLDER_Y: { bank: 1 | -1; y: number }[] = [
-  { bank: 1, y: 140 },
-  { bank: 1, y: 154 },
+  // Right pair sits where cylinder 2 has levelled (y ≥ 131) and the climb can
+  // still clear cylinder 1's plug boss. Left pair sits pulley-ward of the collars.
+  { bank: 1, y: 134 },
+  { bank: 1, y: 142 },
   { bank: -1, y: -108 },
-  { bank: -1, y: -128 },
+  { bank: -1, y: -120 },
 ];
 export interface LeadRun {
   /** `lead:1` … `lead:6`, `lead:coil`, `lead:primary`. */
@@ -1557,45 +1573,150 @@ function arcSamples(start: THREE.Vector3, tangent: THREE.Vector3, binormal: THRE
   for (let k = 1; k <= steps; k++) pts.push(center.clone().add(radial.clone().applyAxisAngle(A, sweepDeg * (k / steps) * DEG)));
   return pts;
 }
+/**
+ * Two arcs that shift `offset` (perpendicular to `heading`) and finish on the
+ * same heading. Lateral L needs 2R(1−cos θ), so one pair covers up to 112 mm.
+ */
+function sCurve(start: THREE.Vector3, heading: THREE.Vector3, offset: THREE.Vector3, radius = LEAD_BEND) {
+  const H = heading.clone().normalize();
+  const lateral = offset.clone().addScaledVector(H, -offset.dot(H));
+  const L = lateral.length();
+  if (L < 0.8) return [] as THREE.Vector3[];
+  const cosT = 1 - L / (2 * radius);
+  const theta = Math.acos(Math.min(1, Math.max(-1, cosT))) * 180 / Math.PI;
+  const side = lateral.multiplyScalar(1 / L);
+  const bin = new THREE.Vector3().crossVectors(H, side).normalize();
+  const a1 = arcSamples(start, H, bin, theta, radius);
+  const p1 = a1[a1.length - 1];
+  // True tangent, not the last 6° chord. The chord is 3° off and walks the end off the lane.
+  const t1 = H.clone().applyAxisAngle(bin, theta * DEG);
+  const a2 = arcSamples(p1, t1, bin.clone().negate(), theta, radius);
+  return [...a1, ...a2];
+}
+/** Explicit arc from `tangent` onto `endTangent` at the lead bend radius. */
+function arcTurn(start: THREE.Vector3, tangent: THREE.Vector3, endTangent: THREE.Vector3, radius = LEAD_BEND) {
+  const T = tangent.clone().normalize();
+  const E = endTangent.clone().normalize();
+  const axis = new THREE.Vector3().crossVectors(T, E);
+  const ang = T.angleTo(E);
+  if (axis.lengthSq() < 1e-10 || ang < 0.02) return [] as THREE.Vector3[];
+  axis.normalize();
+  return arcSamples(start, T, axis, ang * 180 / Math.PI, radius);
+}
+/**
+ * Drop a right-bank lead from its plug stub onto a horizontal heading toward
+ * the pulley. Two 28 mm arcs: pitch down, then level. `xAim` walks the end
+ * sideways onto a clip lane.
+ */
+function rightDive(stub: THREE.Vector3, D: THREE.Vector3, pitch: number, xAim: number) {
+  const mid = new THREE.Vector3(xAim, Math.cos(pitch * DEG), -Math.sin(pitch * DEG)).normalize();
+  const arc1 = arcTurn(stub, D, mid);
+  const p1 = arc1[arc1.length - 1];
+  const t1 = p1.clone().sub(arc1[arc1.length - 2]).normalize();
+  const arc2 = arcTurn(p1, t1, new THREE.Vector3(0, 1, 0));
+  return [...arc1, ...arc2];
+}
+/** Last point on the cover lane. The right-bank climb starts here, tangent to the lane, just past the second holder. */
+const LEAD_RIGHT_TAIL_Y = 156;
+/**
+ * Collars on lanes 4 and 18 stand proud of the crown. z 35.2 clears them by at
+ * least 4 mm; the lip itself is happy at the clip height. The drop back down
+ * needs about 22 mm of run, so the holders sit just pulley-ward of that drop.
+ */
+const LEAD_LEFT_HIGH = 36.4;
+const LEAD_LEFT_TAIL_Y = -128;
+/** First left holder. The loom is straight for the last 12 mm into the eye. */
+const LEAD_LEFT_HOLD_Y = -118;
+/**
+ * Radius of an S that spends `fwd` mm of run on a lateral shift `L`. Larger than
+ * the 28 mm floor whenever there is room, so the same shift costs fewer degrees.
+ */
+function shiftRadius(L: number, fwd: number) {
+  if (L < 1) return LEAD_BEND;
+  const theta = 2 * Math.atan(L / Math.max(fwd, 1));
+  const R = L / (2 * (1 - Math.cos(theta)));
+  if (!Number.isFinite(R) || R < LEAD_BEND) return LEAD_BEND;
+  return Math.min(R, 600);
+}
 function coverLocal(cyl: number, mouth: THREE.Vector3, D: THREE.Vector3, lane: number) {
   const seat = mouth.clone().addScaledVector(D, -LEAD_INSERT);
+  const tailY = cyl <= 3 ? LEAD_RIGHT_TAIL_Y : LEAD_LEFT_TAIL_Y;
+  const tail = new THREE.Vector3(lane, tailY, LEAD_ZL);
   if (cyl <= 3) {
-    if (cyl === 1) return [seat, mouth.clone().addScaledVector(D, 48)];
-    const stub = mouth.clone().addScaledVector(D, 22);
-    // Cylinder 3 takes the outboard lane. The next point stays ahead of the stub,
-    // so the wire does not turn back on itself.
-    const run = cyl === 3 ? 32 : lane;
-    // Straight through both holders, then a short rise past cylinder 1's plug boss
-    // so the climb fillet is not inside a clip. A centred wire lets go of the eye
-    // under a 2 mm erosion; the fillet does not.
-    return [
-      seat, stub,
-      new THREE.Vector3(run, 120, LEAD_ZL),
-      new THREE.Vector3(run, 154, LEAD_ZL),
-      new THREE.Vector3(run, 180, LEAD_ZL + 6),
-    ];
+    if (cyl === 1) {
+      // The plug is past the cover and points at the pulley. The wire reverses,
+      // U-turns inboard of the other two leads, and comes back through the
+      // outboard eye with them.
+      return [seat, ...cyl1Loop(mouth, D), tail];
+    }
+    const stub = mouth.clone().addScaledVector(D, cyl === 2 ? 12 : 18);
+    // Cylinder 2 levels on x 18 at the loom height (pitch 48, xAim −0.06).
+    // Cylinder 3 still has a long straight afterwards, so it can slew out to x 32.
+    const dive = rightDive(stub, D, cyl === 2 ? 48 : 50, cyl === 2 ? -0.06 : 0.5);
+    const end = dive[dive.length - 1];
+    const tEnd = end.clone().sub(dive[dive.length - 2]).normalize();
+    const coast = end.clone().addScaledVector(tEnd, 18);
+    // Already on the lane: one straight through both holders into the climb.
+    if (Math.abs(end.x - lane) < 1.2 && Math.abs(end.z - LEAD_ZL) < 1.2 && end.y < tail.y) return [seat, stub, ...dive, tail];
+    const slew = new THREE.Vector3(lane, Math.max(coast.y, end.y + 28), LEAD_ZL);
+    if (slew.y >= tail.y - 8) return [seat, stub, ...dive, coast, tail];
+    return [seat, stub, ...dive, coast, slew, tail];
   }
-  // One 28 mm hook back toward the pulley. The plugs point at the flywheel.
-  const stub = mouth.clone().addScaledVector(D, 2);
+  // The connector points at the flywheel, about 156° off the loom. Top End fixes
+  // that direction, so the hook is the whole reversal. An S then shifts onto the
+  // clip lane and the wire runs straight through both holders toward the pulley.
+  const stub = mouth.clone().addScaledVector(D, 10);
   const target = new THREE.Vector3(0, -1, 0);
   const base = new THREE.Vector3().crossVectors(D, target).normalize();
-  let sweep = D.angleTo(target) * 180 / Math.PI;
-  let bestDot = -2;
-  for (let s = 40; s <= 176; s += 2) {
-    const tang = D.clone().applyAxisAngle(base, s * DEG);
-    const dot = tang.dot(target);
-    if (dot > bestDot) { bestDot = dot; sweep = s; }
-  }
+  if (base.z > 0) base.negate();
+  // The connector points at the flywheel, so this reversal is about 156°. Top End
+  // fixes that direction; the sweep is exactly the angle between them.
+  const sweep = D.angleTo(target) * 180 / Math.PI;
   const arc = arcSamples(stub, D, base, sweep, LEAD_BEND);
   const end = arc[arc.length - 1];
-  const tan = end.clone().sub(arc[arc.length - 2]).normalize();
-  const ext = end.clone().addScaledVector(tan, 26);
-  const land = new THREE.Vector3(lane, -96, LEAD_ZL);
-  const tail = new THREE.Vector3(lane, -144, LEAD_ZL);
-  if (cyl === 4 || Math.abs(ext.x - lane) < 8) return [seat, stub, ...arc, ext, land, tail];
-  const drop = Math.min(130, Math.max(12, ext.y + 56));
-  const mid = new THREE.Vector3(ext.x + (lane - ext.x) * 0.4, ext.y - drop, 70);
-  return [seat, stub, ...arc, ext, mid, land, tail];
+  // Cylinder 4's lane misses the collars, so one S lands on the clip height.
+  // Cylinders 5 and 6 land high, cross both collars, and drop once the lip is flat.
+  // Cylinder 4's lane misses the collars. Cylinders 5 and 6 stay high over both
+  // collars and drop just before the eyes. The radii are as large as the run
+  // allows without the three wires crossing each other.
+  const high = cyl === 4 ? LEAD_ZL : LEAD_LEFT_HIGH;
+  const shiftR = cyl === 6 ? 90 : cyl === 5 ? 48 : 36;
+  const shift = sCurve(end, target, new THREE.Vector3(lane - end.x, 0, high - end.z), shiftR);
+  if (cyl === 4 || !shift.length) return [seat, stub, ...arc, ...shift, tail];
+  const dropH = high - LEAD_ZL;
+  const dropFwd = 2 * LEAD_BEND * Math.sin(Math.acos(Math.min(1, 1 - dropH / (2 * LEAD_BEND))));
+  const dropAt = new THREE.Vector3(lane, -100 + dropFwd, high);
+  const drop = sCurve(dropAt, target, new THREE.Vector3(0, 0, LEAD_ZL - high));
+  return [seat, stub, ...arc, ...shift, dropAt, ...drop, tail];
+}
+/**
+ * Cylinder 1, cover-local, from the stub back onto lane x 4 at the loom height.
+ * The plug points at the pulley, so the wire reverses, steps out to x 60, and
+ * U-turns. The return drops onto the lane before either holder.
+ */
+function cyl1Loop(mouth: THREE.Vector3, D: THREE.Vector3) {
+  const stub = mouth.clone().addScaledVector(D, 14);
+  const negY = new THREE.Vector3(0, -1, 0);
+  const posY = new THREE.Vector3(0, 1, 0);
+  // Reverse in the plane of D and −Y. That plane is nearly horizontal, so the
+  // wire stays above the cover instead of diving through it.
+  let bin = new THREE.Vector3().crossVectors(D, negY);
+  if (bin.z > 0) bin.negate();
+  bin.normalize();
+  const sweep = D.angleTo(negY) * 180 / Math.PI;
+  const rev = arcSamples(stub, D, bin, sweep, LEAD_BEND);
+  const end = rev[rev.length - 1];
+  // U-turn 10 mm above the loom so it clears cylinder 3 on x 32. A 180° arc of
+  // 28 mm that starts at x 60 finishes on lane x 4. The drop back to the lane
+  // finishes before the first holder, so both eyes see a straight wire.
+  const yTurn = 100;
+  const zTurn = LEAD_ZL + 10;
+  const shift = sCurve(end, negY, new THREE.Vector3(60 - end.x, 0, zTurn - end.z));
+  const u0 = new THREE.Vector3(60, yTurn, zTurn);
+  const uArc = arcSamples(u0, negY, new THREE.Vector3(0, 0, -1), 180, LEAD_BEND);
+  const back = uArc[uArc.length - 1];
+  const drop = sCurve(back, posY, new THREE.Vector3(0, 0, LEAD_ZL - zTurn));
+  return [stub, ...rev, ...shift, u0, ...uArc, ...drop];
 }
 /** Direction of travel toward a tower, `deg` off the rotor axis at azimuth `az`. */
 function approachDir(axis: THREE.Vector3, deg: number, az: number) {
@@ -1608,29 +1729,119 @@ function approachDir(axis: THREE.Vector3, deg: number, az: number) {
     .addScaledVector(basisP, Math.sin(rad) * Math.cos(az * DEG))
     .addScaledVector(basisQ, Math.sin(rad) * Math.sin(az * DEG)).normalize();
 }
-/** Replace one corner with an explicit 28 mm arc so a short leg is not collapsed. */
-function insertArc(pts: THREE.Vector3[], corner: number) {
-  const prev = pts[corner - 1], c = pts[corner], next = pts[corner + 1];
-  const d0 = c.clone().sub(prev);
-  const l0 = d0.length();
-  d0.multiplyScalar(1 / l0);
-  const d1 = next.clone().sub(c);
-  const l1 = d1.length();
-  d1.multiplyScalar(1 / l1);
-  const trim = LEAD_BEND * Math.tan(d0.angleTo(d1) / 2);
-  if (trim >= l0 - 1 || trim >= l1 - 1) return pts;
-  const bin = new THREE.Vector3().crossVectors(d0, d1).normalize();
-  const n0 = new THREE.Vector3().crossVectors(bin, d0).normalize();
-  const a = c.clone().addScaledVector(d0, -trim);
-  const b = c.clone().addScaledVector(d1, trim);
-  const center = a.clone().addScaledVector(n0, LEAD_BEND);
-  const va = a.clone().sub(center);
-  const ax = new THREE.Vector3().crossVectors(va, b.clone().sub(center)).normalize();
-  const ang = va.angleTo(b.clone().sub(center));
-  const steps = Math.max(2, Math.ceil(ang / (6 * DEG)));
-  const arc: THREE.Vector3[] = [];
-  for (let k = 0; k <= steps; k++) arc.push(center.clone().add(va.clone().applyAxisAngle(ax, ang * (k / steps))));
-  return [...pts.slice(0, corner), ...arc, ...pts.slice(corner + 1)];
+/** Arc that arrives at `endPoint` along `endTangent`, having left along `startTangent`. The arc start is the returned `start` (samples omit it). */
+function arcOnto(endPoint: THREE.Vector3, startTangent: THREE.Vector3, endTangent: THREE.Vector3, radius = LEAD_BEND) {
+  const arc = arcTurn(new THREE.Vector3(), startTangent, endTangent, radius);
+  if (!arc.length) return { start: endPoint.clone(), pts: [] as THREE.Vector3[] };
+  const shift = endPoint.clone().sub(arc[arc.length - 1]);
+  return { start: shift, pts: arc.map((p) => p.clone().add(shift)) };
+}
+/** Climb off the right-bank lane. Binormal is cover +X, so every lane rises together and the 14 mm spacing stays put. */
+function rightClimb(lane: number) {
+  return arcSamples(
+    new THREE.Vector3(lane, LEAD_RIGHT_TAIL_Y, LEAD_ZL),
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(1, 0, 0),
+    64,
+    LEAD_BEND,
+  );
+}
+/** Turn `dir` toward `want` by at most `maxDeg`. */
+function clampTurn(dir: THREE.Vector3, want: THREE.Vector3, maxDeg: number) {
+  const ang = dir.angleTo(want);
+  if (ang <= maxDeg * DEG || ang < 1e-4) return want.clone();
+  const ax = new THREE.Vector3().crossVectors(dir, want);
+  if (ax.lengthSq() < 1e-12) return dir.clone();
+  return dir.clone().applyAxisAngle(ax.normalize(), maxDeg * DEG);
+}
+/** Rotate `dir` out to at least `minDeg` from `axis` (and from its reverse). */
+function clearOf(dir: THREE.Vector3, axis: THREE.Vector3, minDeg: number) {
+  const ang = dir.angleTo(axis);
+  const nearest = Math.min(ang, Math.PI - ang);
+  if (nearest >= minDeg * DEG - 1e-4) return dir.clone();
+  const pole = ang < Math.PI / 2 ? axis.clone() : axis.clone().negate();
+  let ax = new THREE.Vector3().crossVectors(pole, dir);
+  if (ax.lengthSq() < 1e-10) ax = new THREE.Vector3().crossVectors(pole, new THREE.Vector3(0, 0, 1));
+  return dir.clone().applyAxisAngle(ax.normalize(), minDeg * DEG - nearest);
+}
+/** Replace each corner with an explicit arc so a short fillet leg cannot collapse the radius. */
+function arcFillet(corners: THREE.Vector3[], radius = LEAD_BEND): THREE.Vector3[] {
+  const out: THREE.Vector3[] = [corners[0].clone()];
+  for (let i = 1; i < corners.length - 1; i++) {
+    const prev = corners[i - 1];
+    const c = corners[i];
+    const next = corners[i + 1];
+    const d0 = c.clone().sub(prev);
+    const d1 = next.clone().sub(c);
+    const l0 = d0.length();
+    const l1 = d1.length();
+    if (l0 < 1e-3 || l1 < 1e-3) { out.push(c.clone()); continue; }
+    d0.multiplyScalar(1 / l0);
+    d1.multiplyScalar(1 / l1);
+    const beta = d0.angleTo(d1);
+    if (beta < 0.08) { out.push(c.clone()); continue; }
+    const trim = Math.min(radius * Math.tan(beta / 2), l0 * 0.46, l1 * 0.46);
+    const rEff = trim / Math.tan(beta / 2);
+    const bin = new THREE.Vector3().crossVectors(d0, d1).normalize();
+    const n0 = new THREE.Vector3().crossVectors(bin, d0).normalize();
+    const a = c.clone().addScaledVector(d0, -trim);
+    const b = c.clone().addScaledVector(d1, trim);
+    const center = a.clone().addScaledVector(n0, rEff);
+    const va = a.clone().sub(center);
+    const vb = b.clone().sub(center);
+    const ax = new THREE.Vector3().crossVectors(va, vb).normalize();
+    const ang = va.angleTo(vb);
+    const steps = Math.max(2, Math.ceil(ang / (6 * DEG)));
+    for (let k = 0; k <= steps; k++) out.push(center.clone().add(va.clone().applyAxisAngle(ax, ang * (k / steps))));
+  }
+  out.push(corners[corners.length - 1].clone());
+  return out;
+}
+/**
+ * Right-bank run from the shared climb to the cap. All three leads take the same
+ * corridor: up the climb, across under the air cleaner, then each turns into its
+ * own tower. The bundle offset is vertical, so it stays clear of the lane offset
+ * while the loom travels along the cover slope. Cylinder 2's last straight is the
+ * one that clears the air hose; the other two sit where their own towers are.
+ */
+function rightCorridor(cyl: number, axis: THREE.Vector3, fr: ReturnType<typeof coverFrame>) {
+  const climbTan = fr.v.clone().multiplyScalar(Math.cos(64 * DEG)).addScaledVector(fr.n, Math.sin(64 * DEG)).normalize();
+  const midClimb = rightClimb(LEAD_LANE_MID[1]);
+  const midEnd = toWorld(fr, midClimb[midClimb.length - 1]);
+  const laneOff = fr.u.clone().multiplyScalar(LEAD_LANE[cyl] - LEAD_LANE_MID[1]);
+  // Each lead keeps the approach that misses the distributor and the plenum.
+  // Cylinder 2's is the one that passes the air hose; its under-point is nudged
+  // off that hose. The other two follow their own tower, so the fan does not cross.
+  const uFor = (c: number) => c === 3 ? approachDir(axis, 44, 110) : c === 2 ? approachDir(axis, 64, 170) : approachDir(axis, 44, 140);
+  const gateFor = (c: number) => {
+    const g = towerMouth(LEAD_TOWER[c]).clone().addScaledVector(axis, LEAD_AXIS);
+    const q = g.clone().addScaledVector(uFor(c), c === 2 ? -42 : -48);
+    if (c === 3) q.add(new THREE.Vector3(-8, 2, 6));
+    return { gate: g, pre: q };
+  };
+  const own = gateFor(cyl);
+  const pre2 = gateFor(2).pre;
+  // 58 mm, not 48: the turn onto the approach is about 100°, and the outgoing
+  // leg has to be long enough that the 28 mm fillet is not cut down below 21.
+  const under = pre2.clone().addScaledVector(uFor(2), -58);
+  if (cyl === 2) under.add(new THREE.Vector3(-5.2, 2.1, -2.0));
+  const door = new THREE.Vector3(185, 300, 170);
+  // Stay on the climb tangent before the offset changes. The climb arrives as
+  // 3 mm arc samples, and a corner on that short leg collapses the fillet.
+  const hold = midEnd.clone().add(laneOff).addScaledVector(climbTan, 28);
+  const hookOff = own.pre.clone().sub(pre2);
+  // Vertical bundle. The run to the door is nearly along the cover, so a
+  // lane-wide offset would stack the leads on top of each other.
+  const bundle = new THREE.Vector3(0, 20, -18).multiplyScalar(Math.sign(laneOff.dot(fr.u)) || 0);
+  const blended = hold.clone().addScaledVector(climbTan, 56).add(bundle).sub(laneOff);
+  return [
+    hold,
+    blended,
+    door.clone().add(bundle),
+    under.clone().add(hookOff),
+    own.pre,
+    own.gate,
+  ];
 }
 export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
   const lane = LEAD_LANE[cyl];
@@ -1640,120 +1851,92 @@ export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
   const cover = coverLocal(cyl, local, D, lane).map((p) => toWorld(fr, p));
   const tower = LEAD_TOWER[cyl];
   const mouth = towerMouth(tower);
-  const along = tower === 5 ? LEAD_AXIS_T5 : LEAD_AXIS;
+  // Tower 5 meets the vacuum hose past about 28 mm. The other left towers
+  // measure a few millimetres more than `along` because the arrival arc is
+  // still inside the 0.5 mm band, so 34 mm lands the run inside 22–40.
+  // Tower 5 meets the distributor vacuum hose past about 28 mm, so it turns off at 22.
+  const along = tower === 5 ? LEAD_AXIS_T5 : cyl >= 4 ? 34 : LEAD_AXIS;
   const gate = mouth.clone().addScaledVector(axis, along);
   const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
-  const tail = cover[cover.length - 1];
   if (cyl <= 3) {
-    // Azimuth 140 arrives from above the pulley-side corridor. The climb stays
-    // in the cover's normal plane, so the 14 mm lane spacing is the bend's
-    // binormal. Cylinder 3 keeps that offset through the crossing.
-    const uR = approachDir(axis, 44, 140);
-    const gateOf = (c: number) => towerMouth(LEAD_TOWER[c]).clone().addScaledVector(axis, LEAD_AXIS);
-    // Cylinder 3 arrives from a higher azimuth so its fillet clears cylinder 6.
-    // Cylinder 2's last straight is 64° at azimuth 170: the shared 44° ray
-    // sits in the air hose, and a nudge off it opens one hose by closing the other.
-    const uLead = cyl === 3 ? approachDir(axis, 44, 110) : cyl === 2 ? approachDir(axis, 64, 170) : uR;
-    const pre = gate.clone().addScaledVector(uLead, cyl === 2 ? -42 : -48);
-    if (cyl === 3) pre.add(new THREE.Vector3(-8, 2, 6));
-    const refTail = toWorld(fr, new THREE.Vector3(18, 180, LEAD_ZL + 6));
-    const laneOff = fr.u.clone().multiplyScalar(14);
-    const dClimb = fr.n.clone().multiplyScalar(Math.sin(65 * DEG)).add(new THREE.Vector3(0, 0, Math.cos(65 * DEG))).normalize();
-    const p1 = refTail.clone().addScaledVector(dClimb, 40);
-    const p2 = p1.clone().addScaledVector(dClimb, 55);
-    const door = new THREE.Vector3(185, 308, 176);
-    let dir = dClimb.clone();
-    let pos = p2.clone();
-    const mid: THREE.Vector3[] = [];
-    for (let k = 0; k < 3; k++) {
-      const want = door.clone().sub(pos);
-      if (want.length() < 50) break;
-      const wdir = want.normalize();
-      let next = wdir.clone();
-      if (dir.angleTo(wdir) > 62 * DEG) {
-        next = dir.clone().applyAxisAngle(new THREE.Vector3().crossVectors(dir, wdir).normalize(), 62 * DEG);
-      }
-      if (next.angleTo(wdir) < 8 * DEG) break;
-      pos = pos.clone().addScaledVector(next, 58);
-      dir = next;
-      mid.push(pos.clone());
-    }
-    // The old hook climbed to y 386 and ran through the air cleaner. Come back
-    // along cylinder 2's own cap approach, under the cleaner.
+    // Climb in the cover's normal plane so the lane spacing survives it, then
+    // one shared run under the air cleaner. The last straight runs to the
+    // tower: a waypoint on it would split the leg and drop the fillet under 21.
+    const climbTan = fr.v.clone().multiplyScalar(Math.cos(44 * DEG)).addScaledVector(fr.n, Math.sin(44 * DEG)).normalize();
+    const ownTail = cover[cover.length - 1];
     const u2 = approachDir(axis, 64, 170);
-    const pre2 = gateOf(2).clone().addScaledVector(u2, -42);
-    // Far enough back along cylinder 2's cap approach that the fillet stays the
-    // one already clear of the air hose, and the leg can hold a 21 mm bend.
-    const under = pre2.clone().addScaledVector(u2, -64);
-    const spine = [p1, p2, ...mid, door, under];
-    const bundle = new THREE.Vector3(0, 20, -18);
-    // Past the door each lead runs parallel to cylinder 2, separated by where its own
-    // cap approach sits. That keeps the wires apart while the offset blends off.
-    const preDelta = (c: number) => {
-      const g = gateOf(c);
-      const uL = c === 3 ? approachDir(axis, 44, 110) : c === 2 ? approachDir(axis, 64, 170) : uR;
-      const q = g.clone().addScaledVector(uL, c === 2 ? -42 : -48);
-      if (c === 3) q.add(new THREE.Vector3(-8, 2, 6));
-      return q;
-    };
-    const hookOff = cyl === 2 ? new THREE.Vector3() : preDelta(cyl).sub(preDelta(2));
-    // Cylinder 3 keeps the lane through the climb. Cylinder 1 joins at the corridor.
-    const start = cyl === 1 ? spine.findIndex((p) => p.distanceTo(door) < 1) : 0;
-    const owned = spine.slice(start).map((p, i) => {
-      if (cyl === 2) return p;
-      const onHook = p.distanceTo(door) < 1 || p.distanceTo(under) < 1;
-      if (onHook) return p.clone().add(hookOff);
-      if (cyl === 1) return p.clone().add(hookOff);
-      return p.clone().add(i === 0 && start === 0 ? laneOff : bundle);
-    });
-    return dedupe([...cover, ...owned, pre, gate, seat]);
+    const pre2 = towerMouth(LEAD_TOWER[2]).clone().addScaledVector(axis, LEAD_AXIS).addScaledVector(u2, -42);
+    const underC = pre2.clone().addScaledVector(u2, -56);
+    // Cylinder 2's straight is the one that meets the air hose. Move that
+    // corner off the hose; the hose itself stays where it is.
+    if (cyl === 2) underC.add(new THREE.Vector3(-10, 1.6, -0.8));
+    const laneOff = fr.u.clone().multiplyScalar(LEAD_LANE[cyl] - 18);
+    const bundle = new THREE.Vector3(0, 20, -18).multiplyScalar(Math.sign(LEAD_LANE[cyl] - 18) || 0);
+    // Cylinder 1's bundle points down into the cover. Lift it back up the normal.
+    if (cyl === 1) bundle.addScaledVector(fr.n, 14);
+    const shift = bundle.clone().sub(laneOff);
+    const bow = new THREE.Vector3(200, 272, 176).add(bundle);
+    const underP = underC.clone().add(cyl === 2 ? new THREE.Vector3() : bundle);
+    // Cylinder 1's straight to the tower crosses the air hose; cylinder 3's crosses
+    // the distributor vacuum hose. Slide those two corners off the hoses.
+    if (cyl === 1) underP.add(new THREE.Vector3(-24, -8, -16));
+    if (cyl === 3) underP.add(new THREE.Vector3(-8, 8, -8));
+    // The pure rise keeps the blend off the short straight out of the holders.
+    // Cylinder 2 has no blend, and a collinear point there would split the leg.
+    // All three reach the bow at the same station along the climb, so the turn is one
+    // rigid move. Cylinder 2 has no blend; the others spend the first 34 mm straight.
+    const rise = shift.length() > 1 ? ownTail.clone().addScaledVector(climbTan, 28) : null;
+    const blend = cyl === 3 ? 58 : 52;
+    const p1 = (rise ?? ownTail).clone().addScaledVector(climbTan, rise ? blend : 86).add(shift);
+    return dedupe([...cover, ...(rise ? [rise] : []), p1, bow, underP, gate, seat]);
   }
-  if (cyl === 6) {
-    const u = approachDir(axis, 40, 15);
-    const V = gate.clone().addScaledVector(u, -64);
-    const hDir = V.clone().sub(tail);
-    hDir.z = 0;
-    hDir.normalize();
-    const H = tail.clone().addScaledVector(hDir, 52);
-    const raw = dedupe([...cover, H, V, gate, seat]);
-    const vi = raw.findIndex((p) => p.distanceTo(V) < 1);
-    return vi > 1 ? insertArc(raw, vi) : raw;
+  // Each lead solves the aim that meets its own tower, so the straight has no
+  // corner. The three climbs leave the cover on different headings and the fan
+  // at the cap is what keeps them apart.
+  const into = axis.clone().negate().normalize();
+  const tail = cover[cover.length - 1];
+  const tailTan = new THREE.Vector3(0, 0, 1);
+  // Several seeds: the iteration settles into different aims, and the cheapest
+  // one that still meets the tower is the one the loom uses.
+  let aim = new THREE.Vector3(0.55, 0.8, -0.1).normalize();
+  let lift = arcTurn(tail, tailTan, aim);
+  let onto = arcOnto(gate, aim, into);
+  let bestTurn = Infinity;
+  const seeds = [aim];
+  for (let yi = 0; yi < 8; yi++) for (let pi = 0; pi < 5; pi++) {
+    const yaw = yi * 45 * DEG, pitch = (-40 + pi * 25) * DEG;
+    seeds.push(new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)));
   }
-  if (cyl === 4) {
-    const dir = fr.u.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), -50 * DEG).normalize();
-    // One diagonal off the cover, lifted clear of the inboard edge.
-    const H = tail.clone().addScaledVector(dir, 70).addScaledVector(fr.n, 36);
-    const pre = gate.clone().addScaledVector(approachDir(axis, 40, 330), -90);
-    // Keep the cap approach off cylinder 3, which arrives on the other side.
-    pre.add(new THREE.Vector3(32, 6, -20));
-    return dedupe([...cover, H, pre, gate, seat]);
+  for (const seed of seeds) {
+    let trial = seed.clone().normalize();
+    let liftT = arcTurn(tail, tailTan, trial);
+    let ontoT = arcOnto(gate, trial, into);
+    for (let k = 0; k < 10; k++) {
+      const liftEnd = liftT.length ? liftT[liftT.length - 1] : tail;
+      ontoT = arcOnto(gate, trial, into);
+      const want = ontoT.start.clone().sub(liftEnd);
+      if (want.length() < 2 || want.dot(trial) < 0) break;
+      trial = want.normalize();
+      liftT = arcTurn(tail, tailTan, trial);
+    }
+    const liftEnd = liftT.length ? liftT[liftT.length - 1] : tail;
+    const span = ontoT.start.clone().sub(liftEnd);
+    if (span.length() < 8 || span.dot(trial) < 0) continue;
+    if (span.clone().addScaledVector(trial, -span.dot(trial)).length() > 2) continue;
+    const turn = tailTan.angleTo(trial) + trial.angleTo(into);
+    if (turn < bestTurn) { bestTurn = turn; aim = trial; lift = liftT; onto = ontoT; }
   }
-  // Cylinder 5 stays in the loom: a horizontal yaw off the cover, then its own tower.
-  const left = coverFrame(-1);
-  const tails = new Map<number, THREE.Vector3>();
-  const gates = new Map<number, THREE.Vector3>();
-  for (const c of [4, 5, 6]) {
-    const m = mouthLocal(c, left);
-    const w = coverLocal(c, m.local, m.D, LEAD_LANE[c]).map((p) => toWorld(left, p));
-    tails.set(c, w[w.length - 1]);
-    const tw = LEAD_TOWER[c];
-    gates.set(c, towerMouth(tw).clone().addScaledVector(axis, tw === 5 ? LEAD_AXIS_T5 : LEAD_AXIS));
+  const liftEnd = lift.length ? lift[lift.length - 1] : tail;
+  // Cylinder 6's straight runs through the distributor vacuum hose. Push the
+  // middle of that straight off the fitting; both legs stay long.
+  const mid = cyl === 6 ? liftEnd.clone().lerp(onto.start, 0.62) : null;
+  if (mid) {
+    const fitting = new THREE.Vector3(-206, 234, 135);
+    const away = mid.clone().sub(fitting);
+    if (away.length() < 1) away.set(0, 0, 1);
+    mid.addScaledVector(away.normalize(), 14);
   }
-  const laneU = tails.get(4)!.clone().sub(tails.get(6)!).normalize();
-  const T = laneU.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), 40 * DEG).normalize();
-  const offL = tails.get(5)!.clone().sub(tails.get(6)!);
-  const offG = gates.get(5)!.clone().sub(gates.get(6)!);
-  const mix = (s: number) => offL.clone().multiplyScalar(1 - s).addScaledVector(offG, s);
-  const origin = tails.get(6)!;
-  const u5 = approachDir(axis, 42, 272);
-  const pre = gate.clone().addScaledVector(u5, -64);
-  return dedupe([
-    ...cover,
-    origin.clone().addScaledVector(T, 46).add(mix(0)),
-    origin.clone().addScaledVector(T, 70).add(mix(0.5)),
-    origin.clone().addScaledVector(T, 94).add(mix(1)),
-    pre, gate, seat,
-  ]);
+  return dedupe([...cover, ...lift, ...(mid ? [mid] : []), onto.start, ...onto.pts, gate, seat]);
 }
 /**
  * Coil lead (#18) and primary (#9). The CD coil is on the left rear wing, not in
@@ -1799,27 +1982,37 @@ export function ignitionLeadRuns(): LeadRun[] {
   return runs;
 }
 
-/** World matrices for the four cable holders. Prototype +Y is the cover outward normal. */
-export function leadHolderFrames(): THREE.Matrix4[] {
+export interface LeadHolderSpec {
+  matrix: THREE.Matrix4;
+  /** Clip offset along holder X, and the foot length that embeds 0.35 mm at that lane. */
+  feet: { x: number; len: number }[];
+}
+/** One holder, already aimed: +Y is the cover outward normal, feet reach the skin under each eye. */
+export function leadHolderSpecs(): LeadHolderSpec[] {
   return LEAD_HOLDER_Y.map(({ bank, y }) => {
     const fr = coverFrame(bank);
     const p = fr.o.clone().addScaledVector(fr.u, LEAD_LANE_MID[bank]).addScaledVector(fr.v, y).addScaledVector(fr.n, LEAD_ZL);
-    return frame(p, fr.n, fr.u);
+    const feet = LEAD_CLIP_DX.map((x) => ({ x, len: leadFootLength(bank, y, LEAD_LANE_MID[bank] + x) }));
+    return { matrix: frame(p, fr.n, fr.u), feet };
   });
+}
+/** World matrices for the four cable holders. Prototype +Y is the cover outward normal. */
+export function leadHolderFrames(): THREE.Matrix4[] {
+  return leadHolderSpecs().map((s) => s.matrix);
 }
 /** Centre of each clip eye. The lead allowlist window is this point, not the foot. */
 export function leadClipCenters(): THREE.Vector3[] {
   const out: THREE.Vector3[] = [];
-  for (const m of leadHolderFrames()) {
-    for (const x of LEAD_CLIP_DX) out.push(new THREE.Vector3(x, 0, 0).applyMatrix4(m));
+  for (const s of leadHolderSpecs()) {
+    for (const foot of s.feet) out.push(new THREE.Vector3(foot.x, 0, 0).applyMatrix4(s.matrix));
   }
   return out;
 }
 /** Tip of each holder foot, where it seats on the cam cover. */
 export function leadFootTips(): THREE.Vector3[] {
   const out: THREE.Vector3[] = [];
-  for (const m of leadHolderFrames()) {
-    for (const x of LEAD_CLIP_DX) out.push(new THREE.Vector3(x, -LEAD_FOOT, 0).applyMatrix4(m));
+  for (const s of leadHolderSpecs()) {
+    for (const foot of s.feet) out.push(new THREE.Vector3(foot.x, -foot.len, 0).applyMatrix4(s.matrix));
   }
   return out;
 }

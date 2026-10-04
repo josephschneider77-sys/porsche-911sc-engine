@@ -263,8 +263,12 @@ export function findCollisions(tol = 1, only?: (id: string) => boolean): Hit[] {
           if (!trianglesClash(t1, t2, n1, n2, v0, seg)) return false;
           if (narrowSeat(A.id, B.id, seg.start) && narrowSeat(A.id, B.id, seg.end)) return false;
           tris++; box.expandByPoint(seg.start).expandByPoint(seg.end);
-          samples.push(seg.start.clone().add(seg.end).multiplyScalar(0.5));
-          return false;
+          // The global cap keeps the assembled walk at its old runtime. The lead/holder
+          // pair is the one whose allowlist has to see every sample, so it runs to the end.
+          const leadHolder = (A.id === 'ignition-leads' && B.id === 'ignition-lead-holders')
+            || (A.id === 'ignition-lead-holders' && B.id === 'ignition-leads');
+          if (samples.length < 400 || leadHolder) samples.push(seg.start.clone().add(seg.end).multiplyScalar(0.5));
+          return !leadHolder && tris >= 400;
         },
       } as any);
       if (tris) hits.push({ a: A.id, b: B.id, tris, box, samples });
