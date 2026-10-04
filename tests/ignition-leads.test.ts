@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { findCollisions } from './collide';
 import { PLUG_CONNECTOR_TERMINAL } from '../src/geo/assets';
-import { ignitionLeadRuns, ignitionLeads, LEAD_R, LEAD_MIN_BEND, LEAD_TOWER, DIST, DIST_AXIS, distW } from '../src/geo/aux';
+import { ignitionLeadRuns, ignitionLeads, LEAD_R, LEAD_MIN_BEND, LEAD_TOWER, DIST, DIST_AXIS, DIST_MAT, distW } from '../src/geo/aux';
 import { activeFilter } from '../src/data/teardown';
 
 const INSERT = 6;
@@ -55,6 +55,27 @@ function lengthOf(pts: THREE.Vector3[]) {
   let n = 0;
   for (let i = 1; i < pts.length; i++) n += pts[i].distanceTo(pts[i - 1]);
   return n;
+}
+/** Sum of direction changes, degrees. Short steps are the fillet samples, not extra corners. */
+function turningOf(pts: THREE.Vector3[]) {
+  let n = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i].clone().sub(pts[i - 1]);
+    const b = pts[i + 1].clone().sub(pts[i]);
+    if (a.length() < 0.4 || b.length() < 0.4) continue;
+    n += a.angleTo(b) * 180 / Math.PI;
+  }
+  return n;
+}
+/** Straight millimetres outside the tower mouth. Walks back from the seated end. */
+function axisRun(pts: THREE.Vector3[], mouth: THREE.Vector3) {
+  let run = 0;
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const place = axisPlace(pts[i], mouth, axis);
+    if (place.radial > 0.5) break;
+    if (place.along > run) run = place.along;
+  }
+  return run;
 }
 
 describe.each([false, true])('ignition leads (emissions %s)', (emissions) => {
@@ -128,8 +149,54 @@ describe.each([false, true])('ignition leads (emissions %s)', (emissions) => {
     }
     const coil = runs.find((r) => r.name === 'lead:coil')!;
     for (const run of plugs) expect(minSep(coil.points, run.points), `coil/${run.name}`).toBeGreaterThanOrEqual(8);
-    const lines = runs.map((r) => `${r.name} ${r.tower != null ? `tower ${r.tower}` : r.name === 'lead:coil' ? 'centre tower' : 'ring'} ${lengthOf(r.points).toFixed(0)} mm`);
+    const lines = runs.map((r) => `${r.name} ${r.tower != null ? `tower ${r.tower}` : r.label ?? 'break'} ${lengthOf(r.points).toFixed(0)} mm, turn ${turningOf(r.points).toFixed(0)}°`);
     console.log(lines.join('\n'));
+  });
+
+  it('right-bank leads stay under 1200 mm and left-bank leads under 700 mm', () => {
+    for (const run of plugs) {
+      const cap = run.cyl! <= 3 ? 1200 : 700;
+      expect(lengthOf(run.points), run.name).toBeLessThanOrEqual(cap);
+    }
+  });
+
+  it('turning stays under the measured ceiling', () => {
+    // Cylinder 4 measures 569°. Each left plug reverses about 156° to run toward
+    // the pulley, and the vacuum hose beside tower 5 forces that arrival off the
+    // geodesic. The cap is the measurement plus a few degrees, not a 360° target.
+    for (const run of plugs) expect(turningOf(run.points), run.name).toBeLessThanOrEqual(580);
+  });
+
+  it('each plug lead stays on its tower axis for at least 20 mm', () => {
+    for (const run of plugs) {
+      expect(axisRun(run.points, towerMouth(run.tower!)), run.name).toBeGreaterThanOrEqual(20);
+    }
+  });
+
+  it('firing order follows the towers CCW from the rotor end', () => {
+    const xAxis = new THREE.Vector3().setFromMatrixColumn(DIST_MAT, 0);
+    const zAxis = new THREE.Vector3().setFromMatrixColumn(DIST_MAT, 2);
+    const cap = new THREE.Vector3(...distW(0, DIST.towerY + 33, 0));
+    const mouths = [0, 1, 2, 3, 4, 5].map((i) => towerMouth(i));
+    let tower0 = 0;
+    let best = -Infinity;
+    for (let i = 0; i < mouths.length; i++) {
+      const dot = mouths[i].clone().sub(cap).dot(xAxis);
+      if (dot > best) { best = dot; tower0 = i; }
+    }
+    expect(tower0, 'tower nearest local +X').toBe(0);
+    // Z = X × Y, so increasing atan2(local z, local x) is CCW looking along +axis
+    // (pinion toward the cap) and CW looking back from the rotor end. CCW from
+    // that end is decreasing angle.
+    const angleOf = (p: THREE.Vector3) => Math.atan2(p.clone().sub(cap).dot(zAxis), p.clone().sub(cap).dot(xAxis));
+    const ccwFrom = (i: number) => {
+      const d = angleOf(mouths[tower0]) - angleOf(mouths[i]);
+      return ((d % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    };
+    const ccw = [0, 1, 2, 3, 4, 5].sort((a, b) => ccwFrom(a) - ccwFrom(b));
+    const firing = [1, 6, 2, 4, 3, 5];
+    expect(ccw).toEqual(firing.map((cyl) => LEAD_TOWER[cyl]));
+    for (const run of plugs) expect(run.tower).toBe(LEAD_TOWER[run.cyl!]);
   });
 
   it('no buried lead overlap at 2 and 3.5 mm erosion', () => {

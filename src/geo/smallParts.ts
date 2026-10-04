@@ -15,7 +15,7 @@ import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, 
 import { LIP_Z } from './stations';
 import { plugCoverLocal, railJogs, camHousing, pocketValveCover, valveSet, rockers } from './valvetrain';
 import { paintSealRing } from './sealRing';
-import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R, sparkPlug, sparkPlugConnector, leadHolderFrames } from './aux';
+import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R, sparkPlug, sparkPlugConnector, leadHolderFrames, LEAD_FOOT } from './aux';
 import { VARIANT } from '../data/variant';
 import { PARTS } from '../data/parts';
 import { catalyticConverterPart, registerAncillarySmall } from './bottomAnc';
@@ -1372,10 +1372,10 @@ def('ignition-lead-holders', () => {
   const p = new Part();
   // 901 609 591 00. Three eyes, 14 mm apart, on the 7 mm leads. The eye bore is
   // 4.7 mm, so the clip bites the jacket by about 1.2 mm and lets go under a 2 mm erosion.
-  // The foot stops short of the cover; it is not a buried seat.
+  // The foot seats on the cam cover, about 1.2 mm into the skin, and clears at a 2 mm erosion.
   for (const x of [-14, 0, 14]) {
     p.add(torus(3.75, 1.4, 8, 20).translate(x, 0, 0), 'blackPlastic');
-    p.add(boxMM([x - 1.4, -32, -1.3], [x + 1.4, -5.6, 1.3]), 'blackPlastic');
+    p.add(boxMM([x - 1.4, -LEAD_FOOT, -1.3], [x + 1.4, -4.8, 1.3]), 'blackPlastic');
   }
   p.add(boxMM([-16, 4.6, -1.2], [16, 6.4, 1.2]), 'blackPlastic');
   return p;
