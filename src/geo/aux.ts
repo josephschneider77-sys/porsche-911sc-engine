@@ -1674,20 +1674,26 @@ function coverLocal(cyl: number, mouth: THREE.Vector3, D: THREE.Vector3, lane: n
   const sweep = D.angleTo(target) * 180 / Math.PI;
   const arc = arcSamples(stub, D, base, sweep, LEAD_BEND);
   const end = arc[arc.length - 1];
-  // Cylinder 4's lane misses the collars, so one S lands on the clip height.
-  // Cylinders 5 and 6 land high, cross both collars, and drop once the lip is flat.
-  // Cylinder 4's lane misses the collars. Cylinders 5 and 6 stay high over both
-  // collars and drop just before the eyes. The radii are as large as the run
-  // allows without the three wires crossing each other.
-  const high = cyl === 4 ? LEAD_ZL : LEAD_LEFT_HIGH;
-  const shiftR = cyl === 6 ? 90 : cyl === 5 ? 48 : 36;
-  const shift = sCurve(end, target, new THREE.Vector3(lane - end.x, 0, high - end.z), shiftR);
-  if (cyl === 4 || !shift.length) return [seat, stub, ...arc, ...shift, tail];
-  const dropH = high - LEAD_ZL;
-  const dropFwd = 2 * LEAD_BEND * Math.sin(Math.acos(Math.min(1, 1 - dropH / (2 * LEAD_BEND))));
-  const dropAt = new THREE.Vector3(lane, -100 + dropFwd, high);
-  const drop = sCurve(dropAt, target, new THREE.Vector3(0, 0, LEAD_ZL - high));
-  return [seat, stub, ...arc, ...shift, dropAt, ...drop, tail];
+  const zHi = end.z;
+  // Past the second eye, so the departure fillet starts clear of the clip.
+  // Cylinder 6 climbs to z 58 to clear the other two hooks, then drops onto the
+  // clip. Cylinder 5 crosses at hook height. Cylinder 4 stays on the rib.
+  const far = new THREE.Vector3(lane, cyl === 5 ? -164 : -152, LEAD_ZL);
+  if (cyl === 6) {
+    const high = 58;
+    const shift = sCurve(end, target, new THREE.Vector3(lane - end.x, 0, high - zHi), 32);
+    const dropAt = new THREE.Vector3(lane, -46, high);
+    const drop = sCurve(dropAt, target, new THREE.Vector3(0, 0, LEAD_ZL - high), 32);
+    return [seat, stub, ...arc, ...shift, dropAt, ...drop, far];
+  }
+  if (cyl === 5) {
+    const shift = sCurve(end, target, new THREE.Vector3(lane - end.x, 0, 0), 36);
+    const dropAt = new THREE.Vector3(lane, -64, zHi);
+    const drop = sCurve(dropAt, target, new THREE.Vector3(0, 0, LEAD_ZL - zHi), 36);
+    return [seat, stub, ...arc, ...shift, dropAt, ...drop, far];
+  }
+  const shift = sCurve(end, target, new THREE.Vector3(lane - end.x, 0, LEAD_ZL - zHi), 36);
+  return [seat, stub, ...arc, ...shift, far];
 }
 /**
  * Cylinder 1, cover-local, from the stub back onto lane x 4 at the loom height.
@@ -1890,53 +1896,20 @@ export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
     const p1 = (rise ?? ownTail).clone().addScaledVector(climbTan, rise ? blend : 86).add(shift);
     return dedupe([...cover, ...(rise ? [rise] : []), p1, bow, underP, gate, seat]);
   }
-  // Each lead solves the aim that meets its own tower, so the straight has no
-  // corner. The three climbs leave the cover on different headings and the fan
-  // at the cap is what keeps them apart.
-  const into = axis.clone().negate().normalize();
+  // Spread along the cover normal before turning inboard. Travel toward the cap
+  // is along the lane direction, which would pinch a 14 mm bundle; the normal
+  // offset survives that heading. The last leg stays near the rotor axis.
   const tail = cover[cover.length - 1];
-  const tailTan = new THREE.Vector3(0, 0, 1);
-  // Several seeds: the iteration settles into different aims, and the cheapest
-  // one that still meets the tower is the one the loom uses.
-  let aim = new THREE.Vector3(0.55, 0.8, -0.1).normalize();
-  let lift = arcTurn(tail, tailTan, aim);
-  let onto = arcOnto(gate, aim, into);
-  let bestTurn = Infinity;
-  const seeds = [aim];
-  for (let yi = 0; yi < 8; yi++) for (let pi = 0; pi < 5; pi++) {
-    const yaw = yi * 45 * DEG, pitch = (-40 + pi * 25) * DEG;
-    seeds.push(new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)));
-  }
-  for (const seed of seeds) {
-    let trial = seed.clone().normalize();
-    let liftT = arcTurn(tail, tailTan, trial);
-    let ontoT = arcOnto(gate, trial, into);
-    for (let k = 0; k < 10; k++) {
-      const liftEnd = liftT.length ? liftT[liftT.length - 1] : tail;
-      ontoT = arcOnto(gate, trial, into);
-      const want = ontoT.start.clone().sub(liftEnd);
-      if (want.length() < 2 || want.dot(trial) < 0) break;
-      trial = want.normalize();
-      liftT = arcTurn(tail, tailTan, trial);
-    }
-    const liftEnd = liftT.length ? liftT[liftT.length - 1] : tail;
-    const span = ontoT.start.clone().sub(liftEnd);
-    if (span.length() < 8 || span.dot(trial) < 0) continue;
-    if (span.clone().addScaledVector(trial, -span.dot(trial)).length() > 2) continue;
-    const turn = tailTan.angleTo(trial) + trial.angleTo(into);
-    if (turn < bestTurn) { bestTurn = turn; aim = trial; lift = liftT; onto = ontoT; }
-  }
-  const liftEnd = lift.length ? lift[lift.length - 1] : tail;
-  // Cylinder 6's straight runs through the distributor vacuum hose. Push the
-  // middle of that straight off the fitting; both legs stay long.
-  const mid = cyl === 6 ? liftEnd.clone().lerp(onto.start, 0.62) : null;
-  if (mid) {
-    const fitting = new THREE.Vector3(-206, 234, 135);
-    const away = mid.clone().sub(fitting);
-    if (away.length() < 1) away.set(0, 0, 1);
-    mid.addScaledVector(away.normalize(), 14);
-  }
-  return dedupe([...cover, ...lift, ...(mid ? [mid] : []), onto.start, ...onto.pts, gate, seat]);
+  const into = axis.clone().negate();
+  const want = gate.clone().sub(tail).normalize();
+  // A sharp arrival eats the short axis run, and cylinder 6's straight meets the
+  // vacuum hose. Stay close to the rotor axis and come in from above the hose.
+  const aim = clampTurn(into, want, cyl === 6 ? 42 : 58);
+  const pre = gate.clone().addScaledVector(aim, cyl === 6 ? -70 : -64);
+  const spread = fr.n.clone().multiplyScalar(cyl === 4 ? 16 : cyl === 6 ? 8 : 0)
+    .add(new THREE.Vector3(cyl === 6 ? 14 : cyl === 4 ? -10 : 4, cyl === 5 ? -12 : -6, cyl === 6 ? 10 : cyl === 4 ? 12 : -8));
+  pre.add(spread);
+  return dedupe([...cover, pre, gate, seat]);
 }
 /**
  * Coil lead (#18) and primary (#9). The CD coil is on the left rear wing, not in
