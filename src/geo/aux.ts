@@ -1617,6 +1617,42 @@ function sCurve(start: THREE.Vector3, heading: THREE.Vector3, offset: THREE.Vect
   const a2 = arcSamples(p1, t1, bin.clone().negate(), theta, radius);
   return [...a1, ...a2];
 }
+/** Unit-radius displacement of the arc that turns `T` onto `H`. */
+function arcDisp(T: THREE.Vector3, H: THREE.Vector3) {
+  const A = new THREE.Vector3().crossVectors(T, H);
+  if (A.lengthSq() < 1e-10) return null;
+  A.normalize();
+  const radial0 = new THREE.Vector3().crossVectors(T, A);
+  const theta = T.angleTo(H);
+  return { D: radial0.clone().applyAxisAngle(A, theta).sub(radial0), theta, A };
+}
+function solve3(cols: THREE.Vector3[], rhs: THREE.Vector3) {
+  const M = new THREE.Matrix3().set(
+    cols[0].x, cols[1].x, cols[2].x,
+    cols[0].y, cols[1].y, cols[2].y,
+    cols[0].z, cols[1].z, cols[2].z,
+  );
+  if (Math.abs(M.determinant()) < 1e-5) return null;
+  return rhs.clone().applyMatrix3(M.clone().invert());
+}
+/** Arc, straight, arc from `tangent` at `start` onto `endTangent` at `end`. `H` is the straight's heading. */
+function arcStraightArc(start: THREE.Vector3, tangent: THREE.Vector3, end: THREE.Vector3, endTangent: THREE.Vector3, H: THREE.Vector3) {
+  const d1 = arcDisp(tangent, H);
+  const d2 = arcDisp(H, endTangent);
+  if (!d1 || !d2) return null;
+  const sol = solve3([d1.D, H, d2.D], end.clone().sub(start));
+  if (!sol) return null;
+  const R1 = sol.x, s1 = sol.y, R2 = sol.z;
+  if (R1 < LEAD_MIN_BEND || R2 < LEAD_MIN_BEND || s1 < 0) return null;
+  const a1 = arcSamples(start, tangent, d1.A, d1.theta * 180 / Math.PI, R1);
+  const a1End = a1[a1.length - 1];
+  const mid = a1End.clone().addScaledVector(H, s1);
+  const a2 = arcSamples(mid, H, d2.A, d2.theta * 180 / Math.PI, R2);
+  const span: THREE.Vector3[] = [];
+  const n = Math.max(1, Math.round(s1 / 8));
+  for (let k = 1; k < n; k++) span.push(a1End.clone().lerp(mid, k / n));
+  return { pts: [start, ...a1, ...span, mid, ...a2], R1, R2 };
+}
 /** Explicit arc from `tangent` onto `endTangent` at the lead bend radius. */
 function arcTurn(start: THREE.Vector3, tangent: THREE.Vector3, endTangent: THREE.Vector3, radius = LEAD_BEND) {
   const T = tangent.clone().normalize();
@@ -1906,13 +1942,57 @@ function approachPre(mouth: THREE.Vector3, axis: THREE.Vector3, cyl: number, fan
   const pre = gate.clone().addScaledVector(axis, fan.axial[cyl]).addScaledVector(away, fan.stand[cyl]);
   return [pre, gate, seat];
 }
+/**
+ * Cylinder 1, world points, seat to tower. The plug is pulley-ward of both
+ * holders and points at the pulley, so the wire reverses once and runs back
+ * through the two eyes on lane 32. The straight line from there to tower 0
+ * meets the plenum, so the lead goes over it through a gate at (−60, 305, 95).
+ * That is the shortest gate that stays off the plenum, the runners and the
+ * fuel lines; the turn lands just over 500°.
+ */
+function cylinderOne(fr: ReturnType<typeof coverFrame>, mouth: THREE.Vector3, D: THREE.Vector3, tower: THREE.Vector3, axis: THREE.Vector3) {
+  const negY = new THREE.Vector3(0, -1, 0);
+  const seat = mouth.clone().addScaledVector(D, -LEAD_INSERT);
+  const stub = mouth.clone().addScaledVector(D, 22);
+  let bin = new THREE.Vector3().crossVectors(D, negY);
+  if (bin.z > 0) bin.negate();
+  bin.normalize();
+  const sweep = D.angleTo(negY) * 180 / Math.PI;
+  const hook = arcSamples(stub, D, bin, sweep, 22);
+  const hookEnd = hook[hook.length - 1];
+  const laneAt = new THREE.Vector3(32, 146, LEAD_ZL);
+  const lateral = new THREE.Vector3(laneAt.x - hookEnd.x, 0, laneAt.z - hookEnd.z);
+  const fwd = Math.max(1, hookEnd.y - laneAt.y);
+  const shift = sCurve(hookEnd, negY, lateral, shiftRadius(lateral.length(), fwd));
+  const tail = new THREE.Vector3(32, 128, LEAD_ZL);
+  const cover = [seat, stub, ...hook, ...shift, tail].map((p) => toWorld(fr, p));
+  const T0 = toWorld(fr, negY).sub(fr.o).normalize();
+  // Arrival at the gate, then the heading of each straight. Fitted so the
+  // jackets stay 2 mm off the plenum and the fuel lines, and 8 mm off cylinder 6.
+  const Hg = new THREE.Vector3(
+    Math.cos(-12 * DEG) * Math.cos(184 * DEG),
+    Math.cos(-12 * DEG) * Math.sin(184 * DEG),
+    Math.sin(-12 * DEG),
+  ).normalize();
+  const H1 = new THREE.Vector3(-0.8085, 0.5874, -0.0349).normalize();
+  const H2 = new THREE.Vector3(-0.9633, -0.2048, 0.1736).normalize();
+  const gate = new THREE.Vector3(-60, 305, 95);
+  const into = axis.clone().negate().normalize();
+  const land = tower.clone().addScaledVector(axis, 30);
+  const seatT = tower.clone().addScaledVector(axis, -LEAD_INSERT);
+  const up = arcStraightArc(cover[cover.length - 1], T0, gate, Hg, H1);
+  const down = up && arcStraightArc(gate, Hg, land, into, H2);
+  if (!up || !down) return cover;
+  return [...cover, ...up.pts.slice(1), ...down.pts.slice(1), seatT];
+}
 export function plugCorners(cyl: number, axis: THREE.Vector3, fan: LeadFan = LEAD_FAN): THREE.Vector3[] {
   const lane = LEAD_LANE[cyl];
   const bank: 1 | -1 = cyl <= 3 ? 1 : -1;
   const fr = coverFrame(bank);
   const { local, D } = mouthLocal(cyl, fr);
-  const cover = coverLocal(cyl, local, D, lane).map((p) => toWorld(fr, p));
   const mouth = towerMouth(LEAD_TOWER[cyl]);
+  if (cyl === 1) return dedupe(cylinderOne(fr, local, D, mouth, axis));
+  const cover = coverLocal(cyl, local, D, lane).map((p) => toWorld(fr, p));
   if (cyl <= 3) {
     // Climb in the cover's normal plane so the lane spacing survives it, then
     // one shared run under the air cleaner. Lanes are already in tower order,
@@ -1928,17 +2008,8 @@ export function plugCorners(cyl: number, axis: THREE.Vector3, fan: LeadFan = LEA
     const rise = shift.length() > 1 ? ownTail.clone().addScaledVector(climbTan, 28) : null;
     // Cylinder 1 turns about 100° at the top of the climb. The blend has to be
     // longer than 56 mm or that fillet is cut down below 21.
-    const blend = cyl === 1 ? 84 : cyl === 3 ? 58 : 52;
+    const blend = cyl === 3 ? 58 : 52;
     const p1 = (rise ?? ownTail).clone().addScaledVector(climbTan, rise ? blend : 86).add(shift);
-    // Cylinder 1 is already past the holders, so the climb would be a detour.
-    // The tail runs straight at the cap; the shared bow is what made this lead 1267 mm.
-    if (cyl === 1) {
-      // The straight from the tail to the arrival crosses cylinder 3. Lift the
-      // middle of that run clear of it; the two new corners are only a few degrees.
-      const [pre, gate, seat] = approachPre(mouth, axis, cyl, fan);
-      const mid = cover[cover.length - 1].clone().lerp(pre, 0.58).add(new THREE.Vector3(-6, -16, 10));
-      return dedupe([...cover, mid, pre, gate, seat]);
-    }
     const head = [...cover, ...(rise ? [rise] : []), p1, bow];
     return dedupe([...head, ...approachPre(mouth, axis, cyl, fan)]);
   }
