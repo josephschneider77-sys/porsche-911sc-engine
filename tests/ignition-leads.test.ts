@@ -161,7 +161,7 @@ describe.each([false, true])('ignition leads (emissions %s)', (emissions) => {
   });
 
   it('turning stays under the measured ceiling', () => {
-    // Cylinder 4 measures 569°. Each left plug reverses about 156° to run toward
+    // Cylinder 4 measures 572°. Each left plug reverses about 156° to run toward
     // the pulley, and the vacuum hose beside tower 5 forces that arrival off the
     // geodesic. The cap is the measurement plus a few degrees, not a 360° target.
     for (const run of plugs) expect(turningOf(run.points), run.name).toBeLessThanOrEqual(580);
