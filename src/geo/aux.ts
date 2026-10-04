@@ -1440,12 +1440,17 @@ const LEAD_INSERT = 6;
  * x 32 on the longitudinal rib at 22.83, and the lip is 22.60.
  */
 const LEAD_ZL = 30.7;
-/** How far a holder foot is pushed into the cover skin. Clears a 2 mm and a 3.5 mm erosion. */
-const LEAD_EMBED = 0.35;
 /**
- * Skin the foot lands on. Right-bank holders stand on the crown (the rib at x 32
- * runs to local y 142). Left-bank holders stand on the pulley lip, which is flat
- * at 22.60 across all three lanes. One shared foot length cannot do both.
+ * Signed sink of the foot tip into the estimated skin. Negative stands the tip
+ * off the skin. A flush 0.35 mm embed still meets the cover after a 3.5 mm
+ * erosion (the crown shifts toward the foot), so the tip stops 2.6 mm short.
+ * That is the closest standoff that is clear at 2 mm and at 3.5 mm.
+ */
+const LEAD_EMBED = -2.6;
+/**
+ * Skin the foot lands on. Both banks sit on the crown, not the pulley lip:
+ * the lip is only local |y| 152–160 and 156–180, and the holders are at
+ * y 134/142 and y −108/−120. Lane 32 is the longitudinal rib.
  */
 function leadCoverSkin(_bank: 1 | -1, y: number, lane: number) {
   // Pulley lip on the right casting, and the same lip after the left bank is turned about Y.
@@ -1461,12 +1466,6 @@ function leadFootLength(bank: 1 | -1, y: number, lane: number) {
 }
 /** Straight run along the cap axis, outside the mouth, before the wire leaves it. */
 const LEAD_AXIS = 40;
-/**
- * Tower 5 meets the distributor vacuum hose past about 31 mm. The fillet at the
- * arrival trims several millimetres, so the straight starts at 32 mm and the
- * measured run — which has to be at least 20 — lands near 26.
- */
-const LEAD_AXIS_T5 = 32;
 /**
  * Firing order 1-6-2-4-3-5, counted in the cap's rotation direction.
  * Rotation is CCW looking down the cap (along −local Y), so successive towers
@@ -1505,8 +1504,7 @@ const LEAD_LANE_MID: Record<1 | -1, number> = { 1: 18, '-1': 18 };
 const LEAD_CLIP_DX = [-14, 0, 14];
 /**
  * Two holders per bank (901-00 #22, 901 609 591 00, qty 4). Both sit on the
- * pulley-end lip, where the outward face is flat at local z 22.6 across the
- * three lanes. Lanes at |x|≤38 miss the cover studs.
+ * crown, clear of the pulley lip. Lanes at |x|≤38 miss the cover studs.
  */
 const LEAD_HOLDER_Y: { bank: 1 | -1; y: number }[] = [
   // Right pair sits where cylinder 2 has levelled (y ≥ 131) and the climb can
@@ -2006,7 +2004,7 @@ export function ignitionLeadRuns(): LeadRun[] {
 
 export interface LeadHolderSpec {
   matrix: THREE.Matrix4;
-  /** Clip offset along holder X, and the foot length that embeds 0.35 mm at that lane. */
+  /** Clip offset along holder X, and the foot length that stops 2.6 mm short of that lane. */
   feet: { x: number; len: number }[];
 }
 /** One holder, already aimed: +Y is the cover outward normal, feet reach the skin under each eye. */

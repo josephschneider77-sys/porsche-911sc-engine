@@ -1371,8 +1371,8 @@ def('distributor-oring', () => oring(13.2, 1.55), () => [M(V(...distW(0, 63.1, 0
 def('ignition-lead-holders', () => {
   // 901 609 591 00. Three eyes, 14 mm apart, on the 7 mm leads. The eye bore is
   // 4.7 mm, so the clip bites the jacket by about 1.2 mm and lets go under a 2 mm erosion.
-  // Each foot is its own length: 0.35 mm into the skin under that eye, so the
-  // crown (right bank) and the flat lip (left bank) both clear at 2 mm and 3.5 mm.
+  // Each foot is its own length and stops 2.6 mm short of the estimated skin,
+  // which is the closest it can sit and still clear a 2 mm and a 3.5 mm erosion.
   // Baked per holder — one prototype cannot carry four different foot sets.
   const p = new Part();
   for (const spec of leadHolderSpecs()) {
