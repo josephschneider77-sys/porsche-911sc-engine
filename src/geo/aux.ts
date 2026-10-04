@@ -1682,7 +1682,10 @@ function coverLocal(cyl: number, mouth: THREE.Vector3, D: THREE.Vector3, lane: n
   // Past the second eye, so the departure fillet starts clear of the clip.
   // Cylinder 6 climbs to z 58 to clear the other two hooks, then drops onto the
   // clip. Cylinder 5 crosses at hook height. Cylinder 4 stays on the rib.
-  const far = new THREE.Vector3(lane, cyl === 5 ? -164 : -152, LEAD_ZL);
+  // Cylinder 6's departure is a 105° turn. The straight into it has to be long
+  // enough that the 28 mm fillet is not cut down below 21, so the tail runs
+  // past the second eye to local y −184.
+  const far = new THREE.Vector3(lane, cyl === 6 ? -184 : cyl === 5 ? -164 : -152, LEAD_ZL);
   if (cyl === 6) {
     const high = 58;
     const shift = sCurve(end, target, new THREE.Vector3(lane - end.x, 0, high - zHi), 32);
@@ -1738,6 +1741,26 @@ function approachDir(axis: THREE.Vector3, deg: number, az: number) {
   return into.clone().multiplyScalar(Math.cos(rad))
     .addScaledVector(basisP, Math.sin(rad) * Math.cos(az * DEG))
     .addScaledVector(basisQ, Math.sin(rad) * Math.sin(az * DEG)).normalize();
+}
+/**
+ * Explicit arrival onto the tower axis. `az`/`el` pick the side the arc bows
+ * toward, so the fillet can sit off a hose that crosses the axis itself.
+ * The straight after `land` is the axis run the test measures.
+ */
+function safeArrival(mouth: THREE.Vector3, axis: THREE.Vector3, along: number, az: number, el: number, sweep: number, radius: number, leg: number) {
+  const into = axis.clone().negate().normalize();
+  const land = mouth.clone().addScaledVector(axis, along);
+  const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
+  const away = new THREE.Vector3(
+    Math.cos(el * DEG) * Math.cos(az * DEG),
+    Math.cos(el * DEG) * Math.sin(az * DEG),
+    Math.sin(el * DEG),
+  );
+  away.addScaledVector(axis, -away.dot(axis)).normalize();
+  const H = into.clone().multiplyScalar(Math.cos(sweep * DEG)).addScaledVector(away, Math.sin(sweep * DEG)).normalize();
+  const onto = arcOnto(land, H, into, radius);
+  const pre = onto.start.clone().addScaledVector(H, -leg);
+  return [pre, onto.start, ...onto.pts, land, seat];
 }
 /** Arc that arrives at `endPoint` along `endTangent`, having left along `startTangent`. The arc start is the returned `start` (samples omit it). */
 function arcOnto(endPoint: THREE.Vector3, startTangent: THREE.Vector3, endTangent: THREE.Vector3, radius = LEAD_BEND) {
@@ -1898,7 +1921,26 @@ export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
     const rise = shift.length() > 1 ? ownTail.clone().addScaledVector(climbTan, 28) : null;
     const blend = cyl === 3 ? 58 : 52;
     const p1 = (rise ?? ownTail).clone().addScaledVector(climbTan, rise ? blend : 86).add(shift);
-    return dedupe([...cover, ...(rise ? [rise] : []), p1, bow, underP, gate, seat]);
+    const head = [...cover, ...(rise ? [rise] : []), p1, bow];
+    // The old straight into the tower skimmed the distributor vacuum hose.
+    // Cylinder 1 bows toward azimuth 225, cylinder 2 toward 45; both land on
+    // the axis at 28 mm, which still measures past 20 after the fillet.
+    if (cyl === 1) return dedupe([...head, ...safeArrival(mouth, axis, 28, 225, 10, 50, 32, 70)]);
+    if (cyl === 2) return dedupe([...head, ...safeArrival(mouth, axis, 28, 45, 10, 50, 32, 70)]);
+    return dedupe([...head, underP, gate, seat]);
+  }
+  if (cyl === 6) {
+    // The vacuum hose crosses this axis past about 30 mm. Landing at 25 mm
+    // still measures past 20 after the fillet. The approach is 58 mm off the
+    // axis at azimuth 310, so the straight passes the hose instead of aiming
+    // through it.
+    const along6 = 25;
+    const gate6 = mouth.clone().addScaledVector(axis, along6);
+    const seat6 = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
+    const away = new THREE.Vector3(Math.cos(310 * DEG), Math.sin(310 * DEG), 0);
+    away.addScaledVector(axis, -away.dot(axis)).normalize();
+    const pre6 = gate6.clone().addScaledVector(axis, 75).addScaledVector(away, 58);
+    return dedupe([...cover, pre6, gate6, seat6]);
   }
   // Spread along the cover normal before turning inboard. Travel toward the cap
   // is along the lane direction, which would pinch a 14 mm bundle; the normal
