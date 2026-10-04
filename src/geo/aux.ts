@@ -1560,9 +1560,13 @@ function arcSamples(start: THREE.Vector3, tangent: THREE.Vector3, binormal: THRE
 function coverLocal(cyl: number, mouth: THREE.Vector3, D: THREE.Vector3, lane: number) {
   const seat = mouth.clone().addScaledVector(D, -LEAD_INSERT);
   if (cyl <= 3) {
-    if (cyl === 1) return [seat, mouth.clone().addScaledVector(D, 90)];
+    if (cyl === 1) return [seat, mouth.clone().addScaledVector(D, 48)];
     const stub = mouth.clone().addScaledVector(D, 22);
-    return [seat, stub, new THREE.Vector3(lane, cyl === 2 ? 126 : 20, LEAD_ZL), new THREE.Vector3(lane, 172, LEAD_ZL)];
+    // Cylinder 3 takes the outboard lane. The next point stays ahead of the stub,
+    // so the wire does not turn back on itself.
+    const run = cyl === 3 ? 32 : lane;
+    // Straight run long enough for the climb fillet, and still ahead of the stub.
+    return [seat, stub, new THREE.Vector3(run, 120, LEAD_ZL), new THREE.Vector3(run, 154, LEAD_ZL)];
   }
   // One 28 mm hook back toward the pulley. The plugs point at the flywheel.
   const stub = mouth.clone().addScaledVector(D, 2);
@@ -1634,26 +1638,54 @@ export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
   const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
   const tail = cover[cover.length - 1];
   if (cyl <= 3) {
-    const refMouth = towerMouth(LEAD_TOWER[2]);
-    const slot = mouth.clone().sub(refMouth);
-    const refCover = coverLocal(2, mouthLocal(2, fr).local, mouthLocal(2, fr).D, LEAD_LANE[2]).map((p) => toWorld(fr, p));
-    const refTail = refCover[refCover.length - 1];
-    const laneShift = cyl === 1 ? slot.clone() : tail.clone().sub(refTail);
-    const need = slot.clone().sub(laneShift);
-    const lift = cyl === 2 ? 0 : 22 * (need.dot(fr.n) < 0 ? -1 : 1);
-    const uR = approachDir(axis, 44, 24);
-    const join = new THREE.Vector3(190, 320, 90).add(slot);
-    const A = towerMouth(LEAD_TOWER[2]).clone().addScaledVector(axis, LEAD_AXIS).addScaledVector(uR, -140).add(slot);
+    // Azimuth 192 arrives from the pulley side, clear of the vacuum hoses.
+    // The climb stays in the cover's normal plane, so the 14 mm lane spacing is
+    // the bend's binormal. Past that, cylinder 3 sits 27 mm off cylinder 2 in YZ,
+    // which stays apart while the bundle crosses and hooks onto the towers.
+    const uR = approachDir(axis, 44, 192);
+    const gateOf = (c: number) => towerMouth(LEAD_TOWER[c]).clone().addScaledVector(axis, LEAD_AXIS);
+    const g2 = gateOf(2);
     const pre = gate.clone().addScaledVector(uR, -48);
-    // Cylinder 1's cone leg otherwise passes 3 mm from cylinder 6.
-    if (cyl === 1) pre.add(new THREE.Vector3(-12, 0, 8));
-    if (cyl === 1) {
-      const mid = tail.clone().lerp(join, 0.42).add(new THREE.Vector3(40, 0, 50));
-      return dedupe([...cover, mid, join, A, pre, gate, seat]);
+    // Cylinder 6's cap arc passes 4 mm from this ray. Slide the approach off it.
+    if (cyl === 3) pre.add(new THREE.Vector3(-10, -10, 5));
+    const refTail = toWorld(fr, new THREE.Vector3(18, 154, LEAD_ZL));
+    const laneOff = fr.u.clone().multiplyScalar(14);
+    const dClimb = fr.n.clone().multiplyScalar(Math.sin(65 * DEG)).add(new THREE.Vector3(0, 0, Math.cos(65 * DEG))).normalize();
+    const p1 = refTail.clone().addScaledVector(dClimb, 40);
+    const p2 = p1.clone().addScaledVector(dClimb, 55);
+    const door = new THREE.Vector3(185, 308, 176);
+    let dir = dClimb.clone();
+    let pos = p2.clone();
+    const mid: THREE.Vector3[] = [];
+    for (let k = 0; k < 3; k++) {
+      const want = door.clone().sub(pos);
+      if (want.length() < 50) break;
+      const wdir = want.normalize();
+      let next = wdir.clone();
+      if (dir.angleTo(wdir) > 62 * DEG) {
+        next = dir.clone().applyAxisAngle(new THREE.Vector3().crossVectors(dir, wdir).normalize(), 62 * DEG);
+      }
+      if (next.angleTo(wdir) < 8 * DEG) break;
+      pos = pos.clone().addScaledVector(next, 58);
+      dir = next;
+      mid.push(pos.clone());
     }
-    const depart = new THREE.Vector3(-0.10, 0.40, 0.91).normalize();
-    const lifted = tail.clone().addScaledVector(depart, 78).addScaledVector(fr.n, lift);
-    return dedupe([...cover, lifted, join, A, pre, gate, seat]);
+    const across = new THREE.Vector3(-1, 0, 0);
+    const Din = across.clone().applyAxisAngle(new THREE.Vector3().crossVectors(across, uR).normalize(), 42 * DEG);
+    const H = g2.clone().addScaledVector(uR, -96);
+    const cross = H.clone().addScaledVector(Din, -72);
+    const spine = [p1, p2, ...mid, door, cross, H];
+    const bundle = new THREE.Vector3(0, 20, -18);
+    const gOff = gate.clone().sub(g2);
+    // Cylinder 3 keeps the lane through the climb, then the YZ bundle through the hook.
+    // Cylinder 1's plug is already at the pulley. It joins the bundle at the corridor.
+    const start = cyl === 1 ? spine.findIndex((p) => p.distanceTo(door) < 1) : 0;
+    const owned = spine.slice(start).map((p, i) => {
+      if (cyl === 2) return p;
+      if (cyl === 1) return p.clone().add(gOff);
+      return p.clone().add(i === 0 && start === 0 ? laneOff : bundle);
+    });
+    return dedupe([...cover, ...owned, pre, gate, seat]);
   }
   if (cyl === 6) {
     const u = approachDir(axis, 40, 15);
@@ -1668,8 +1700,9 @@ export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
   }
   if (cyl === 4) {
     const dir = fr.u.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), -50 * DEG).normalize();
-    const H = tail.clone().addScaledVector(dir, 46);
-    const pre = gate.clone().addScaledVector(approachDir(axis, 40, 330), -60);
+    // One diagonal off the cover, lifted clear of the inboard edge.
+    const H = tail.clone().addScaledVector(dir, 70).addScaledVector(fr.n, 12);
+    const pre = gate.clone().addScaledVector(approachDir(axis, 40, 330), -66);
     return dedupe([...cover, H, pre, gate, seat]);
   }
   // Cylinder 5 stays in the loom: a horizontal yaw off the cover, then its own tower.
@@ -1711,7 +1744,8 @@ function serviceCorners(axis: THREE.Vector3): { coil: THREE.Vector3[]; primary: 
   const coil = [end, seat];
   const body = v3(distW(-24, 150, 18));
   const outward = body.clone().sub(v3(distW(0, 150, 0))).normalize();
-  const primary = [body, body.clone().addScaledVector(outward, 62)];
+  // The free end is first, so the PRI tag sits outboard of the housing.
+  const primary = [body.clone().addScaledVector(outward, 62), body];
   return { coil, primary };
 }
 
