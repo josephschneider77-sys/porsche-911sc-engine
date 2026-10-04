@@ -1565,8 +1565,15 @@ function coverLocal(cyl: number, mouth: THREE.Vector3, D: THREE.Vector3, lane: n
     // Cylinder 3 takes the outboard lane. The next point stays ahead of the stub,
     // so the wire does not turn back on itself.
     const run = cyl === 3 ? 32 : lane;
-    // Straight run long enough for the climb fillet, and still ahead of the stub.
-    return [seat, stub, new THREE.Vector3(run, 120, LEAD_ZL), new THREE.Vector3(run, 154, LEAD_ZL)];
+    // Straight through both holders, then a short rise past cylinder 1's plug boss
+    // so the climb fillet is not inside a clip. A centred wire lets go of the eye
+    // under a 2 mm erosion; the fillet does not.
+    return [
+      seat, stub,
+      new THREE.Vector3(run, 120, LEAD_ZL),
+      new THREE.Vector3(run, 154, LEAD_ZL),
+      new THREE.Vector3(run, 180, LEAD_ZL + 6),
+    ];
   }
   // One 28 mm hook back toward the pulley. The plugs point at the flywheel.
   const stub = mouth.clone().addScaledVector(D, 2);
@@ -1643,14 +1650,13 @@ export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
     // binormal. Cylinder 3 keeps that offset through the crossing.
     const uR = approachDir(axis, 44, 140);
     const gateOf = (c: number) => towerMouth(LEAD_TOWER[c]).clone().addScaledVector(axis, LEAD_AXIS);
-    const g2 = gateOf(2);
     // Cylinder 3 arrives from a higher azimuth so its fillet clears cylinder 6.
     // Cylinder 2's last straight is 64° at azimuth 170: the shared 44° ray
     // sits in the air hose, and a nudge off it opens one hose by closing the other.
     const uLead = cyl === 3 ? approachDir(axis, 44, 110) : cyl === 2 ? approachDir(axis, 64, 170) : uR;
     const pre = gate.clone().addScaledVector(uLead, cyl === 2 ? -42 : -48);
     if (cyl === 3) pre.add(new THREE.Vector3(-8, 2, 6));
-    const refTail = toWorld(fr, new THREE.Vector3(18, 154, LEAD_ZL));
+    const refTail = toWorld(fr, new THREE.Vector3(18, 180, LEAD_ZL + 6));
     const laneOff = fr.u.clone().multiplyScalar(14);
     const dClimb = fr.n.clone().multiplyScalar(Math.sin(65 * DEG)).add(new THREE.Vector3(0, 0, Math.cos(65 * DEG))).normalize();
     const p1 = refTail.clone().addScaledVector(dClimb, 40);
@@ -1672,18 +1678,32 @@ export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
       dir = next;
       mid.push(pos.clone());
     }
-    const across = new THREE.Vector3(-1, 0, 0);
-    const Din = across.clone().applyAxisAngle(new THREE.Vector3().crossVectors(across, uR).normalize(), 42 * DEG);
-    const H = g2.clone().addScaledVector(uR, -96);
-    const cross = H.clone().addScaledVector(Din, -72);
-    const spine = [p1, p2, ...mid, door, cross, H];
+    // The old hook climbed to y 386 and ran through the air cleaner. Come back
+    // along cylinder 2's own cap approach, under the cleaner.
+    const u2 = approachDir(axis, 64, 170);
+    const pre2 = gateOf(2).clone().addScaledVector(u2, -42);
+    // Far enough back along cylinder 2's cap approach that the fillet stays the
+    // one already clear of the air hose, and the leg can hold a 21 mm bend.
+    const under = pre2.clone().addScaledVector(u2, -64);
+    const spine = [p1, p2, ...mid, door, under];
     const bundle = new THREE.Vector3(0, 20, -18);
-    // Cylinder 3 keeps the lane through the climb, then the YZ bundle through the hook.
-    // Cylinder 1's plug is already at the pulley. It joins the bundle at the corridor.
+    // Past the door each lead runs parallel to cylinder 2, separated by where its own
+    // cap approach sits. That keeps the wires apart while the offset blends off.
+    const preDelta = (c: number) => {
+      const g = gateOf(c);
+      const uL = c === 3 ? approachDir(axis, 44, 110) : c === 2 ? approachDir(axis, 64, 170) : uR;
+      const q = g.clone().addScaledVector(uL, c === 2 ? -42 : -48);
+      if (c === 3) q.add(new THREE.Vector3(-8, 2, 6));
+      return q;
+    };
+    const hookOff = cyl === 2 ? new THREE.Vector3() : preDelta(cyl).sub(preDelta(2));
+    // Cylinder 3 keeps the lane through the climb. Cylinder 1 joins at the corridor.
     const start = cyl === 1 ? spine.findIndex((p) => p.distanceTo(door) < 1) : 0;
     const owned = spine.slice(start).map((p, i) => {
       if (cyl === 2) return p;
-      if (cyl === 1) return p.clone().add(new THREE.Vector3(0, -8, 24));
+      const onHook = p.distanceTo(door) < 1 || p.distanceTo(under) < 1;
+      if (onHook) return p.clone().add(hookOff);
+      if (cyl === 1) return p.clone().add(hookOff);
       return p.clone().add(i === 0 && start === 0 ? laneOff : bundle);
     });
     return dedupe([...cover, ...owned, pre, gate, seat]);
