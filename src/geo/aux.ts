@@ -1475,10 +1475,32 @@ const LEAD_AXIS_T5 = 32;
 export const LEAD_TOWER: Record<number, number> = { 1: 0, 6: 5, 2: 4, 4: 3, 3: 2, 5: 1 };
 /**
  * Clip lanes, 14 mm apart, one eye per lead. Local +X is inboard on both banks.
- * Right bank, outboard to inboard: cylinder 1, 2, 3. Left bank, outboard to
- * inboard: cylinder 5, 6, 4.
+ * Each bank leaves the last holder in tower order, outboard to inboard, so the
+ * cap fan does not cross: right 3, 2, 1 and left 5, 6, 4.
  */
-const LEAD_LANE: Record<number, number> = { 1: 4, 2: 18, 3: 32, 4: 32, 5: 4, 6: 18 };
+const LEAD_LANE: Record<number, number> = { 1: 32, 2: 18, 3: 4, 4: 32, 5: 4, 6: 18 };
+/**
+ * Last turn onto the tower axis. `land` is how far out the straight starts,
+ * `axial`/`stand` place the corner off the axis, and `aoff` steers that corner
+ * within the tower's sector. The fillet trims `land`, so the measured run is shorter.
+ */
+export interface LeadFan {
+  land: Record<number, number>;
+  stand: Record<number, number>;
+  axial: Record<number, number>;
+  aoff: Record<number, number>;
+  /** Elevation of `aoff`, degrees above the horizon. Omitted means 0. */
+  el?: Record<number, number>;
+}
+const LEAD_FAN: LeadFan = {
+  land: { 1: 34, 2: 26, 3: 26, 4: 26, 5: 26, 6: 25 },
+  stand: { 1: 58, 2: 80, 3: 60, 4: 80, 5: 80, 6: 72 },
+  axial: { 1: 110, 2: 110, 3: 140, 4: 110, 5: 110, 6: 96 },
+  // Arrival azimuth. Cylinder 6 stays at 310, the open side of the vacuum hose.
+  // The others sit in the same tower order as the holders, so the straights do not cross.
+  aoff: { 1: 120, 2: 120, 3: 140, 4: 300, 5: 240, 6: 310 },
+  el: { 1: 0, 2: 12, 3: 0, 4: 12, 5: 0, 6: 0 },
+};
 const LEAD_LANE_MID: Record<1 | -1, number> = { 1: 18, '-1': 18 };
 const LEAD_CLIP_DX = [-14, 0, 14];
 /**
@@ -1649,22 +1671,19 @@ function coverLocal(cyl: number, mouth: THREE.Vector3, D: THREE.Vector3, lane: n
   if (cyl <= 3) {
     if (cyl === 1) {
       // The plug is past the cover and points at the pulley. The wire reverses,
-      // U-turns inboard of the other two leads, and comes back through the
-      // outboard eye with them.
+      // U-turns inboard of the loom, and comes back through the inboard eye.
       return [seat, ...cyl1Loop(mouth, D), tail];
     }
     const stub = mouth.clone().addScaledVector(D, cyl === 2 ? 12 : 18);
-    // Cylinder 2 levels on x 18 at the loom height (pitch 48, xAim −0.06).
-    // Cylinder 3 still has a long straight afterwards, so it can slew out to x 32.
-    const dive = rightDive(stub, D, cyl === 2 ? 48 : 50, cyl === 2 ? -0.06 : 0.5);
+    // Cylinder 2 levels on x 18 (pitch 48, xAim −0.06). Cylinder 3 aims outboard,
+    // onto x 4, so the loom leaves the holders in tower order.
+    const dive = rightDive(stub, D, cyl === 2 ? 48 : 50, cyl === 2 ? -0.06 : -0.45);
     const end = dive[dive.length - 1];
-    const tEnd = end.clone().sub(dive[dive.length - 2]).normalize();
-    const coast = end.clone().addScaledVector(tEnd, 18);
     // Already on the lane: one straight through both holders into the climb.
-    if (Math.abs(end.x - lane) < 1.2 && Math.abs(end.z - LEAD_ZL) < 1.2 && end.y < tail.y) return [seat, stub, ...dive, tail];
-    const slew = new THREE.Vector3(lane, Math.max(coast.y, end.y + 28), LEAD_ZL);
-    if (slew.y >= tail.y - 8) return [seat, stub, ...dive, coast, tail];
-    return [seat, stub, ...dive, coast, slew, tail];
+    if (Math.abs(end.x - lane) < 1.2 && Math.abs(end.z - LEAD_ZL) < 1.2 && end.y < tail.y - 30) return [seat, stub, ...dive, tail];
+    // An S onto the lane keeps the 28 mm radius. A sharp slew here was cut down below 21.
+    const onto = sCurve(end, new THREE.Vector3(0, 1, 0), new THREE.Vector3(lane - end.x, Math.max(0, tail.y - end.y - 50), LEAD_ZL - end.z), 32);
+    return [seat, stub, ...dive, ...onto, tail];
   }
   // The connector points at the flywheel, about 156° off the loom. Top End fixes
   // that direction, so the hook is the whole reversal. An S then shifts onto the
@@ -1686,26 +1705,30 @@ function coverLocal(cyl: number, mouth: THREE.Vector3, D: THREE.Vector3, lane: n
   // enough that the 28 mm fillet is not cut down below 21, so the tail runs
   // past the second eye to local y −184.
   const far = new THREE.Vector3(lane, cyl === 6 ? -184 : cyl === 5 ? -164 : -152, LEAD_ZL);
+  // Same climb for every lane, so the 14 mm spacing survives the turn off the cover.
+  // The turn toward the cap is about 128°. The leg has to clear 94 mm or the
+  // 28 mm fillet is cut down below 21.
+  const lift = far.clone().add(new THREE.Vector3(0, -100, 44));
   if (cyl === 6) {
     const high = 58;
     const shift = sCurve(end, target, new THREE.Vector3(lane - end.x, 0, high - zHi), 32);
     const dropAt = new THREE.Vector3(lane, -46, high);
     const drop = sCurve(dropAt, target, new THREE.Vector3(0, 0, LEAD_ZL - high), 32);
-    return [seat, stub, ...arc, ...shift, dropAt, ...drop, far];
+    return [seat, stub, ...arc, ...shift, dropAt, ...drop, far, lift];
   }
   if (cyl === 5) {
     const shift = sCurve(end, target, new THREE.Vector3(lane - end.x, 0, 0), 36);
     const dropAt = new THREE.Vector3(lane, -64, zHi);
     const drop = sCurve(dropAt, target, new THREE.Vector3(0, 0, LEAD_ZL - zHi), 36);
-    return [seat, stub, ...arc, ...shift, dropAt, ...drop, far];
+    return [seat, stub, ...arc, ...shift, dropAt, ...drop, far, lift];
   }
   const shift = sCurve(end, target, new THREE.Vector3(lane - end.x, 0, LEAD_ZL - zHi), 36);
-  return [seat, stub, ...arc, ...shift, far];
+  return [seat, stub, ...arc, ...shift, far, lift];
 }
 /**
- * Cylinder 1, cover-local, from the stub back onto lane x 4 at the loom height.
- * The plug points at the pulley, so the wire reverses, steps out to x 60, and
- * U-turns. The return drops onto the lane before either holder.
+ * Cylinder 1, cover-local, from the stub back onto lane x 32 at the loom height.
+ * The plug points at the pulley, so the wire reverses and U-turns inboard of
+ * the loom. The return drops onto the lane before either holder.
  */
 function cyl1Loop(mouth: THREE.Vector3, D: THREE.Vector3) {
   const stub = mouth.clone().addScaledVector(D, 14);
@@ -1719,13 +1742,13 @@ function cyl1Loop(mouth: THREE.Vector3, D: THREE.Vector3) {
   const sweep = D.angleTo(negY) * 180 / Math.PI;
   const rev = arcSamples(stub, D, bin, sweep, LEAD_BEND);
   const end = rev[rev.length - 1];
-  // U-turn 10 mm above the loom so it clears cylinder 3 on x 32. A 180° arc of
-  // 28 mm that starts at x 60 finishes on lane x 4. The drop back to the lane
-  // finishes before the first holder, so both eyes see a straight wire.
+  // U-turn 10 mm above the loom. A 180° arc of 28 mm that starts at x 88
+  // finishes on the inboard lane x 32, clear of the other two leads. The drop
+  // back to the lane finishes before the first holder, so both eyes see a straight wire.
   const yTurn = 100;
   const zTurn = LEAD_ZL + 10;
-  const shift = sCurve(end, negY, new THREE.Vector3(60 - end.x, 0, zTurn - end.z));
-  const u0 = new THREE.Vector3(60, yTurn, zTurn);
+  const shift = sCurve(end, negY, new THREE.Vector3(88 - end.x, 0, zTurn - end.z));
+  const u0 = new THREE.Vector3(88, yTurn, zTurn);
   const uArc = arcSamples(u0, negY, new THREE.Vector3(0, 0, -1), 180, LEAD_BEND);
   const back = uArc[uArc.length - 1];
   const drop = sCurve(back, posY, new THREE.Vector3(0, 0, LEAD_ZL - zTurn));
@@ -1742,21 +1765,24 @@ function approachDir(axis: THREE.Vector3, deg: number, az: number) {
     .addScaledVector(basisP, Math.sin(rad) * Math.cos(az * DEG))
     .addScaledVector(basisQ, Math.sin(rad) * Math.sin(az * DEG)).normalize();
 }
-/**
- * Explicit arrival onto the tower axis. `az`/`el` pick the side the arc bows
- * toward, so the fillet can sit off a hose that crosses the axis itself.
- * The straight after `land` is the axis run the test measures.
- */
-function safeArrival(mouth: THREE.Vector3, axis: THREE.Vector3, along: number, az: number, el: number, sweep: number, radius: number, leg: number) {
-  const into = axis.clone().negate().normalize();
-  const land = mouth.clone().addScaledVector(axis, along);
-  const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
-  const away = new THREE.Vector3(
+/** World direction the arrival arc bows toward, before it is projected off the rotor axis. */
+function azAway(az: number, el = 0) {
+  return new THREE.Vector3(
     Math.cos(el * DEG) * Math.cos(az * DEG),
     Math.cos(el * DEG) * Math.sin(az * DEG),
     Math.sin(el * DEG),
   );
-  away.addScaledVector(axis, -away.dot(axis)).normalize();
+}
+/**
+ * Explicit arrival onto the tower axis. The arc bows along `away` (projected
+ * off the axis), so neighbouring towers peel apart instead of crossing.
+ * The straight after the landing is the axis run the test measures.
+ */
+function safeArrival(mouth: THREE.Vector3, axis: THREE.Vector3, along: number, awayRaw: THREE.Vector3, sweep: number, radius: number, leg: number) {
+  const into = axis.clone().negate().normalize();
+  const land = mouth.clone().addScaledVector(axis, along);
+  const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
+  const away = awayRaw.clone().addScaledVector(axis, -awayRaw.dot(axis)).normalize();
   const H = into.clone().multiplyScalar(Math.cos(sweep * DEG)).addScaledVector(away, Math.sin(sweep * DEG)).normalize();
   const onto = arcOnto(land, H, into, radius);
   const pre = onto.start.clone().addScaledVector(H, -leg);
@@ -1876,86 +1902,45 @@ function rightCorridor(cyl: number, axis: THREE.Vector3, fr: ReturnType<typeof c
     own.gate,
   ];
 }
-export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
+/** One diagonal onto the tower: far enough off the axis to clear the vacuum hose, long enough that the fillet stays at 28 mm. */
+function approachPre(mouth: THREE.Vector3, axis: THREE.Vector3, cyl: number, fan: LeadFan) {
+  const gate = mouth.clone().addScaledVector(axis, fan.land[cyl]);
+  const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
+  const away = azAway(fan.aoff[cyl], fan.el?.[cyl] ?? 0);
+  away.addScaledVector(axis, -away.dot(axis)).normalize();
+  const pre = gate.clone().addScaledVector(axis, fan.axial[cyl]).addScaledVector(away, fan.stand[cyl]);
+  return [pre, gate, seat];
+}
+export function plugCorners(cyl: number, axis: THREE.Vector3, fan: LeadFan = LEAD_FAN): THREE.Vector3[] {
   const lane = LEAD_LANE[cyl];
   const bank: 1 | -1 = cyl <= 3 ? 1 : -1;
   const fr = coverFrame(bank);
   const { local, D } = mouthLocal(cyl, fr);
   const cover = coverLocal(cyl, local, D, lane).map((p) => toWorld(fr, p));
-  const tower = LEAD_TOWER[cyl];
-  const mouth = towerMouth(tower);
-  // Every tower stays on its axis for at least 20 mm. The arrival fillet trims
-  // the straight, so the waypoint sits further out than the measured run.
-  // Tower 5 cannot follow the others: the vacuum hose crosses that axis past
-  // about 31 mm, and 32 mm still clears 20 after the fillet.
-  const along = tower === 5 ? LEAD_AXIS_T5 : cyl >= 4 ? 46 : LEAD_AXIS;
-  const gate = mouth.clone().addScaledVector(axis, along);
-  const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
+  const mouth = towerMouth(LEAD_TOWER[cyl]);
   if (cyl <= 3) {
     // Climb in the cover's normal plane so the lane spacing survives it, then
-    // one shared run under the air cleaner. The last straight runs to the
-    // tower: a waypoint on it would split the leg and drop the fillet under 21.
+    // one shared run under the air cleaner. Lanes are already in tower order,
+    // so the bow is one rigid move and the fan does not cross.
     const climbTan = fr.v.clone().multiplyScalar(Math.cos(44 * DEG)).addScaledVector(fr.n, Math.sin(44 * DEG)).normalize();
     const ownTail = cover[cover.length - 1];
-    const u2 = approachDir(axis, 64, 170);
-    const pre2 = towerMouth(LEAD_TOWER[2]).clone().addScaledVector(axis, LEAD_AXIS).addScaledVector(u2, -42);
-    const underC = pre2.clone().addScaledVector(u2, -56);
-    // Cylinder 2's straight is the one that meets the air hose. Move that
-    // corner off the hose; the hose itself stays where it is.
-    if (cyl === 2) underC.add(new THREE.Vector3(-10, 1.6, -0.8));
-    const laneOff = fr.u.clone().multiplyScalar(LEAD_LANE[cyl] - 18);
-    const bundle = new THREE.Vector3(0, 20, -18).multiplyScalar(Math.sign(LEAD_LANE[cyl] - 18) || 0);
-    // Cylinder 1's bundle points down into the cover. Lift it back up the normal.
-    if (cyl === 1) bundle.addScaledVector(fr.n, 14);
+    const laneOff = fr.u.clone().multiplyScalar(lane - 18);
+    const bundle = new THREE.Vector3(0, 20, -18).multiplyScalar(Math.sign(lane - 18) || 0);
+    // The outboard bundle points down into the cover. Lift it back up the normal.
+    if (lane < 18) bundle.addScaledVector(fr.n, 14);
     const shift = bundle.clone().sub(laneOff);
     const bow = new THREE.Vector3(200, 272, 176).add(bundle);
-    const underP = underC.clone().add(cyl === 2 ? new THREE.Vector3() : bundle);
-    // Cylinder 1's straight to the tower crosses the air hose; cylinder 3's crosses
-    // the distributor vacuum hose. Slide those two corners off the hoses.
-    if (cyl === 1) underP.add(new THREE.Vector3(-24, -8, -16));
-    if (cyl === 3) underP.add(new THREE.Vector3(-8, 8, -8));
-    // The pure rise keeps the blend off the short straight out of the holders.
-    // Cylinder 2 has no blend, and a collinear point there would split the leg.
-    // All three reach the bow at the same station along the climb, so the turn is one
-    // rigid move. Cylinder 2 has no blend; the others spend the first 34 mm straight.
     const rise = shift.length() > 1 ? ownTail.clone().addScaledVector(climbTan, 28) : null;
-    const blend = cyl === 3 ? 58 : 52;
+    // Cylinder 1 turns about 100° at the top of the climb. The blend has to be
+    // longer than 56 mm or that fillet is cut down below 21.
+    const blend = cyl === 1 ? 84 : cyl === 3 ? 58 : 52;
     const p1 = (rise ?? ownTail).clone().addScaledVector(climbTan, rise ? blend : 86).add(shift);
     const head = [...cover, ...(rise ? [rise] : []), p1, bow];
-    // The old straight into the tower skimmed the distributor vacuum hose.
-    // Cylinder 1 bows toward azimuth 225, cylinder 2 toward 45; both land on
-    // the axis at 28 mm, which still measures past 20 after the fillet.
-    if (cyl === 1) return dedupe([...head, ...safeArrival(mouth, axis, 28, 225, 10, 50, 32, 70)]);
-    if (cyl === 2) return dedupe([...head, ...safeArrival(mouth, axis, 28, 45, 10, 50, 32, 70)]);
-    return dedupe([...head, underP, gate, seat]);
+    return dedupe([...head, ...approachPre(mouth, axis, cyl, fan)]);
   }
-  if (cyl === 6) {
-    // The vacuum hose crosses this axis past about 30 mm. Landing at 25 mm
-    // still measures past 20 after the fillet. The approach is 58 mm off the
-    // axis at azimuth 310, so the straight passes the hose instead of aiming
-    // through it.
-    const along6 = 25;
-    const gate6 = mouth.clone().addScaledVector(axis, along6);
-    const seat6 = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
-    const away = new THREE.Vector3(Math.cos(310 * DEG), Math.sin(310 * DEG), 0);
-    away.addScaledVector(axis, -away.dot(axis)).normalize();
-    const pre6 = gate6.clone().addScaledVector(axis, 75).addScaledVector(away, 58);
-    return dedupe([...cover, pre6, gate6, seat6]);
-  }
-  // Spread along the cover normal before turning inboard. Travel toward the cap
-  // is along the lane direction, which would pinch a 14 mm bundle; the normal
-  // offset survives that heading. The last leg stays near the rotor axis.
-  const tail = cover[cover.length - 1];
-  const into = axis.clone().negate();
-  const want = gate.clone().sub(tail).normalize();
-  // A sharp arrival trims the axis straight, which is why `along` sits past the
-  // 20 mm the run has to keep. Cylinder 6 still comes in from above the hose.
-  const aim = clampTurn(into, want, cyl === 6 ? 42 : 58);
-  const pre = gate.clone().addScaledVector(aim, cyl === 6 ? -70 : -64);
-  const spread = fr.n.clone().multiplyScalar(cyl === 4 ? 16 : cyl === 6 ? 8 : 0)
-    .add(new THREE.Vector3(cyl === 6 ? 14 : cyl === 4 ? -10 : 4, cyl === 5 ? -12 : -6, cyl === 6 ? 10 : cyl === 4 ? 12 : -8));
-  pre.add(spread);
-  return dedupe([...cover, pre, gate, seat]);
+  // Left bank. Cylinder 6 lands at 25 mm: the vacuum hose crosses that axis
+  // past about 30 mm, and 25 mm still measures past 20 after the fillet.
+  return dedupe([...cover, ...approachPre(mouth, axis, cyl, fan)]);
 }
 /**
  * Coil lead (#18) and primary (#9). The CD coil is on the left rear wing, not in
@@ -1974,15 +1959,27 @@ function serviceCorners(axis: THREE.Vector3): { coil: THREE.Vector3[]; primary: 
   return { coil, primary };
 }
 
+function plugLeadPoints(cyl: number, axis: THREE.Vector3, fan: LeadFan) {
+  return filleted(plugCorners(cyl, axis, fan).map((p) => [p.x, p.y, p.z] as V3), LEAD_BEND, 6).map((q) => v3(q));
+}
+/** Plug-lead centrelines for a fan variant. The cached runs use `LEAD_FAN`. */
+export function previewPlugRuns(fan: LeadFan = LEAD_FAN) {
+  const axis = v3(DIST_AXIS);
+  return [1, 2, 3, 4, 5, 6].map((cyl) => ({
+    cyl,
+    tower: LEAD_TOWER[cyl],
+    points: plugLeadPoints(cyl, axis, fan),
+  }));
+}
+
 let leadRunCache: LeadRun[] | null = null;
 /** Centre lines of the six plug leads, the coil lead and the primary. */
 export function ignitionLeadRuns(): LeadRun[] {
   if (leadRunCache) return leadRunCache;
   const axis = v3(DIST_AXIS);
   const runs: LeadRun[] = [];
-  for (const cyl of [1, 2, 3, 4, 5, 6]) {
-    const pts = filleted(plugCorners(cyl, axis).map((p) => [p.x, p.y, p.z] as V3), LEAD_BEND, 6).map((q) => v3(q));
-    runs.push({ name: `lead:${cyl}`, cyl, tower: LEAD_TOWER[cyl], radius: LEAD_R, points: pts });
+  for (const run of previewPlugRuns()) {
+    runs.push({ name: `lead:${run.cyl}`, cyl: run.cyl, tower: run.tower, radius: LEAD_R, points: run.points });
   }
   const svc = serviceCorners(axis);
   runs.push({

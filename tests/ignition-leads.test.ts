@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { findCollisions } from './collide';
 import { PLUG_CONNECTOR_TERMINAL } from '../src/geo/assets';
-import { ignitionLeadRuns, ignitionLeads, LEAD_R, LEAD_MIN_BEND, LEAD_TOWER, DIST, DIST_AXIS, DIST_MAT, distW } from '../src/geo/aux';
+import { ignitionLeadRuns, ignitionLeads, leadClipCenters, LEAD_R, LEAD_MIN_BEND, LEAD_TOWER, DIST, DIST_AXIS, DIST_MAT, distW } from '../src/geo/aux';
 import { activeFilter } from '../src/data/teardown';
 
 const INSERT = 6;
@@ -36,9 +36,39 @@ function segDist(a0: THREE.Vector3, a1: THREE.Vector3, b0: THREE.Vector3, b1: TH
   const tc = Math.abs(tN) < 1e-8 ? 0 : tN / tD;
   return a0.clone().addScaledVector(u, sc).distanceTo(b0.clone().addScaledVector(v, tc));
 }
+function segClosest(a0: THREE.Vector3, a1: THREE.Vector3, b0: THREE.Vector3, b1: THREE.Vector3) {
+  const u = a1.clone().sub(a0), v = b1.clone().sub(b0), w = a0.clone().sub(b0);
+  const a = u.dot(u), b = u.dot(v), c = v.dot(v), d = u.dot(w), e = v.dot(w);
+  const D = a * c - b * b;
+  let sN: number, sD = D, tN: number, tD = D;
+  if (D < 1e-8) { sN = 0; sD = 1; tN = e; tD = c; }
+  else {
+    sN = b * e - c * d; tN = a * e - b * d;
+    if (sN < 0) { sN = 0; tN = e; tD = c; }
+    else if (sN > sD) { sN = sD; tN = e + b; tD = c; }
+  }
+  if (tN < 0) { tN = 0; if (-d < 0) sN = 0; else if (-d > a) sN = sD; else { sN = -d; sD = a; } }
+  else if (tN > tD) { tN = tD; if (-d + b < 0) sN = 0; else if (-d + b > a) sN = sD; else { sN = -d + b; sD = a; } }
+  const sc = Math.abs(sN) < 1e-8 ? 0 : sN / sD;
+  const tc = Math.abs(tN) < 1e-8 ? 0 : tN / tD;
+  const pa = a0.clone().addScaledVector(u, sc);
+  const pb = b0.clone().addScaledVector(v, tc);
+  return { d: pa.distanceTo(pb), pa, pb };
+}
 function minSep(a: THREE.Vector3[], b: THREE.Vector3[]) {
   let m = Infinity;
   for (let i = 1; i < a.length; i++) for (let j = 1; j < b.length; j++) m = Math.min(m, segDist(a[i - 1], a[i], b[j - 1], b[j]));
+  return m;
+}
+/** Centreline gap ignoring the run through a holder eye, where the lanes sit side by side. */
+function minSepOutsideHolders(a: THREE.Vector3[], b: THREE.Vector3[], clips: THREE.Vector3[]) {
+  const inHolder = (p: THREE.Vector3) => clips.some((c) => c.distanceTo(p) <= 20);
+  let m = Infinity;
+  for (let i = 1; i < a.length; i++) for (let j = 1; j < b.length; j++) {
+    const hit = segClosest(a[i - 1], a[i], b[j - 1], b[j]);
+    if (inHolder(hit.pa) && inHolder(hit.pb)) continue;
+    m = Math.min(m, hit.d);
+  }
   return m;
 }
 function towerMouth(i: number) {
@@ -151,6 +181,15 @@ describe.each([false, true])('ignition leads (emissions %s)', (emissions) => {
     for (const run of plugs) expect(minSep(coil.points, run.points), `coil/${run.name}`).toBeGreaterThanOrEqual(8);
     const lines = runs.map((r) => `${r.name} ${r.tower != null ? `tower ${r.tower}` : r.label ?? 'break'} ${lengthOf(r.points).toFixed(0)} mm, turn ${turningOf(r.points).toFixed(0)}°`);
     console.log(lines.join('\n'));
+  });
+
+  it('lead centrelines stay 7 mm apart outside a holder', () => {
+    // Inside a holder the three lanes run side by side, 14 mm apart, so the
+    // gap there is already past 7 mm. The fan beyond the last eye must not cross.
+    const clips = leadClipCenters();
+    for (let i = 0; i < plugs.length; i++) for (let j = i + 1; j < plugs.length; j++) {
+      expect(minSepOutsideHolders(plugs[i].points, plugs[j].points, clips), `${plugs[i].name}/${plugs[j].name}`).toBeGreaterThanOrEqual(7);
+    }
   });
 
   it('right-bank leads stay under 1200 mm and left-bank leads under 700 mm', () => {
