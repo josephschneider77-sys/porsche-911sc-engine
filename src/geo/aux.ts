@@ -1461,8 +1461,12 @@ function leadFootLength(bank: 1 | -1, y: number, lane: number) {
 }
 /** Straight run along the cap axis, outside the mouth, before the wire leaves it. */
 const LEAD_AXIS = 40;
-/** Tower 5 meets the distributor vacuum hose past about 31 mm, so it turns off at 28 mm. */
-const LEAD_AXIS_T5 = 22;
+/**
+ * Tower 5 meets the distributor vacuum hose past about 31 mm. The fillet at the
+ * arrival trims several millimetres, so the straight starts at 32 mm and the
+ * measured run — which has to be at least 20 — lands near 26.
+ */
+const LEAD_AXIS_T5 = 32;
 /**
  * Firing order 1-6-2-4-3-5, counted in the cap's rotation direction.
  * Rotation is CCW looking down the cap (along −local Y), so successive towers
@@ -1857,11 +1861,11 @@ export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
   const cover = coverLocal(cyl, local, D, lane).map((p) => toWorld(fr, p));
   const tower = LEAD_TOWER[cyl];
   const mouth = towerMouth(tower);
-  // Tower 5 meets the vacuum hose past about 28 mm. The other left towers
-  // measure a few millimetres more than `along` because the arrival arc is
-  // still inside the 0.5 mm band, so 34 mm lands the run inside 22–40.
-  // Tower 5 meets the distributor vacuum hose past about 28 mm, so it turns off at 22.
-  const along = tower === 5 ? LEAD_AXIS_T5 : cyl >= 4 ? 34 : LEAD_AXIS;
+  // Every tower stays on its axis for at least 20 mm. The arrival fillet trims
+  // the straight, so the waypoint sits further out than the measured run.
+  // Tower 5 cannot follow the others: the vacuum hose crosses that axis past
+  // about 31 mm, and 32 mm still clears 20 after the fillet.
+  const along = tower === 5 ? LEAD_AXIS_T5 : cyl >= 4 ? 46 : LEAD_AXIS;
   const gate = mouth.clone().addScaledVector(axis, along);
   const seat = mouth.clone().addScaledVector(axis, -LEAD_INSERT);
   if (cyl <= 3) {
@@ -1902,8 +1906,8 @@ export function plugCorners(cyl: number, axis: THREE.Vector3): THREE.Vector3[] {
   const tail = cover[cover.length - 1];
   const into = axis.clone().negate();
   const want = gate.clone().sub(tail).normalize();
-  // A sharp arrival eats the short axis run, and cylinder 6's straight meets the
-  // vacuum hose. Stay close to the rotor axis and come in from above the hose.
+  // A sharp arrival trims the axis straight, which is why `along` sits past the
+  // 20 mm the run has to keep. Cylinder 6 still comes in from above the hose.
   const aim = clampTurn(into, want, cyl === 6 ? 42 : 58);
   const pre = gate.clone().addScaledVector(aim, cyl === 6 ? -70 : -64);
   const spread = fr.n.clone().multiplyScalar(cyl === 4 ? 16 : cyl === 6 ? 8 : 0)
