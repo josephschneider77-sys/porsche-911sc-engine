@@ -1372,8 +1372,8 @@ def('ignition-lead-holders', () => {
   // 901 609 591 00. Three eyes, 14 mm apart, on the 7 mm leads. The eye bore is
   // 4.7 mm, so the clip bites the jacket by about 1.2 mm and lets go under a 2 mm erosion.
   // Every holder sits on the same three lanes, so the three feet are the same lengths
-  // on all four clips. Each foot stops 2.6 mm short of the estimated skin: that is the
-  // closest it can sit and still clear a 2 mm and a 3.5 mm erosion.
+  // on all four clips. Each foot stops 2.6 mm short of the estimated skin. The leg is
+  // only 2.8 mm by 2.6 mm, so a 3.5 mm erosion still meets both upper covers.
   const spec = leadHolderSpecs()[0];
   const h = new Part();
   for (const foot of spec.feet) {
