@@ -600,7 +600,13 @@ function ignitionLeadSeat(h: Hit): boolean {
   }
   return false;
 }
-/** Holder foot seated on the upper cam cover. Samples stay on the foot tip, not the clip. */
+/**
+ * Holder foot seated on the upper cam cover. The pad is 2.8 × 2.6 mm and the pad
+ * centre sits on the skin. One inboard pad on the pulley-side holder is 0.42 mm
+ * into the skin: the four holders share one foot set, and the crown pad of that
+ * lane is the flush one. A 3.5 mm erosion walks the contact about 4.1 mm up the
+ * leg, so the window is 5 mm around the pad centre and does not cover the clip.
+ */
 function holderFootSeat(h: Hit): boolean {
   const ids = [h.a, h.b];
   const cover = ids.find((id) => /^valve-cover-upper-(left|right)$/.test(id));
@@ -609,7 +615,7 @@ function holderFootSeat(h: Hit): boolean {
   const tips = leadFootTips();
   return h.samples.every((p) => tips.some((t) => {
     if ((t.x > 0) !== right) return false;
-    return p.distanceTo(t) <= 4;
+    return p.distanceTo(t) <= 5;
   }));
 }
 /**

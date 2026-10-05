@@ -15,7 +15,7 @@ import { CAM_X, CYL_Z, DECK_X, CYL_TOP_X, HEAD_OUT_X, INT_SHAFT_Y, INJ, CASE_Z, 
 import { LIP_Z } from './stations';
 import { plugCoverLocal, railJogs, camHousing, pocketValveCover, valveSet, rockers } from './valvetrain';
 import { paintSealRing } from './sealRing';
-import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R, sparkPlug, sparkPlugConnector, leadHolderSpecs, leadHolderFrames } from './aux';
+import { FLY_Z, EXH_PORT, THERMO, DIST_AXIS, distW, WUR, AIRBOX, SUMP, OIL_PUMP, OIL_COOLER, FAN, SHROUD, airCleanerLayout, airboxSnoutSamples, SNOUT_R, sparkPlug, sparkPlugConnector, leadHolderFrames, LEAD_FOOT_LEN } from './aux';
 import { VARIANT } from '../data/variant';
 import { PARTS } from '../data/parts';
 import { catalyticConverterPart, registerAncillarySmall } from './bottomAnc';
@@ -1371,17 +1371,14 @@ def('distributor-oring', () => oring(13.2, 1.55), () => [M(V(...distW(0, 63.1, 0
 def('ignition-lead-holders', () => {
   // 901 609 591 00. Three eyes, 14 mm apart, on the 7 mm leads. The eye bore is
   // 4.7 mm, so the clip bites the jacket by about 1.2 mm and lets go under a 2 mm erosion.
-  // Every holder sits on the same three lanes, so the three feet are the same lengths
-  // on all four clips. Each foot stops 2.6 mm short of the estimated skin. The leg is
-  // only 2.8 mm by 2.6 mm, so a 3.5 mm erosion still meets both upper covers.
-  const spec = leadHolderSpecs()[0];
-  const h = new Part();
-  for (const foot of spec.feet) {
-    h.add(torus(3.75, 1.4, 8, 20).translate(foot.x, 0, 0), 'blackPlastic');
-    h.add(boxMM([foot.x - 1.4, -foot.len, -1.3], [foot.x + 1.4, -4.8, 1.3]), 'blackPlastic');
+  // Each foot is its own length so the pad centre sits on the cover, not above it.
+  const p = new Part();
+  for (const x of [-14, 0, 14]) {
+    p.add(torus(3.75, 1.4, 8, 20).translate(x, 0, 0), 'blackPlastic');
+    p.add(boxMM([x - 1.4, -LEAD_FOOT_LEN[x], -1.3], [x + 1.4, -4.8, 1.3]), 'blackPlastic');
   }
-  h.add(boxMM([-16, 4.6, -1.2], [16, 6.4, 1.2]), 'blackPlastic');
-  return h;
+  p.add(boxMM([-16, 4.6, -1.2], [16, 6.4, 1.2]), 'blackPlastic');
+  return p;
 }, () => leadHolderFrames());
 def('shroud-speed-nuts', () => { const p = new Part(); p.add(box(18, 1, 22).translate(0, 0.5, 0), 'darkSteel'); return p; }, () => LIP_Z.right.map((z) => M(V(SHROUD.bx - SHROUD.lipW / 2, SHROUD.skirtY, z), V(0, -1, 0))));
 def('shroud-cover-plate', () => { const p = new Part(); const g = extrudeC(roundRect(60, 40, 5), 1.5); g.rotateX(Math.PI / 2); g.translate(0, 0.75, 0); p.add(g, 'satinBlack'); return p; }, () => [onSurf('upper-air-guide', V(50, 400, -120), V(0, -1, 0))]);
